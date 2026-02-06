@@ -124,9 +124,23 @@ class GameController:
         if not self.is_initialized():
             raise RuntimeError("Emulator not initialized. Call initialize() first.")
         
-        # Get screen through botsupport manager
-        screen = self.pyboy.botsupport_manager().screen()
-        frame = screen.screen_ndarray()
+        # Get screen from PyBoy - use screen_ndarray() directly
+        # This works with newer PyBoy versions (2.x+)
+        try:
+            # Try the newer API first (direct method on PyBoy)
+            frame = self.pyboy.screen.ndarray
+        except AttributeError:
+            # Fallback to older API
+            try:
+                frame = self.pyboy.botsupport_manager().screen().screen_ndarray()
+            except AttributeError:
+                # Last resort - try screen_ndarray directly
+                frame = self.pyboy.screen_ndarray()
+        
+        # Handle RGBA (4 channels) by dropping the alpha channel
+        if frame.ndim == 3 and frame.shape[2] == 4:
+            # Drop the alpha channel to get RGB
+            frame = frame[:, :, :3]
         
         return frame
     

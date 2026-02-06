@@ -473,4 +473,4 @@ def get_state_manager() -> StateManager:
 
 
 # Module-level convenience reference
-state_manager = get_state_manager
+state_manager = get_state_manager()

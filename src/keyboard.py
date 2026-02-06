@@ -258,9 +258,10 @@ def create_help_text() -> str:
     text += "\n*Commands:*\n"
     text += "/start_game - Start or restart the game\n"
     text += "/current_frame - Show current frame\n"
+    text += "/print - Capture screenshot without keyboard\n"
     text += "/save [slot] - Save game to slot\n"
     text += "/load [slot] - Load game from slot\n"
     text += "/status - Show game status\n"
     text += "/help - Show this help message"
-    
+
     return text

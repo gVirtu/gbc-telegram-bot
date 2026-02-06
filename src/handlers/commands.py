@@ -348,6 +348,48 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     )
 
 
+async def print_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /print command.
+
+    Sends the current game frame as a new media message without advancing
+    frames and without the input keyboard. Useful for capturing screenshots.
+    """
+    if not _check_chat_allowed(update):
+        await update.message.reply_text(
+            "❌ This bot is not authorized for this chat."
+        )
+        return
+
+    chat_id = update.effective_chat.id
+
+    # Check if game is active
+    controller = game_controller_manager.get_controller(chat_id)
+    if not controller or not controller.is_initialized():
+        await update.message.reply_text(
+            "No active game! Use /start_game to begin playing."
+        )
+        return
+
+    try:
+        # Get current frame without advancing/ticking
+        png_buffer = controller.get_frame_as_png()
+
+        # Send as new photo message without keyboard
+        await context.bot.send_photo(
+            chat_id=chat_id,
+            photo=png_buffer,
+            caption="🖨️ Game screenshot",
+        )
+
+        logger.info(f"Sent print frame for chat {chat_id}")
+
+    except Exception as e:
+        logger.error(f"Error printing frame for chat {chat_id}: {e}")
+        await update.message.reply_text(
+            "❌ Failed to capture screenshot. Please try again."
+        )
+
+
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /help command.
     
@@ -373,6 +415,7 @@ async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 COMMAND_HANDLERS = {
     "start_game": start_game_command,
     "current_frame": current_frame_command,
+    "print": print_command,
     "save": save_command,
     "load": load_command,
     "status": status_command,

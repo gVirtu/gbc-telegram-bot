@@ -76,23 +76,24 @@ async def start_game_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
 
 
-async def current_frame_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle /current_frame command.
-    
-    Shows the current game frame. If input is being processed,
-    shows a message indicating that.
+async def resume_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /resume command.
+
+    Resumes the game by removing the keyboard from the old message
+    and sending a new game message with the current frame.
+    Unlike /start_game, this does not restart the game.
     """
     if not _check_chat_allowed(update):
         await update.message.reply_text(
             "❌ This bot is not authorized for this chat."
         )
         return
-    
+
     chat_id = update.effective_chat.id
-    
+
     try:
         handler = get_input_handler(context.bot)
-        
+
         # Check if there's an active game
         controller = game_controller_manager.get_controller(chat_id)
         if not controller or not controller.is_initialized():
@@ -100,28 +101,28 @@ async def current_frame_command(update: Update, context: ContextTypes.DEFAULT_TY
                 "No active game! Use /start_game to begin playing."
             )
             return
-        
+
         # Check if input is in progress
         if handler.is_input_in_progress(chat_id):
             await update.message.reply_text(
                 "⏳ Input is being processed. Please wait..."
             )
             return
-        
-        # Show current frame
-        message_id = await handler.show_current_frame(chat_id)
-        
+
+        # Resume game - remove old keyboard, send new message
+        message_id = await handler.resume_game(chat_id)
+
         if message_id:
-            logger.info(f"Showed current frame for chat {chat_id}")
+            logger.info(f"Resumed game for chat {chat_id}")
         else:
             await update.message.reply_text(
-                "❌ Failed to show current frame. Try /start_game first."
+                "❌ Failed to resume game. Try /start_game first."
             )
-        
+
     except Exception as e:
-        logger.error(f"Error showing frame for chat {chat_id}: {e}")
+        logger.error(f"Error resuming game for chat {chat_id}: {e}")
         await update.message.reply_text(
-            "❌ Error showing current frame. Please try again."
+            "❌ Error resuming game. Please try again."
         )
 
 
@@ -414,7 +415,7 @@ async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 # Command handlers dictionary for easy registration
 COMMAND_HANDLERS = {
     "start_game": start_game_command,
-    "current_frame": current_frame_command,
+    "resume": resume_command,
     "print": print_command,
     "save": save_command,
     "load": load_command,

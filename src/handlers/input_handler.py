@@ -400,7 +400,63 @@ class InputHandler:
             self._create_session(chat_id, message.message_id)
         
         return message.message_id
-    
+
+    async def resume_game(self, chat_id: int) -> Optional[int]:
+        """Resume the game by sending a new message with keyboard.
+
+        Removes the keyboard from the old game message and sends a new
+        message with the current frame and input keyboard. Unlike
+        start_game, this does not restart the game.
+
+        Args:
+            chat_id: Telegram chat ID
+
+        Returns:
+            Message ID of the new game message, or None if failed
+        """
+        session = self._get_session(chat_id)
+        controller = game_controller_manager.get_controller(chat_id)
+
+        if not controller or not controller.is_initialized():
+            return None
+
+        # Get current frame
+        png_buffer = controller.get_frame_as_png()
+
+        # Remove keyboard from old message if it exists
+        if session and session.state.message_id:
+            try:
+                await self.bot.edit_message_reply_markup(
+                    chat_id=chat_id,
+                    message_id=session.state.message_id,
+                    reply_markup=None,
+                )
+            except TelegramError:
+                # Old message might be deleted or inaccessible, continue anyway
+                pass
+
+        # Send new message with keyboard
+        from src.keyboard import create_game_message_text
+
+        message = await self.bot.send_photo(
+            chat_id=chat_id,
+            photo=png_buffer,
+            caption=create_game_message_text(),
+            reply_markup=create_input_keyboard(),
+            parse_mode="Markdown",
+        )
+
+        # Update session with new message ID
+        if session:
+            session.state.message_id = message.message_id
+            state_manager.save_game_state(session.state)
+        else:
+            self._create_session(chat_id, message.message_id)
+
+        logger.info(f"Resumed game for chat {chat_id}, new message {message.message_id}")
+
+        return message.message_id
+
     def is_input_in_progress(self, chat_id: int) -> bool:
         """Check if input is currently being processed for a chat.
         

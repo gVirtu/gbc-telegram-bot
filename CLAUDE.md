@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-A Telegram bot that lets group chats collaboratively play Pokemon Red. Users press inline keyboard buttons (first vote wins), the bot runs the input through a headless PyBoy emulator, animates the result by editing the Telegram message, then re-enables the keyboard for the next input.
+A Telegram bot that lets group chats collaboratively play Gameboy games. Users press inline keyboard buttons (first vote wins), the bot runs the input through a headless PyBoy emulator, animates the result by editing the Telegram message, then re-enables the keyboard for the next input.
 
 ## Commands
 
@@ -58,7 +58,7 @@ Several modules use module-level singletons: `settings` (config proxy), `game_co
 
 ### Testing
 
-Tests use `PYTEST_CURRENT_TEST=1` to bypass `.env` file loading and ROM existence checks. Config tests create temporary ROM files via `tmp_path`. pytest-asyncio is available for async tests.
+All features MUST be tested. Tests use `PYTEST_CURRENT_TEST=1` to bypass `.env` file loading and ROM existence checks. Config tests create temporary ROM files via `tmp_path`. pytest-asyncio is available for async tests.
 
 ## Environment Variables
 

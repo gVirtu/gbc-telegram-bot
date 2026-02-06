@@ -137,13 +137,13 @@ class WebhookHandler:
                 # Extract arguments
                 args = text.split()[1:] if len(text.split()) > 1 else []
                 
-                # Create context with args
+                # Create context with args - use the bot from telegram_app
                 class Context:
                     def __init__(self, bot, args):
                         self.bot = bot
                         self.args = args
                 
-                context = Context(message.bot, args)
+                context = Context(self.telegram_app.bot, args)
                 await handler(update, context)
             else:
                 # Unknown command

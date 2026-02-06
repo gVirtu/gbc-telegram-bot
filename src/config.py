@@ -4,6 +4,7 @@ This module provides centralized configuration management with environment varia
 support, type validation, and sensible defaults for the Telegram Pokémon Red Bot.
 """
 
+import os
 import hashlib
 import logging
 from functools import lru_cache
@@ -36,11 +37,12 @@ class Settings(BaseSettings):
         >>> webhook_path = settings.get_webhook_path()
     """
     
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore",
-    )
+    if not os.environ.get("PYTEST_CURRENT_TEST"):
+        model_config = SettingsConfigDict(
+            env_file=".env",
+            env_file_encoding="utf-8",
+            extra="ignore",
+        )
     
     # Required settings
     telegram_bot_token: SecretStr = Field(
@@ -162,7 +164,6 @@ class Settings(BaseSettings):
     def validate_rom_exists(self) -> "Settings":
         """Validate that ROM file exists if not in testing mode."""
         # Skip validation if we're in a test environment without ROM
-        import os
         if os.environ.get("PYTEST_CURRENT_TEST"):
             return self
             

@@ -66,25 +66,23 @@ class TestWebhookRoutes:
     def app(self):
         """Create FastAPI app."""
         handler = WebhookHandler()
-        
+
         # Mock the telegram app initialization
-        with patch("telegram.ext.ApplicationBuilder") as mock_builder:
-            mock_app = MagicMock()
-            mock_app.bot = MagicMock()
-            mock_builder.return_value.token.return_value.build.return_value = mock_app
-            
-            with patch("src.handlers.webhook.get_input_handler") as mock_get_handler:
-                mock_handler = MagicMock()
-                mock_handler.handle_button_press = AsyncMock()
-                mock_get_handler.return_value = mock_handler
-                
-                # Mock process_update to avoid complex Telegram mocking
-                with patch.object(handler, "process_update", new=AsyncMock()):
-                    app = handler.create_app()
-                    handler.telegram_app = mock_app
-                    handler.input_handler = mock_handler
-                    
-                    return app
+        mock_app = MagicMock()
+        mock_app.bot = MagicMock()
+
+        mock_handler = MagicMock()
+        mock_handler.handle_button_press = AsyncMock()
+
+        # Create app
+        app = handler.create_app()
+        handler.telegram_app = mock_app
+        handler.input_handler = mock_handler
+
+        # Attach handler for later patching
+        app.state.webhook_handler = handler
+
+        return app
     
     @pytest.fixture
     def client(self, app):
@@ -98,7 +96,7 @@ class TestWebhookRoutes:
         assert response.status_code == 200
         assert response.json()["status"] == "healthy"
     
-    def test_webhook_valid_callback(self, client):
+    def test_webhook_valid_callback(self, client, app):
         """Test webhook with valid callback query."""
         update_data = {
             "update_id": 123,
@@ -113,16 +111,19 @@ class TestWebhookRoutes:
                 "data": "a",
             },
         }
-        
-        with patch("src.handlers.webhook.settings") as mock_settings:
-            mock_settings.get_webhook_path.return_value = "/webhook/test"
-            
-            response = client.post("/webhook/test", json=update_data)
-            
+
+        # Get the actual webhook path from settings
+        from src.config import settings
+        webhook_path = settings.get_webhook_path()
+
+        # Mock process_update to avoid complex parsing
+        with patch.object(app.state.webhook_handler, "process_update", new=AsyncMock()):
+            response = client.post(webhook_path, json=update_data)
+
             assert response.status_code == 200
             assert response.json()["status"] == "ok"
     
-    def test_webhook_valid_command(self, client):
+    def test_webhook_valid_command(self, client, app):
         """Test webhook with valid command."""
         update_data = {
             "update_id": 123,
@@ -134,12 +135,15 @@ class TestWebhookRoutes:
                 "text": "/start_game",
             },
         }
-        
-        with patch("src.handlers.webhook.settings") as mock_settings:
-            mock_settings.get_webhook_path.return_value = "/webhook/test"
-            
-            response = client.post("/webhook/test", json=update_data)
-            
+
+        # Get the actual webhook path from settings
+        from src.config import settings
+        webhook_path = settings.get_webhook_path()
+
+        # Mock process_update to avoid complex parsing
+        with patch.object(app.state.webhook_handler, "process_update", new=AsyncMock()):
+            response = client.post(webhook_path, json=update_data)
+
             assert response.status_code == 200
             assert response.json()["status"] == "ok"
     
@@ -197,15 +201,19 @@ class TestUpdateProcessing:
         mock_update = MagicMock()
         mock_update.callback_query = MagicMock()
         mock_update.callback_query.data = "a"
+        mock_update.callback_query.message = MagicMock()
+        mock_update.callback_query.message.chat.id = 123456
         mock_update.message = None
-        
+
         with patch("telegram.Update.de_json", return_value=mock_update):
-            update_data = {"update_id": 123, "callback_query": {"data": "a"}}
-            
-            await handler.process_update(update_data)
-            
-            # Should call input handler for button press
-            handler.input_handler.handle_button_press.assert_called_once()
+            with patch("src.handlers.webhook.settings") as mock_settings:
+                mock_settings.allowed_chat_ids = []  # Allow all chats
+                update_data = {"update_id": 123, "callback_query": {"data": "a"}}
+
+                await handler.process_update(update_data)
+
+                # Should call input handler for button press
+                handler.input_handler.handle_button_press.assert_called_once()
     
     @pytest.mark.asyncio
     async def test_process_command(self, handler):
@@ -214,15 +222,18 @@ class TestUpdateProcessing:
         mock_update.callback_query = None
         mock_update.message = MagicMock()
         mock_update.message.text = "/help"
-        
+        mock_update.message.chat.id = 123456
+        mock_update.message.reply_text = AsyncMock()
+
         with patch("telegram.Update.de_json", return_value=mock_update):
-            with patch("src.handlers.commands.help_command") as mock_help:
-                mock_help.return_value = AsyncMock()
-                
+            with patch("src.handlers.webhook.settings") as mock_settings:
+                mock_settings.allowed_chat_ids = []  # Allow all chats
+
                 update_data = {"update_id": 123, "message": {"text": "/help"}}
                 await handler.process_update(update_data)
-                
-                mock_help.assert_called_once()
+
+                # Check that reply_text was called
+                mock_update.message.reply_text.assert_called_once()
     
     @pytest.mark.asyncio
     async def test_process_unknown_command(self, handler):
@@ -231,16 +242,19 @@ class TestUpdateProcessing:
         mock_update.callback_query = None
         mock_update.message = MagicMock()
         mock_update.message.text = "/unknown_command"
+        mock_update.message.chat.id = 123456
         mock_update.message.bot = MagicMock()
-        
+
         with patch("telegram.Update.de_json", return_value=mock_update):
-            with patch("src.handlers.commands.unknown_command") as mock_unknown:
-                mock_unknown.return_value = AsyncMock()
-                
-                update_data = {"update_id": 123, "message": {"text": "/unknown_command"}}
-                await handler.process_update(update_data)
-                
-                mock_unknown.assert_called_once()
+            with patch("src.handlers.webhook.settings") as mock_settings:
+                mock_settings.allowed_chat_ids = []  # Allow all chats
+                with patch("src.handlers.commands.unknown_command") as mock_unknown:
+                    mock_unknown.return_value = AsyncMock()
+
+                    update_data = {"update_id": 123, "message": {"text": "/unknown_command"}}
+                    await handler.process_update(update_data)
+
+                    mock_unknown.assert_called_once()
     
     @pytest.mark.asyncio
     async def test_process_refresh_callback(self, handler):
@@ -248,16 +262,20 @@ class TestUpdateProcessing:
         mock_update = MagicMock()
         mock_update.callback_query = MagicMock()
         mock_update.callback_query.data = "refresh"
+        mock_update.callback_query.message = MagicMock()
+        mock_update.callback_query.message.chat.id = 123456
         mock_update.message = None
-        
+
         with patch("telegram.Update.de_json", return_value=mock_update):
-            with patch("src.handlers.commands.current_frame_command") as mock_refresh:
-                mock_refresh.return_value = AsyncMock()
-                
-                update_data = {"update_id": 123, "callback_query": {"data": "refresh"}}
-                await handler.process_update(update_data)
-                
-                mock_refresh.assert_called_once()
+            with patch("src.handlers.webhook.settings") as mock_settings:
+                mock_settings.allowed_chat_ids = []  # Allow all chats
+                with patch("src.handlers.commands.resume_command") as mock_refresh:
+                    mock_refresh.return_value = AsyncMock()
+
+                    update_data = {"update_id": 123, "callback_query": {"data": "refresh"}}
+                    await handler.process_update(update_data)
+
+                    mock_refresh.assert_called_once()
 
 
 class TestSingleton:

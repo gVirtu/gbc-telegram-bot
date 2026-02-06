@@ -89,8 +89,8 @@ class WebhookHandler:
             await self.input_handler.handle_button_press(callback_query)
         elif callback_data == "refresh":
             # Handle refresh request
-            from src.handlers.commands import current_frame_command
-            await current_frame_command(update, callback_query)
+            from src.handlers.commands import resume_command
+            await resume_command(update, callback_query)
         elif callback_data == "help":
             # Handle help request
             from src.handlers.commands import help_command

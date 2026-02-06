@@ -7,7 +7,7 @@ ensuring all components work together correctly.
 import os
 import pytest
 from io import BytesIO
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 # Set environment variables before importing
 os.environ["TELEGRAM_BOT_TOKEN"] = "test_token_1234567890"
@@ -34,12 +34,10 @@ class TestEndToEndGameFlow:
         with patch("src.game.PyBoy") as mock_pyboy_class:
             # Setup mock PyBoy
             mock_pyboy = MagicMock()
-            mock_screen = MagicMock()
             mock_frame = np.zeros((144, 160, 3), dtype=np.uint8)
-            mock_screen.screen_ndarray.return_value = mock_frame
-            mock_bot = MagicMock()
-            mock_bot.screen.return_value = mock_screen
-            mock_pyboy.botsupport_manager.return_value = mock_bot
+            mock_screen = MagicMock()
+            type(mock_screen).ndarray = PropertyMock(return_value=mock_frame)
+            mock_pyboy.screen = mock_screen
             mock_pyboy_class.return_value = mock_pyboy
             
             with patch("telegram.Bot") as mock_bot_class:
@@ -114,12 +112,10 @@ class TestSaveLoadIntegration:
         """Test saving and loading game state."""
         with patch("src.game.PyBoy") as mock_pyboy_class:
             mock_pyboy = MagicMock()
-            mock_screen = MagicMock()
             mock_frame = np.zeros((144, 160, 3), dtype=np.uint8)
-            mock_screen.screen_ndarray.return_value = mock_frame
-            mock_bot = MagicMock()
-            mock_bot.screen.return_value = mock_screen
-            mock_pyboy.botsupport_manager.return_value = mock_bot
+            mock_screen = MagicMock()
+            type(mock_screen).ndarray = PropertyMock(return_value=mock_frame)
+            mock_pyboy.screen = mock_screen
             mock_pyboy_class.return_value = mock_pyboy
             
             with patch("telegram.Bot") as mock_bot_class:

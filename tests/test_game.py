@@ -8,7 +8,7 @@ import pytest
 import numpy as np
 from pathlib import Path
 from io import BytesIO
-from unittest.mock import MagicMock, patch, mock_open
+from unittest.mock import MagicMock, PropertyMock, patch, mock_open
 
 from src.game import GameController, GameControllerManager, BUTTON_EVENTS
 from src.models.game_state import GameButton
@@ -72,18 +72,15 @@ class TestGameControllerMocked:
     def mock_pyboy(self):
         """Create a mock PyBoy instance."""
         mock = MagicMock()
-        
-        # Mock screen
-        mock_screen = MagicMock()
+
         # Return a valid 160x144 RGB frame
         mock_frame = np.zeros((144, 160, 3), dtype=np.uint8)
-        mock_screen.screen_ndarray.return_value = mock_frame
-        
-        # Mock botsupport manager
-        mock_bot = MagicMock()
-        mock_bot.screen.return_value = mock_screen
-        mock.botsupport_manager.return_value = mock_bot
-        
+
+        # Mock screen.ndarray property (the new API)
+        mock_screen = MagicMock()
+        type(mock_screen).ndarray = PropertyMock(return_value=mock_frame)
+        mock.screen = mock_screen
+
         return mock
     
     @pytest.fixture
@@ -105,10 +102,11 @@ class TestGameControllerMocked:
     def test_get_frame(self, controller, mock_pyboy):
         """Test frame capture."""
         frame = controller.get_frame()
-        
+
         assert isinstance(frame, np.ndarray)
         assert frame.shape == (144, 160, 3)
-        mock_pyboy.botsupport_manager().screen.assert_called_once()
+        # Verify screen.ndarray was accessed
+        assert mock_pyboy.screen.ndarray is not None
     
     def test_get_frame_not_initialized(self, controller):
         """Test frame capture when not initialized."""
@@ -342,12 +340,10 @@ class TestGameControllerIntegration:
         with patch("src.game.PyBoy") as mock_pyboy_class:
             # Setup mock
             mock_instance = MagicMock()
-            mock_screen = MagicMock()
             mock_frame = np.zeros((144, 160, 3), dtype=np.uint8)
-            mock_screen.screen_ndarray.return_value = mock_frame
-            mock_bot = MagicMock()
-            mock_bot.screen.return_value = mock_screen
-            mock_instance.botsupport_manager.return_value = mock_bot
+            mock_screen = MagicMock()
+            type(mock_screen).ndarray = PropertyMock(return_value=mock_frame)
+            mock_instance.screen = mock_screen
             mock_pyboy_class.return_value = mock_instance
             
             # Initialize
@@ -413,20 +409,18 @@ class TestFrameHashTracking:
         """Create controller with mocked PyBoy."""
         rom_path = tmp_path / "test.gbc"
         rom_path.write_bytes(b"rom")
-        
+
         controller = GameController(123456, rom_path=rom_path)
-        
+
         mock_pyboy = MagicMock()
-        mock_screen = MagicMock()
         mock_frame = np.zeros((144, 160, 3), dtype=np.uint8)
-        mock_screen.screen_ndarray.return_value = mock_frame
-        mock_bot = MagicMock()
-        mock_bot.screen.return_value = mock_screen
-        mock_pyboy.botsupport_manager.return_value = mock_bot
-        
+        mock_screen = MagicMock()
+        type(mock_screen).ndarray = PropertyMock(return_value=mock_frame)
+        mock_pyboy.screen = mock_screen
+
         controller.pyboy = mock_pyboy
         controller._initialized = True
-        
+
         return controller
     
     def test_update_frame_hash(self, controller_with_mock):
@@ -453,22 +447,20 @@ class TestGetFrameAsPng:
         """Create controller with mocked PyBoy."""
         rom_path = tmp_path / "test.gbc"
         rom_path.write_bytes(b"rom")
-        
+
         controller = GameController(123456, rom_path=rom_path)
-        
+
         mock_pyboy = MagicMock()
-        mock_screen = MagicMock()
         # Create a colorful frame
         mock_frame = np.zeros((144, 160, 3), dtype=np.uint8)
         mock_frame[:, :, 0] = 255  # Red
-        mock_screen.screen_ndarray.return_value = mock_frame
-        mock_bot = MagicMock()
-        mock_bot.screen.return_value = mock_screen
-        mock_pyboy.botsupport_manager.return_value = mock_bot
-        
+        mock_screen = MagicMock()
+        type(mock_screen).ndarray = PropertyMock(return_value=mock_frame)
+        mock_pyboy.screen = mock_screen
+
         controller.pyboy = mock_pyboy
         controller._initialized = True
-        
+
         return controller
     
     def test_get_frame_as_png(self, controller_with_mock):

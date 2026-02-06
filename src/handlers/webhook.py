@@ -150,6 +150,34 @@ class WebhookHandler:
                 from src.handlers.commands import unknown_command
                 await unknown_command(update, None)
     
+    def _get_chat_id(self, update: Update) -> int | None:
+        """Extract chat ID from an update.
+        
+        Args:
+            update: Telegram Update object
+            
+        Returns:
+            Chat ID or None if not found
+        """
+        if update.callback_query and update.callback_query.message:
+            return update.callback_query.message.chat.id
+        elif update.message:
+            return update.message.chat.id
+        return None
+    
+    def _is_chat_allowed(self, chat_id: int) -> bool:
+        """Check if a chat is allowed to interact with the bot.
+        
+        Args:
+            chat_id: Telegram chat ID
+            
+        Returns:
+            True if allowed, False otherwise
+        """
+        if not settings.allowed_chat_ids:
+            return True
+        return chat_id in settings.allowed_chat_ids
+    
     async def process_update(self, update_data: dict) -> None:
         """Process a Telegram update.
         
@@ -158,6 +186,15 @@ class WebhookHandler:
         """
         try:
             update = Update.de_json(update_data, self.telegram_app.bot)
+            
+            chat_id = self._get_chat_id(update)
+            if chat_id is None:
+                logger.warning("Could not extract chat ID from update")
+                return
+            
+            if not self._is_chat_allowed(chat_id):
+                logger.debug(f"Ignored update from unauthorized chat {chat_id}")
+                return
             
             if update.callback_query:
                 await self._handle_callback_query(update)

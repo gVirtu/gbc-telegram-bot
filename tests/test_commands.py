@@ -172,11 +172,14 @@ class TestSaveCommand:
         with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
             mock_mgr.get_controller.return_value = None
             
-            await save_command(update, context)
-            
-            update.message.reply_text.assert_called_with(
-                "No active game! Use /start_game first."
-            )
+            with patch("src.handlers.commands.settings") as mock_settings:
+                mock_settings.allowed_chat_ids = []
+                
+                await save_command(update, context)
+                
+                update.message.reply_text.assert_called_with(
+                    "No active game! Use /start_game first."
+                )
     
     @pytest.mark.asyncio
     async def test_save_to_specific_slot(self, update, context):
@@ -193,11 +196,15 @@ class TestSaveCommand:
                 mock_state.save_to_slot = MagicMock()
                 mock_state.list_save_slots = MagicMock(return_value=[])
                 
-                await save_command(update, context)
-                
-                mock_state.save_to_slot.assert_called_once()
-                call_args = mock_state.save_to_slot.call_args
-                assert call_args[1]["slot_number"] == 2
+                with patch("src.handlers.commands.settings") as mock_settings:
+                    mock_settings.allowed_chat_ids = []
+                    mock_settings.save_slots = 5
+                    
+                    await save_command(update, context)
+                    
+                    mock_state.save_to_slot.assert_called_once()
+                    call_args = mock_state.save_to_slot.call_args
+                    assert call_args[1]["slot_number"] == 2
     
     @pytest.mark.asyncio
     async def test_save_invalid_slot(self, update, context):
@@ -211,6 +218,7 @@ class TestSaveCommand:
             
             with patch("src.handlers.commands.settings") as mock_settings:
                 mock_settings.save_slots = 5
+                mock_settings.allowed_chat_ids = []
                 
                 await save_command(update, context)
                 
@@ -235,6 +243,7 @@ class TestSaveCommand:
                 
                 with patch("src.handlers.commands.settings") as mock_settings:
                     mock_settings.save_slots = 5
+                    mock_settings.allowed_chat_ids = []
                     
                     await save_command(update, context)
                     

@@ -27,12 +27,33 @@ from src.utils.state_manager import state_manager
 logger = logging.getLogger(__name__)
 
 
+def _check_chat_allowed(update: Update) -> bool:
+    """Check if the chat is allowed to use the bot.
+    
+    Args:
+        update: Telegram Update object
+        
+    Returns:
+        True if chat is allowed, False otherwise
+    """
+    chat_id = update.effective_chat.id
+    if not settings.allowed_chat_ids:
+        return True
+    return chat_id in settings.allowed_chat_ids
+
+
 async def start_game_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /start_game command.
     
     Initializes a new game or restarts an existing one.
     Loads the initial save state and sends the first frame.
     """
+    if not _check_chat_allowed(update):
+        await update.message.reply_text(
+            "❌ This bot is not authorized for this chat."
+        )
+        return
+    
     chat_id = update.effective_chat.id
     
     await update.message.reply_text("🎮 Starting Pokémon Red...")
@@ -61,6 +82,12 @@ async def current_frame_command(update: Update, context: ContextTypes.DEFAULT_TY
     Shows the current game frame. If input is being processed,
     shows a message indicating that.
     """
+    if not _check_chat_allowed(update):
+        await update.message.reply_text(
+            "❌ This bot is not authorized for this chat."
+        )
+        return
+    
     chat_id = update.effective_chat.id
     
     try:
@@ -105,6 +132,12 @@ async def save_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     Usage: /save [slot_number]
     If no slot specified, uses the next available slot.
     """
+    if not _check_chat_allowed(update):
+        await update.message.reply_text(
+            "❌ This bot is not authorized for this chat."
+        )
+        return
+    
     chat_id = update.effective_chat.id
     
     # Check if game is active
@@ -177,6 +210,12 @@ async def load_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     Usage: /load [slot_number]
     If no slot specified, shows available slots.
     """
+    if not _check_chat_allowed(update):
+        await update.message.reply_text(
+            "❌ This bot is not authorized for this chat."
+        )
+        return
+    
     chat_id = update.effective_chat.id
     
     # Check if game is active
@@ -263,6 +302,12 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     - Current input status
     - Save slot information
     """
+    if not _check_chat_allowed(update):
+        await update.message.reply_text(
+            "❌ This bot is not authorized for this chat."
+        )
+        return
+    
     chat_id = update.effective_chat.id
     
     lines = ["📊 *Game Status*\n"]

@@ -14,6 +14,15 @@ from pydantic import Field, HttpUrl, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def _parse_chat_ids(value: str | list[str]) -> list[int]:
+    """Parse allowed chat IDs from environment variable."""
+    if not value:
+        return []
+    if isinstance(value, list):
+        return [int(x) for x in value]
+    return [int(x.strip()) for x in value.split(",") if x.strip()]
+
+
 class Settings(BaseSettings):
     """Application settings with environment variable support.
     
@@ -121,6 +130,11 @@ class Settings(BaseSettings):
         description="Seconds to wait between retry attempts",
         ge=0.1,
     )
+
+    allowed_chat_ids: str = Field(
+        default="",
+        description="Comma-separated list of allowed Telegram chat IDs (empty = allow all)",
+    )
     
     @field_validator("rom_path", "initial_save_path")
     @classmethod
@@ -135,6 +149,14 @@ class Settings(BaseSettings):
         v = v.expanduser().resolve()
         v.mkdir(parents=True, exist_ok=True)
         return v
+    
+    @field_validator("allowed_chat_ids")
+    @classmethod
+    def parse_allowed_chat_ids(cls, v: str) -> list[int]:
+        """Parse comma-separated chat IDs into a list of integers."""
+        if not v:
+            return []
+        return [int(x.strip()) for x in v.split(",") if x.strip()]
     
     @model_validator(mode="after")
     def validate_rom_exists(self) -> "Settings":

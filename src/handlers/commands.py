@@ -42,6 +42,51 @@ def _check_chat_allowed(update: Update) -> bool:
     return chat_id in settings.allowed_chat_ids
 
 
+async def _ensure_game_active(chat_id: int) -> tuple[bool, str | None]:
+    """Ensure a game is active for the chat, auto-starting if needed.
+
+    If no game is active, this function will:
+    1. Initialize the game controller
+    2. Try to load save slot 1 if it exists
+    3. Fall back to initial state if slot 1 doesn't exist or fails
+
+    Args:
+        chat_id: Telegram chat ID
+
+    Returns:
+        Tuple of (success: bool, error_message: str | None)
+        If success is True, a game is now active.
+        If success is False, error_message contains the reason.
+    """
+    # Check if game is already active
+    controller = game_controller_manager.get_controller(chat_id)
+    if controller and controller.is_initialized():
+        return True, None
+
+    try:
+        # Initialize controller
+        controller = await game_controller_manager.get_or_create_controller(chat_id)
+
+        # Try to load slot 1 if it exists
+        state_data = state_manager.load_from_slot(chat_id, 1)
+        if state_data is not None:
+            try:
+                controller.load_state(state_data)
+                logger.info(f"Auto-started game for chat {chat_id} from slot 1")
+                return True, None
+            except Exception as e:
+                logger.warning(f"Failed to load slot 1 for chat {chat_id}: {e}")
+                # Fall through to initial state
+
+        # Use initial state (fresh game)
+        logger.info(f"Auto-started game for chat {chat_id} with initial state")
+        return True, None
+
+    except Exception as e:
+        logger.error(f"Failed to auto-start game for chat {chat_id}: {e}")
+        return False, "Failed to start game. Please try /start_game manually."
+
+
 async def start_game_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /start_game command.
     
@@ -82,6 +127,7 @@ async def resume_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     Resumes the game by removing the keyboard from the old message
     and sending a new game message with the current frame.
     Unlike /start_game, this does not restart the game.
+    Auto-starts the game if not already active.
     """
     if not _check_chat_allowed(update):
         await update.message.reply_text(
@@ -91,16 +137,14 @@ async def resume_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     chat_id = update.effective_chat.id
 
+    # Ensure game is active (auto-start if needed)
+    success, error_msg = await _ensure_game_active(chat_id)
+    if not success:
+        await update.message.reply_text(f"❌ {error_msg}")
+        return
+
     try:
         handler = get_input_handler(context.bot)
-
-        # Check if there's an active game
-        controller = game_controller_manager.get_controller(chat_id)
-        if not controller or not controller.is_initialized():
-            await update.message.reply_text(
-                "No active game! Use /start_game to begin playing."
-            )
-            return
 
         # Check if input is in progress
         if handler.is_input_in_progress(chat_id):
@@ -132,6 +176,7 @@ async def save_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     Saves the current game state to a slot.
     Usage: /save [slot_number]
     If no slot specified, uses the next available slot.
+    Auto-starts the game if not already active.
     """
     if not _check_chat_allowed(update):
         await update.message.reply_text(
@@ -141,13 +186,13 @@ async def save_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     
     chat_id = update.effective_chat.id
     
-    # Check if game is active
-    controller = game_controller_manager.get_controller(chat_id)
-    if not controller or not controller.is_initialized():
-        await update.message.reply_text(
-            "No active game! Use /start_game first."
-        )
+    # Ensure game is active (auto-start if needed)
+    success, error_msg = await _ensure_game_active(chat_id)
+    if not success:
+        await update.message.reply_text(f"❌ {error_msg}")
         return
+    
+    controller = game_controller_manager.get_controller(chat_id)
     
     # Parse slot number
     slot_number: Optional[int] = None
@@ -210,6 +255,7 @@ async def load_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     Loads a game state from a slot.
     Usage: /load [slot_number]
     If no slot specified, shows available slots.
+    Auto-starts the game if not already active.
     """
     if not _check_chat_allowed(update):
         await update.message.reply_text(
@@ -219,13 +265,13 @@ async def load_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     
     chat_id = update.effective_chat.id
     
-    # Check if game is active
-    controller = game_controller_manager.get_controller(chat_id)
-    if not controller or not controller.is_initialized():
-        await update.message.reply_text(
-            "No active game! Use /start_game first."
-        )
+    # Ensure game is active (auto-start if needed)
+    success, error_msg = await _ensure_game_active(chat_id)
+    if not success:
+        await update.message.reply_text(f"❌ {error_msg}")
         return
+    
+    controller = game_controller_manager.get_controller(chat_id)
     
     # Check if input is in progress
     handler = get_input_handler(context.bot)
@@ -297,52 +343,54 @@ async def load_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /status command.
-    
+
     Shows the current game status including:
     - Whether a game is active
     - Current input status
     - Save slot information
+    Auto-starts the game if not already active.
     """
     if not _check_chat_allowed(update):
         await update.message.reply_text(
             "❌ This bot is not authorized for this chat."
         )
         return
-    
+
     chat_id = update.effective_chat.id
-    
+
+    # Ensure game is active (auto-start if needed)
+    success, error_msg = await _ensure_game_active(chat_id)
+    if not success:
+        await update.message.reply_text(f"❌ {error_msg}")
+        return
+
     lines = ["📊 *Game Status*\n"]
-    
-    # Check if game is active
+
     controller = game_controller_manager.get_controller(chat_id)
-    if not controller or not controller.is_initialized():
-        lines.append("❌ No active game")
-        lines.append("Use /start_game to begin playing.")
+    lines.append("✅ Game is active")
+
+    # Check input status
+    handler = get_input_handler(context.bot)
+    if handler.is_input_in_progress(chat_id):
+        lines.append("⏳ Input is being processed")
     else:
-        lines.append("✅ Game is active")
-        
-        # Check input status
-        handler = get_input_handler(context.bot)
-        if handler.is_input_in_progress(chat_id):
-            lines.append("⏳ Input is being processed")
-        else:
-            lines.append("✋ Waiting for input")
-        
-        # Get last input
-        session = handler._get_session(chat_id)
-        if session and session.state.last_input:
-            lines.append(f"🎮 Last input: {session.state.last_input.display_name}")
-        
-        # Save slot info
-        slots = state_manager.list_save_slots(chat_id, max_slots=settings.save_slots)
-        if slots:
-            lines.append(f"\n💾 Save slots used: {len(slots)}/{settings.save_slots}")
-            for slot in slots:
-                auto_save_marker = " (auto)" if slot.is_auto_save else ""
-                lines.append(f"  • Slot {slot.slot_number}{auto_save_marker}")
-        else:
-            lines.append("\n💾 No save slots used")
-    
+        lines.append("✋ Waiting for input")
+
+    # Get last input
+    session = handler._get_session(chat_id)
+    if session and session.state.last_input:
+        lines.append(f"🎮 Last input: {session.state.last_input.display_name}")
+
+    # Save slot info
+    slots = state_manager.list_save_slots(chat_id, max_slots=settings.save_slots)
+    if slots:
+        lines.append(f"\n💾 Save slots used: {len(slots)}/{settings.save_slots}")
+        for slot in slots:
+            auto_save_marker = " (auto)" if slot.is_auto_save else ""
+            lines.append(f"  • Slot {slot.slot_number}{auto_save_marker}")
+    else:
+        lines.append("\n💾 No save slots used")
+
     await update.message.reply_text(
         "\n".join(lines),
         parse_mode="Markdown"
@@ -354,6 +402,7 @@ async def print_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     Sends the current game frame as a new media message without advancing
     frames and without the input keyboard. Useful for capturing screenshots.
+    Auto-starts the game if not already active.
     """
     if not _check_chat_allowed(update):
         await update.message.reply_text(
@@ -363,15 +412,14 @@ async def print_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     chat_id = update.effective_chat.id
 
-    # Check if game is active
-    controller = game_controller_manager.get_controller(chat_id)
-    if not controller or not controller.is_initialized():
-        await update.message.reply_text(
-            "No active game! Use /start_game to begin playing."
-        )
+    # Ensure game is active (auto-start if needed)
+    success, error_msg = await _ensure_game_active(chat_id)
+    if not success:
+        await update.message.reply_text(f"❌ {error_msg}")
         return
 
     try:
+        controller = game_controller_manager.get_controller(chat_id)
         # Get current frame without advancing/ticking
         png_buffer = controller.get_frame_as_png()
 

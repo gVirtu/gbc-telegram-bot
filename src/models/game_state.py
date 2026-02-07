@@ -32,8 +32,8 @@ class GameButton(str, Enum):
             GameButton.RIGHT: "➡️",
             GameButton.A: "🅰️",
             GameButton.B: "🅱️",
-            GameButton.START: "▶️",
-            GameButton.SELECT: "🔘",
+            GameButton.START: "START",
+            GameButton.SELECT: "SELECT",
         }
         return emoji_map[self]
     
@@ -41,10 +41,10 @@ class GameButton(str, Enum):
     def display_name(self) -> str:
         """Get human-readable button name."""
         name_map = {
-            GameButton.UP: "Up",
-            GameButton.DOWN: "Down",
-            GameButton.LEFT: "Left",
-            GameButton.RIGHT: "Right",
+            GameButton.UP: "Cima",
+            GameButton.DOWN: "Baixo",
+            GameButton.LEFT: "Esquerda",
+            GameButton.RIGHT: "Direita",
             GameButton.A: "A",
             GameButton.B: "B",
             GameButton.START: "Start",

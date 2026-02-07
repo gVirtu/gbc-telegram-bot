@@ -99,22 +99,20 @@ class TestCreateGameMessageText:
         """Test basic message text."""
         text = create_game_message_text()
         
-        assert "Pokémon Red" in text
-        assert "Press a button to play" in text
-        assert "First press wins" in text
+        assert "Hora de jogar" in text
     
     def test_text_with_status(self):
         """Test message text with status."""
-        text = create_game_message_text("Processing: A...")
+        text = create_game_message_text("Processando: A...")
         
-        assert "Processing: A..." in text
-        assert "Pokémon Red" in text
+        assert "Processando: A..." in text
+        assert "Hora de jogar" in text
     
     def test_markdown_formatting(self):
         """Test text uses Markdown formatting."""
         text = create_game_message_text("Status")
         
-        assert "*Pokémon Red*" in text  # Bold
+        assert "Hora de jogar" in text
         assert "_Status_" in text  # Italic
 
 
@@ -153,7 +151,7 @@ class TestCreateProcessingKeyboard:
         keyboard = create_processing_keyboard(GameButton.START)
         
         button = keyboard.inline_keyboard[0][0]
-        assert "Processing: Start" in button.text
+        assert "Processando: Start" in button.text
         assert button.callback_data == "processing"
 
 

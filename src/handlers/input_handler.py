@@ -159,7 +159,7 @@ class InputHandler:
 
         try:
             # Acknowledge the button press
-            await callback_query.answer(f"Processing: {button.display_name}")
+            await callback_query.answer(f"Processando: {button.display_name}")
 
             # Process the input
             await self._process_input(chat_id, button, message_id)

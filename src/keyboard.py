@@ -63,17 +63,16 @@ def create_game_message_text(
         >>> "Processing: A..." in text
         True
     """
-    base_text = "🎮 *Pokémon Red*\n\n"
-    base_text += "Press a button to play! First press wins."
+    base_text = "Hora de jogar!"
 
     # Add recent inputs if available
     if recent_inputs:
-        base_text += "\n\n📊 Recent inputs:"
+        base_text += "\n\n📖 *Atividade recente*:"
         # Show most recent first (reversed)
         for inp in reversed(recent_inputs):
             button = GameButton(inp["button"])
             user_name = inp["user_name"]
-            base_text += f"\n  {user_name} pressed {button.emoji} {button.display_name}"
+            base_text += f"\n  {user_name} pressionou {button.emoji} {button.display_name}"
 
     if status:
         base_text += f"\n\n_{status}_"
@@ -116,7 +115,7 @@ def create_processing_keyboard(button: GameButton) -> InlineKeyboardMarkup:
         InlineKeyboardMarkup showing processing state
     """
     keyboard = [
-        [InlineKeyboardButton(f"Processing: {button.display_name}...", callback_data="processing")]
+        [InlineKeyboardButton(f"Processando: {button.display_name}...", callback_data="processing")]
     ]
     
     return InlineKeyboardMarkup(keyboard)

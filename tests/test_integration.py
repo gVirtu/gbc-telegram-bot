@@ -101,7 +101,7 @@ class TestEndToEndGameFlow:
                     await handler.handle_button_press(mock_callback)
                     
                     # Verify button was processed
-                    mock_callback.answer.assert_called_with("Processing: A")
+                    mock_callback.answer.assert_called_with("Processando: A")
                     mock_controller.send_input.assert_called_once()
 
 

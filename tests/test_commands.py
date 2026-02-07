@@ -99,7 +99,7 @@ class TestStartGameCommand:
 
                 # Should send error message
                 update.message.reply_text.assert_called_with(
-                    "❌ Failed to start game. Please make sure the ROM file is available."
+                    "❌ Não consegui iniciar o jogo. Por favor, tente novamente ou entre em contato com o administrador do bot."
                 )
 
 
@@ -182,7 +182,7 @@ class TestResumeCommand:
                     await resume_command(update, context)
 
                     update.message.reply_text.assert_called_with(
-                        "⏳ Input is being processed. Please wait..."
+                        "⏳ Um botão foi pressionado recentemente. Por favor aguarde..."
                     )
 
 
@@ -267,7 +267,7 @@ class TestSaveCommand:
                 await save_command(update, context)
 
                 update.message.reply_text.assert_called_with(
-                    "❌ Invalid slot number. Use 0-4."
+                    "❌ Slot inválido. Use 0-4."
                 )
 
     @pytest.mark.asyncio
@@ -338,7 +338,7 @@ class TestLoadCommand:
                         mock_mgr.get_or_create_controller.assert_called_once_with(123456)
                         mock_controller.load_state.assert_called_once_with(b"slot_0_data")
                         update.message.reply_text.assert_called_with(
-                            "📂 Loaded game from slot 0!"
+                            "📂 Carregado jogo do slot 0!"
                         )
 
     @pytest.mark.asyncio
@@ -360,7 +360,7 @@ class TestLoadCommand:
                     await load_command(update, context)
 
                     update.message.reply_text.assert_called_with(
-                        "⏳ Cannot load while input is being processed. Please wait..."
+                        "⏳ Um botão foi pressionado recentemente. Antes de carregar, por favor aguarde."
                     )
 
     @pytest.mark.asyncio
@@ -387,7 +387,7 @@ class TestLoadCommand:
                         await load_command(update, context)
 
                         update.message.reply_text.assert_called_with(
-                            "No save slots found. Use /save [slot] to create one."
+                            "Nenhum slot de salvamento encontrado. Use /save [slot] para criar um."
                         )
 
     @pytest.mark.asyncio
@@ -417,7 +417,7 @@ class TestLoadCommand:
 
                         mock_controller.load_state.assert_called_once_with(b"save_data")
                         update.message.reply_text.assert_called_with(
-                            "📂 Loaded game from slot 0!"
+                            "📂 Carregado jogo do slot 0!"
                         )
 
 
@@ -459,7 +459,7 @@ class TestStatusCommand:
                         # Should auto-start and show active status
                         mock_mgr.get_or_create_controller.assert_called_once_with(123456)
                         call_args = update.message.reply_text.call_args
-                        assert "Game is active" in call_args[0][0]
+                        assert "Jogo ativo" in call_args[0][0]
 
     @pytest.mark.asyncio
     async def test_status_with_active_game(self, update, context):
@@ -484,7 +484,7 @@ class TestStatusCommand:
                         await status_command(update, context)
 
                         call_args = update.message.reply_text.call_args
-                        assert "Game is active" in call_args[0][0]
+                        assert "Jogo ativo" in call_args[0][0]
 
 
 class TestHelpCommand:
@@ -528,7 +528,7 @@ class TestUnknownCommand:
         await unknown_command(update, context)
         
         update.message.reply_text.assert_called_with(
-            "❓ Unknown command. Use /help to see available commands."
+            "❓ Comando desconhecido. Use /help para ver os comandos disponíveis."
         )
 
 
@@ -643,7 +643,7 @@ class TestEnsureGameActive:
 
             assert success is False
             assert error is not None
-            assert "Failed to start game" in error
+            assert "Não consegui iniciar o jogo" in error
 
 
 class TestPrintCommand:
@@ -699,7 +699,7 @@ class TestPrintCommand:
 
                 context.bot.send_photo.assert_called_once()
                 call_args = context.bot.send_photo.call_args
-                assert call_args[1]["caption"] == "🖨️ Game screenshot"
+                assert call_args[1]["caption"] == ""
 
     @pytest.mark.asyncio
     async def test_print_error(self, update, context):
@@ -716,7 +716,7 @@ class TestPrintCommand:
                 await print_command(update, context)
 
                 update.message.reply_text.assert_called_with(
-                    "❌ Failed to capture screenshot. Please try again."
+                    "❌ Não consegui capturar a tela. Tente novamente."
                 )
 
 
@@ -795,7 +795,7 @@ class TestAdminPermissions:
         is_allowed, error_msg = await _check_admin_permission(mock_update, mock_context)
 
         assert is_allowed is False
-        assert "administrator" in error_msg.lower()
+        assert "administradores" in error_msg.lower()
 
     @pytest.mark.asyncio
     async def test_admin_cache_functionality(self):
@@ -848,7 +848,7 @@ class TestAdminPermissions:
             # The last call should be the permission denial
             assert mock_update.message.reply_text.called
             last_call = mock_update.message.reply_text.call_args[0][0]
-            assert "administrator" in last_call.lower()
+            assert "administradores" in last_call.lower()
 
     @pytest.mark.asyncio
     async def test_save_allowed_for_admin(self):

@@ -144,7 +144,7 @@ class TestButtonPressHandling:
             await handler.handle_button_press(mock_callback_query)
             
             # Should acknowledge with button name
-            mock_callback_query.answer.assert_called_once_with("Processing: A")
+            mock_callback_query.answer.assert_called_once_with("Processando: A")
             
             # Should process the input
             handler._process_input.assert_called_once_with(123456, GameButton.A, 789)

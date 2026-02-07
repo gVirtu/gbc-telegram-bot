@@ -236,16 +236,15 @@ class TestMessageDisplay:
         """Test message creation with no recent inputs (default behavior)."""
         text = create_game_message_text()
 
-        assert "🎮 *Pokémon Red*" in text
-        assert "Press a button to play! First press wins." in text
-        assert "📊 Recent inputs:" not in text
+        assert "Hora de jogar" in text
+        assert "Atividade recente" not in text
 
     def test_create_message_with_empty_list(self):
         """Test message creation with empty recent_inputs list."""
         text = create_game_message_text(recent_inputs=[])
 
-        assert "🎮 *Pokémon Red*" in text
-        assert "📊 Recent inputs:" not in text
+        assert "Hora de jogar" in text
+        assert "Atividade recente" not in text
 
     def test_create_message_with_one_input(self):
         """Test message creation with one recent input."""
@@ -260,8 +259,8 @@ class TestMessageDisplay:
 
         text = create_game_message_text(recent_inputs=recent)
 
-        assert "📊 Recent inputs:" in text
-        assert "Alice pressed 🅰️ A" in text
+        assert "Atividade recente" in text
+        assert "Alice pressionou 🅰️ A" in text
 
     def test_create_message_with_three_inputs(self):
         """Test message creation with three recent inputs."""
@@ -288,14 +287,14 @@ class TestMessageDisplay:
 
         text = create_game_message_text(recent_inputs=recent)
 
-        assert "📊 Recent inputs:" in text
+        assert "Atividade recente" in text
         # Most recent should be shown first (reversed)
         lines = text.split("\n")
-        recent_section = [line for line in lines if "pressed" in line]
+        recent_section = [line for line in lines if "pressionou" in line]
         assert len(recent_section) == 3
-        assert "Charlie pressed ⬆️ Up" in recent_section[0]
-        assert "Bob pressed 🅱️ B" in recent_section[1]
-        assert "Alice pressed 🅰️ A" in recent_section[2]
+        assert "Charlie pressionou ⬆️ Cima" in recent_section[0]
+        assert "Bob pressionou 🅱️ B" in recent_section[1]
+        assert "Alice pressionou 🅰️ A" in recent_section[2]
 
     def test_create_message_with_status_and_inputs(self):
         """Test message creation with both status and recent inputs."""
@@ -308,23 +307,23 @@ class TestMessageDisplay:
             }
         ]
 
-        text = create_game_message_text(status="Game saved!", recent_inputs=recent)
+        text = create_game_message_text(status="Jogo salvo!", recent_inputs=recent)
 
-        assert "📊 Recent inputs:" in text
-        assert "Alice pressed ▶️ Start" in text
-        assert "_Game saved!_" in text
+        assert "Atividade recente" in text
+        assert "Alice pressionou START Start" in text
+        assert "_Jogo salvo!_" in text
 
     def test_button_emoji_and_display_name(self):
         """Test that all button types display correctly."""
         buttons_to_test = [
-            ("up", "⬆️", "Up"),
-            ("down", "⬇️", "Down"),
-            ("left", "⬅️", "Left"),
-            ("right", "➡️", "Right"),
+            ("up", "⬆️", "Cima"),
+            ("down", "⬇️", "Baixo"),
+            ("left", "⬅️", "Esquerda"),
+            ("right", "➡️", "Direita"),
             ("a", "🅰️", "A"),
             ("b", "🅱️", "B"),
-            ("start", "▶️", "Start"),
-            ("select", "🔘", "Select"),
+            ("start", "START", "Start"),
+            ("select", "SELECT", "Select"),
         ]
 
         for button_value, emoji, display in buttons_to_test:
@@ -339,7 +338,7 @@ class TestMessageDisplay:
 
             text = create_game_message_text(recent_inputs=recent)
 
-            assert f"Tester pressed {emoji} {display}" in text
+            assert f"Tester pressionou {emoji} {display}" in text
 
 
 class TestIntegration:
@@ -396,7 +395,7 @@ class TestIntegration:
 
         # Verify message would include recent inputs
         text = create_game_message_text(recent_inputs=session.state.recent_inputs)
-        assert "Alice pressed 🅰️ A" in text
+        assert "Alice pressionou 🅰️ A" in text
 
     @pytest.mark.asyncio
     async def test_multiple_users_sequence(self):
@@ -429,11 +428,11 @@ class TestIntegration:
         # Verify message display (most recent first)
         text = create_game_message_text(recent_inputs=session.state.recent_inputs)
         lines = text.split("\n")
-        recent_section = [line for line in lines if "pressed" in line]
+        recent_section = [line for line in lines if "pressionou" in line]
 
-        assert "Charlie pressed ⬆️ Up" in recent_section[0]
-        assert "Bob pressed 🅱️ B" in recent_section[1]
-        assert "Alice pressed 🅰️ A" in recent_section[2]
+        assert "Charlie pressionou ⬆️ Cima" in recent_section[0]
+        assert "Bob pressionou 🅱️ B" in recent_section[1]
+        assert "Alice pressionou 🅰️ A" in recent_section[2]
 
 
 class TestEdgeCases:

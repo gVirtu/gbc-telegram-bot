@@ -110,7 +110,7 @@ async def _check_admin_permission(
                 if cached:
                     return (True, None)
                 else:
-                    return (False, "🔒 Only group administrators can use this command.\n\nThis command manages game state and is restricted to admins to prevent conflicts.")
+                    return (False, "🔒 Apenas administradores do grupo podem usar este comando.")
 
             # Get member status from Telegram API
             chat_member = await context.bot.get_chat_member(chat_id, user_id)
@@ -125,14 +125,14 @@ async def _check_admin_permission(
             if is_admin:
                 return (True, None)
             else:
-                return (False, "🔒 Only group administrators can use this command.\n\nThis command manages game state and is restricted to admins to prevent conflicts.")
+                return (False, "🔒 Apenas administradores do grupo podem usar este comando.")
 
         except Exception as e:
             logger.warning(f"Failed to check admin status for user {user_id} in chat {chat_id}: {e}")
-            return (False, "⚠️ Unable to verify permissions. Please try again or contact the bot administrator.")
+            return (False, "⚠️ Não pude verificar as permissões. Por favor, tente novamente ou entre em contato com o administrador do bot.")
 
     # Other chat types (channels, etc.): default deny
-    return (False, "🔒 This command is not available in this chat type.")
+    return (False, "🔒 Este comando não está disponível neste tipo de chat.")
 
 
 async def _ensure_game_active(chat_id: int) -> tuple[bool, str | None]:
@@ -177,7 +177,7 @@ async def _ensure_game_active(chat_id: int) -> tuple[bool, str | None]:
 
     except Exception as e:
         logger.error(f"Failed to auto-start game for chat {chat_id}: {e}")
-        return False, "Failed to start game. Please try /start_game manually."
+        return False, "Não consegui iniciar o jogo. Tente usar o comando /start_game manualmente."
 
 
 async def start_game_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -188,7 +188,7 @@ async def start_game_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     """
     if not _check_chat_allowed(update):
         await update.message.reply_text(
-            "❌ This bot is not authorized for this chat."
+            "❌ Este bot não está autorizado para este chat."
         )
         return
 
@@ -200,7 +200,7 @@ async def start_game_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     chat_id = update.effective_chat.id
     
-    await update.message.reply_text("🎮 Starting Pokémon Red...")
+    await update.message.reply_text("Iniciando...")
     
     try:
         handler = get_input_handler(context.bot)
@@ -216,7 +216,7 @@ async def start_game_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     except Exception as e:
         logger.error(f"Error starting game for chat {chat_id}: {e}")
         await update.message.reply_text(
-            "❌ Failed to start game. Please make sure the ROM file is available."
+            "❌ Não consegui iniciar o jogo. Por favor, tente novamente ou entre em contato com o administrador do bot."
         )
 
 
@@ -230,7 +230,7 @@ async def resume_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     """
     if not _check_chat_allowed(update):
         await update.message.reply_text(
-            "❌ This bot is not authorized for this chat."
+            "❌ Este bot não está autorizado para este chat."
         )
         return
 
@@ -248,7 +248,7 @@ async def resume_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         # Check if input is in progress
         if handler.is_input_in_progress(chat_id):
             await update.message.reply_text(
-                "⏳ Input is being processed. Please wait..."
+                "⏳ Um botão foi pressionado recentemente. Por favor aguarde..."
             )
             return
 
@@ -259,13 +259,13 @@ async def resume_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             logger.info(f"Resumed game for chat {chat_id}")
         else:
             await update.message.reply_text(
-                "❌ Failed to resume game. Try /start_game first."
+                "❌ Não consegui retomar o jogo. Tente usar o comando /start_game manualmente."
             )
 
     except Exception as e:
         logger.error(f"Error resuming game for chat {chat_id}: {e}")
         await update.message.reply_text(
-            "❌ Error resuming game. Please try again."
+            "❌ Não consegui retomar o jogo. Tente novamente."
         )
 
 
@@ -279,7 +279,7 @@ async def save_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     """
     if not _check_chat_allowed(update):
         await update.message.reply_text(
-            "❌ This bot is not authorized for this chat."
+            "❌ Este bot não está autorizado para este chat."
         )
         return
 
@@ -306,12 +306,12 @@ async def save_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             slot_number = int(context.args[0])
             if slot_number < 0 or slot_number >= settings.save_slots:
                 await update.message.reply_text(
-                    f"❌ Invalid slot number. Use 0-{settings.save_slots - 1}."
+                    f"❌ Slot inválido. Use 0-{settings.save_slots - 1}."
                 )
                 return
         except ValueError:
             await update.message.reply_text(
-                "❌ Invalid slot number. Please use a number."
+                "❌ Slot inválido, você deve utilizar um número."
             )
             return
     
@@ -337,12 +337,12 @@ async def save_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             chat_id=chat_id,
             slot_number=slot_number,
             state_data=state_data,
-            description=f"Manual save by user",
+            description=f"Salvar jogo manualmente",
             is_auto_save=False,
         )
         
         await update.message.reply_text(
-            f"💾 Game saved to slot {slot_number}!"
+            f"💾 Jogo salvo no slot {slot_number}!"
         )
         
         logger.info(f"Saved game for chat {chat_id} to slot {slot_number}")
@@ -350,7 +350,7 @@ async def save_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     except Exception as e:
         logger.error(f"Error saving game for chat {chat_id}: {e}")
         await update.message.reply_text(
-            "❌ Failed to save game. Please try again."
+            "❌ Não consegui salvar o jogo. Tente novamente."
         )
 
 
@@ -364,7 +364,7 @@ async def load_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     """
     if not _check_chat_allowed(update):
         await update.message.reply_text(
-            "❌ This bot is not authorized for this chat."
+            "❌ Este bot não está autorizado para este chat."
         )
         return
 
@@ -388,7 +388,7 @@ async def load_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     handler = get_input_handler(context.bot)
     if handler.is_input_in_progress(chat_id):
         await update.message.reply_text(
-            "⏳ Cannot load while input is being processed. Please wait..."
+            "⏳ Um botão foi pressionado recentemente. Antes de carregar, por favor aguarde."
         )
         return
     
@@ -399,13 +399,13 @@ async def load_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         
         if not slots:
             await update.message.reply_text(
-                "No save slots found. Use /save [slot] to create one."
+                "Nenhum slot de salvamento encontrado. Use /save [slot] para criar um."
             )
             return
         
         # Show slot selection keyboard
         await update.message.reply_text(
-            "Select a save slot to load:",
+            "Escolha um slot para carregar:",
             reply_markup=create_save_slot_keyboard(chat_id, settings.save_slots)
         )
         return
@@ -414,12 +414,12 @@ async def load_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         slot_number = int(context.args[0])
         if slot_number < 0 or slot_number >= settings.save_slots:
             await update.message.reply_text(
-                f"❌ Invalid slot number. Use 0-{settings.save_slots - 1}."
+                f"❌ Slot inválido. Use 0-{settings.save_slots - 1}."
             )
             return
     except ValueError:
         await update.message.reply_text(
-            "❌ Invalid slot number. Please use a number."
+            "❌ Slot inválido, você deve utilizar um número."
         )
         return
     
@@ -429,7 +429,7 @@ async def load_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         
         if state_data is None:
             await update.message.reply_text(
-                f"❌ No save found in slot {slot_number}."
+                f"❌ Nenhum save encontrado no slot {slot_number}."
             )
             return
         
@@ -440,7 +440,7 @@ async def load_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await handler.show_current_frame(chat_id)
         
         await update.message.reply_text(
-            f"📂 Loaded game from slot {slot_number}!"
+            f"📂 Carregado jogo do slot {slot_number}!"
         )
         
         logger.info(f"Loaded game for chat {chat_id} from slot {slot_number}")
@@ -448,7 +448,7 @@ async def load_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     except Exception as e:
         logger.error(f"Error loading game for chat {chat_id}: {e}")
         await update.message.reply_text(
-            "❌ Failed to load game. The save file might be corrupted."
+            "❌ Não consegui carregar o jogo. O arquivo de salvamento pode estar corrompido."
         )
 
 
@@ -463,7 +463,7 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     """
     if not _check_chat_allowed(update):
         await update.message.reply_text(
-            "❌ This bot is not authorized for this chat."
+            "❌ Este bot não está autorizado para este chat."
         )
         return
 
@@ -475,32 +475,37 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await update.message.reply_text(f"❌ {error_msg}")
         return
 
-    lines = ["📊 *Game Status*\n"]
+    lines = ["📊 *Status do jogo*\n"]
 
     controller = game_controller_manager.get_controller(chat_id)
-    lines.append("✅ Game is active")
+    lines.append("✅ Jogo ativo")
 
     # Check input status
     handler = get_input_handler(context.bot)
     if handler.is_input_in_progress(chat_id):
-        lines.append("⏳ Input is being processed")
+        lines.append("⏳ Input em progresso")
     else:
-        lines.append("✋ Waiting for input")
+        lines.append("✋ Aguardando input")
+        
+    # Total input count
+    session = handler._get_session(chat_id)
+    if session and session.state.user_input_counts:
+        lines.append(f"📈 Total de inputs: {sum(session.state.user_input_counts.values())}")
 
     # Get last input
     session = handler._get_session(chat_id)
     if session and session.state.last_input:
-        lines.append(f"🎮 Last input: {session.state.last_input.display_name}")
+        lines.append(f"🎮 Input anterior: {session.state.last_input.display_name}")
 
     # Save slot info
     slots = state_manager.list_save_slots(chat_id, max_slots=settings.save_slots)
     if slots:
-        lines.append(f"\n💾 Save slots used: {len(slots)}/{settings.save_slots}")
+        lines.append(f"\n💾 Slots de salvamento usados: {len(slots)}/{settings.save_slots}")
         for slot in slots:
             auto_save_marker = " (auto)" if slot.is_auto_save else ""
             lines.append(f"  • Slot {slot.slot_number}{auto_save_marker}")
     else:
-        lines.append("\n💾 No save slots used")
+        lines.append("\n💾 Nenhum slot de salvamento usado")
 
     await update.message.reply_text(
         "\n".join(lines),
@@ -517,7 +522,7 @@ async def print_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     """
     if not _check_chat_allowed(update):
         await update.message.reply_text(
-            "❌ This bot is not authorized for this chat."
+            "❌ Este bot não está autorizado para este chat."
         )
         return
 
@@ -538,7 +543,7 @@ async def print_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         await context.bot.send_photo(
             chat_id=chat_id,
             photo=png_buffer,
-            caption="🖨️ Game screenshot",
+            caption="",
         )
 
         logger.info(f"Sent print frame for chat {chat_id}")
@@ -546,7 +551,7 @@ async def print_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     except Exception as e:
         logger.error(f"Error printing frame for chat {chat_id}: {e}")
         await update.message.reply_text(
-            "❌ Failed to capture screenshot. Please try again."
+            "❌ Não consegui capturar a tela. Tente novamente."
         )
 
 
@@ -567,7 +572,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle unknown commands."""
     await update.message.reply_text(
-        "❓ Unknown command. Use /help to see available commands."
+        "❓ Comando desconhecido. Use /help para ver os comandos disponíveis."
     )
 
 

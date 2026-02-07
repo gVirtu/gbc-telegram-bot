@@ -45,15 +45,19 @@ def create_input_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(keyboard)
 
 
-def create_game_message_text(status: str = "") -> str:
+def create_game_message_text(
+    status: str = "",
+    recent_inputs: list[dict] | None = None,
+) -> str:
     """Create the caption text for the game message.
-    
+
     Args:
         status: Optional status message to display
-    
+        recent_inputs: List of recent input records (max 3) to display
+
     Returns:
-        Formatted message text
-    
+        Formatted message text with game title, instructions, and recent inputs
+
     Example:
         >>> text = create_game_message_text("Processing: A...")
         >>> "Processing: A..." in text
@@ -61,10 +65,19 @@ def create_game_message_text(status: str = "") -> str:
     """
     base_text = "🎮 *Pokémon Red*\n\n"
     base_text += "Press a button to play! First press wins."
-    
+
+    # Add recent inputs if available
+    if recent_inputs:
+        base_text += "\n\n📊 Recent inputs:"
+        # Show most recent first (reversed)
+        for inp in reversed(recent_inputs):
+            button = GameButton(inp["button"])
+            user_name = inp["user_name"]
+            base_text += f"\n  {user_name} pressed {button.emoji} {button.display_name}"
+
     if status:
         base_text += f"\n\n_{status}_"
-    
+
     return base_text
 
 

@@ -56,10 +56,10 @@ class GameButton(str, Enum):
 @dataclass
 class ChatGameState:
     """Represents the current game state for a chat.
-    
+
     This tracks whether input is being processed, the current message ID,
     and the last input for display purposes.
-    
+
     Attributes:
         chat_id: Telegram chat ID
         message_id: ID of the message showing the game frame
@@ -67,16 +67,20 @@ class ChatGameState:
         last_input: The last button that was pressed
         last_input_time: When the last input was processed
         frame_hash: Hash of the last sent frame (for optimization)
+        user_input_counts: Track total inputs per user (user_id -> count)
+        recent_inputs: Last 3 inputs with user info (FIFO)
         created_at: When this game state was created
         updated_at: When this game state was last updated
     """
-    
+
     chat_id: int
     message_id: Optional[int] = None
     input_in_progress: bool = False
     last_input: Optional[GameButton] = None
     last_input_time: Optional[datetime] = None
     frame_hash: Optional[str] = None
+    user_input_counts: dict[int, int] = field(default_factory=dict)
+    recent_inputs: list[dict] = field(default_factory=list)
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
     
@@ -89,6 +93,8 @@ class ChatGameState:
             "last_input": self.last_input.value if self.last_input else None,
             "last_input_time": self.last_input_time.isoformat() if self.last_input_time else None,
             "frame_hash": self.frame_hash,
+            "user_input_counts": self.user_input_counts,
+            "recent_inputs": self.recent_inputs,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
@@ -103,6 +109,8 @@ class ChatGameState:
             last_input=GameButton(data["last_input"]) if data.get("last_input") else None,
             last_input_time=datetime.fromisoformat(data["last_input_time"]) if data.get("last_input_time") else None,
             frame_hash=data.get("frame_hash"),
+            user_input_counts=data.get("user_input_counts", {}),
+            recent_inputs=data.get("recent_inputs", []),
             created_at=datetime.fromisoformat(data["created_at"]),
             updated_at=datetime.fromisoformat(data["updated_at"]),
         )

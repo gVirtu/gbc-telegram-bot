@@ -103,13 +103,13 @@ class InputHandler:
     
     async def handle_button_press(self, callback_query) -> None:
         """Handle a button press from a user.
-        
+
         Implements first-vote-wins logic. If input is already being
         processed, rejects the press.
-        
+
         Args:
             callback_query: Telegram CallbackQuery object
-            
+
         Raises:
             GameNotActiveError: If no game is active for this chat
             InputInProgressError: If input is already being processed
@@ -117,43 +117,53 @@ class InputHandler:
         chat_id = callback_query.message.chat.id
         message_id = callback_query.message.message_id
         callback_data = callback_query.data
-        
+
         # Validate callback is a game button
         if not is_valid_button_callback(callback_data):
             await callback_query.answer("Invalid button")
             return
-        
+
         button = get_button_from_callback(callback_data)
-        
+
         # Check if chat has an active session
         session = self._get_session(chat_id)
         if not session:
             await callback_query.answer("No active game! Use /start_game first.")
             return
-        
+
         # Check if input is already being processed
         if chat_id in self._processing:
             await callback_query.answer("Input already in progress! Please wait...")
             return
-        
+
         # Check if message matches (prevent old message interactions)
         if session.state.message_id != message_id:
             await callback_query.answer("This game message is outdated. Use /current_frame for the latest.")
             return
-        
+
+        # Extract user info
+        user_id = callback_query.from_user.id
+        user_name = (
+            callback_query.from_user.first_name or
+            (f"@{callback_query.from_user.username}" if callback_query.from_user.username else "User")
+        )
+
         # Lock input processing
         self._processing.add(chat_id)
         session.state.input_in_progress = True
         session.state.last_input = button
         session.record_activity()
-        
+
+        # Record user input
+        self._record_user_input(session, user_id, user_name, button)
+
         try:
             # Acknowledge the button press
             await callback_query.answer(f"Processing: {button.display_name}")
-            
+
             # Process the input
             await self._process_input(chat_id, button, message_id)
-            
+
         except Exception as e:
             logger.error(f"Error processing input for chat {chat_id}: {e}")
             await self._send_error_message(chat_id, "Error processing input. Please try again.")
@@ -162,7 +172,45 @@ class InputHandler:
             self._processing.discard(chat_id)
             session.state.input_in_progress = False
             state_manager.save_game_state(session.state)
-    
+
+    def _record_user_input(
+        self,
+        session: GameSession,
+        user_id: int,
+        user_name: str,
+        button: GameButton,
+    ) -> None:
+        """Record a user input in the session state.
+
+        Updates user_input_counts and recent_inputs (max 3, FIFO).
+
+        Args:
+            session: Game session to update
+            user_id: Telegram user ID
+            user_name: User's display name
+            button: Button that was pressed
+        """
+        from datetime import datetime
+
+        # Increment user's total count
+        session.state.user_input_counts[user_id] = (
+            session.state.user_input_counts.get(user_id, 0) + 1
+        )
+
+        # Add to recent inputs
+        input_record = {
+            "user_id": user_id,
+            "user_name": user_name,
+            "button": button.value,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+
+        session.state.recent_inputs.append(input_record)
+
+        # Keep only last 3 (FIFO)
+        if len(session.state.recent_inputs) > 3:
+            session.state.recent_inputs = session.state.recent_inputs[-3:]
+
     async def _process_input(
         self,
         chat_id: int,
@@ -325,11 +373,12 @@ class InputHandler:
         
         # Send initial message
         from src.keyboard import create_game_message_text
-        
+
+        recent = session.state.recent_inputs if session else []
         message = await self.bot.send_photo(
             chat_id=chat_id,
             photo=png_buffer,
-            caption=create_game_message_text(),
+            caption=create_game_message_text(recent_inputs=recent),
             reply_markup=create_input_keyboard(),
             parse_mode="Markdown",
         )
@@ -384,11 +433,12 @@ class InputHandler:
         
         # Send new message
         from src.keyboard import create_game_message_text
-        
+
+        recent = session.state.recent_inputs if session else []
         message = await self.bot.send_photo(
             chat_id=chat_id,
             photo=png_buffer,
-            caption=create_game_message_text(),
+            caption=create_game_message_text(recent_inputs=recent),
             reply_markup=create_input_keyboard() if not (session and session.state.input_in_progress) else None,
             parse_mode="Markdown",
         )
@@ -438,10 +488,11 @@ class InputHandler:
         # Send new message with keyboard
         from src.keyboard import create_game_message_text
 
+        recent = session.state.recent_inputs if session else []
         message = await self.bot.send_photo(
             chat_id=chat_id,
             photo=png_buffer,
-            caption=create_game_message_text(),
+            caption=create_game_message_text(recent_inputs=recent),
             reply_markup=create_input_keyboard(),
             parse_mode="Markdown",
         )

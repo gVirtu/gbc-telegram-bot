@@ -146,6 +146,7 @@ class TestResumeCommand:
             mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
 
             with patch("src.handlers.commands.state_manager") as mock_state:
+                mock_state.list_save_slots.return_value = []
                 mock_state.load_from_slot.return_value = None  # No slot 1
 
                 with patch("src.handlers.commands.get_input_handler") as mock_get_handler:
@@ -210,6 +211,7 @@ class TestSaveCommand:
             mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
 
             with patch("src.handlers.commands.state_manager") as mock_state:
+                mock_state.list_save_slots.return_value = []
                 mock_state.load_from_slot.return_value = None  # No slot 1
                 mock_state.save_to_slot = MagicMock()
 
@@ -320,7 +322,12 @@ class TestLoadCommand:
             mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
 
             with patch("src.handlers.commands.state_manager") as mock_state:
-                mock_state.load_from_slot.side_effect = [None, b"slot_0_data"]  # slot 1 doesn't exist, slot 0 does
+                from src.models.game_state import SaveSlotInfo
+                mock_state.list_save_slots.return_value = [
+                    SaveSlotInfo(slot_number=0, is_auto_save=False),
+                    SaveSlotInfo(slot_number=1, is_auto_save=False)
+                ]
+                mock_state.load_from_slot.side_effect = [None, b"slot_0_data"]  # slot 1 doesn't exist/returns None, slot 0 does
 
                 with patch("src.handlers.commands.get_input_handler") as mock_get_handler:
                     mock_handler = MagicMock()
@@ -442,6 +449,7 @@ class TestStatusCommand:
             mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
 
             with patch("src.handlers.commands.state_manager") as mock_state:
+                mock_state.list_save_slots.return_value = []
                 mock_state.load_from_slot.return_value = None  # No slot 1
                 mock_state.list_save_slots = MagicMock(return_value=[])
 
@@ -583,6 +591,10 @@ class TestEnsureGameActive:
             mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
 
             with patch("src.handlers.commands.state_manager") as mock_state:
+                from src.models.game_state import SaveSlotInfo
+                mock_state.list_save_slots.return_value = [
+                    SaveSlotInfo(slot_number=1, is_auto_save=False)
+                ]
                 mock_state.load_from_slot.return_value = b"slot_1_data"
 
                 success, error = await _ensure_game_active(123456)
@@ -603,7 +615,11 @@ class TestEnsureGameActive:
             mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
 
             with patch("src.handlers.commands.state_manager") as mock_state:
-                mock_state.load_from_slot.return_value = None  # No slot 1
+                from src.models.game_state import SaveSlotInfo
+                mock_state.list_save_slots.return_value = [
+                    SaveSlotInfo(slot_number=1, is_auto_save=False)
+                ]
+                mock_state.load_from_slot.return_value = None  # Slot 1 exists but returns None
 
                 success, error = await _ensure_game_active(123456)
 
@@ -623,6 +639,10 @@ class TestEnsureGameActive:
             mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
 
             with patch("src.handlers.commands.state_manager") as mock_state:
+                from src.models.game_state import SaveSlotInfo
+                mock_state.list_save_slots.return_value = [
+                    SaveSlotInfo(slot_number=1, is_auto_save=False)
+                ]
                 mock_state.load_from_slot.return_value = b"corrupted_data"
                 mock_controller.load_state.side_effect = Exception("Corrupted save")
 
@@ -668,6 +688,7 @@ class TestPrintCommand:
             mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
 
             with patch("src.handlers.commands.state_manager") as mock_state:
+                mock_state.list_save_slots.return_value = []
                 mock_state.load_from_slot.return_value = None  # No slot 1
 
                 context.bot.send_photo = AsyncMock()

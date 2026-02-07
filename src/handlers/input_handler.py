@@ -238,19 +238,12 @@ class InputHandler:
         # Execute the input
         logger.info(f"Executing input {button.value} for chat {chat_id}")
         frame = controller.send_input(button, frames=settings.input_hold_frames)
-        
-        # Animation phase
-        await self._animate_frames(chat_id, message_id, controller)
-        
-        # Update the caption with the current game state
         session = self._get_session(chat_id)
         recent = session.state.recent_inputs if session else []
+        caption = create_game_message_text(recent_inputs=recent)
         
-        await self._edit_message_caption(
-            chat_id,
-            message_id,
-            create_game_message_text(recent_inputs=recent),
-        )
+        # Animation phase
+        await self._animate_frames(chat_id, message_id, controller, caption)
         
         # Re-enable input with fresh keyboard
         await self._edit_message_keyboard(
@@ -287,6 +280,7 @@ class InputHandler:
         chat_id: int,
         message_id: int,
         controller: GameController,
+        caption: str,
     ) -> None:
         """Animate frame updates during the animation phase.
         
@@ -317,10 +311,14 @@ class InputHandler:
                         chat_id,
                         message_id,
                         png_buffer,
+                        caption,
                     )
                     controller.update_frame_hash(frame_hash)
                 except TelegramError as e:
                     logger.warning(f"Failed to update frame for chat {chat_id}: {e}")
+            else:
+                logger.debug(f"Terminating animation phase early for {chat_id}")
+                break
             
             # Wait for next interval
             elapsed = asyncio.get_event_loop().time() - last_update
@@ -355,6 +353,7 @@ class InputHandler:
         chat_id: int,
         message_id: int,
         photo_buffer,
+        caption: str,
     ) -> None:
         """Edit a message's media (photo).
         
@@ -367,33 +366,10 @@ class InputHandler:
             await self.bot.edit_message_media(
                 chat_id=chat_id,
                 message_id=message_id,
-                media=InputMediaPhoto(media=photo_buffer),
+                media=InputMediaPhoto(media=photo_buffer, caption=caption, parse_mode="Markdown"),
             )
         except TelegramError as e:
             logger.warning(f"Failed to edit media for chat {chat_id}: {e}")
-    
-    async def _edit_message_caption(
-        self,
-        chat_id: int,
-        message_id: int,
-        caption: str,
-    ) -> None:
-        """Edit a message's caption.
-        
-        Args:
-            chat_id: Telegram chat ID
-            message_id: Message ID to edit
-            caption: New caption text
-        """
-        try:
-            await self.bot.edit_message_caption(
-                chat_id=chat_id,
-                message_id=message_id,
-                caption=caption,
-                parse_mode="Markdown",
-            )
-        except TelegramError as e:
-            logger.warning(f"Failed to edit caption for chat {chat_id}: {e}")
     
     async def _send_error_message(self, chat_id: int, text: str) -> None:
         """Send an error message to the chat.
@@ -466,6 +442,8 @@ class InputHandler:
         # Get current frame
         frame = controller.get_frame()
         png_buffer = controller.get_frame_as_png()
+        recent = session.state.recent_inputs if session else []
+        caption = create_game_message_text(recent_inputs=recent)
         
         if session and session.state.message_id and not session.state.input_in_progress:
             # Edit existing message
@@ -474,6 +452,7 @@ class InputHandler:
                     chat_id,
                     session.state.message_id,
                     png_buffer,
+                    caption,
                 )
                 await self._edit_message_keyboard(
                     chat_id,
@@ -485,11 +464,10 @@ class InputHandler:
                 # Fall through to sending new message
                 pass
         
-        recent = session.state.recent_inputs if session else []
         message = await self.bot.send_photo(
             chat_id=chat_id,
             photo=png_buffer,
-            caption=create_game_message_text(recent_inputs=recent),
+            caption=caption,
             reply_markup=create_input_keyboard() if not (session and session.state.input_in_progress) else None,
             parse_mode="Markdown",
         )

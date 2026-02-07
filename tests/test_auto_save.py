@@ -32,7 +32,6 @@ async def test_auto_save_on_input():
             # Mock animation methods to avoid side effects
             handler._edit_message_keyboard = AsyncMock()
             handler._animate_frames = AsyncMock()
-            handler._edit_message_caption = AsyncMock()
             handler._edit_message_media = AsyncMock()
             
             # Execute input processing
@@ -69,7 +68,6 @@ async def test_no_auto_save_when_disabled():
             # Mock animation methods
             handler._edit_message_keyboard = AsyncMock()
             handler._animate_frames = AsyncMock()
-            handler._edit_message_caption = AsyncMock()
             handler._edit_message_media = AsyncMock()
             
             # Execute input processing

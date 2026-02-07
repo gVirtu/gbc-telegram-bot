@@ -42,6 +42,19 @@ class TestInputHandlerInitialization:
         assert handler._sessions == {}
         assert handler._processing == set()
 
+    def test_processing_set_isolated(self):
+        """Test that processing set is isolated per handler instance."""
+        from src.handlers.input_handler import InputHandler
+        
+        bot = MagicMock()
+        handler1 = InputHandler(bot)
+        handler2 = InputHandler(bot)
+        
+        handler1._processing.add(123)
+        
+        assert 123 in handler1._processing
+        assert 123 not in handler2._processing, "Processing sets should be isolated"
+
 
 class TestButtonPressHandling:
     """Test button press handling with first-vote-wins logic."""

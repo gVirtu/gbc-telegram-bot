@@ -15,6 +15,11 @@ os.environ["WEBHOOK_URL"] = "https://test.example.com"
 os.environ["WEBHOOK_SECRET"] = "test_secret_1234567890"
 os.environ["PYTEST_CURRENT_TEST"] = "1"  # Skip ROM validation
 
+# Clear settings cache
+from src.config import get_settings, settings
+get_settings.cache_clear()
+settings._instance = None
+
 import numpy as np
 
 
@@ -308,7 +313,7 @@ class TestErrorHandlingIntegration:
         )
         
         # Should not raise
-        await handler._edit_message_media(123456, 789, BytesIO(b"png"))
+        await handler._edit_message_media(123456, 789, BytesIO(b"png"), "caption")
 
 
 class TestConfigurationIntegration:

@@ -14,6 +14,11 @@ os.environ["WEBHOOK_URL"] = "https://test.example.com"
 os.environ["WEBHOOK_SECRET"] = "test_secret_1234567890"
 os.environ["PYTEST_CURRENT_TEST"] = "1"  # Skip ROM validation
 
+# Clear settings cache
+from src.config import get_settings, settings
+get_settings.cache_clear()
+settings._instance = None
+
 from src.main import setup_webhook, delete_webhook, main
 
 

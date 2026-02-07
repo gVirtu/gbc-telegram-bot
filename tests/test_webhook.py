@@ -14,6 +14,11 @@ os.environ["WEBHOOK_SECRET"] = "test_secret_1234567890"
 
 from fastapi.testclient import TestClient
 
+# Clear settings cache
+from src.config import get_settings, settings
+get_settings.cache_clear()
+settings._instance = None
+
 from src.handlers.webhook import WebhookHandler, get_webhook_handler
 
 

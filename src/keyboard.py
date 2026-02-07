@@ -250,6 +250,7 @@ BUTTON_DESCRIPTIONS = {
     GameButton.B: "Cancel / Back / Run",
     GameButton.START: "Open menu / Pause",
     GameButton.SELECT: "Select item / Switch",
+    GameButton.WAIT: "Wait / Let game progress without input",
 }
 
 

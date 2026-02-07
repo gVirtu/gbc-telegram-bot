@@ -21,6 +21,7 @@ class GameButton(str, Enum):
     B = "b"
     START = "start"
     SELECT = "select"
+    WAIT = "wait"
     
     @property
     def emoji(self) -> str:
@@ -34,6 +35,7 @@ class GameButton(str, Enum):
             GameButton.B: "🅱️",
             GameButton.START: "START",
             GameButton.SELECT: "SELECT",
+            GameButton.WAIT: "👁️",
         }
         return emoji_map[self]
     
@@ -49,6 +51,7 @@ class GameButton(str, Enum):
             GameButton.B: "B",
             GameButton.START: "Start",
             GameButton.SELECT: "Select",
+            GameButton.WAIT: "Espera",
         }
         return name_map[self]
 
@@ -250,7 +253,7 @@ class GameSession:
 
 # Button layout for inline keyboard (3x3 grid with Start/Select at bottom)
 BUTTON_LAYOUT = [
-    [GameButton.UP],
+    [GameButton.UP, GameButton.WAIT],
     [GameButton.LEFT, GameButton.RIGHT],
     [GameButton.DOWN],
     [GameButton.A, GameButton.B],

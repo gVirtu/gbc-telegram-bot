@@ -69,6 +69,16 @@ class TestGameButton:
         assert GameButton("a") == GameButton.A
         assert GameButton("start") == GameButton.START
 
+    def test_wait_button_properties(self):
+        """Test WAIT button has correct properties."""
+        assert GameButton.WAIT.value == "wait"
+        assert GameButton.WAIT.emoji == "👁️"
+        assert GameButton.WAIT.display_name == "Espera"
+
+    def test_wait_button_from_string(self):
+        """Test creating WAIT button from string."""
+        assert GameButton("wait") == GameButton.WAIT
+
 
 class TestChatGameState:
     """Test ChatGameState dataclass."""
@@ -338,21 +348,22 @@ class TestButtonLayout:
         # Should be a list of lists
         assert isinstance(BUTTON_LAYOUT, list)
         assert all(isinstance(row, list) for row in BUTTON_LAYOUT)
-        
-        # Check first row (Up button alone)
-        assert BUTTON_LAYOUT[0] == [GameButton.UP]
-        
+
+        # Check first row (Up and Wait buttons)
+        assert GameButton.UP in BUTTON_LAYOUT[0]
+        assert GameButton.WAIT in BUTTON_LAYOUT[0]
+
         # Check second row (Left, Right)
         assert GameButton.LEFT in BUTTON_LAYOUT[1]
         assert GameButton.RIGHT in BUTTON_LAYOUT[1]
-        
+
         # Check third row (Down button alone)
         assert BUTTON_LAYOUT[2] == [GameButton.DOWN]
-        
+
         # Check fourth row (A, B)
         assert GameButton.A in BUTTON_LAYOUT[3]
         assert GameButton.B in BUTTON_LAYOUT[3]
-        
+
         # Check fifth row (Start, Select)
         assert GameButton.START in BUTTON_LAYOUT[4]
         assert GameButton.SELECT in BUTTON_LAYOUT[4]
@@ -362,6 +373,12 @@ class TestButtonLayout:
         all_buttons = set()
         for row in BUTTON_LAYOUT:
             all_buttons.update(row)
-        
+
         assert all_buttons == set(GameButton)
-        assert len(all_buttons) == 8  # 8 total buttons
+        assert len(all_buttons) == 9  # 9 total buttons
+
+    def test_wait_button_in_first_row(self):
+        """Test WAIT button is positioned with UP button."""
+        assert GameButton.WAIT in BUTTON_LAYOUT[0]
+        assert GameButton.UP in BUTTON_LAYOUT[0]
+        assert len(BUTTON_LAYOUT[0]) == 2

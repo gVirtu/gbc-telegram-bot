@@ -497,6 +497,83 @@ class TestSessionLoading:
             session1 = handler._get_session(123456)
             # Second call should use cached version
             session2 = handler._get_session(123456)
-            
+
             assert session1 is session2
             mock_state.load_game_state.assert_called_once()
+
+
+class TestWaitButtonProcessing:
+    """Test WAIT button processing."""
+
+    @pytest.fixture
+    def mock_bot(self):
+        bot = MagicMock()
+        bot.edit_message_reply_markup = AsyncMock()
+        bot.edit_message_media = AsyncMock()
+        return bot
+
+    @pytest.fixture
+    def handler(self, mock_bot):
+        return InputHandler(mock_bot)
+
+    @pytest.fixture
+    def mock_controller(self):
+        controller = MagicMock()
+        controller.tick.return_value = MagicMock()
+        controller.send_input.return_value = MagicMock()
+        controller.get_frame_as_png.return_value = BytesIO(b"png")
+        controller.last_frame_hash = None
+        return controller
+
+    @pytest.mark.asyncio
+    async def test_wait_button_skips_send_input(self, handler, mock_bot, mock_controller):
+        """Test WAIT button doesn't call send_input."""
+        with patch("src.handlers.input_handler.game_controller_manager") as mock_mgr:
+            mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
+            handler._animate_frames = AsyncMock()
+
+            await handler._process_input(123456, GameButton.WAIT, 789)
+
+            # WAIT should NOT call send_input
+            mock_controller.send_input.assert_not_called()
+            # WAIT should call tick instead
+            mock_controller.tick.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_wait_button_ticks_emulator(self, handler, mock_bot, mock_controller):
+        """Test WAIT button ticks the emulator."""
+        with patch("src.handlers.input_handler.game_controller_manager") as mock_mgr:
+            with patch("src.handlers.input_handler.settings") as mock_settings:
+                mock_settings.input_hold_frames = 30
+                mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
+                handler._animate_frames = AsyncMock()
+
+                await handler._process_input(123456, GameButton.WAIT, 789)
+
+                # Should tick for the same duration as a button hold
+                mock_controller.tick.assert_called_once_with(frames=30)
+
+    @pytest.mark.asyncio
+    async def test_wait_button_runs_animation(self, handler, mock_bot, mock_controller):
+        """Test WAIT button still runs animation phase."""
+        with patch("src.handlers.input_handler.game_controller_manager") as mock_mgr:
+            mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
+            handler._animate_frames = AsyncMock()
+
+            await handler._process_input(123456, GameButton.WAIT, 789)
+
+            # Should still run animation
+            handler._animate_frames.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_normal_button_still_calls_send_input(self, handler, mock_bot, mock_controller):
+        """Test non-WAIT buttons still call send_input."""
+        with patch("src.handlers.input_handler.game_controller_manager") as mock_mgr:
+            mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
+            handler._animate_frames = AsyncMock()
+
+            await handler._process_input(123456, GameButton.A, 789)
+
+            # Normal buttons should call send_input
+            mock_controller.send_input.assert_called_once()
+            mock_controller.tick.assert_not_called()

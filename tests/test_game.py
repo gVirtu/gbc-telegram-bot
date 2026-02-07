@@ -16,12 +16,20 @@ from src.models.game_state import GameButton
 
 class TestButtonEvents:
     """Test button to event mapping."""
-    
+
     def test_all_buttons_mapped(self):
-        """Test that all GameButtons have event mappings."""
+        """Test that all GameButtons have event mappings (except WAIT)."""
         for button in GameButton:
-            assert button in BUTTON_EVENTS, f"Button {button} not mapped"
-    
+            if button == GameButton.WAIT:
+                # WAIT is a meta-action, not a physical button
+                assert button not in BUTTON_EVENTS
+            else:
+                assert button in BUTTON_EVENTS, f"Button {button} not mapped"
+
+    def test_wait_button_not_in_events(self):
+        """Test that WAIT button is NOT in BUTTON_EVENTS."""
+        assert GameButton.WAIT not in BUTTON_EVENTS
+
     def test_button_events_structure(self):
         """Test that button events are tuples of press/release."""
         for button, events in BUTTON_EVENTS.items():

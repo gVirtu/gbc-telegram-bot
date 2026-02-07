@@ -235,7 +235,14 @@ class InputHandler:
         
         # Execute the input
         logger.info(f"Executing input {button.value} for chat {chat_id}")
-        frame = controller.send_input(button, frames=settings.input_hold_frames)
+        if button == GameButton.WAIT:
+            # WAIT button: Don't press any button, just tick the emulator
+            # This allows the animation phase to show game progress without input
+            logger.debug(f"WAIT button pressed for chat {chat_id}, skipping button input")
+            frame = controller.tick(frames=settings.input_hold_frames)
+        else:
+            # Normal button: press and hold
+            frame = controller.send_input(button, frames=settings.input_hold_frames)
         session = self._get_session(chat_id)
         recent = session.state.recent_inputs if session else []
         caption = create_game_message_text(recent_inputs=recent)

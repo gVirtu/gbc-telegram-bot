@@ -259,6 +259,27 @@ class InputHandler:
             create_input_keyboard(),
         )
         
+        
+        # Auto-save if enabled
+        config = state_manager.get_or_create_chat_config(chat_id)
+        if config.auto_save_enabled:
+            try:
+                # Get next slot
+                slot = state_manager.find_next_auto_save_slot(chat_id)
+                
+                # Save state
+                state_data = controller.save_state()
+                state_manager.save_to_slot(
+                    chat_id=chat_id,
+                    slot_number=slot,
+                    state_data=state_data,
+                    description=f"Auto-save",
+                    is_auto_save=True,
+                )
+                logger.debug(f"Auto-saved game to slot {slot} for chat {chat_id}")
+            except Exception as e:
+                logger.warning(f"Failed to auto-save for chat {chat_id}: {e}")
+        
         logger.info(f"Completed input processing for chat {chat_id}")
     
     async def _animate_frames(

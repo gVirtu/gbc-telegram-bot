@@ -108,11 +108,6 @@ class Settings(BaseSettings):
         description="Frames to advance between animation updates",
         ge=1,
     )
-    auto_save_interval: int = Field(
-        default=300,
-        description="Auto-save interval in seconds",
-        ge=60,
-    )
     save_slots: int = Field(
         default=5,
         description="Number of rotating save slots",

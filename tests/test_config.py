@@ -101,10 +101,6 @@ class TestOptionalSettingsDefaults:
         """Test animation_tick_frames defaults to 60."""
         assert valid_settings.animation_tick_frames == 60
     
-    def test_auto_save_interval_default(self, valid_settings):
-        """Test auto_save_interval defaults to 300."""
-        assert valid_settings.auto_save_interval == 300
-    
     def test_save_slots_default(self, valid_settings):
         """Test save_slots defaults to 5."""
         assert valid_settings.save_slots == 5

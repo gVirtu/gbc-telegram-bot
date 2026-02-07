@@ -127,11 +127,11 @@ class TestSettingsValidation:
             "data_dir": tmp_path / "data",
         }
     
-    def test_log_level_valid_values(self, base_settings):
+    @pytest.mark.parametrize("level", ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
+    def test_log_level_valid_values(self, base_settings, level):
         """Test that valid log levels are accepted."""
-        for level in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
-            settings = Settings(**base_settings, log_level=level)
-            assert settings.log_level == level
+        settings = Settings(**base_settings, log_level=level)
+        assert settings.log_level == level
     
     def test_log_level_invalid_value(self, base_settings):
         """Test that invalid log levels are rejected."""
@@ -139,37 +139,42 @@ class TestSettingsValidation:
             Settings(**base_settings, log_level="INVALID")
         assert "log_level" in str(exc_info.value)
     
-    def test_port_validation(self, base_settings):
-        """Test port must be between 1 and 65535."""
-        # Valid port
-        settings = Settings(**base_settings, port=8080)
-        assert settings.port == 8080
-        
-        # Invalid port (too high)
-        with pytest.raises(ValidationError) as exc_info:
-            Settings(**base_settings, port=70000)
-        assert "port" in str(exc_info.value)
-        
-        # Invalid port (too low)
-        with pytest.raises(ValidationError) as exc_info:
-            Settings(**base_settings, port=0)
-        assert "port" in str(exc_info.value)
+    @pytest.mark.parametrize("port,should_pass", [
+        (1, True),
+        (80, True),
+        (8080, True),
+        (65535, True),
+        (0, False),
+        (65536, False),
+        (70000, False),
+    ])
+    def test_port_validation(self, base_settings, port, should_pass):
+        """Test port validation with various values."""
+        if should_pass:
+            settings = Settings(**base_settings, port=port)
+            assert settings.port == port
+        else:
+            with pytest.raises(ValidationError) as exc_info:
+                Settings(**base_settings, port=port)
+            assert "port" in str(exc_info.value)
     
-    def test_save_slots_validation(self, base_settings):
-        """Test save_slots must be between 1 and 10."""
-        # Valid
-        settings = Settings(**base_settings, save_slots=3)
-        assert settings.save_slots == 3
-        
-        # Too high
-        with pytest.raises(ValidationError) as exc_info:
-            Settings(**base_settings, save_slots=15)
-        assert "save_slots" in str(exc_info.value)
-        
-        # Too low
-        with pytest.raises(ValidationError) as exc_info:
-            Settings(**base_settings, save_slots=0)
-        assert "save_slots" in str(exc_info.value)
+    @pytest.mark.parametrize("slots,should_pass", [
+        (1, True),
+        (5, True),
+        (10, True),
+        (0, False),
+        (11, False),
+        (15, False),
+    ])
+    def test_save_slots_validation(self, base_settings, slots, should_pass):
+        """Test save_slots validation with various values."""
+        if should_pass:
+            settings = Settings(**base_settings, save_slots=slots)
+            assert settings.save_slots == slots
+        else:
+            with pytest.raises(ValidationError) as exc_info:
+                Settings(**base_settings, save_slots=slots)
+            assert "save_slots" in str(exc_info.value)
     
     def test_rom_path_must_exist(self, base_settings, tmp_path):
         """Test that ROM path must exist."""

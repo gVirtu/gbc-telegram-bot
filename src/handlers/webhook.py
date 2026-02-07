@@ -54,7 +54,24 @@ class WebhookHandler:
         expected_path = settings.get_webhook_path()
         return path == expected_path
     
-    def _validate_telegram_token(self, token: str) -> bool:
+    def _validate_webhook_hash(self, hash: str) -> bool:
+        """Validate webhook hash.
+        
+        Args:
+            hash: The hash to validate
+            
+        Returns:
+            True if valid, False otherwise
+        """
+        try:
+            expected_hash = settings.get_webhook_hash()
+            # Use constant-time comparison to prevent timing attacks
+            return hashlib.sha256(str(hash).encode()).hexdigest() == \
+                   hashlib.sha256(str(expected_hash).encode()).hexdigest()
+        except Exception:
+            return False
+    
+    def _validate_telegram_secret(self, token: str) -> bool:
         """Validate Telegram bot token.
         
         Args:
@@ -64,10 +81,10 @@ class WebhookHandler:
             True if valid, False otherwise
         """
         try:
-            expected_token = settings.telegram_bot_token.get_secret_value()
+            expected_secret = settings.webhook_secret
             # Use constant-time comparison to prevent timing attacks
             return hashlib.sha256(str(token).encode()).hexdigest() == \
-                   hashlib.sha256(str(expected_token).encode()).hexdigest()
+                   hashlib.sha256(str(expected_secret).encode()).hexdigest()
         except Exception:
             return False
     
@@ -281,11 +298,10 @@ class WebhookHandler:
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
         
-        @app.post("/webhook/{token}")
-        async def webhook_with_token(token: str, request: Request):
+        @app.post("/webhook/{hash}")
+        async def webhook_with_token(hash: str, request: Request):
             """Handle webhook with token in path (alternative endpoint)."""
-            # Validate token
-            if not self._validate_telegram_token(token):
+            if not self._validate_webhook_hash(hash) or not self._validate_telegram_secret(request.headers.get("X-Telegram-Bot-Api-Secret-Token")):
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid token",

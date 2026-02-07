@@ -49,19 +49,19 @@ class TestWebhookHandler:
             
             assert handler._validate_webhook_path("/webhook/wrong") is False
     
-    def test_validate_telegram_token_valid(self, handler):
+    def test_validate_telegram_secret_valid(self, handler):
         """Test validating correct token."""
         with patch("src.handlers.webhook.settings") as mock_settings:
-            mock_settings.telegram_bot_token.get_secret_value.return_value = "test_token"
+            mock_settings.webhook_secret = "test_token"
             
-            assert handler._validate_telegram_token("test_token") is True
+            assert handler._validate_telegram_secret("test_token") is True
     
-    def test_validate_telegram_token_invalid(self, handler):
+    def test_validate_telegram_secret_invalid(self, handler):
         """Test validating incorrect token."""
         with patch("src.handlers.webhook.settings") as mock_settings:
-            mock_settings.telegram_bot_token.get_secret_value.return_value = "test_token"
+            mock_settings.webhook_secret = "test_token"
             
-            assert handler._validate_telegram_token("wrong_token") is False
+            assert handler._validate_telegram_secret("wrong_token") is False
 
 
 class TestWebhookRoutes:
@@ -120,10 +120,11 @@ class TestWebhookRoutes:
         # Get the actual webhook path from settings
         from src.config import settings
         webhook_path = settings.get_webhook_path()
+        webhook_secret = settings.webhook_secret
 
         # Mock process_update to avoid complex parsing
         with patch.object(app.state.webhook_handler, "process_update", new=AsyncMock()):
-            response = client.post(webhook_path, json=update_data)
+            response = client.post(webhook_path, json=update_data, headers={"X-Telegram-Bot-Api-Secret-Token": webhook_secret})
 
             assert response.status_code == 200
             assert response.json()["status"] == "ok"
@@ -144,10 +145,11 @@ class TestWebhookRoutes:
         # Get the actual webhook path from settings
         from src.config import settings
         webhook_path = settings.get_webhook_path()
+        webhook_secret = settings.webhook_secret
 
         # Mock process_update to avoid complex parsing
         with patch.object(app.state.webhook_handler, "process_update", new=AsyncMock()):
-            response = client.post(webhook_path, json=update_data)
+            response = client.post(webhook_path, json=update_data, headers={"X-Telegram-Bot-Api-Secret-Token": webhook_secret})
 
             assert response.status_code == 200
             assert response.json()["status"] == "ok"
@@ -166,11 +168,12 @@ class TestWebhookRoutes:
         }
         
         with patch("src.handlers.webhook.settings") as mock_settings:
-            mock_settings.telegram_bot_token.get_secret_value.return_value = "test_token"
+            mock_settings.get_webhook_hash.return_value = "test_token"
+            mock_settings.webhook_secret = "secret_token"
             
             # Mock process_update to avoid complex mocking
             with patch.object(WebhookHandler, "process_update", new=AsyncMock()):
-                response = client.post("/webhook/test_token", json=update_data)
+                response = client.post("/webhook/test_token", json=update_data, headers={"X-Telegram-Bot-Api-Secret-Token": "secret_token"})
                 
                 assert response.status_code == 200
                 assert response.json()["status"] == "ok"

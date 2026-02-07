@@ -164,6 +164,9 @@ class Settings(BaseSettings):
             )
         return self
     
+    def get_webhook_hash(self) -> str:
+        return hashlib.sha256(self.webhook_secret.encode()).hexdigest()[:16]
+    
     def get_webhook_path(self) -> str:
         """Generate webhook path with hashed secret.
         
@@ -174,8 +177,7 @@ class Settings(BaseSettings):
             >>> settings.get_webhook_path()
             '/webhook/a1b2c3d4e5f67890'
         """
-        secret_hash = hashlib.sha256(self.webhook_secret.encode()).hexdigest()[:16]
-        return f"/webhook/{secret_hash}"
+        return f"webhook/{self.get_webhook_hash()}"
     
     def get_chat_save_dir(self, chat_id: int) -> Path:
         """Get save directory for a specific chat.

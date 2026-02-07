@@ -225,12 +225,12 @@ class TestHelperMethods:
         webhook_path = settings.get_webhook_path()
         
         # Should start with /webhook/
-        assert webhook_path.startswith("/webhook/")
+        assert webhook_path.startswith("webhook/")
         
         # Should contain a hash
         parts = webhook_path.split("/")
-        assert len(parts) == 3
-        assert len(parts[2]) == 16  # SHA256 hash truncated to 16 chars
+        assert len(parts) == 2
+        assert len(parts[1]) == 16  # SHA256 hash truncated to 16 chars
     
     def test_get_webhook_path_consistency(self, settings):
         """Test webhook path is consistent for same secret."""

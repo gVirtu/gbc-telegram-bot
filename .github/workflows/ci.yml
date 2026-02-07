@@ -1,0 +1,292 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.11"
+  MIN_COVERAGE: "80"
+
+jobs:
+  test:
+    name: Test & Coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+          cache-dependency-path: |
+            requirements.txt
+            pyproject.toml
+
+      - name: Cache virtual environment
+        uses: actions/cache@v4
+        id: venv-cache
+        with:
+          path: venv
+          key: ${{ runner.os }}-venv-${{ hashFiles('requirements.txt', 'pyproject.toml') }}-${{ env.PYTHON_VERSION }}
+          restore-keys: |
+            ${{ runner.os }}-venv-${{ hashFiles('requirements.txt', 'pyproject.toml') }}-
+            ${{ runner.os }}-venv-
+
+      - name: Install dependencies
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest-cov vulture coverage-badge
+        shell: bash
+
+      - name: Run Vulture (dead code detection)
+        run: |
+          source venv/bin/activate
+          echo "=== Running Vulture (dead code detection) ==="
+          vulture src/ --min-confidence 80 --exclude="venv/*" 2>&1 | tee vulture-report.txt || true
+          echo ""
+          echo "Vulture report saved to vulture-report.txt"
+        shell: bash
+
+      - name: Run pytest with coverage
+        env:
+          TELEGRAM_BOT_TOKEN: "test-token-for-ci"
+          WEBHOOK_URL: "https://example.com"
+          WEBHOOK_SECRET: "test-webhook-secret-min-16-chars"
+          PYTEST_CURRENT_TEST: "1"
+        run: |
+          source venv/bin/activate
+          echo "=== Running pytest with coverage ==="
+          pytest \
+            --cov=src \
+            --cov-report=xml \
+            --cov-report=html \
+            --cov-report=term-missing:skip-covered \
+            --cov-fail-under=${{ env.MIN_COVERAGE }} \
+            --tb=short \
+            -v \
+            2>&1 | tee pytest-coverage.txt
+        shell: bash
+
+      - name: Generate coverage badge
+        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          source venv/bin/activate
+          coverage-badge -o coverage-badge.svg -f
+        shell: bash
+
+      - name: Upload coverage report (HTML)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report-html
+          path: htmlcov/
+          retention-days: 7
+
+      - name: Upload vulture report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vulture-report
+          path: vulture-report.txt
+          retention-days: 7
+
+      - name: Upload coverage badge
+        uses: actions/upload-artifact@v4
+        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        with:
+          name: coverage-badge
+          path: coverage-badge.svg
+          retention-days: 90
+
+      - name: Comment PR with coverage summary
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            // Read coverage output
+            let coverageOutput = '';
+            try {
+              coverageOutput = fs.readFileSync('pytest-coverage.txt', 'utf8');
+            } catch (e) {
+              coverageOutput = 'Coverage report not available';
+            }
+
+            // Extract coverage percentage
+            const coverageMatch = coverageOutput.match(/TOTAL\s+\d+\s+\d+\s+(\d+)%/);
+            const coverage = coverageMatch ? coverageMatch[1] : 'unknown';
+
+            // Extract test results
+            const passedMatch = coverageOutput.match(/(\d+) passed/);
+            const failedMatch = coverageOutput.match(/(\d+) failed/);
+            const skippedMatch = coverageOutput.match(/(\d+) skipped/);
+
+            const passed = passedMatch ? passedMatch[1] : '0';
+            const failed = failedMatch ? failedMatch[1] : '0';
+            const skipped = skippedMatch ? skippedMatch[1] : '0';
+
+            // Determine status
+            const minCoverage = ${{ env.MIN_COVERAGE }};
+            const coverageNum = parseInt(coverage) || 0;
+            const passedCoverage = coverageNum >= minCoverage;
+            const hasFailures = parseInt(failed) > 0;
+
+            let statusEmoji = passedCoverage && !hasFailures ? '✅' : '❌';
+            let summary = `## ${statusEmoji} CI Report\n\n`;
+            summary += `| Metric | Value | Status |\n`;
+            summary += `|--------|-------|--------|\n`;
+            summary += `| Tests | ${passed} passed, ${failed} failed, ${skipped} skipped | ${hasFailures ? '❌' : '✅'} |\n`;
+            summary += `| Coverage | ${coverage}% | ${passedCoverage ? '✅' : '❌'} (min: ${minCoverage}%) |\n`;
+
+            // Add details if there are issues
+            if (hasFailures || !passedCoverage) {
+              summary += `\n### Issues Found\n`;
+              if (hasFailures) {
+                summary += `- ❌ Tests failed\n`;
+              }
+              if (!passedCoverage) {
+                summary += `- ❌ Coverage ${coverage}% is below minimum ${minCoverage}%\n`;
+              }
+            }
+
+            // Add link to artifacts
+            summary += `\n### Artifacts\n`;
+            summary += `- [Coverage Report (HTML)](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})\n`;
+            summary += `- [Full Test Output](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})\n`;
+
+            // Find and update or create comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+
+            const botComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('CI Report')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: summary
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: summary
+              });
+            }
+
+      - name: Check minimum coverage
+        run: |
+          source venv/bin/activate
+          coverage report --fail-under=${{ env.MIN_COVERAGE }}
+        shell: bash
+
+  lint:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+          cache-dependency-path: |
+            requirements.txt
+            pyproject.toml
+
+      - name: Cache virtual environment
+        uses: actions/cache@v4
+        id: venv-cache
+        with:
+          path: venv
+          key: ${{ runner.os }}-venv-lint-${{ hashFiles('requirements.txt', 'pyproject.toml') }}-${{ env.PYTHON_VERSION }}
+          restore-keys: |
+            ${{ runner.os }}-venv-lint-${{ hashFiles('requirements.txt', 'pyproject.toml') }}-
+            ${{ runner.os }}-venv-lint-
+
+      - name: Install linting tools
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          pip install --upgrade pip
+          pip install ruff vulture
+        shell: bash
+
+      - name: Run Ruff linter
+        run: |
+          source venv/bin/activate
+          echo "=== Running Ruff linter ==="
+          ruff check src/ tests/ || true
+        shell: bash
+
+      - name: Run Ruff format check
+        run: |
+          source venv/bin/activate
+          echo "=== Running Ruff format check ==="
+          ruff format --check src/ tests/ || true
+        shell: bash
+
+      - name: Run Vulture (dead code detection)
+        run: |
+          source venv/bin/activate
+          echo "=== Running Vulture (dead code detection) ==="
+          vulture src/ --min-confidence 80 --exclude="venv/*" || true
+        shell: bash
+
+  summary:
+    name: Summary
+    needs: [test, lint]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: CI Status Summary
+        run: |
+          echo "## CI Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Test & Coverage | ${{ needs.test.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Code Quality | ${{ needs.lint.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [[ "${{ needs.test.result }}" == "success" && "${{ needs.lint.result }}" == "success" ]]; then
+            echo "✅ All checks passed!" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Some checks failed. See details above." >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Requirements" >> $GITHUB_STEP_SUMMARY
+          echo "- pytest must pass ✅" >> $GITHUB_STEP_SUMMARY
+          echo "- Coverage must be ≥ ${{ env.MIN_COVERAGE }}% ✅" >> $GITHUB_STEP_SUMMARY
+          echo "- Vulture dead code detection (warnings only) ⚠️" >> $GITHUB_STEP_SUMMARY

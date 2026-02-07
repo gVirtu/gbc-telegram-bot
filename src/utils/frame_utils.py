@@ -212,7 +212,12 @@ def save_frames_as_gif(
         raise ValueError("No frames provided")
         
     # Convert numpy frames to PIL Images
-    images = [Image.fromarray(frame, mode="RGB") for frame in frames]
+    images = [
+        Image.fromarray(frame, mode="RGB").resize(
+            (frame.shape[1] * 2, frame.shape[0] * 2), Image.Resampling.NEAREST
+        )
+        for frame in frames
+    ]
     
     # Calculate durations
     durations = [duration] * len(frames)

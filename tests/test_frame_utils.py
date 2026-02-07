@@ -84,19 +84,44 @@ class TestFrameToPng:
         assert image.mode == "RGB"
         assert image.size == (160, 144)
     
-    def test_different_sizes(self):
+    @pytest.mark.parametrize("width,height", [
+        (160, 144),   # Standard GameBoy
+        (320, 288),   # 2x scale
+        (80, 72),     # 0.5x scale
+        (640, 576),   # 4x scale
+    ])
+    def test_different_sizes(self, width, height):
         """Test conversion with different frame sizes."""
-        sizes = [(160, 144), (320, 288), (80, 72)]
-        
-        for width, height in sizes:
-            frame = np.zeros((height, width, 3), dtype=np.uint8)
-            png_buffer = frame_to_png(frame)
-            
-            png_buffer.seek(0)
-            image = Image.open(png_buffer)
-            
-            assert image.size == (width, height)
-    
+        frame = np.zeros((height, width, 3), dtype=np.uint8)
+        png_buffer = frame_to_png(frame)
+
+        png_buffer.seek(0)
+        image = Image.open(png_buffer)
+
+        assert image.size == (width, height)
+
+    @pytest.mark.parametrize("color,expected_rgb", [
+        ((255, 0, 0), (255, 0, 0)),      # Red
+        ((0, 255, 0), (0, 255, 0)),      # Green
+        ((0, 0, 255), (0, 0, 255)),      # Blue
+        ((255, 255, 255), (255, 255, 255)),  # White
+        ((0, 0, 0), (0, 0, 0)),          # Black
+    ])
+    def test_frame_colors(self, color, expected_rgb):
+        """Test frame conversion preserves colors."""
+        frame = np.zeros((144, 160, 3), dtype=np.uint8)
+        frame[:, :, 0] = color[0]
+        frame[:, :, 1] = color[1]
+        frame[:, :, 2] = color[2]
+
+        png_buffer = frame_to_png(frame)
+        png_buffer.seek(0)
+        image = Image.open(png_buffer)
+
+        # Check a pixel in the center
+        pixel = image.getpixel((80, 72))
+        assert pixel == expected_rgb
+
     def test_invalid_input_not_array(self):
         """Test error on non-array input."""
         with pytest.raises(ValueError, match="Expected numpy array"):

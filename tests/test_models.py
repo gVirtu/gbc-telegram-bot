@@ -179,7 +179,6 @@ class TestChatConfig:
         assert chat_config.input_hold_frames == 45
         assert chat_config.animation_duration == 15
         assert chat_config.auto_save_enabled is False
-        assert chat_config.animation_interval is None  # Uses default
     
     def test_defaults(self):
         """Test default values."""
@@ -187,7 +186,6 @@ class TestChatConfig:
         
         assert config.input_hold_frames is None
         assert config.animation_duration is None
-        assert config.animation_interval is None
         assert config.auto_save_enabled is True
     
     def test_to_dict(self, chat_config):
@@ -206,7 +204,6 @@ class TestChatConfig:
             "chat_id": 123456789,
             "input_hold_frames": 60,
             "animation_duration": 20,
-            "animation_interval": 2.0,
             "auto_save_enabled": True,
             "created_at": "2024-01-01T10:00:00",
             "updated_at": "2024-01-01T11:00:00",
@@ -217,7 +214,6 @@ class TestChatConfig:
         assert config.chat_id == 123456789
         assert config.input_hold_frames == 60
         assert config.animation_duration == 20
-        assert config.animation_interval == 2.0
 
 
 class TestSaveSlotInfo:

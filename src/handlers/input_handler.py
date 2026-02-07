@@ -8,7 +8,7 @@ import asyncio
 import logging
 from typing import Optional
 
-from telegram import Bot, InputMediaPhoto
+from telegram import Bot, InputMediaPhoto, InputMediaAnimation
 from telegram.error import TelegramError
 
 from src.config import settings
@@ -21,7 +21,7 @@ from src.keyboard import (
     is_valid_button_callback,
 )
 from src.models.game_state import ChatGameState, GameButton, GameSession
-from src.utils.frame_utils import should_update_frame
+from src.utils.frame_utils import should_update_frame, save_frames_as_gif
 from src.utils.state_manager import state_manager
 
 logger = logging.getLogger(__name__)
@@ -121,7 +121,10 @@ class InputHandler:
 
         # Validate callback is a game button
         if not is_valid_button_callback(callback_data):
-            await callback_query.answer("Invalid button")
+            try:
+                await callback_query.answer("Invalid button")
+            except Exception as e:
+                logger.error(f"Error processing input for chat {chat_id}: {e}")
             return
 
         button = get_button_from_callback(callback_data)
@@ -129,17 +132,26 @@ class InputHandler:
         # Check if chat has an active session
         session = self._get_session(chat_id)
         if not session:
-            await callback_query.answer("No active game! Use /start_game first.")
+            try:
+                await callback_query.answer("Nenhum jogo ativo! Use /start_game primeiro.")
+            except Exception as e:
+                logger.error(f"Error processing input for chat {chat_id}: {e}")
             return
 
         # Check if input is already being processed
         if chat_id in self._processing:
-            await callback_query.answer("Input already in progress! Please wait...")
+            try:
+                await callback_query.answer("Input já está em progresso! Por favor aguarde.")
+            except Exception as e:
+                logger.error(f"Error processing input for chat {chat_id}: {e}")
             return
 
         # Check if message matches (prevent old message interactions)
         if session.state.message_id != message_id:
-            await callback_query.answer("This game message is outdated. Use /current_frame for the latest.")
+            try:
+                await callback_query.answer("Esta mensagem está desatualizada. Use /resume para continuar.")
+            except Exception as e:
+                logger.error(f"Error processing input for chat {chat_id}: {e}")
             return
 
         # Extract user info
@@ -167,7 +179,7 @@ class InputHandler:
 
         except Exception as e:
             logger.error(f"Error processing input for chat {chat_id}: {e}")
-            await self._send_error_message(chat_id, "Error processing input. Please try again.")
+            await self._send_error_message(chat_id, "Erro ao processar, por favor tente novamente.")
         finally:
             # Always unlock
             self._processing.discard(chat_id)
@@ -284,47 +296,80 @@ class InputHandler:
     ) -> None:
         """Animate frame updates during the animation phase.
         
-        Updates the message every animation_interval seconds for
-        animation_duration seconds, skipping frames that haven't changed.
+        Accumulates frames and sends them as a single GIF animation.
         
         Args:
             chat_id: Telegram chat ID
             message_id: Telegram message ID
             controller: GameController instance
+            caption: Message caption
         """
+        frames = []
         start_time = asyncio.get_event_loop().time()
-        last_update = start_time
+        
+        # Capture frames at 10 FPS for the GIF
+        capture_fps = 10
+        capture_interval = 1.0 / capture_fps
+        duration_ms = int(capture_interval * 1000)
+        
+        # Determine how many game frames to tick per capture
+        # If we want 10 FPS output and game runs at 60 FPS, we might want to just tick enough to match time?
+        # Or we use settings.animation_tick_frames if that logic was specific to game speed.
+        # User said "tick the emulator over the animation duration".
+        # Let's stick closer to the original game speed feeling.
+        # If we capture every 0.1s, we should ideally tick 6 frames (0.1s * 60fps).
+        frames_per_tick = 6 
+        
+        logger.info(f"Starting animation phase for chat {chat_id}, accumulating frames...")
         
         while (asyncio.get_event_loop().time() - start_time) < settings.animation_duration:
             # Tick forward
-            frame = controller.tick(settings.animation_tick_frames)
+            controller.tick(frames_per_tick)
             
-            # Check if we should update
-            should_update, frame_hash = should_update_frame(
-                frame, controller.last_frame_hash
-            )
+            # Capture frame
+            frames.append(controller.get_frame().copy())
             
-            if should_update:
+            # Wait for next capture interval
+            await asyncio.sleep(capture_interval)
+            
+        if frames:
+            logger.info(f"Generating GIF for chat {chat_id} with {len(frames)} frames")
+            try:
+                # Generate GIF
+                # Determine last frame duration (2 seconds)
+                gif_buffer = save_frames_as_gif(
+                    frames,
+                    duration=duration_ms,
+                    last_frame_duration=2000
+                )
+                # Ensure buffer is at start position
+                gif_buffer.seek(0)
+
+                # Send GIF
+                await self._edit_message_media(
+                    chat_id,
+                    message_id,
+                    gif_buffer,
+                    caption,
+                    media_type="animation"
+                )
+                
+                # Update hash with the last frame so we don't resend it immediately if next action is same
+                _, last_hash = should_update_frame(frames[-1], None)
+                controller.update_frame_hash(last_hash)
+            except Exception as e:
+                logger.error(f"Failed to generate or send GIF for chat {chat_id}: {e}")
+                # Fallback to sending the last frame as photo
                 try:
                     png_buffer = controller.get_frame_as_png()
                     await self._edit_message_media(
                         chat_id,
                         message_id,
                         png_buffer,
-                        caption,
+                        caption
                     )
-                    controller.update_frame_hash(frame_hash)
-                except TelegramError as e:
-                    logger.warning(f"Failed to update frame for chat {chat_id}: {e}")
-            else:
-                logger.debug(f"Terminating animation phase early for {chat_id}")
-                break
-            
-            # Wait for next interval
-            elapsed = asyncio.get_event_loop().time() - last_update
-            sleep_time = max(0, settings.animation_interval - elapsed)
-            await asyncio.sleep(sleep_time)
-            last_update = asyncio.get_event_loop().time()
+                except Exception as e2:
+                    logger.error(f"Fallback failed for chat {chat_id}: {e2}")
     
     async def _edit_message_keyboard(
         self,
@@ -352,21 +397,35 @@ class InputHandler:
         self,
         chat_id: int,
         message_id: int,
-        photo_buffer,
+        media_buffer,
         caption: str,
+        media_type: str = "photo",
     ) -> None:
-        """Edit a message's media (photo).
-        
+        """Edit a message's media (photo or animation).
+
         Args:
             chat_id: Telegram chat ID
             message_id: Message ID to edit
-            photo_buffer: BytesIO containing PNG image
+            media_buffer: BytesIO containing image or animation data
+            caption: Message caption
+            media_type: Type of media ("photo" or "animation")
         """
         try:
+            if media_type == "animation":
+                # Ensure buffer has a name attribute for proper file upload
+                media_buffer.name = "animation.gif"
+                media = InputMediaAnimation(
+                    media=media_buffer,
+                    caption=caption,
+                    parse_mode="Markdown",
+                )
+            else:
+                media = InputMediaPhoto(media=media_buffer, caption=caption, parse_mode="Markdown")
+
             await self.bot.edit_message_media(
                 chat_id=chat_id,
                 message_id=message_id,
-                media=InputMediaPhoto(media=photo_buffer, caption=caption, parse_mode="Markdown"),
+                media=media,
             )
         except TelegramError as e:
             logger.warning(f"Failed to edit media for chat {chat_id}: {e}")

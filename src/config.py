@@ -94,14 +94,9 @@ class Settings(BaseSettings):
         ge=1,
     )
     animation_duration: int = Field(
-        default=10,
+        default=5,
         description="Animation phase duration in seconds",
         ge=1,
-    )
-    animation_interval: float = Field(
-        default=1.0,
-        description="Seconds between frame updates during animation",
-        ge=0.1,
     )
     animation_tick_frames: int = Field(
         default=60,

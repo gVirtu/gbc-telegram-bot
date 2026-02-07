@@ -383,7 +383,12 @@ class TestIntegration:
 
             # Mock should_update_frame to skip animation
             with patch('src.handlers.input_handler.should_update_frame', return_value=(False, "hash123")), \
+                 patch('src.handlers.input_handler.settings') as mock_settings, \
                  patch('asyncio.sleep', new_callable=AsyncMock):
+                
+                # Set animation duration to 0 to avoid infinite loop
+                mock_settings.animation_duration = 0
+
 
                 # Handle button press
                 await handler.handle_button_press(callback_query)

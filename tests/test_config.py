@@ -90,12 +90,8 @@ class TestOptionalSettingsDefaults:
         assert valid_settings.input_hold_frames == 30
     
     def test_animation_duration_default(self, valid_settings):
-        """Test animation_duration defaults to 10."""
-        assert valid_settings.animation_duration == 10
-    
-    def test_animation_interval_default(self, valid_settings):
-        """Test animation_interval defaults to 1.0."""
-        assert valid_settings.animation_interval == 1.0
+        """Test animation_duration defaults to 5."""
+        assert valid_settings.animation_duration == 5
     
     def test_animation_tick_frames_default(self, valid_settings):
         """Test animation_tick_frames defaults to 60."""

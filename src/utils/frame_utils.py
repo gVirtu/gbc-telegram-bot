@@ -183,3 +183,53 @@ def should_update_frame(
     
     # Frame changed, should update
     return True, current_hash
+
+
+def save_frames_as_gif(
+    frames: list[np.ndarray],
+    duration: int = 100,
+    last_frame_duration: int = 2000,
+    optimize: bool = True,
+) -> BytesIO:
+    """Save a sequence of frames as an animated GIF.
+    
+    Args:
+        frames: List of NumPy arrays (H, W, 3)
+        duration: Duration of each frame in milliseconds
+        last_frame_duration: Duration of the last frame in milliseconds
+        optimize: Whether to optimize GIF size
+        
+    Returns:
+        BytesIO object containing GIF data
+        
+    Example:
+        >>> frames = [create_empty_frame() for _ in range(5)]
+        >>> gif_buffer = save_frames_as_gif(frames)
+        >>> len(gif_buffer.getvalue()) > 0
+        True
+    """
+    if not frames:
+        raise ValueError("No frames provided")
+        
+    # Convert numpy frames to PIL Images
+    images = [Image.fromarray(frame, mode="RGB") for frame in frames]
+    
+    # Calculate durations
+    durations = [duration] * len(frames)
+    if frames:
+        durations[-1] = last_frame_duration
+        
+    buffer = BytesIO()
+    # Save as GIF
+    images[0].save(
+        buffer,
+        format="GIF",
+        save_all=True,
+        append_images=images[1:],
+        duration=durations,
+        loop=0,
+        optimize=optimize,
+    )
+    buffer.seek(0)
+    
+    return buffer

@@ -87,7 +87,7 @@ class TestOptionalSettingsDefaults:
     
     def test_input_hold_frames_default(self, valid_settings):
         """Test input_hold_frames defaults to 30."""
-        assert valid_settings.input_hold_frames == 30
+        assert valid_settings.input_hold_frames == 10
     
     def test_animation_duration_default(self, valid_settings):
         """Test animation_duration defaults to 5."""

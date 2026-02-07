@@ -89,7 +89,7 @@ class Settings(BaseSettings):
     
     # Game timing settings
     input_hold_frames: int = Field(
-        default=30,
+        default=10,
         description="Number of frames to hold button input (30 = 0.5s @ 60fps)",
         ge=1,
     )

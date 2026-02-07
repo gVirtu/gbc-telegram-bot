@@ -361,6 +361,7 @@ class TestIntegration:
         mock_bot = Mock()
         mock_bot.edit_message_reply_markup = AsyncMock()
         mock_bot.edit_message_media = AsyncMock()
+        mock_bot.edit_message_caption = AsyncMock()
 
         handler = InputHandler(mock_bot)
 

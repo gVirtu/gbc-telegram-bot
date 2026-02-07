@@ -15,6 +15,7 @@ from src.config import settings
 from src.game import GameController, game_controller_manager
 from src.keyboard import (
     create_input_keyboard,
+    create_game_message_text,
     create_processing_keyboard,
     get_button_from_callback,
     is_valid_button_callback,
@@ -241,6 +242,16 @@ class InputHandler:
         # Animation phase
         await self._animate_frames(chat_id, message_id, controller)
         
+        # Update the caption with the current game state
+        session = self._get_session(chat_id)
+        recent = session.state.recent_inputs if session else []
+        
+        await self._edit_message_caption(
+            chat_id,
+            message_id,
+            create_game_message_text(recent_inputs=recent),
+        )
+        
         # Re-enable input with fresh keyboard
         await self._edit_message_keyboard(
             chat_id,
@@ -340,6 +351,29 @@ class InputHandler:
         except TelegramError as e:
             logger.warning(f"Failed to edit media for chat {chat_id}: {e}")
     
+    async def _edit_message_caption(
+        self,
+        chat_id: int,
+        message_id: int,
+        caption: str,
+    ) -> None:
+        """Edit a message's caption.
+        
+        Args:
+            chat_id: Telegram chat ID
+            message_id: Message ID to edit
+            caption: New caption text
+        """
+        try:
+            await self.bot.edit_message_caption(
+                chat_id=chat_id,
+                message_id=message_id,
+                caption=caption,
+                parse_mode="Markdown",
+            )
+        except TelegramError as e:
+            logger.warning(f"Failed to edit caption for chat {chat_id}: {e}")
+    
     async def _send_error_message(self, chat_id: int, text: str) -> None:
         """Send an error message to the chat.
         
@@ -372,7 +406,6 @@ class InputHandler:
         session = self._create_session(chat_id, 0)  # Will update message_id after sending
         
         # Send initial message
-        from src.keyboard import create_game_message_text
 
         recent = session.state.recent_inputs if session else []
         message = await self.bot.send_photo(
@@ -431,9 +464,6 @@ class InputHandler:
                 # Fall through to sending new message
                 pass
         
-        # Send new message
-        from src.keyboard import create_game_message_text
-
         recent = session.state.recent_inputs if session else []
         message = await self.bot.send_photo(
             chat_id=chat_id,
@@ -484,9 +514,6 @@ class InputHandler:
             except TelegramError:
                 # Old message might be deleted or inaccessible, continue anyway
                 pass
-
-        # Send new message with keyboard
-        from src.keyboard import create_game_message_text
 
         recent = session.state.recent_inputs if session else []
         message = await self.bot.send_photo(

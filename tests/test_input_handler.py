@@ -262,6 +262,7 @@ class TestInputProcessing:
         bot = MagicMock()
         bot.edit_message_reply_markup = AsyncMock()
         bot.edit_message_media = AsyncMock()
+        bot.edit_message_caption = AsyncMock()
         return bot
     
     @pytest.fixture
@@ -406,6 +407,7 @@ class TestEditOperations:
         bot = MagicMock()
         bot.edit_message_reply_markup = AsyncMock()
         bot.edit_message_media = AsyncMock()
+        bot.edit_message_caption = AsyncMock()
         return bot
     
     @pytest.fixture
@@ -450,6 +452,26 @@ class TestEditOperations:
         
         # Should not raise
         await handler._edit_message_media(123456, 789, BytesIO(b"png"))
+
+    @pytest.mark.asyncio
+    async def test_edit_caption(self, handler, mock_bot):
+        """Test editing message caption."""
+        await handler._edit_message_caption(123456, 789, "New caption")
+        
+        mock_bot.edit_message_caption.assert_called_once_with(
+            chat_id=123456,
+            message_id=789,
+            caption="New caption",
+            parse_mode="Markdown",
+        )
+    
+    @pytest.mark.asyncio
+    async def test_edit_caption_handles_error(self, handler, mock_bot):
+        """Test editing caption handles Telegram errors."""
+        mock_bot.edit_message_caption.side_effect = TelegramError("Error")
+        
+        # Should not raise
+        await handler._edit_message_caption(123456, 789, "New caption")
 
 
 class TestSessionLoading:

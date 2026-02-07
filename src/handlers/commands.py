@@ -159,34 +159,6 @@ async def _ensure_game_active(chat_id: int) -> tuple[bool, str | None]:
     try:
         # Initialize controller
         controller = await game_controller_manager.get_or_create_controller(chat_id)
-
-        # Try to load the most recent auto-save if it exists
-        slots = state_manager.list_save_slots(chat_id)
-        auto_saves = [s for s in slots if s.is_auto_save]
-        
-        target_slot = None
-        
-        if auto_saves:
-            # Sort by updated_at descending
-            auto_saves.sort(key=lambda x: x.updated_at or x.created_at, reverse=True)
-            target_slot = auto_saves[0].slot_number
-            logger.info(f"Found auto-save in slot {target_slot} for chat {chat_id}")
-        elif slots:
-            # Fallback to slot 1 if it exists (legacy support)
-            if any(s.slot_number == 1 for s in slots):
-                target_slot = 1
-                logger.info(f"No auto-save found, falling back to slot 1 for chat {chat_id}")
-        
-        if target_slot is not None:
-            state_data = state_manager.load_from_slot(chat_id, target_slot)
-            if state_data is not None:
-                try:
-                    controller.load_state(state_data)
-                    logger.info(f"Auto-started game for chat {chat_id} from slot {target_slot}")
-                    return True, None
-                except Exception as e:
-                    logger.warning(f"Failed to load slot {target_slot} for chat {chat_id}: {e}")
-                    # Fall through to initial state
         
         # Use initial state (fresh game)
         logger.info(f"Auto-started game for chat {chat_id} with initial state")

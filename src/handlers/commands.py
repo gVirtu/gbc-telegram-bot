@@ -553,7 +553,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     await update.message.reply_text(
         help_text,
         parse_mode="Markdown",
-        reply_markup=create_input_keyboard()
     )
 
 

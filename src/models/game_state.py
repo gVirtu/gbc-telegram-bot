@@ -308,10 +308,9 @@ class GameSession:
 
 # Button layout for inline keyboard (3x3 grid with Start/Select at bottom)
 BUTTON_LAYOUT = [
-    [GameButton.UP, GameButton.WAIT],
+    [GameButton.WAIT, GameButton.UP],
     [GameButton.LEFT, GameButton.RIGHT],
-    [GameButton.DOWN],
+    [GameButton.SEQUENCE, GameButton.DOWN,],
     [GameButton.A, GameButton.B],
     [GameButton.START, GameButton.SELECT],
-    [GameButton.SEQUENCE],
 ]

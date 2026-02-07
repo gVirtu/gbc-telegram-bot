@@ -184,22 +184,6 @@ def remove_keyboard() -> None:
     return None
 
 
-def create_help_keyboard() -> InlineKeyboardMarkup:
-    """Create keyboard with help buttons.
-    
-    Returns:
-        InlineKeyboardMarkup with help/refresh options
-    """
-    keyboard = [
-        [
-            InlineKeyboardButton("🔄 Refresh Frame", callback_data="refresh"),
-            InlineKeyboardButton("❓ Help", callback_data="help"),
-        ]
-    ]
-    
-    return InlineKeyboardMarkup(keyboard)
-
-
 def create_save_slot_keyboard(chat_id: int, save_slots: int = 5) -> InlineKeyboardMarkup:
     """Create keyboard for selecting save slots.
     
@@ -296,15 +280,15 @@ def is_valid_button_callback(callback_data: str) -> bool:
 
 # Button descriptions for help text
 BUTTON_DESCRIPTIONS = {
-    GameButton.UP: "Move up / Navigate up",
-    GameButton.DOWN: "Move down / Navigate down",
-    GameButton.LEFT: "Move left / Navigate left",
-    GameButton.RIGHT: "Move right / Navigate right",
-    GameButton.A: "Confirm / Interact / Select",
-    GameButton.B: "Cancel / Back / Run",
-    GameButton.START: "Open menu / Pause",
-    GameButton.SELECT: "Select item / Switch",
-    GameButton.WAIT: "Wait / Let game progress without input",
+    GameButton.UP: "Mover para cima",
+    GameButton.DOWN: "Mover para baixo",
+    GameButton.LEFT: "Mover para a esquerda",
+    GameButton.RIGHT: "Mover para a direita",
+    GameButton.A: "Confirmar / Interagir / Selecionar",
+    GameButton.B: "Cancelar / Voltar",
+    GameButton.START: "Abrir menu / Pausar",
+    GameButton.SELECT: "Selecionar item / Alternar",
+    GameButton.WAIT: "Esperar / Deixar o jogo progredir sem input",
     GameButton.SEQUENCE: "Construir uma sequência de comandos",
     GameButton.ENVIAR: "Enviar a sequência construída",
 }
@@ -316,21 +300,31 @@ def create_help_text() -> str:
     Returns:
         Formatted help text with button descriptions
     """
-    text = "🎮 *Game Controls*\n\n"
-    text += "Press any button to control the game. "
-    text += "The first button press wins!\n\n"
-    text += "*Button Guide:*\n"
+    text = "Como jogar:\n\n"
+    text += "Pressione qualquer botão para controlar o jogo. Após cada comando, o jogo irá avançar alguns segundos e atualizar a imagem."
+    text += "\n\n"
+    text += "Você também pode construir uma sequência de comandos e enviar todos de uma vez."
+    text += "\n\n"
+
+    text += "*Controles*\n"
     
+    text += f"⬆️⬅️⬇️➡️ Direcionais: Mover\n"
     for button in GameButton:
+        if button in [GameButton.UP, GameButton.DOWN, GameButton.LEFT, GameButton.RIGHT]:
+            continue
+
         text += f"{button.emoji} {button.display_name}: {BUTTON_DESCRIPTIONS[button]}\n"
     
-    text += "\n*Commands:*\n"
-    text += "/start\\_game - Start or restart the game\n"
-    text += "/resume - Resume game in a new message\n"
-    text += "/print - Capture screenshot without keyboard\n"
-    text += "/save [slot] - Save game to slot\n"
-    text += "/load [slot] - Load game from slot\n"
-    text += "/status - Show game status\n"
-    text += "/help - Show this help message"
+    text += "\n*Comandos do jogador:*\n"
+    text += "/resume - Retoma o jogo em uma nova mensagem\n"
+    text += "/print - Captura a tela atual e envia na conversa\n"
+    text += "/status - Mostra algumas informações de status\n"
+    text += "/help - Mostra esta mensagem de ajuda"
+
+    text += "\n\n"
+    text += "\n*Comandos do administrador:*\n"
+    text += "/start\\_game - Inicia ou reinicia o jogo\n"
+    text += "/save [slot] - Salva o jogo em um slot\n"
+    text += "/load [slot] - Carrega o jogo de um slot\n"
 
     return text

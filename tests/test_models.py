@@ -357,8 +357,9 @@ class TestButtonLayout:
         assert GameButton.LEFT in BUTTON_LAYOUT[1]
         assert GameButton.RIGHT in BUTTON_LAYOUT[1]
 
-        # Check third row (Down button alone)
-        assert BUTTON_LAYOUT[2] == [GameButton.DOWN]
+        # Check third row (Down button and Sequence button)
+        assert GameButton.SEQUENCE in BUTTON_LAYOUT[2]
+        assert GameButton.DOWN in BUTTON_LAYOUT[2]
 
         # Check fourth row (A, B)
         assert GameButton.A in BUTTON_LAYOUT[3]

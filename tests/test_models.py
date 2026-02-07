@@ -20,39 +20,48 @@ from src.models.game_state import (
 
 class TestGameButton:
     """Test GameButton enum."""
-    
-    def test_button_values(self):
+
+    @pytest.mark.parametrize("button,expected", [
+        (GameButton.UP, "up"),
+        (GameButton.DOWN, "down"),
+        (GameButton.LEFT, "left"),
+        (GameButton.RIGHT, "right"),
+        (GameButton.A, "a"),
+        (GameButton.B, "b"),
+        (GameButton.START, "start"),
+        (GameButton.SELECT, "select"),
+    ])
+    def test_button_values(self, button, expected):
         """Test all buttons have correct string values."""
-        assert GameButton.UP.value == "up"
-        assert GameButton.DOWN.value == "down"
-        assert GameButton.LEFT.value == "left"
-        assert GameButton.RIGHT.value == "right"
-        assert GameButton.A.value == "a"
-        assert GameButton.B.value == "b"
-        assert GameButton.START.value == "start"
-        assert GameButton.SELECT.value == "select"
-    
-    def test_button_emojis(self):
+        assert button.value == expected
+
+    @pytest.mark.parametrize("button,expected_emoji", [
+        (GameButton.UP, "⬆️"),
+        (GameButton.DOWN, "⬇️"),
+        (GameButton.LEFT, "⬅️"),
+        (GameButton.RIGHT, "➡️"),
+        (GameButton.A, "🅰️"),
+        (GameButton.B, "🅱️"),
+        (GameButton.START, "START"),
+        (GameButton.SELECT, "SELECT"),
+    ])
+    def test_button_emojis(self, button, expected_emoji):
         """Test emoji mapping."""
-        assert GameButton.UP.emoji == "⬆️"
-        assert GameButton.DOWN.emoji == "⬇️"
-        assert GameButton.LEFT.emoji == "⬅️"
-        assert GameButton.RIGHT.emoji == "➡️"
-        assert GameButton.A.emoji == "🅰️"
-        assert GameButton.B.emoji == "🅱️"
-        assert GameButton.START.emoji == "START"
-        assert GameButton.SELECT.emoji == "SELECT"
-    
-    def test_button_display_names(self):
+        assert button.emoji == expected_emoji
+
+    @pytest.mark.parametrize("button,expected_name", [
+        (GameButton.UP, "Cima"),
+        (GameButton.DOWN, "Baixo"),
+        (GameButton.LEFT, "Esquerda"),
+        (GameButton.RIGHT, "Direita"),
+        (GameButton.A, "A"),
+        (GameButton.B, "B"),
+        (GameButton.START, "Start"),
+        (GameButton.SELECT, "Select"),
+    ])
+    def test_button_display_names(self, button, expected_name):
         """Test display name mapping."""
-        assert GameButton.UP.display_name == "Cima"
-        assert GameButton.DOWN.display_name == "Baixo"
-        assert GameButton.LEFT.display_name == "Esquerda"
-        assert GameButton.RIGHT.display_name == "Direita"
-        assert GameButton.A.display_name == "A"
-        assert GameButton.B.display_name == "B"
-        assert GameButton.START.display_name == "Start"
-        assert GameButton.SELECT.display_name == "Select"
+        assert button.display_name == expected_name
     
     def test_button_from_string(self):
         """Test creating button from string value."""

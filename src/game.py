@@ -93,7 +93,7 @@ class GameController:
             )
             
             # Run a few frames to get past boot screen
-            for _ in range(10):
+            for _ in range(100):
                 self.pyboy.tick()
             
             self._initialized = True

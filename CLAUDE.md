@@ -10,22 +10,19 @@ A Telegram bot that lets group chats collaboratively play Gameboy games. Users p
 
 ```bash
 # Run the bot
-python -m src.main
+poetry run python -m src.main
 
 # Run all tests
-pytest
+poetry run pytest
 
 # Run a single test file
-pytest tests/test_config.py
+poetry run pytest tests/test_config.py
 
 # Run a specific test
-pytest tests/test_config.py::TestRequiredSettings::test_telegram_bot_token_required
-
-# Activate virtualenv
-source venv/bin/activate
+poetry run pytest tests/test_config.py::TestRequiredSettings::test_telegram_bot_token_required
 ```
 
-Python 3.11 is required (managed via `mise.toml`). Dependencies are in `requirements.txt` (runtime) and `pyproject.toml` (dev extras).
+Python 3.11 is required (managed via `mise.toml`). Dependencies are in `pyproject.toml` and are managed by `poetry`.
 
 ## Architecture
 
@@ -59,7 +56,3 @@ Several modules use module-level singletons: `settings` (config proxy), `game_co
 ### Testing
 
 All features MUST be tested. Tests use `PYTEST_CURRENT_TEST=1` to bypass `.env` file loading and ROM existence checks. Config tests create temporary ROM files via `tmp_path`. pytest-asyncio is available for async tests.
-
-## Environment Variables
-
-Required: `TELEGRAM_BOT_TOKEN`, `WEBHOOK_URL`, `WEBHOOK_SECRET` (min 16 chars). See `.env.example` for the full list.

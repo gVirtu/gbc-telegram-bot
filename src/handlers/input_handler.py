@@ -216,7 +216,6 @@ class InputHandler:
 
                 # Update message to show current sequence
                 caption = self._create_sequence_building_caption(builder)
-                await self._update_sequence_message(chat_id, message_id, caption)
 
                 state_manager.save_game_state(session.state)
 
@@ -322,10 +321,6 @@ class InputHandler:
             chat_id, message_id, create_sequence_building_keyboard()
         )
 
-        # Update caption to show building state
-        caption = "_Construindo sequência: (vazio)_"
-        await self._update_sequence_message(chat_id, message_id, caption)
-
         # Start timeout check
         asyncio.create_task(self._check_sequence_timeout(chat_id, message_id))
 
@@ -397,18 +392,6 @@ class InputHandler:
             return "_Construindo sequência: (vazio)_"
         emoji_sequence = " ".join([b.emoji for b in builder.buttons])
         return f"_Construindo sequência: {emoji_sequence}_"
-
-    async def _update_sequence_message(
-        self, chat_id: int, message_id: int, caption: str
-    ) -> None:
-        """Update message caption during sequence building."""
-        try:
-            controller = game_controller_manager.get_controller(chat_id)
-            if controller and controller.is_initialized():
-                png_buffer = controller.get_frame_as_png()
-                await self._edit_message_media(chat_id, message_id, png_buffer, caption)
-        except Exception as e:
-            logger.warning(f"Failed to update sequence message for chat {chat_id}: {e}")
 
     async def _process_sequence(
         self, chat_id: int, buttons: list[GameButton], message_id: int

@@ -26,39 +26,24 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Install Poetry
+        run: pipx install poetry
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: "pip"
-          cache-dependency-path: |
-            requirements.txt
-            pyproject.toml
-
-      - name: Cache virtual environment
-        uses: actions/cache@v4
-        id: venv-cache
-        with:
-          path: venv
-          key: ${{ runner.os }}-venv-${{ hashFiles('requirements.txt', 'pyproject.toml') }}-${{ env.PYTHON_VERSION }}
-          restore-keys: |
-            ${{ runner.os }}-venv-${{ hashFiles('requirements.txt', 'pyproject.toml') }}-
-            ${{ runner.os }}-venv-
+          cache: "poetry"
 
       - name: Install dependencies
         run: |
-          python -m venv venv
-          source venv/bin/activate
-          pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest-cov vulture coverage-badge
+          poetry install --all-extras
         shell: bash
 
       - name: Run Vulture (dead code detection)
         run: |
-          source venv/bin/activate
           echo "=== Running Vulture (dead code detection) ==="
-          vulture src/ --min-confidence 80 --exclude="venv/*" 2>&1 | tee vulture-report.txt || true
+          poetry run vulture src/ --min-confidence 80 --exclude="venv/*" 2>&1 | tee vulture-report.txt || true
           echo ""
           echo "Vulture report saved to vulture-report.txt"
         shell: bash
@@ -70,9 +55,8 @@ jobs:
           WEBHOOK_SECRET: "test-webhook-secret-min-16-chars"
           PYTEST_CURRENT_TEST: "1"
         run: |
-          source venv/bin/activate
           echo "=== Running pytest with coverage ==="
-          pytest \
+          poetry run pytest \
             --cov=src \
             --cov-report=xml \
             --cov-report=html \
@@ -86,8 +70,7 @@ jobs:
       - name: Generate coverage badge
         if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          source venv/bin/activate
-          coverage-badge -o coverage-badge.svg -f
+          poetry run coverage-badge -o coverage-badge.svg -f
         shell: bash
 
       - name: Upload coverage report (HTML)
@@ -201,8 +184,7 @@ jobs:
 
       - name: Check minimum coverage
         run: |
-          source venv/bin/activate
-          coverage report --fail-under=${{ env.MIN_COVERAGE }}
+          poetry run coverage report --fail-under=${{ env.MIN_COVERAGE }}
         shell: bash
 
   lint:
@@ -214,52 +196,36 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install Poetry
+        run: pipx install poetry
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: "pip"
-          cache-dependency-path: |
-            requirements.txt
-            pyproject.toml
+          cache: "poetry"
 
-      - name: Cache virtual environment
-        uses: actions/cache@v4
-        id: venv-cache
-        with:
-          path: venv
-          key: ${{ runner.os }}-venv-lint-${{ hashFiles('requirements.txt', 'pyproject.toml') }}-${{ env.PYTHON_VERSION }}
-          restore-keys: |
-            ${{ runner.os }}-venv-lint-${{ hashFiles('requirements.txt', 'pyproject.toml') }}-
-            ${{ runner.os }}-venv-lint-
-
-      - name: Install linting tools
+      - name: Install dependencies
         run: |
-          python -m venv venv
-          source venv/bin/activate
-          pip install --upgrade pip
-          pip install ruff vulture
+          poetry install --all-extras
         shell: bash
 
       - name: Run Ruff linter
         run: |
-          source venv/bin/activate
           echo "=== Running Ruff linter ==="
-          ruff check src/ tests/ || true
+          poetry run ruff check src/ tests/ || true
         shell: bash
 
       - name: Run Ruff format check
         run: |
-          source venv/bin/activate
           echo "=== Running Ruff format check ==="
-          ruff format --check src/ tests/ || true
+          poetry run ruff format --check src/ tests/ || true
         shell: bash
 
       - name: Run Vulture (dead code detection)
         run: |
-          source venv/bin/activate
           echo "=== Running Vulture (dead code detection) ==="
-          vulture src/ --min-confidence 80 --exclude="venv/*" || true
+          poetry run vulture src/ --min-confidence 80 --exclude="venv/*" || true
         shell: bash
 
   summary:

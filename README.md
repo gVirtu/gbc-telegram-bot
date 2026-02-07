@@ -13,10 +13,18 @@ A Telegram bot that allows group chats to collaboratively play GBC games through
 
 ### 1. Install Dependencies
 
+Using Poetry:
+
+```bash
+poetry install
+```
+
+Or if you prefer traditional venv:
+
 ```bash
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
+source venv/bin/activate
+pip install .
 ```
 
 ### 2. Configure Environment
@@ -31,6 +39,12 @@ cp .env.example .env
 Place your GBC ROM file at `./roms/game.gbc`
 
 ### 4. Run the Bot
+
+```bash
+poetry run python -m src.main
+```
+
+Or with active venv:
 
 ```bash
 python -m src.main
@@ -60,7 +74,7 @@ python -m src.main
 ├── tests/           # Test files
 ├── data/            # Runtime data (polls, saves)
 ├── roms/            # ROM files
-├── requirements.txt
+├── pyproject.toml
 └── .env.example
 ```
 

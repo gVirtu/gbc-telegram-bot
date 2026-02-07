@@ -1,7 +1,7 @@
 .worktrees/
 
 # Python
-__pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
 *.so
@@ -53,6 +53,9 @@ data/*
 
 # ROM Files
 *.gbc
+*.gbc.zip
+*.gbc.ram
+*.gbc.rtc
 *.gb
 *.state
 *.sav

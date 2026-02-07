@@ -20,72 +20,33 @@ class TestRequiredSettings:
 
     def test_telegram_bot_token_required(self):
         """Test that telegram_bot_token is required."""
-        # Clear the settings cache and proxy instance to test validation
-        from src.config import settings as settings_proxy
-        get_settings.cache_clear()
-        settings_proxy._instance = None
-        # Remove telegram bot token from environment to test validation
-        env_backup = os.environ.get("TELEGRAM_BOT_TOKEN")
-        try:
-            if "TELEGRAM_BOT_TOKEN" in os.environ:
-                del os.environ["TELEGRAM_BOT_TOKEN"]
-            with pytest.raises(ValidationError) as exc_info:
-                Settings(
-                    webhook_url="https://example.com",
-                    webhook_secret="test_secret_1234567890",
-                )
-            assert "telegram_bot_token" in str(exc_info.value)
-        finally:
-            if env_backup is not None:
-                os.environ["TELEGRAM_BOT_TOKEN"] = env_backup
-            get_settings.cache_clear()
-            settings_proxy._instance = None
+        with pytest.raises(ValidationError) as exc_info:
+            Settings(
+                telegram_bot_token=None,
+                webhook_url="https://example.com",
+                webhook_secret="test_secret_1234567890",
+            )
+        assert "telegram_bot_token" in str(exc_info.value)
 
     def test_webhook_url_required(self):
         """Test that webhook_url is required."""
-        # Clear the settings cache and proxy instance to test validation
-        from src.config import settings as settings_proxy
-        get_settings.cache_clear()
-        settings_proxy._instance = None
-        # Remove webhook url from environment to test validation
-        env_backup = os.environ.get("WEBHOOK_URL")
-        try:
-            if "WEBHOOK_URL" in os.environ:
-                del os.environ["WEBHOOK_URL"]
-            with pytest.raises(ValidationError) as exc_info:
-                Settings(
-                    telegram_bot_token="test_token",
-                    webhook_secret="test_secret_1234567890",
-                )
-            assert "webhook_url" in str(exc_info.value)
-        finally:
-            if env_backup is not None:
-                os.environ["WEBHOOK_URL"] = env_backup
-            get_settings.cache_clear()
-            settings_proxy._instance = None
+        with pytest.raises(ValidationError) as exc_info:
+            Settings(
+                telegram_bot_token="test_token",
+                webhook_url=None,
+                webhook_secret="test_secret_1234567890",
+            )
+        assert "webhook_url" in str(exc_info.value)
 
     def test_webhook_secret_required(self):
         """Test that webhook_secret is required."""
-        # Clear the settings cache and proxy instance to test validation
-        from src.config import settings as settings_proxy
-        get_settings.cache_clear()
-        settings_proxy._instance = None
-        # Remove webhook secret from environment to test validation
-        env_backup = os.environ.get("WEBHOOK_SECRET")
-        try:
-            if "WEBHOOK_SECRET" in os.environ:
-                del os.environ["WEBHOOK_SECRET"]
-            with pytest.raises(ValidationError) as exc_info:
-                Settings(
-                    telegram_bot_token="test_token",
-                    webhook_url="https://example.com",
-                )
-            assert "webhook_secret" in str(exc_info.value)
-        finally:
-            if env_backup is not None:
-                os.environ["WEBHOOK_SECRET"] = env_backup
-            get_settings.cache_clear()
-            settings_proxy._instance = None
+        with pytest.raises(ValidationError) as exc_info:
+            Settings(
+                telegram_bot_token="test_token",
+                webhook_url="https://example.com",
+                webhook_secret=None,
+            )
+        assert "webhook_secret" in str(exc_info.value)
     
     def test_webhook_secret_minimum_length(self):
         """Test that webhook_secret must be at least 16 characters."""

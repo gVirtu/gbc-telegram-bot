@@ -6,7 +6,8 @@ This module implements handlers for all bot commands:
 
 import logging
 from io import BytesIO
-from typing import Optional
+from time import time
+from typing import Optional, Dict, Tuple
 
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -26,13 +27,46 @@ from src.utils.state_manager import state_manager
 
 logger = logging.getLogger(__name__)
 
+# Cache: (chat_id, user_id) -> (is_admin: bool, timestamp: float)
+_admin_cache: Dict[Tuple[int, int], Tuple[bool, float]] = {}
+_CACHE_TTL = 30  # seconds
+
+def _get_cached_admin_status(chat_id: int, user_id: int) -> bool | None:
+    """Get cached admin status if available and not expired.
+
+    Args:
+        chat_id: Telegram chat ID
+        user_id: Telegram user ID
+
+    Returns:
+        Cached admin status (True/False) or None if not cached/expired
+    """
+    key = (chat_id, user_id)
+    if key in _admin_cache:
+        is_admin, timestamp = _admin_cache[key]
+        if time() - timestamp < _CACHE_TTL:
+            return is_admin
+        else:
+            del _admin_cache[key]  # Expired, remove from cache
+    return None
+
+def _cache_admin_status(chat_id: int, user_id: int, is_admin: bool) -> None:
+    """Cache admin status for a user in a chat.
+
+    Args:
+        chat_id: Telegram chat ID
+        user_id: Telegram user ID
+        is_admin: Whether the user is an admin
+    """
+    _admin_cache[(chat_id, user_id)] = (is_admin, time())
+
 
 def _check_chat_allowed(update: Update) -> bool:
     """Check if the chat is allowed to use the bot.
-    
+
     Args:
         update: Telegram Update object
-        
+
     Returns:
         True if chat is allowed, False otherwise
     """
@@ -40,6 +74,65 @@ def _check_chat_allowed(update: Update) -> bool:
     if not settings.allowed_chat_ids:
         return True
     return chat_id in settings.allowed_chat_ids
+
+
+async def _check_admin_permission(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+) -> tuple[bool, str | None]:
+    """Check if user has admin permission for restricted commands.
+
+    In private chats, all users are allowed.
+    In group/supergroup chats, only admins and creators are allowed.
+
+    Args:
+        update: Telegram Update object
+        context: Telegram Context object
+
+    Returns:
+        Tuple of (is_allowed: bool, error_message: str | None)
+    """
+    chat_type = update.effective_chat.type
+
+    # Private chats: always allow
+    if chat_type == "private":
+        return (True, None)
+
+    # Group/supergroup chats: check admin status
+    if chat_type in ("group", "supergroup"):
+        try:
+            chat_id = update.effective_chat.id
+            user_id = update.effective_user.id
+
+            # Check cache first
+            cached = _get_cached_admin_status(chat_id, user_id)
+            if cached is not None:
+                if cached:
+                    return (True, None)
+                else:
+                    return (False, "🔒 Only group administrators can use this command.\n\nThis command manages game state and is restricted to admins to prevent conflicts.")
+
+            # Get member status from Telegram API
+            chat_member = await context.bot.get_chat_member(chat_id, user_id)
+
+            # Check if user is admin or creator
+            # Note: chat_member.status is a string: "creator", "administrator", "member", "left", "kicked"
+            is_admin = chat_member.status in ("creator", "administrator")
+
+            # Cache the result
+            _cache_admin_status(chat_id, user_id, is_admin)
+
+            if is_admin:
+                return (True, None)
+            else:
+                return (False, "🔒 Only group administrators can use this command.\n\nThis command manages game state and is restricted to admins to prevent conflicts.")
+
+        except Exception as e:
+            logger.warning(f"Failed to check admin status for user {user_id} in chat {chat_id}: {e}")
+            return (False, "⚠️ Unable to verify permissions. Please try again or contact the bot administrator.")
+
+    # Other chat types (channels, etc.): default deny
+    return (False, "🔒 This command is not available in this chat type.")
 
 
 async def _ensure_game_active(chat_id: int) -> tuple[bool, str | None]:
@@ -89,7 +182,7 @@ async def _ensure_game_active(chat_id: int) -> tuple[bool, str | None]:
 
 async def start_game_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /start_game command.
-    
+
     Initializes a new game or restarts an existing one.
     Loads the initial save state and sends the first frame.
     """
@@ -98,7 +191,13 @@ async def start_game_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
             "❌ This bot is not authorized for this chat."
         )
         return
-    
+
+    # Check admin permission for group chats
+    is_allowed, error_msg = await _check_admin_permission(update, context)
+    if not is_allowed:
+        await update.message.reply_text(error_msg)
+        return
+
     chat_id = update.effective_chat.id
     
     await update.message.reply_text("🎮 Starting Pokémon Red...")
@@ -172,7 +271,7 @@ async def resume_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 async def save_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /save command.
-    
+
     Saves the current game state to a slot.
     Usage: /save [slot_number]
     If no slot specified, uses the next available slot.
@@ -183,7 +282,13 @@ async def save_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             "❌ This bot is not authorized for this chat."
         )
         return
-    
+
+    # Check admin permission for group chats
+    is_allowed, error_msg = await _check_admin_permission(update, context)
+    if not is_allowed:
+        await update.message.reply_text(error_msg)
+        return
+
     chat_id = update.effective_chat.id
     
     # Ensure game is active (auto-start if needed)
@@ -251,7 +356,7 @@ async def save_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 async def load_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /load command.
-    
+
     Loads a game state from a slot.
     Usage: /load [slot_number]
     If no slot specified, shows available slots.
@@ -262,7 +367,13 @@ async def load_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             "❌ This bot is not authorized for this chat."
         )
         return
-    
+
+    # Check admin permission for group chats
+    is_allowed, error_msg = await _check_admin_permission(update, context)
+    if not is_allowed:
+        await update.message.reply_text(error_msg)
+        return
+
     chat_id = update.effective_chat.id
     
     # Ensure game is active (auto-start if needed)

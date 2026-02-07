@@ -33,10 +33,11 @@ from src.models.game_state import GameButton
 
 class MockUpdate:
     """Mock Telegram Update object."""
-    
+
     def __init__(self, chat_id=123456, text="", args=None):
         self.effective_chat = MagicMock()
         self.effective_chat.id = chat_id
+        self.effective_chat.type = "private"  # Default to private chat for backward compatibility
         self.message = MagicMock()
         self.message.reply_text = AsyncMock()
         self.message.text = text
@@ -717,3 +718,204 @@ class TestPrintCommand:
                 update.message.reply_text.assert_called_with(
                     "❌ Failed to capture screenshot. Please try again."
                 )
+
+
+class TestAdminPermissions:
+    """Test admin permission checking for restricted commands."""
+
+    @pytest.mark.asyncio
+    async def test_check_admin_permission_private_chat(self):
+        """Test that private chats always allow commands."""
+        mock_update = MockUpdate(chat_id=123456)
+        mock_update.effective_chat.type = "private"
+        mock_context = MagicMock()
+
+        from src.handlers.commands import _check_admin_permission
+        is_allowed, error_msg = await _check_admin_permission(mock_update, mock_context)
+
+        assert is_allowed is True
+        assert error_msg is None
+
+    @pytest.mark.asyncio
+    async def test_check_admin_permission_group_admin(self):
+        """Test that group admins are allowed."""
+        mock_update = MockUpdate(chat_id=123456)
+        mock_update.effective_chat.type = "group"
+        mock_update.effective_user = MagicMock()
+        mock_update.effective_user.id = 789
+
+        mock_context = MagicMock()
+        mock_chat_member = MagicMock()
+        mock_chat_member.status = "administrator"
+        mock_context.bot.get_chat_member = AsyncMock(return_value=mock_chat_member)
+
+        from src.handlers.commands import _check_admin_permission
+        is_allowed, error_msg = await _check_admin_permission(mock_update, mock_context)
+
+        assert is_allowed is True
+        assert error_msg is None
+
+    @pytest.mark.asyncio
+    async def test_check_admin_permission_group_creator(self):
+        """Test that group creators are allowed."""
+        mock_update = MockUpdate(chat_id=123456)
+        mock_update.effective_chat.type = "supergroup"
+        mock_update.effective_user = MagicMock()
+        mock_update.effective_user.id = 789
+
+        mock_context = MagicMock()
+        mock_chat_member = MagicMock()
+        mock_chat_member.status = "creator"
+        mock_context.bot.get_chat_member = AsyncMock(return_value=mock_chat_member)
+
+        from src.handlers.commands import _check_admin_permission
+        is_allowed, error_msg = await _check_admin_permission(mock_update, mock_context)
+
+        assert is_allowed is True
+        assert error_msg is None
+
+    @pytest.mark.asyncio
+    async def test_check_admin_permission_group_regular_member(self):
+        """Test that regular group members are denied."""
+        mock_update = MockUpdate(chat_id=123456)
+        mock_update.effective_chat.type = "group"
+        mock_update.effective_user = MagicMock()
+        mock_update.effective_user.id = 999  # Different user ID to avoid cache collision
+
+        mock_context = MagicMock()
+        mock_chat_member = MagicMock()
+        mock_chat_member.status = "member"
+        mock_context.bot.get_chat_member = AsyncMock(return_value=mock_chat_member)
+
+        from src.handlers.commands import _check_admin_permission, _admin_cache
+
+        # Clear cache to avoid interference from other tests
+        _admin_cache.clear()
+
+        is_allowed, error_msg = await _check_admin_permission(mock_update, mock_context)
+
+        assert is_allowed is False
+        assert "administrator" in error_msg.lower()
+
+    @pytest.mark.asyncio
+    async def test_admin_cache_functionality(self):
+        """Test that admin status is cached."""
+        mock_update = MockUpdate(chat_id=123456)
+        mock_update.effective_chat.type = "group"
+        mock_update.effective_user = MagicMock()
+        mock_update.effective_user.id = 789
+
+        mock_context = MagicMock()
+        mock_chat_member = MagicMock()
+        mock_chat_member.status = "administrator"
+        mock_context.bot.get_chat_member = AsyncMock(return_value=mock_chat_member)
+
+        from src.handlers.commands import _check_admin_permission, _admin_cache
+
+        # Clear cache
+        _admin_cache.clear()
+
+        # First call - should hit API
+        await _check_admin_permission(mock_update, mock_context)
+        assert mock_context.bot.get_chat_member.call_count == 1
+
+        # Second call - should use cache
+        await _check_admin_permission(mock_update, mock_context)
+        assert mock_context.bot.get_chat_member.call_count == 1  # Still 1, not 2
+
+    @pytest.mark.asyncio
+    async def test_start_game_blocked_for_non_admin(self):
+        """Test that /start_game is blocked for non-admins in groups."""
+        mock_update = MockUpdate(chat_id=123456)
+        mock_update.effective_chat.type = "group"
+        mock_update.effective_user = MagicMock()
+        mock_update.effective_user.id = 888  # Different user ID
+
+        mock_context = MagicMock()
+        mock_chat_member = MagicMock()
+        mock_chat_member.status = "member"
+        mock_context.bot.get_chat_member = AsyncMock(return_value=mock_chat_member)
+
+        from src.handlers.commands import _admin_cache
+        _admin_cache.clear()
+
+        with patch("src.handlers.commands.settings") as mock_settings:
+            mock_settings.allowed_chat_ids = []
+
+            await start_game_command(mock_update, mock_context)
+
+            # Should send error message (only the permission denial, not the game start messages)
+            # The last call should be the permission denial
+            assert mock_update.message.reply_text.called
+            last_call = mock_update.message.reply_text.call_args[0][0]
+            assert "administrator" in last_call.lower()
+
+    @pytest.mark.asyncio
+    async def test_save_allowed_for_admin(self):
+        """Test that /save works for admins in groups."""
+        mock_update = MockUpdate(chat_id=123456)
+        mock_update.effective_chat.type = "group"
+        mock_update.effective_user = MagicMock()
+        mock_update.effective_user.id = 789
+
+        mock_context = MagicMock()
+        mock_chat_member = MagicMock()
+        mock_chat_member.status = "administrator"
+        mock_context.bot.get_chat_member = AsyncMock(return_value=mock_chat_member)
+
+        with patch('src.handlers.commands._ensure_game_active', new_callable=AsyncMock) as mock_ensure:
+            mock_ensure.return_value = (True, None)
+            with patch('src.handlers.commands.game_controller_manager') as mock_gcm:
+                mock_controller = MagicMock()
+                mock_controller.save_state = MagicMock(return_value=b"state_data")
+                mock_gcm.get_controller.return_value = mock_controller
+
+                with patch('src.handlers.commands.state_manager') as mock_sm:
+                    mock_sm.list_save_slots = MagicMock(return_value=[])
+                    mock_sm.save_to_slot = MagicMock()
+
+                    with patch('src.handlers.commands.settings') as mock_settings:
+                        mock_settings.allowed_chat_ids = []
+                        mock_settings.save_slots = 5
+
+                        await save_command(mock_update, mock_context)
+
+                        # Should succeed (not blocked)
+                        # Check that save was attempted
+                        assert mock_controller.save_state.called
+
+    @pytest.mark.asyncio
+    async def test_load_allowed_in_private_chat(self):
+        """Test that /load works in private chats without admin check."""
+        mock_update = MockUpdate(chat_id=123456)
+        mock_update.effective_chat.type = "private"
+
+        mock_context = MagicMock()
+        mock_context.args = ["1"]
+
+        # Note: bot.get_chat_member should NOT be called for private chats
+        mock_context.bot.get_chat_member = AsyncMock()
+
+        with patch('src.handlers.commands._ensure_game_active', new_callable=AsyncMock) as mock_ensure:
+            mock_ensure.return_value = (True, None)
+            with patch('src.handlers.commands.game_controller_manager') as mock_gcm:
+                mock_controller = MagicMock()
+                mock_gcm.get_controller.return_value = mock_controller
+
+                with patch('src.handlers.commands.get_input_handler') as mock_handler:
+                    mock_input_handler = MagicMock()
+                    mock_input_handler.is_input_in_progress.return_value = False
+                    mock_input_handler.show_current_frame = AsyncMock()
+                    mock_handler.return_value = mock_input_handler
+
+                    with patch('src.handlers.commands.state_manager') as mock_sm:
+                        mock_sm.load_from_slot.return_value = b"state_data"
+
+                        with patch('src.handlers.commands.settings') as mock_settings:
+                            mock_settings.allowed_chat_ids = []
+                            mock_settings.save_slots = 5
+
+                            await load_command(mock_update, mock_context)
+
+                            # Should NOT call get_chat_member (private chat bypass)
+                            assert not mock_context.bot.get_chat_member.called

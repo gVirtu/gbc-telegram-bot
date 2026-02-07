@@ -269,7 +269,7 @@ def create_help_text() -> str:
         text += f"{button.emoji} {button.display_name}: {BUTTON_DESCRIPTIONS[button]}\n"
     
     text += "\n*Commands:*\n"
-    text += "/start_game - Start or restart the game\n"
+    text += "/start\\_game - Start or restart the game\n"
     text += "/resume - Resume game in a new message\n"
     text += "/print - Capture screenshot without keyboard\n"
     text += "/save [slot] - Save game to slot\n"

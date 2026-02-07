@@ -34,7 +34,7 @@ async def test_auto_save_on_input():
             handler._edit_message_media = AsyncMock()
             
             # Execute input processing
-            await handler._process_input(123, GameButton.A, 456)
+            await handler._process_sequence(123, [GameButton.A], 456)
             
             # Verify auto-save was called
             mock_state_mgr.save_to_slot.assert_called_once()
@@ -70,7 +70,7 @@ async def test_no_auto_save_when_disabled():
             handler._edit_message_media = AsyncMock()
             
             # Execute input processing
-            await handler._process_input(123, GameButton.A, 456)
+            await handler._process_sequence(123, [GameButton.A], 456)
             
             # Verify auto-save was NOT called
             mock_state_mgr.save_to_slot.assert_not_called()

@@ -130,11 +130,11 @@ class TestInputRecording:
         state = ChatGameState(chat_id=123)
         session = GameSession(chat_id=123, state=state)
 
-        handler._record_user_input(session, 456, "Alice", GameButton.A)
+        handler._record_user_input(session, 456, "Alice", [GameButton.A])
 
         assert session.state.user_input_counts[456] == 1
 
-        handler._record_user_input(session, 456, "Alice", GameButton.B)
+        handler._record_user_input(session, 456, "Alice", [GameButton.B])
 
         assert session.state.user_input_counts[456] == 2
 
@@ -146,9 +146,9 @@ class TestInputRecording:
         state = ChatGameState(chat_id=123)
         session = GameSession(chat_id=123, state=state)
 
-        handler._record_user_input(session, 456, "Alice", GameButton.A)
-        handler._record_user_input(session, 789, "Bob", GameButton.B)
-        handler._record_user_input(session, 456, "Alice", GameButton.UP)
+        handler._record_user_input(session, 456, "Alice", [GameButton.A])
+        handler._record_user_input(session, 789, "Bob", [GameButton.B])
+        handler._record_user_input(session, 456, "Alice", [GameButton.UP])
 
         assert session.state.user_input_counts[456] == 2
         assert session.state.user_input_counts[789] == 1
@@ -161,12 +161,12 @@ class TestInputRecording:
         state = ChatGameState(chat_id=123)
         session = GameSession(chat_id=123, state=state)
 
-        handler._record_user_input(session, 456, "Alice", GameButton.A)
+        handler._record_user_input(session, 456, "Alice", [GameButton.A])
 
         assert len(session.state.recent_inputs) == 1
         assert session.state.recent_inputs[0]["user_id"] == 456
         assert session.state.recent_inputs[0]["user_name"] == "Alice"
-        assert session.state.recent_inputs[0]["button"] == "a"
+        assert session.state.recent_inputs[0]["buttons"] == ["a"]
         assert "timestamp" in session.state.recent_inputs[0]
 
     def test_record_user_input_fifo_behavior(self):
@@ -178,11 +178,11 @@ class TestInputRecording:
         session = GameSession(chat_id=123, state=state)
 
         # Add 5 inputs
-        handler._record_user_input(session, 1, "User1", GameButton.A)
-        handler._record_user_input(session, 2, "User2", GameButton.B)
-        handler._record_user_input(session, 3, "User3", GameButton.UP)
-        handler._record_user_input(session, 4, "User4", GameButton.DOWN)
-        handler._record_user_input(session, 5, "User5", GameButton.START)
+        handler._record_user_input(session, 1, "User1", [GameButton.A])
+        handler._record_user_input(session, 2, "User2", [GameButton.B])
+        handler._record_user_input(session, 3, "User3", [GameButton.UP])
+        handler._record_user_input(session, 4, "User4", [GameButton.DOWN])
+        handler._record_user_input(session, 5, "User5", [GameButton.START])
 
         # Should only keep last 3
         assert len(session.state.recent_inputs) == 3
@@ -198,7 +198,7 @@ class TestInputRecording:
         state = ChatGameState(chat_id=123)
         session = GameSession(chat_id=123, state=state)
 
-        handler._record_user_input(session, 456, "Alice", GameButton.A)
+        handler._record_user_input(session, 456, "Alice", [GameButton.A])
 
         assert session.state.recent_inputs[0]["user_name"] == "Alice"
 
@@ -212,7 +212,7 @@ class TestInputRecording:
         state = ChatGameState(chat_id=123)
         session = GameSession(chat_id=123, state=state)
 
-        handler._record_user_input(session, 456, "@alice_user", GameButton.A)
+        handler._record_user_input(session, 456, "@alice_user", [GameButton.A])
 
         assert session.state.recent_inputs[0]["user_name"] == "@alice_user"
 
@@ -224,7 +224,7 @@ class TestInputRecording:
         state = ChatGameState(chat_id=123)
         session = GameSession(chat_id=123, state=state)
 
-        handler._record_user_input(session, 456, "User", GameButton.A)
+        handler._record_user_input(session, 456, "User", [GameButton.A])
 
         assert session.state.recent_inputs[0]["user_name"] == "User"
 
@@ -397,7 +397,7 @@ class TestIntegration:
         assert session.state.user_input_counts[456] == 1
         assert len(session.state.recent_inputs) == 1
         assert session.state.recent_inputs[0]["user_name"] == "Alice"
-        assert session.state.recent_inputs[0]["button"] == "a"
+        assert session.state.recent_inputs[0]["buttons"] == ["a"]
 
         # Verify message would include recent inputs
         text = create_game_message_text(recent_inputs=session.state.recent_inputs)
@@ -415,9 +415,9 @@ class TestIntegration:
 
         # Simulate three different users pressing buttons
         users = [
-            (456, "Alice", GameButton.A),
-            (789, "Bob", GameButton.B),
-            (101, "Charlie", GameButton.UP),
+            (456, "Alice", [GameButton.A]),
+            (789, "Bob", [GameButton.B]),
+            (101, "Charlie", [GameButton.UP]),
         ]
 
         for user_id, user_name, button in users:
@@ -452,7 +452,7 @@ class TestEdgeCases:
         state = ChatGameState(chat_id=123)
         session = GameSession(chat_id=123, state=state)
 
-        handler._record_user_input(session, 456, "", GameButton.A)
+        handler._record_user_input(session, 456, "", [GameButton.A])
 
         # Should still record the input
         assert len(session.state.recent_inputs) == 1
@@ -467,7 +467,7 @@ class TestEdgeCases:
         session = GameSession(chat_id=123, state=state)
 
         long_name = "A" * 100
-        handler._record_user_input(session, 456, long_name, GameButton.A)
+        handler._record_user_input(session, 456, long_name, [GameButton.A])
 
         assert session.state.recent_inputs[0]["user_name"] == long_name
 
@@ -480,7 +480,7 @@ class TestEdgeCases:
         session = GameSession(chat_id=123, state=state)
 
         special_name = "Alice 😀 *Test* _User_"
-        handler._record_user_input(session, 456, special_name, GameButton.A)
+        handler._record_user_input(session, 456, special_name, [GameButton.A])
 
         assert session.state.recent_inputs[0]["user_name"] == special_name
 

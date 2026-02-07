@@ -38,12 +38,12 @@ class TestCreateInputKeyboard:
     def test_has_correct_number_of_rows(self):
         """Test keyboard has expected number of rows."""
         keyboard = create_input_keyboard()
-        
-        # Should have 5 rows based on BUTTON_LAYOUT
-        assert len(keyboard.inline_keyboard) == 5
+
+        # Should have 6 rows based on BUTTON_LAYOUT (added SEQUENCE button row)
+        assert len(keyboard.inline_keyboard) == 6
     
     def test_contains_all_buttons(self):
-        """Test all game buttons are present."""
+        """Test all game buttons are present (except ENVIAR which is only in sequence mode)."""
         keyboard = create_input_keyboard()
 
         # Collect all buttons from keyboard
@@ -52,8 +52,8 @@ class TestCreateInputKeyboard:
             for button in row:
                 all_buttons.add(button.callback_data)
 
-        # Should have all 9 buttons
-        expected_buttons = {b.value for b in GameButton}
+        # Should have all buttons except ENVIAR (which is only shown during sequence building)
+        expected_buttons = {b.value for b in GameButton if b != GameButton.ENVIAR}
         assert all_buttons == expected_buttons
     
     def test_button_callback_data(self):

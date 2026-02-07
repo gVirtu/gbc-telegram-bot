@@ -138,7 +138,7 @@ class TestButtonPressHandling:
             )
             
             # Mock the processing method
-            handler._process_input = AsyncMock()
+            handler._process_sequence = AsyncMock()
             
             await handler.handle_button_press(mock_callback_query)
             
@@ -146,7 +146,7 @@ class TestButtonPressHandling:
             mock_callback_query.answer.assert_called_once_with("Processando: A")
             
             # Should process the input
-            handler._process_input.assert_called_once_with(123456, GameButton.A, 789)
+            handler._process_sequence.assert_called_once_with(123456, [GameButton.A], 789)
             
             # Should be marked as processing during execution
             assert 123456 not in handler._processing  # Should be cleaned up
@@ -279,7 +279,7 @@ class TestInputProcessing:
         return controller
     
     @pytest.mark.asyncio
-    async def test_process_input_executes_button(self, handler, mock_bot, mock_controller):
+    async def test_process_sequence_executes_button(self, handler, mock_bot, mock_controller):
         """Test input processing executes button press."""
         with patch("src.handlers.input_handler.game_controller_manager") as mock_mgr:
             mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
@@ -287,7 +287,7 @@ class TestInputProcessing:
             # Mock animate to be fast
             handler._animate_frames = AsyncMock()
             
-            await handler._process_input(123456, GameButton.B, 789)
+            await handler._process_sequence(123456, [GameButton.B], 789)
             
             # Check that send_input was called with correct button
             mock_controller.send_input.assert_called_once()
@@ -530,14 +530,22 @@ class TestWaitButtonProcessing:
         """Test WAIT button doesn't call send_input."""
         with patch("src.handlers.input_handler.game_controller_manager") as mock_mgr:
             mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
-            handler._animate_frames = AsyncMock()
+            handler._edit_message_keyboard = AsyncMock()
+            handler._edit_message_media = AsyncMock()
 
-            await handler._process_input(123456, GameButton.WAIT, 789)
+            # Need to add get_session for state
+            from src.models.game_state import ChatGameState, GameSession
+            handler._sessions[123456] = GameSession(
+                chat_id=123456,
+                state=ChatGameState(chat_id=123456, message_id=789)
+            )
+
+            await handler._process_sequence(123456, [GameButton.WAIT], 789)
 
             # WAIT should NOT call send_input
             mock_controller.send_input.assert_not_called()
-            # WAIT should call tick instead
-            mock_controller.tick.assert_called_once()
+            # WAIT should call tick multiple times (for button execution + animation)
+            assert mock_controller.tick.call_count > 1
 
     @pytest.mark.asyncio
     async def test_wait_button_ticks_emulator(self, handler, mock_bot, mock_controller):
@@ -545,35 +553,66 @@ class TestWaitButtonProcessing:
         with patch("src.handlers.input_handler.game_controller_manager") as mock_mgr:
             with patch("src.handlers.input_handler.settings") as mock_settings:
                 mock_settings.input_hold_frames = 30
+                mock_settings.animation_duration = 0.1  # Short duration for testing
                 mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
-                handler._animate_frames = AsyncMock()
+                handler._edit_message_keyboard = AsyncMock()
+                handler._edit_message_media = AsyncMock()
 
-                await handler._process_input(123456, GameButton.WAIT, 789)
+                # Need to add get_session for state
+                from src.models.game_state import ChatGameState, GameSession
+                handler._sessions[123456] = GameSession(
+                    chat_id=123456,
+                    state=ChatGameState(chat_id=123456, message_id=789)
+                )
 
-                # Should tick for the same duration as a button hold
-                mock_controller.tick.assert_called_once_with(frames=30)
+                await handler._process_sequence(123456, [GameButton.WAIT], 789)
+
+                # First call should be for button execution with input_hold_frames
+                from unittest.mock import call
+                assert mock_controller.tick.call_args_list[0] == call(frames=30)
+                # Subsequent calls are for animation with 6 frames each
+                for tick_call in mock_controller.tick.call_args_list[1:]:
+                    assert tick_call == call(6)
 
     @pytest.mark.asyncio
     async def test_wait_button_runs_animation(self, handler, mock_bot, mock_controller):
         """Test WAIT button still runs animation phase."""
         with patch("src.handlers.input_handler.game_controller_manager") as mock_mgr:
             mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
-            handler._animate_frames = AsyncMock()
+            handler._edit_message_keyboard = AsyncMock()
+            handler._edit_message_media = AsyncMock()
 
-            await handler._process_input(123456, GameButton.WAIT, 789)
+            # Need to add get_session for state
+            from src.models.game_state import ChatGameState, GameSession
+            handler._sessions[123456] = GameSession(
+                chat_id=123456,
+                state=ChatGameState(chat_id=123456, message_id=789)
+            )
 
-            # Should still run animation
-            handler._animate_frames.assert_called_once()
+            await handler._process_sequence(123456, [GameButton.WAIT], 789)
+
+            # Animation is now inline - check that frames were captured and GIF/media updated
+            # The _edit_message_media should be called to send the animation
+            handler._edit_message_media.assert_called()
 
     @pytest.mark.asyncio
     async def test_normal_button_still_calls_send_input(self, handler, mock_bot, mock_controller):
         """Test non-WAIT buttons still call send_input."""
         with patch("src.handlers.input_handler.game_controller_manager") as mock_mgr:
             mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
-            handler._animate_frames = AsyncMock()
+            handler._edit_message_keyboard = AsyncMock()
+            handler._edit_message_media = AsyncMock()
 
-            await handler._process_input(123456, GameButton.A, 789)
+            # Need to add get_session for state
+            from src.models.game_state import ChatGameState, GameSession
+            handler._sessions[123456] = GameSession(
+                chat_id=123456,
+                state=ChatGameState(chat_id=123456, message_id=789)
+            )
+
+            await handler._process_sequence(123456, [GameButton.A], 789)
 
             # Normal buttons should call send_input
             mock_controller.send_input.assert_called_once()
-            mock_controller.tick.assert_not_called()
+            # Tick is also called during animation phase
+            assert mock_controller.tick.call_count > 0

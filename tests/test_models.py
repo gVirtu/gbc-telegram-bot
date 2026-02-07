@@ -369,13 +369,15 @@ class TestButtonLayout:
         assert GameButton.SELECT in BUTTON_LAYOUT[4]
     
     def test_all_buttons_in_layout(self):
-        """Test all buttons are included in layout."""
+        """Test all buttons are included in layout (except ENVIAR which is only shown during sequence building)."""
         all_buttons = set()
         for row in BUTTON_LAYOUT:
             all_buttons.update(row)
 
-        assert all_buttons == set(GameButton)
-        assert len(all_buttons) == 9  # 9 total buttons
+        # ENVIAR is not in the normal layout - it replaces SEQUENCE during sequence building
+        expected_buttons = set(GameButton) - {GameButton.ENVIAR}
+        assert all_buttons == expected_buttons
+        assert len(all_buttons) == 10  # 10 buttons (excluding ENVIAR)
 
     def test_wait_button_in_first_row(self):
         """Test WAIT button is positioned with UP button."""

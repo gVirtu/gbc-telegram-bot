@@ -42,7 +42,7 @@ class TestInputLocking:
         async def slow_process(*args, **kwargs):
             await asyncio.sleep(0.1)
         
-        handler._process_input = AsyncMock(side_effect=slow_process)
+        handler._process_sequence = AsyncMock(side_effect=slow_process)
         
         # Create two callback queries
         cq1 = MagicMock()
@@ -71,7 +71,7 @@ class TestInputLocking:
         await asyncio.gather(task1, task2, return_exceptions=True)
         
         # One should be processing, one should be rejected
-        processing_calls = handler._process_input.call_count
+        processing_calls = handler._process_sequence.call_count
         
         # Either first processed and second rejected, or vice versa
         assert processing_calls == 1, "Only one input should be processed"
@@ -85,7 +85,7 @@ class TestInputLocking:
         handler._sessions[chat_id] = session
         
         # Fast processing
-        handler._process_input = AsyncMock()
+        handler._process_sequence = AsyncMock()
         
         cq1 = MagicMock()
         cq1.message.chat.id = chat_id
@@ -111,7 +111,7 @@ class TestInputLocking:
         
         # Process second input
         await handler.handle_button_press(cq2)
-        assert handler._process_input.call_count == 2, "Both inputs should be processed"
+        assert handler._process_sequence.call_count == 2, "Both inputs should be processed"
 
     @pytest.mark.asyncio
     async def test_lock_released_on_exception(self, handler, session, chat_id):
@@ -125,7 +125,7 @@ class TestInputLocking:
         async def failing_process(*args, **kwargs):
             raise ValueError("Test error")
         
-        handler._process_input = AsyncMock(side_effect=failing_process)
+        handler._process_sequence = AsyncMock(side_effect=failing_process)
         handler._send_error_message = AsyncMock()
         
         cq = MagicMock()
@@ -168,7 +168,7 @@ class TestInputLocking:
             processing_started.append(chat)
             await asyncio.sleep(0.05)
         
-        handler._process_input = AsyncMock(side_effect=record_and_delay)
+        handler._process_sequence = AsyncMock(side_effect=record_and_delay)
         
         cq1 = MagicMock()
         cq1.message.chat.id = chat_id1

@@ -17,10 +17,12 @@ from src.keyboard import (
     create_input_keyboard,
     create_game_message_text,
     create_processing_keyboard,
+    create_sequence_building_keyboard,
+    create_processing_keyboard_for_sequence,
     get_button_from_callback,
     is_valid_button_callback,
 )
-from src.models.game_state import ChatGameState, GameButton, GameSession
+from src.models.game_state import ChatGameState, GameButton, GameSession, SequenceBuilder
 from src.utils.frame_utils import should_update_frame, save_frames_as_gif
 from src.utils.state_manager import state_manager
 
@@ -93,14 +95,7 @@ class InputHandler:
         return session
     
     async def handle_button_press(self, callback_query) -> None:
-        """Handle a button press from a user.
-
-        Implements first-vote-wins logic. If input is already being
-        processed, rejects the press.
-
-        Args:
-            callback_query: Telegram CallbackQuery object
-        """
+        """Handle a button press with state machine routing."""
         chat_id = callback_query.message.chat.id
         message_id = callback_query.message.message_id
         callback_data = callback_query.data
@@ -114,28 +109,10 @@ class InputHandler:
             return
 
         button = get_button_from_callback(callback_data)
-
-        # Check if chat has an active session
         session = self._get_session(chat_id)
         if not session:
             try:
                 await callback_query.answer("Nenhum jogo ativo! Use /start_game primeiro.")
-            except Exception as e:
-                logger.error(f"Error processing input for chat {chat_id}: {e}")
-            return
-
-        # Check if input is already being processed
-        if chat_id in self._processing:
-            try:
-                await callback_query.answer("Input já está em progresso! Por favor aguarde.")
-            except Exception as e:
-                logger.error(f"Error processing input for chat {chat_id}: {e}")
-            return
-
-        # Check if message matches (prevent old message interactions)
-        if session.state.message_id != message_id:
-            try:
-                await callback_query.answer("Esta mensagem está desatualizada. Use /resume para continuar.")
             except Exception as e:
                 logger.error(f"Error processing input for chat {chat_id}: {e}")
             return
@@ -147,27 +124,148 @@ class InputHandler:
             (f"@{callback_query.from_user.username}" if callback_query.from_user.username else "User")
         )
 
-        # Lock input processing
+        # STATE MACHINE ROUTING
+        if session.state.sequence_builder is not None:
+            # State: BUILDING_SEQUENCE
+            await self._handle_button_in_sequence_mode(
+                callback_query, session, button, user_id, user_name
+            )
+        elif button == GameButton.SEQUENCE:
+            # Transition: IDLE → BUILDING_SEQUENCE
+            await self._handle_sequence_button_press(
+                callback_query, session, chat_id, message_id, user_id, user_name
+            )
+        else:
+            # State: IDLE (normal single button press)
+            await self._handle_normal_button_press(
+                callback_query, session, chat_id, message_id, button, user_id, user_name
+            )
+
+    async def _handle_sequence_button_press(
+        self, callback_query, session, chat_id, message_id, user_id, user_name
+    ) -> None:
+        """Handle SEQUENCE button press to start building."""
+        if chat_id in self._processing:
+            try:
+                await callback_query.answer("Input já está em progresso! Por favor aguarde.")
+            except Exception as e:
+                logger.error(f"Error processing input for chat {chat_id}: {e}")
+            return
+
+        if session.state.message_id != message_id:
+            try:
+                await callback_query.answer("Esta mensagem está desatualizada. Use /resume para continuar.")
+            except Exception as e:
+                logger.error(f"Error processing input for chat {chat_id}: {e}")
+            return
+
+        try:
+            await callback_query.answer("Iniciando construção de sequência...")
+            await self._start_sequence_building(chat_id, message_id, user_id, user_name)
+        except Exception as e:
+            logger.error(f"Error starting sequence for chat {chat_id}: {e}")
+            await self._send_error_message(chat_id, "Erro ao iniciar sequência.")
+
+    async def _handle_button_in_sequence_mode(
+        self, callback_query, session, button, user_id, user_name
+    ) -> None:
+        """Handle button press while building sequence."""
+        builder = session.state.sequence_builder
+        chat_id = session.chat_id
+        message_id = callback_query.message.message_id
+
+        # Only sequence owner can interact
+        if user_id != builder.user_id:
+            try:
+                await callback_query.answer(
+                    f"{builder.user_name} está construindo uma sequência. Aguarde sua vez."
+                )
+            except Exception as e:
+                logger.error(f"Error in sequence mode for chat {chat_id}: {e}")
+            return
+
+        # Handle ENVIAR button
+        if button == GameButton.ENVIAR:
+            if builder.is_empty():
+                try:
+                    await callback_query.answer("Adicione pelo menos um botão antes de enviar!")
+                except Exception as e:
+                    logger.error(f"Error in sequence mode for chat {chat_id}: {e}")
+                return
+
+            try:
+                await callback_query.answer(f"Enviando sequência com {len(builder.buttons)} botões...")
+                await self._submit_sequence(chat_id, message_id)
+            except Exception as e:
+                logger.error(f"Error submitting sequence for chat {chat_id}: {e}")
+                await self._send_error_message(chat_id, "Erro ao enviar sequência.")
+            return
+
+        # Handle SEQUENCE button (shouldn't be available, but handle gracefully)
+        if button == GameButton.SEQUENCE:
+            try:
+                await callback_query.answer("Você já está construindo uma sequência!")
+            except Exception as e:
+                logger.error(f"Error in sequence mode for chat {chat_id}: {e}")
+            return
+
+        # Add button to sequence
+        if builder.add_button(button):
+            try:
+                await callback_query.answer(f"Adicionado: {button.display_name}")
+
+                # Update message to show current sequence
+                caption = self._create_sequence_building_caption(builder)
+                await self._update_sequence_message(chat_id, message_id, caption)
+
+                state_manager.save_game_state(session.state)
+
+                # Auto-submit if full
+                if builder.is_full():
+                    logger.info(f"Sequence full, auto-submitting for chat {chat_id}")
+                    await self._submit_sequence(chat_id, message_id)
+            except Exception as e:
+                logger.error(f"Error adding button to sequence for chat {chat_id}: {e}")
+        else:
+            try:
+                await callback_query.answer("Sequência completa! Pressione Enviar.")
+            except Exception as e:
+                logger.error(f"Error in sequence mode for chat {chat_id}: {e}")
+
+    async def _handle_normal_button_press(
+        self, callback_query, session, chat_id, message_id, button, user_id, user_name
+    ) -> None:
+        """Handle normal single button press (existing logic)."""
+        # This is the existing logic from the original handle_button_press
+        if chat_id in self._processing:
+            try:
+                await callback_query.answer("Input já está em progresso! Por favor aguarde.")
+            except Exception as e:
+                logger.error(f"Error processing input for chat {chat_id}: {e}")
+            return
+
+        if session.state.message_id != message_id:
+            try:
+                await callback_query.answer("Esta mensagem está desatualizada. Use /resume para continuar.")
+            except Exception as e:
+                logger.error(f"Error processing input for chat {chat_id}: {e}")
+            return
+
         self._processing.add(chat_id)
         session.state.input_in_progress = True
         session.state.last_input = button
         session.record_activity()
 
-        # Record user input
-        self._record_user_input(session, user_id, user_name, button)
+        # Record as 1-item sequence
+        self._record_user_input(session, user_id, user_name, [button])
 
         try:
-            # Acknowledge the button press
             await callback_query.answer(f"Processando: {button.display_name}")
-
-            # Process the input
-            await self._process_input(chat_id, button, message_id)
-
+            await self._process_sequence(chat_id, [button], message_id)
         except Exception as e:
             logger.error(f"Error processing input for chat {chat_id}: {e}")
             await self._send_error_message(chat_id, "Erro ao processar, por favor tente novamente.")
         finally:
-            # Always unlock
             self._processing.discard(chat_id)
             session.state.input_in_progress = False
             state_manager.save_game_state(session.state)
@@ -177,95 +275,230 @@ class InputHandler:
         session: GameSession,
         user_id: int,
         user_name: str,
-        button: GameButton,
+        buttons: list[GameButton],
     ) -> None:
-        """Record a user input in the session state.
-
-        Updates user_input_counts and recent_inputs (max 3, FIFO).
-
-        Args:
-            session: Game session to update
-            user_id: Telegram user ID
-            user_name: User's display name
-            button: Button that was pressed
-        """
+        """Record user input (single button or sequence)."""
         from datetime import datetime
 
-        # Increment user's total count
+        # Increment by number of buttons in sequence
         session.state.user_input_counts[user_id] = (
-            session.state.user_input_counts.get(user_id, 0) + 1
+            session.state.user_input_counts.get(user_id, 0) + len(buttons)
         )
 
-        # Add to recent inputs
+        # Add to recent inputs (store as list)
         input_record = {
             "user_id": user_id,
             "user_name": user_name,
-            "button": button.value,
+            "buttons": [b.value for b in buttons],  # Changed to list
             "timestamp": datetime.utcnow().isoformat(),
         }
 
         session.state.recent_inputs.append(input_record)
 
-        # Keep only last 3 (FIFO)
+        # Keep only last 3
         if len(session.state.recent_inputs) > 3:
             session.state.recent_inputs = session.state.recent_inputs[-3:]
 
-    async def _process_input(
-        self,
-        chat_id: int,
-        button: GameButton,
-        message_id: int,
+    async def _start_sequence_building(
+        self, chat_id: int, message_id: int, user_id: int, user_name: str
     ) -> None:
-        """Process a game input and animate the results.
-        
+        """Start sequence building mode."""
+        session = self._get_session(chat_id)
+        if not session:
+            return
+
+        # Create sequence builder
+        session.state.sequence_builder = SequenceBuilder(
+            user_id=user_id,
+            user_name=user_name,
+            max_length=settings.max_sequence_length,
+        )
+
+        # Lock processing
+        self._processing.add(chat_id)
+
+        # Update keyboard
+        await self._edit_message_keyboard(
+            chat_id, message_id, create_sequence_building_keyboard()
+        )
+
+        # Update caption to show building state
+        caption = "_Construindo sequência: (vazio)_"
+        await self._update_sequence_message(chat_id, message_id, caption)
+
+        # Start timeout check
+        asyncio.create_task(self._check_sequence_timeout(chat_id, message_id))
+
+        state_manager.save_game_state(session.state)
+        logger.info(f"Started sequence building for chat {chat_id}, user {user_id}")
+
+    async def _check_sequence_timeout(self, chat_id: int, message_id: int) -> None:
+        """Monitor sequence building for timeout."""
+        while True:
+            await asyncio.sleep(0.5)
+
+            session = self._get_session(chat_id)
+            if not session or session.state.sequence_builder is None:
+                # Sequence was submitted or cancelled
+                return
+
+            builder = session.state.sequence_builder
+
+            if builder.has_timed_out(settings.sequence_build_timeout):
+                if builder.is_empty():
+                    # Silent cancel
+                    logger.info(f"Sequence timeout with no buttons for chat {chat_id}")
+                    session.state.sequence_builder = None
+                    self._processing.discard(chat_id)
+
+                    await self._edit_message_keyboard(
+                        chat_id, message_id, create_input_keyboard()
+                    )
+
+                    state_manager.save_game_state(session.state)
+                    return
+                else:
+                    # Auto-submit
+                    logger.info(f"Sequence timeout, auto-submitting {len(builder.buttons)} buttons for chat {chat_id}")
+                    await self._submit_sequence(chat_id, message_id)
+                    return
+
+    async def _submit_sequence(self, chat_id: int, message_id: int) -> None:
+        """Submit and execute a sequence."""
+        session = self._get_session(chat_id)
+        if not session or not session.state.sequence_builder:
+            return
+
+        builder = session.state.sequence_builder
+        buttons = builder.buttons.copy()
+        user_id = builder.user_id
+        user_name = builder.user_name
+
+        # Clear sequence builder (transition to PROCESSING)
+        session.state.sequence_builder = None
+        state_manager.save_game_state(session.state)
+
+        # Record entire sequence
+        self._record_user_input(session, user_id, user_name, buttons)
+
+        try:
+            await self._process_sequence(chat_id, buttons, message_id)
+        except Exception as e:
+            logger.error(f"Error processing sequence for chat {chat_id}: {e}")
+            await self._send_error_message(chat_id, "Erro ao processar sequência.")
+        finally:
+            self._processing.discard(chat_id)
+            session.state.input_in_progress = False
+            state_manager.save_game_state(session.state)
+
+    def _create_sequence_building_caption(self, builder: SequenceBuilder) -> str:
+        """Create caption for sequence building mode."""
+        if builder.is_empty():
+            return "_Construindo sequência: (vazio)_"
+        emoji_sequence = " ".join([b.emoji for b in builder.buttons])
+        return f"_Construindo sequência: {emoji_sequence}_"
+
+    async def _update_sequence_message(
+        self, chat_id: int, message_id: int, caption: str
+    ) -> None:
+        """Update message caption during sequence building."""
+        try:
+            controller = game_controller_manager.get_controller(chat_id)
+            if controller and controller.is_initialized():
+                png_buffer = controller.get_frame_as_png()
+                await self._edit_message_media(chat_id, message_id, png_buffer, caption)
+        except Exception as e:
+            logger.warning(f"Failed to update sequence message for chat {chat_id}: {e}")
+
+    async def _process_sequence(
+        self, chat_id: int, buttons: list[GameButton], message_id: int
+    ) -> None:
+        """Process a sequence of buttons (handles both single and multiple).
+
         Args:
             chat_id: Telegram chat ID
-            button: The button that was pressed
-            message_id: Telegram message ID to edit
+            buttons: List of buttons to execute (can be 1 item for single press)
+            message_id: Message ID to edit
         """
-        # Get or create game controller
         controller = await game_controller_manager.get_or_create_controller(chat_id)
-        
-        # Update message to show processing state (remove keyboard)
+
+        # Update to processing state
         await self._edit_message_keyboard(
-            chat_id,
-            message_id,
-            create_processing_keyboard(button),
+            chat_id, message_id, create_processing_keyboard_for_sequence(buttons)
         )
-        
-        # Execute the input
-        logger.info(f"Executing input {button.value} for chat {chat_id}")
-        if button == GameButton.WAIT:
-            # WAIT button: Don't press any button, just tick the emulator
-            # This allows the animation phase to show game progress without input
-            logger.debug(f"WAIT button pressed for chat {chat_id}, skipping button input")
-            frame = controller.tick(frames=settings.input_hold_frames)
-        else:
-            # Normal button: press and hold
-            frame = controller.send_input(button, frames=settings.input_hold_frames)
+
+        logger.info(f"Executing sequence of {len(buttons)} buttons for chat {chat_id}")
+
+        # Animation capture settings
+        frames = []
+        capture_fps = 10
+        capture_interval = 1.0 / capture_fps
+        duration_ms = int(capture_interval * 1000)
+        frames_per_tick = 6  # 60fps game / 10fps capture
+
+        # Execute each button with delays
+        for i, button in enumerate(buttons):
+            # Execute button
+            if button == GameButton.WAIT:
+                logger.debug(f"WAIT button in sequence for chat {chat_id}")
+                controller.tick(frames=settings.input_hold_frames)
+            else:
+                logger.debug(f"Executing {button.value} in sequence for chat {chat_id}")
+                controller.send_input(button, frames=settings.input_hold_frames)
+
+            # Capture frame after button
+            frames.append(controller.get_frame().copy())
+
+            # Apply delay between buttons (if not last)
+            if i < len(buttons) - 1:
+                delay_start = asyncio.get_event_loop().time()
+                while (asyncio.get_event_loop().time() - delay_start) < settings.sequence_delay_seconds:
+                    controller.tick(frames_per_tick)
+                    frames.append(controller.get_frame().copy())
+                    await asyncio.sleep(capture_interval)
+
+        # Continue animating after last button
         session = self._get_session(chat_id)
         recent = session.state.recent_inputs if session else []
         caption = create_game_message_text(recent_inputs=recent)
-        
-        # Animation phase
-        await self._animate_frames(chat_id, message_id, controller, caption)
-        
-        # Re-enable input with fresh keyboard
-        await self._edit_message_keyboard(
-            chat_id,
-            message_id,
-            create_input_keyboard(),
-        )
-        
-        
+
+        animation_start = asyncio.get_event_loop().time()
+        while (asyncio.get_event_loop().time() - animation_start) < settings.animation_duration:
+            controller.tick(frames_per_tick)
+            frames.append(controller.get_frame().copy())
+            await asyncio.sleep(capture_interval)
+
+        # Generate and send GIF
+        if frames:
+            logger.info(f"Generating GIF with {len(frames)} frames for chat {chat_id}")
+            try:
+                gif_buffer = save_frames_as_gif(
+                    frames, duration=duration_ms, last_frame_duration=2000
+                )
+                gif_buffer.seek(0)
+
+                await self._edit_message_media(
+                    chat_id, message_id, gif_buffer, caption, media_type="animation"
+                )
+
+                _, last_hash = should_update_frame(frames[-1], None)
+                controller.update_frame_hash(last_hash)
+            except Exception as e:
+                logger.error(f"Failed to generate GIF for chat {chat_id}: {e}")
+                try:
+                    png_buffer = controller.get_frame_as_png()
+                    await self._edit_message_media(chat_id, message_id, png_buffer, caption)
+                except Exception as e2:
+                    logger.error(f"Fallback failed for chat {chat_id}: {e2}")
+
+        # Re-enable input
+        await self._edit_message_keyboard(chat_id, message_id, create_input_keyboard())
+
         # Auto-save if enabled
         config = state_manager.get_or_create_chat_config(chat_id)
         if config.auto_save_enabled:
             try:
-                # Get next slot
                 slot = state_manager.find_next_auto_save_slot(chat_id)
-                
-                # Save state
                 state_data = controller.save_state()
                 state_manager.save_to_slot(
                     chat_id=chat_id,
@@ -274,11 +507,11 @@ class InputHandler:
                     description=f"Auto-save",
                     is_auto_save=True,
                 )
-                logger.debug(f"Auto-saved game to slot {slot} for chat {chat_id}")
+                logger.debug(f"Auto-saved to slot {slot} for chat {chat_id}")
             except Exception as e:
                 logger.warning(f"Failed to auto-save for chat {chat_id}: {e}")
-        
-        logger.info(f"Completed input processing for chat {chat_id}")
+
+        logger.info(f"Completed sequence processing for chat {chat_id}")
     
     async def _animate_frames(
         self,

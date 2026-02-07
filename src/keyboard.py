@@ -70,9 +70,23 @@ def create_game_message_text(
         base_text += "\n\n📖 *Atividade recente*:"
         # Show most recent first (reversed)
         for inp in reversed(recent_inputs):
-            button = GameButton(inp["button"])
             user_name = inp["user_name"]
-            base_text += f"\n  {user_name} pressionou {button.emoji} {button.display_name}"
+
+            # Handle both old format (single "button") and new format (list "buttons")
+            if "buttons" in inp:
+                # New format: list of buttons
+                buttons = [GameButton(b) for b in inp["buttons"]]
+                if len(buttons) == 1:
+                    button = buttons[0]
+                    base_text += f"\n  {user_name} pressionou {button.emoji} {button.display_name}"
+                else:
+                    # Sequence: comma-separated emojis
+                    emoji_sequence = ", ".join([b.emoji for b in buttons])
+                    base_text += f"\n  {user_name} executou {emoji_sequence}"
+            else:
+                # Old format: single button (backward compatibility)
+                button = GameButton(inp["button"])
+                base_text += f"\n  {user_name} pressionou {button.emoji} {button.display_name}"
 
     if status:
         base_text += f"\n\n_{status}_"
@@ -107,17 +121,57 @@ def create_disabled_keyboard() -> InlineKeyboardMarkup:
 
 def create_processing_keyboard(button: GameButton) -> InlineKeyboardMarkup:
     """Create a keyboard showing processing state.
-    
+
     Args:
         button: The button being processed
-    
+
     Returns:
         InlineKeyboardMarkup showing processing state
     """
     keyboard = [
         [InlineKeyboardButton(f"Processando: {button.display_name}...", callback_data="processing")]
     ]
-    
+
+    return InlineKeyboardMarkup(keyboard)
+
+
+def create_sequence_building_keyboard() -> InlineKeyboardMarkup:
+    """Create keyboard for sequence building mode.
+
+    Shows all game buttons with SEQUENCE replaced by ENVIAR.
+    """
+    keyboard = []
+    for row in BUTTON_LAYOUT:
+        keyboard_row = []
+        for button in row:
+            if button == GameButton.SEQUENCE:
+                # Replace SEQUENCE with ENVIAR button
+                keyboard_row.append(
+                    InlineKeyboardButton(
+                        f"{GameButton.ENVIAR.emoji} {GameButton.ENVIAR.display_name}",
+                        callback_data=GameButton.ENVIAR.value,
+                    )
+                )
+            else:
+                keyboard_row.append(
+                    InlineKeyboardButton(
+                        button.emoji,
+                        callback_data=button.value,
+                    )
+                )
+        keyboard.append(keyboard_row)
+    return InlineKeyboardMarkup(keyboard)
+
+
+def create_processing_keyboard_for_sequence(buttons: list[GameButton]) -> InlineKeyboardMarkup:
+    """Create keyboard showing sequence processing state."""
+    if len(buttons) == 1:
+        text = f"Processando: {buttons[0].display_name}..."
+    else:
+        emoji_sequence = " ".join([b.emoji for b in buttons])
+        text = f"Processando: {emoji_sequence}..."
+
+    keyboard = [[InlineKeyboardButton(text, callback_data="processing")]]
     return InlineKeyboardMarkup(keyboard)
 
 
@@ -251,6 +305,8 @@ BUTTON_DESCRIPTIONS = {
     GameButton.START: "Open menu / Pause",
     GameButton.SELECT: "Select item / Switch",
     GameButton.WAIT: "Wait / Let game progress without input",
+    GameButton.SEQUENCE: "Construir uma sequência de comandos",
+    GameButton.ENVIAR: "Enviar a sequência construída",
 }
 
 

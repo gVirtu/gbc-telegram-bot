@@ -109,6 +109,26 @@ class Settings(BaseSettings):
         ge=1,
         le=10,
     )
+
+    # Sequence input settings
+    max_sequence_length: int = Field(
+        default=4,
+        description="Maximum number of buttons in a sequence",
+        ge=1,
+        le=10,
+    )
+    sequence_delay_seconds: float = Field(
+        default=1.0,
+        description="Delay in seconds between button presses in a sequence",
+        ge=0.1,
+        le=5.0,
+    )
+    sequence_build_timeout: float = Field(
+        default=10.0,
+        description="Timeout in seconds for building a sequence",
+        ge=5.0,
+        le=60.0,
+    )
     
     # Telegram API settings
     max_retries: int = Field(

@@ -50,7 +50,7 @@ class TestGameControllerInitialization:
     
     def test_init_default_rom_path(self, tmp_path):
         """Test initialization uses default ROM path."""
-        rom_path = tmp_path / "pokemon_red.gbc"
+        rom_path = tmp_path / "game.gbc"
         rom_path.write_bytes(b"rom data")
         
         # Create a mock settings object with required attributes
@@ -136,13 +136,6 @@ class TestGameControllerMocked:
         with pytest.raises(ValueError, match="Invalid button"):
             controller.send_input("invalid_button", frames=10)
     
-    def test_press_and_release_button(self, controller, mock_pyboy):
-        """Test press and release methods."""
-        controller.press_button(GameButton.B)
-        controller.release_button(GameButton.B)
-        
-        assert mock_pyboy.send_input.call_count == 2
-    
     def test_save_state(self, controller, mock_pyboy):
         """Test saving state."""
         # Mock save_state to write to buffer
@@ -165,22 +158,6 @@ class TestGameControllerMocked:
         call_args = mock_pyboy.load_state.call_args[0][0]
         assert isinstance(call_args, BytesIO)
         assert call_args.read() == state_data
-    
-    def test_load_state_from_file(self, controller, mock_pyboy, tmp_path):
-        """Test loading state from file."""
-        state_file = tmp_path / "save.state"
-        state_file.write_bytes(b"file state data")
-        
-        result = controller.load_state_from_file(state_file)
-        
-        assert result is True
-        mock_pyboy.load_state.assert_called_once()
-    
-    def test_load_state_from_nonexistent_file(self, controller):
-        """Test loading state from nonexistent file."""
-        result = controller.load_state_from_file(Path("/nonexistent/save.state"))
-        
-        assert result is False
     
     def test_should_update_frame_first_frame(self, controller):
         """Test first frame always updates."""

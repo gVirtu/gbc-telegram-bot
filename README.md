@@ -1,6 +1,6 @@
-# Telegram Pokémon Red Bot
+# GBC Telegram Bot
 
-A Telegram bot that allows group chats to collaboratively play Pokémon Red through voting on inputs.
+A Telegram bot that allows group chats to collaboratively play GBC games through voting on inputs.
 
 ## Features
 
@@ -28,7 +28,7 @@ cp .env.example .env
 
 ### 3. Add ROM File
 
-Place your Pokémon Red ROM file at `./roms/pokemon_red.gbc`
+Place your GBC ROM file at `./roms/game.gbc`
 
 ### 4. Run the Bot
 
@@ -38,16 +38,16 @@ python -m src.main
 
 ## Environment Variables
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `TELEGRAM_BOT_TOKEN` | Yes | - | Telegram bot token from @BotFather |
-| `WEBHOOK_URL` | Yes | - | Public URL for webhook endpoint |
-| `WEBHOOK_SECRET` | Yes | - | Secret token for webhook validation |
-| `PORT` | No | 8000 | Server port |
-| `ROM_PATH` | No | ./roms/pokemon_red.gbc | Path to ROM file |
-| `DATA_DIR` | No | ./data | Directory for runtime data |
-| `INITIAL_SAVE_PATH` | No | ./roms/initial.state | Path to initial save state |
-| `LOG_LEVEL` | No | INFO | Logging level |
+| Variable             | Required | Default              | Description                         |
+| -------------------- | -------- | -------------------- | ----------------------------------- |
+| `TELEGRAM_BOT_TOKEN` | Yes      | -                    | Telegram bot token from @BotFather  |
+| `WEBHOOK_URL`        | Yes      | -                    | Public URL for webhook endpoint     |
+| `WEBHOOK_SECRET`     | Yes      | -                    | Secret token for webhook validation |
+| `PORT`               | No       | 8000                 | Server port                         |
+| `ROM_PATH`           | No       | ./roms/game.gbc      | Path to ROM file                    |
+| `DATA_DIR`           | No       | ./data               | Directory for runtime data          |
+| `INITIAL_SAVE_PATH`  | No       | ./roms/initial.state | Path to initial save state          |
+| `LOG_LEVEL`          | No       | INFO                 | Logging level                       |
 
 ## Project Structure
 

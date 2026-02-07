@@ -1,7 +1,6 @@
 
 import asyncio
 import pytest
-from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.models.game_state import ChatConfig, SaveSlotInfo, GameButton
@@ -78,34 +77,21 @@ async def test_no_auto_save_when_disabled():
 
 @pytest.mark.asyncio
 async def test_ensure_game_active_loads_latest_auto_save():
-    """Test that _ensure_game_active loads the most recent auto-save."""
+    """Test that _ensure_game_active delegates to get_or_create_controller.
+
+    Note: The actual save loading logic is now in get_or_create_controller in src.game.
+    This test verifies _ensure_game_active properly delegates to it.
+    """
     chat_id = 123
     
-    # Create mock slots
-    now = datetime.now()
-    slots = [
-        SaveSlotInfo(slot_number=0, created_at=now - timedelta(hours=1), is_auto_save=True),
-        SaveSlotInfo(slot_number=1, created_at=now, is_auto_save=False), # Newer but manual save
-        SaveSlotInfo(slot_number=2, created_at=now - timedelta(minutes=30), is_auto_save=True), # Recent auto-save
-        SaveSlotInfo(slot_number=3, created_at=now - timedelta(hours=2), is_auto_save=True),
-    ]
-    
-    with patch("src.handlers.commands.state_manager") as mock_state_mgr:
-        with patch("src.handlers.commands.game_controller_manager") as mock_game_mgr:
-            # Setup mocks
-            mock_game_mgr.get_controller.return_value = None # No active game
-            mock_game_mgr.get_or_create_controller = AsyncMock(return_value=MagicMock())
-            
-            mock_state_mgr.list_save_slots.return_value = slots
-            mock_state_mgr.load_from_slot.return_value = b"game_state"
-            
-            # Execute
-            success, error = await _ensure_game_active(chat_id)
-            
-            # Verify success
-            assert success is True
-            assert error is None
-            
-            # Verify it loaded slot 2 (most recent auto-save)
-            # Slot 1 is newer but not auto-save. Slot 0 and 3 are older auto-saves.
-            mock_state_mgr.load_from_slot.assert_called_once_with(chat_id, 2)
+    with patch("src.handlers.commands.game_controller_manager") as mock_game_mgr:
+        mock_controller = MagicMock()
+        mock_controller.is_initialized.return_value = True
+        mock_game_mgr.get_controller.return_value = None
+        mock_game_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
+        
+        success, error = await _ensure_game_active(chat_id)
+        
+        assert success is True
+        assert error is None
+        mock_game_mgr.get_or_create_controller.assert_called_once_with(chat_id)

@@ -1,4 +1,4 @@
-# Telegram Pokémon Red Bot - System Design
+# GBC Telegram Bot - System Design
 
 **Date**: 2026-02-04  
 **Architecture**: PyBoy + FastAPI + File-based State  
@@ -8,9 +8,10 @@
 
 ## Overview
 
-A Telegram bot that allows group chats to collaboratively play Pokémon Red through voting on inputs. The bot runs a headless GameBoy Color emulator (PyBoy) and exposes the game via inline keyboard buttons in a single message that gets updated throughout gameplay.
+A Telegram bot that allows group chats to collaboratively play GBC games through voting on inputs. The bot runs a headless GameBoy Color emulator (PyBoy) and exposes the game via inline keyboard buttons in a single message that gets updated throughout gameplay.
 
 **Key Design Decisions**:
+
 - Single message per chat (no chat pollution)
 - First vote wins (inline keyboard buttons, not polls)
 - No external dependencies (file-based state, no Redis/DB)
@@ -59,6 +60,7 @@ async def webhook_handler(update: TelegramUpdate, token_hash: str):
 ```
 
 **Routes**:
+
 - `POST /webhook/{token_hash}` - Receive Telegram updates
 - `GET /health` - Health check for monitoring
 
@@ -73,29 +75,30 @@ class GameController:
         self.chat_id = chat_id
         self.last_frame_hash = None
         self.input_in_progress = False
-    
+
     def tick(self, frames: int) -> np.ndarray:
         """Advance emulator and return frame buffer"""
         for _ in range(frames):
             self.pyboy.tick()
         return self.get_frame()
-    
+
     def get_frame(self) -> np.ndarray:
         """Get current screen as numpy array"""
         screen = self.pyboy.botsupport_manager().screen()
         return screen.screen_ndarray()
-    
+
     def send_input(self, button: str, frames: int):
         """Press and hold button for N frames"""
         press_event = BUTTON_MAP[button]["press"]
         release_event = BUTTON_MAP[button]["release"]
-        
+
         self.pyboy.send_input(press_event)
         self.tick(frames)
         self.pyboy.send_input(release_event)
 ```
 
 **Button Mapping**:
+
 ```python
 BUTTON_MAP = {
     "up": {"press": WindowEvent.PRESS_ARROW_UP, "release": WindowEvent.RELEASE_ARROW_UP},
@@ -118,45 +121,45 @@ class InputHandler:
     def __init__(self, bot: Bot, game_controllers: Dict[int, GameController]):
         self.bot = bot
         self.games = game_controllers
-    
+
     async def handle_button_press(self, callback_query: CallbackQuery):
         """Handle first button press (first vote wins)"""
         chat_id = callback_query.message.chat.id
         button = callback_query.data  # "up", "down", "a", etc.
-        
+
         game = self.games.get(chat_id)
         if not game or game.input_in_progress:
             await callback_query.answer("Wait for current input to finish!")
             return
-        
+
         # Lock input processing
         game.input_in_progress = True
-        
+
         # Remove keyboard immediately
         await self.bot.edit_message_reply_markup(
             chat_id=chat_id,
             message_id=callback_query.message.message_id,
             reply_markup=None  # Removes all buttons
         )
-        
+
         # Execute input
         await self.execute_input(chat_id, button, callback_query.message.message_id)
-    
+
     async def execute_input(self, chat_id: int, button: str, message_id: int):
         """Execute input and animate results"""
         game = self.games[chat_id]
-        
+
         # Press button for INPUT_HOLD_FRAMES
         game.send_input(button, INPUT_HOLD_FRAMES)
-        
+
         # Animation phase: edit message every ANIMATION_INTERVAL for ANIMATION_DURATION
         start_time = time.time()
         last_update = 0
-        
+
         while time.time() - start_time < ANIMATION_DURATION:
             # Tick a few frames
             frame = game.tick(ANIMATION_TICK_FRAMES)
-            
+
             # Check if frame changed (optimization)
             frame_hash = hash_frame(frame)
             if frame_hash != game.last_frame_hash:
@@ -168,10 +171,10 @@ class InputHandler:
                     media=InputMediaPhoto(media=png_bytes)
                 )
                 game.last_frame_hash = frame_hash
-            
+
             # Wait for next interval
             await asyncio.sleep(ANIMATION_INTERVAL)
-        
+
         # Unlock and add new keyboard
         game.input_in_progress = False
         await self.add_keyboard(chat_id, message_id)
@@ -186,46 +189,46 @@ class CommandHandler:
     async def start_game(self, message: Message):
         """/start_game - Initialize or restart game"""
         chat_id = message.chat.id
-        
+
         # Load or create game controller
         if chat_id not in self.games:
             self.games[chat_id] = GameController(chat_id, ROM_PATH)
-        
+
         game = self.games[chat_id]
         game.load_initial_save()  # Load from data/saves/<chat_id>/initial.state
-        
+
         # Capture initial frame
         frame = game.get_frame()
         png_bytes = frame_to_png(frame)
         game.last_frame_hash = hash_frame(frame)
-        
+
         # Send message with keyboard
         keyboard = self.create_input_keyboard()
         sent_message = await self.bot.send_photo(
             chat_id=chat_id,
             photo=png_bytes,
-            caption="Pokémon Red - Press a button to play!\nFirst press wins.",
+            caption="GBC Game - Press a button to play!\nFirst press wins.",
             reply_markup=keyboard
         )
-        
+
         # Store message ID for future edits
         save_poll_state(chat_id, sent_message.message_id)
-    
+
     async def current_frame(self, message: Message):
         """/current_frame - Show current frame"""
         chat_id = message.chat.id
         game = self.games.get(chat_id)
-        
+
         if not game:
             await message.reply("No active game! Use /start_game first.")
             return
-        
+
         frame = game.get_frame()
         png_bytes = frame_to_png(frame)
-        
+
         # If input not in progress, add keyboard
         keyboard = None if game.input_in_progress else self.create_input_keyboard()
-        
+
         await self.bot.send_photo(
             chat_id=chat_id,
             photo=png_bytes,
@@ -255,6 +258,7 @@ data/
 ```
 
 **Poll State** (`data/polls/<chat_id>.json`):
+
 ```json
 {
   "message_id": 12345,
@@ -265,6 +269,7 @@ data/
 ```
 
 **Config** (`data/config/<chat_id>.json`):
+
 ```json
 {
   "input_hold_frames": 30,
@@ -306,7 +311,7 @@ WEBHOOK_SECRET=random_secret_for_validation
 
 # Optional (with defaults)
 PORT=8000
-ROM_PATH=./roms/pokemon_red.gbc
+ROM_PATH=./roms/game.gbc
 DATA_DIR=./data
 INITIAL_SAVE_PATH=./roms/initial.state
 ```
@@ -398,10 +403,10 @@ async def update_frame_if_changed(game, chat_id, message_id, bot):
     """Only edit message if frame actually changed"""
     frame = game.get_frame()
     frame_hash = hash_frame(frame)
-    
+
     if frame_hash == game.last_frame_hash:
         return False  # Skip update
-    
+
     png_bytes = frame_to_png(frame)
     await bot.edit_message_media(
         chat_id=chat_id,
@@ -413,6 +418,7 @@ async def update_frame_if_changed(game, chat_id, message_id, bot):
 ```
 
 **Benefits**:
+
 - Reduces API calls by ~60-80% during static screens (menus, text boxes)
 - Lower bandwidth usage
 - Faster perceived performance (no flickering on unchanged frames)
@@ -470,12 +476,14 @@ async def safe_edit_message(bot, chat_id, message_id, **kwargs):
 ### Requirements
 
 **Minimal VPS Specs** (tested with 2+ concurrent games):
+
 - 1 vCPU
 - 1GB RAM
 - 10GB SSD
 - Python 3.9+
 
 **Python Dependencies**:
+
 ```
 fastapi==0.104.0
 uvicorn==0.24.0
@@ -493,7 +501,7 @@ pokemon-red-bot/
 ├── requirements.txt
 ├── .env                    # Environment variables (not in git)
 ├── roms/
-│   ├── pokemon_red.gbc     # ROM file (user-provided)
+│   ├── game.gbc     # ROM file (user-provided)
 │   └── initial.state       # Initial save state (user-provided)
 ├── src/
 │   ├── __init__.py
@@ -514,24 +522,28 @@ pokemon-red-bot/
 ### Setup Instructions
 
 1. **Install dependencies**:
+
    ```bash
    pip install -r requirements.txt
    ```
 
 2. **Configure environment**:
+
    ```bash
    cp .env.example .env
    # Edit .env with your bot token and webhook URL
    ```
 
 3. **Add ROM and save state**:
+
    ```bash
    mkdir -p roms
-   cp /path/to/pokemon_red.gbc roms/
+   cp /path/to/game.gbc roms/
    cp /path/to/initial.state roms/
    ```
 
 4. **Set webhook** (one-time setup):
+
    ```bash
    python -c "from src.bot import set_webhook; set_webhook()"
    ```
@@ -561,14 +573,14 @@ server {
 
 ## Commands Reference
 
-| Command | Description | Usage |
-|---------|-------------|-------|
-| `/start_game` | Start or restart the game | `/start_game` |
-| `/current_frame` | Show current frame + open input | `/current_frame` |
-| `/save [slot]` | Save current state to slot | `/save` or `/save 2` |
-| `/load [slot]` | Load state from slot | `/load` or `/load 1` |
-| `/status` | Show game status | `/status` |
-| `/help` | Show help message | `/help` |
+| Command          | Description                     | Usage                |
+| ---------------- | ------------------------------- | -------------------- |
+| `/start_game`    | Start or restart the game       | `/start_game`        |
+| `/current_frame` | Show current frame + open input | `/current_frame`     |
+| `/save [slot]`   | Save current state to slot      | `/save` or `/save 2` |
+| `/load [slot]`   | Load state from slot            | `/load` or `/load 1` |
+| `/status`        | Show game status                | `/status`            |
+| `/help`          | Show help message               | `/help`              |
 
 ---
 
@@ -652,6 +664,7 @@ async def health_check():
 ```
 
 **Metrics to track**:
+
 - Active games count
 - API response times
 - Frame update frequency

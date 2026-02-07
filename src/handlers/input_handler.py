@@ -32,16 +32,6 @@ class InputHandlerError(Exception):
     pass
 
 
-class GameNotActiveError(InputHandlerError):
-    """Raised when trying to interact with a game that isn't active."""
-    pass
-
-
-class InputInProgressError(InputHandlerError):
-    """Raised when trying to input while another input is processing."""
-    pass
-
-
 class InputHandler:
     """Handles game input processing and state management.
     
@@ -110,10 +100,6 @@ class InputHandler:
 
         Args:
             callback_query: Telegram CallbackQuery object
-
-        Raises:
-            GameNotActiveError: If no game is active for this chat
-            InputInProgressError: If input is already being processed
         """
         chat_id = callback_query.message.chat.id
         message_id = callback_query.message.message_id

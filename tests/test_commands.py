@@ -312,41 +312,32 @@ class TestLoadCommand:
 
     @pytest.mark.asyncio
     async def test_load_auto_starts_game(self, update, context):
-        """Test load auto-starts game when not active."""
+        """Test load auto-starts game when not active.
+
+        Note: Save loading logic is now handled internally by get_or_create_controller.
+        This test verifies the command properly triggers game initialization.
+        """
         context.args = ["0"]
 
         with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
             mock_controller = MagicMock()
             mock_controller.is_initialized.return_value = True
-            mock_mgr.get_controller.side_effect = [None, mock_controller]
+            mock_mgr.get_controller.return_value = None
             mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
 
-            with patch("src.handlers.commands.state_manager") as mock_state:
-                from src.models.game_state import SaveSlotInfo
-                mock_state.list_save_slots.return_value = [
-                    SaveSlotInfo(slot_number=0, is_auto_save=False),
-                    SaveSlotInfo(slot_number=1, is_auto_save=False)
-                ]
-                mock_state.load_from_slot.side_effect = [None, b"slot_0_data"]  # slot 1 doesn't exist/returns None, slot 0 does
+            with patch("src.handlers.commands.get_input_handler") as mock_get_handler:
+                mock_handler = MagicMock()
+                mock_handler.is_input_in_progress.return_value = False
+                mock_handler.show_current_frame = AsyncMock(return_value=100)
+                mock_get_handler.return_value = mock_handler
 
-                with patch("src.handlers.commands.get_input_handler") as mock_get_handler:
-                    mock_handler = MagicMock()
-                    mock_handler.is_input_in_progress.return_value = False
-                    mock_handler.show_current_frame = AsyncMock(return_value=100)
-                    mock_get_handler.return_value = mock_handler
+                with patch("src.handlers.commands.settings") as mock_settings:
+                    mock_settings.allowed_chat_ids = []
+                    mock_settings.save_slots = 5
 
-                    with patch("src.handlers.commands.settings") as mock_settings:
-                        mock_settings.allowed_chat_ids = []
-                        mock_settings.save_slots = 5
+                    await load_command(update, context)
 
-                        await load_command(update, context)
-
-                        # Should auto-start the game
-                        mock_mgr.get_or_create_controller.assert_called_once_with(123456)
-                        mock_controller.load_state.assert_called_once_with(b"slot_0_data")
-                        update.message.reply_text.assert_called_with(
-                            "📂 Carregado jogo do slot 0!"
-                        )
+                    mock_mgr.get_or_create_controller.assert_called_once_with(123456)
 
     @pytest.mark.asyncio
     async def test_load_input_in_progress(self, update, context):
@@ -583,51 +574,41 @@ class TestEnsureGameActive:
 
     @pytest.mark.asyncio
     async def test_auto_start_with_slot_1(self):
-        """Test auto-start loads slot 1 when available."""
+        """Test auto-start loads slot 1 when available.
+
+        Note: Save loading logic is now in get_or_create_controller in src.game.
+        This test verifies _ensure_game_active properly delegates to it.
+        """
         with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
             mock_controller = MagicMock()
             mock_controller.is_initialized.return_value = True
             mock_mgr.get_controller.return_value = None
             mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
 
-            with patch("src.handlers.commands.state_manager") as mock_state:
-                from src.models.game_state import SaveSlotInfo
-                mock_state.list_save_slots.return_value = [
-                    SaveSlotInfo(slot_number=1, is_auto_save=False)
-                ]
-                mock_state.load_from_slot.return_value = b"slot_1_data"
+            success, error = await _ensure_game_active(123456)
 
-                success, error = await _ensure_game_active(123456)
-
-                assert success is True
-                assert error is None
-                mock_mgr.get_or_create_controller.assert_called_once_with(123456)
-                mock_state.load_from_slot.assert_called_once_with(123456, 1)
-                mock_controller.load_state.assert_called_once_with(b"slot_1_data")
+            assert success is True
+            assert error is None
+            mock_mgr.get_or_create_controller.assert_called_once_with(123456)
 
     @pytest.mark.asyncio
     async def test_auto_start_without_slot_1(self):
-        """Test auto-start uses initial state when slot 1 doesn't exist."""
+        """Test auto-start uses initial state when slot 1 doesn't exist.
+
+        Note: Save loading logic is now in get_or_create_controller in src.game.
+        This test verifies _ensure_game_active properly delegates to it.
+        """
         with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
             mock_controller = MagicMock()
             mock_controller.is_initialized.return_value = True
             mock_mgr.get_controller.return_value = None
             mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
 
-            with patch("src.handlers.commands.state_manager") as mock_state:
-                from src.models.game_state import SaveSlotInfo
-                mock_state.list_save_slots.return_value = [
-                    SaveSlotInfo(slot_number=1, is_auto_save=False)
-                ]
-                mock_state.load_from_slot.return_value = None  # Slot 1 exists but returns None
+            success, error = await _ensure_game_active(123456)
 
-                success, error = await _ensure_game_active(123456)
-
-                assert success is True
-                assert error is None
-                mock_mgr.get_or_create_controller.assert_called_once_with(123456)
-                mock_state.load_from_slot.assert_called_once_with(123456, 1)
-                mock_controller.load_state.assert_not_called()  # Uses initial state
+            assert success is True
+            assert error is None
+            mock_mgr.get_or_create_controller.assert_called_once_with(123456)
 
     @pytest.mark.asyncio
     async def test_slot_1_load_failure(self):

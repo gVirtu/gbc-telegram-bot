@@ -21,8 +21,6 @@ from telegram.error import TelegramError
 from src.handlers.input_handler import (
     InputHandler,
     InputHandlerError,
-    GameNotActiveError,
-    InputInProgressError,
     get_input_handler,
 )
 from src.models.game_state import ChatGameState, GameButton, GameSession
@@ -73,18 +71,6 @@ class TestButtonPressHandling:
         return cq
     
     @pytest.mark.asyncio
-    async def test_no_active_game(self, handler, mock_callback_query):
-        """Test button press with no active game."""
-        with patch("src.handlers.input_handler.state_manager") as mock_state:
-            mock_state.load_game_state.return_value = None
-            
-            await handler.handle_button_press(mock_callback_query)
-            
-            mock_callback_query.answer.assert_called_once_with(
-                "No active game! Use /start_game first."
-            )
-    
-    @pytest.mark.asyncio
     async def test_invalid_callback(self, handler, mock_callback_query):
         """Test button press with invalid callback data."""
         mock_callback_query.data = "invalid"
@@ -108,7 +94,7 @@ class TestButtonPressHandling:
         await handler.handle_button_press(mock_callback_query)
         
         mock_callback_query.answer.assert_called_once_with(
-            "Input already in progress! Please wait..."
+            "Input já está em progresso! Por favor aguarde."
         )
     
     @pytest.mark.asyncio
@@ -125,7 +111,7 @@ class TestButtonPressHandling:
         await handler.handle_button_press(mock_callback_query)
         
         mock_callback_query.answer.assert_called_once_with(
-            "This game message is outdated. Use /current_frame for the latest."
+            "Esta mensagem está desatualizada. Use /resume para continuar."
         )
     
     @pytest.mark.asyncio

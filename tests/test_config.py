@@ -66,7 +66,7 @@ class TestOptionalSettingsDefaults:
     def valid_settings(self, tmp_path):
         """Create valid settings with temporary paths."""
         # Create dummy ROM file
-        rom_path = tmp_path / "pokemon_red.gbc"
+        rom_path = tmp_path / "game.gbc"
         rom_path.write_bytes(b"dummy rom data")
         
         return Settings(
@@ -116,7 +116,7 @@ class TestSettingsValidation:
     @pytest.fixture
     def base_settings(self, tmp_path):
         """Base settings dict with temporary paths."""
-        rom_path = tmp_path / "pokemon_red.gbc"
+        rom_path = tmp_path / "game.gbc"
         rom_path.write_bytes(b"dummy rom data")
         
         return {
@@ -204,7 +204,7 @@ class TestHelperMethods:
     @pytest.fixture
     def settings(self, tmp_path):
         """Create settings with temporary paths."""
-        rom_path = tmp_path / "pokemon_red.gbc"
+        rom_path = tmp_path / "game.gbc"
         rom_path.write_bytes(b"dummy rom data")
         
         return Settings(
@@ -235,7 +235,7 @@ class TestHelperMethods:
     
     def test_get_webhook_path_different_secrets(self, tmp_path):
         """Test different secrets produce different paths."""
-        rom_path = tmp_path / "pokemon_red.gbc"
+        rom_path = tmp_path / "game.gbc"
         rom_path.write_bytes(b"dummy rom data")
         
         settings1 = Settings(
@@ -294,7 +294,7 @@ class TestEnvironmentLoading:
     def test_load_from_environment(self, tmp_path, monkeypatch):
         """Test settings load from environment variables."""
         # Create dummy ROM
-        rom_path = tmp_path / "pokemon.gbc"
+        rom_path = tmp_path / "game.gbc"
         rom_path.write_bytes(b"rom")
         
         # Set environment variables
@@ -330,7 +330,7 @@ class TestSingleton:
         # Clear cache first
         get_settings.cache_clear()
         
-        rom_path = tmp_path / "pokemon_red.gbc"
+        rom_path = tmp_path / "game.gbc"
         rom_path.write_bytes(b"dummy rom data")
         
         # Mock Settings to avoid needing env vars

@@ -1,4 +1,4 @@
-"""Integration tests for the Telegram Pokémon Red Bot.
+"""Integration tests for the Telegram GBC Bot.
 
 This module tests the complete flow from webhook to game execution,
 ensuring all components work together correctly.
@@ -70,7 +70,7 @@ class TestEndToEndGameFlow:
                 await start_game_command(mock_update, mock_context)
                 
                 # Verify game was started
-                mock_update.message.reply_text.assert_called_with("🎮 Starting Pokémon Red...")
+                mock_update.message.reply_text.assert_called_with("🎮 Starting game...")
                 mock_bot_instance.send_photo.assert_called_once()
                 
                 # Step 2: Simulate button press

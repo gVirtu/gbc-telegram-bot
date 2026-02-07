@@ -244,8 +244,8 @@ class WebhookHandler:
             logger.info("Webhook handler shut down")
         
         app = FastAPI(
-            title="Pokémon Red Bot",
-            description="Telegram bot for collaborative Pokémon Red gameplay",
+            title="GBC Bot",
+            description="Telegram bot for collaborative GBC gameplay",
             version="1.0.0",
             lifespan=lifespan,
         )

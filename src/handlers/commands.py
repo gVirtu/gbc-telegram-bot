@@ -16,7 +16,6 @@ from src.config import settings
 from src.game import game_controller_manager
 from src.handlers.input_handler import get_input_handler
 from src.keyboard import (
-    create_confirmation_keyboard,
     create_game_message_text,
     create_help_text,
     create_input_keyboard,

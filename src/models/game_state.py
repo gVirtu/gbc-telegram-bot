@@ -1,4 +1,4 @@
-"""Data models for the Telegram Pokémon Red Bot.
+"""Data models for the Telegram GBC Bot.
 
 This module defines all data structures used throughout the application,
 including game state, chat configuration, and input tracking.
@@ -131,7 +131,6 @@ class ChatConfig:
         chat_id: Telegram chat ID
         input_hold_frames: Custom button hold duration
         animation_duration: Custom animation phase duration
-        animation_interval: Custom frame update interval
         auto_save_enabled: Whether auto-save is enabled
         created_at: When this config was created
         updated_at: When this config was last updated
@@ -140,7 +139,6 @@ class ChatConfig:
     chat_id: int
     input_hold_frames: Optional[int] = None
     animation_duration: Optional[int] = None
-    animation_interval: Optional[float] = None
     auto_save_enabled: bool = True
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
@@ -151,7 +149,6 @@ class ChatConfig:
             "chat_id": self.chat_id,
             "input_hold_frames": self.input_hold_frames,
             "animation_duration": self.animation_duration,
-            "animation_interval": self.animation_interval,
             "auto_save_enabled": self.auto_save_enabled,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
@@ -164,7 +161,6 @@ class ChatConfig:
             chat_id=data["chat_id"],
             input_hold_frames=data.get("input_hold_frames"),
             animation_duration=data.get("animation_duration"),
-            animation_interval=data.get("animation_interval"),
             auto_save_enabled=data.get("auto_save_enabled", True),
             created_at=datetime.fromisoformat(data["created_at"]),
             updated_at=datetime.fromisoformat(data["updated_at"]),

@@ -1,4 +1,4 @@
-"""Main entry point for the Telegram Pokémon Red Bot.
+"""Main entry point for the Telegram GBC Bot.
 
 This module initializes the application, sets up logging,
 and provides the ASGI application for running with uvicorn.
@@ -103,7 +103,7 @@ def main():
         sys.exit(1)
     
     # Log startup info
-    logger.info(f"Starting Pokémon Red Bot on port {settings.port}")
+    logger.info(f"Starting bot on port {settings.port}")
     logger.info(f"Webhook URL: {settings.webhook_url}{settings.get_webhook_path()}")
     logger.info(f"Log level: {settings.log_level}")
     

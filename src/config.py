@@ -1,7 +1,7 @@
 """Configuration management using Pydantic Settings.
 
 This module provides centralized configuration management with environment variable
-support, type validation, and sensible defaults for the Telegram Pokémon Red Bot.
+support, type validation, and sensible defaults for the Telegram GBC Bot.
 """
 
 import os
@@ -69,8 +69,8 @@ class Settings(BaseSettings):
     
     # Game file paths
     rom_path: Path = Field(
-        default=Path("./roms/pokemon_red.gbc"),
-        description="Path to Pokémon Red ROM file",
+        default=Path("./roms/game.gbc"),
+        description="Path to GBC ROM file",
     )
     data_dir: Path = Field(
         default=Path("./data"),

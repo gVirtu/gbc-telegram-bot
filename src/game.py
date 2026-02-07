@@ -212,32 +212,6 @@ class GameController:
         
         return self.get_frame()
     
-    def press_button(self, button: GameButton) -> None:
-        """Press a button (without releasing).
-        
-        Use release_button() to release it later.
-        
-        Args:
-            button: The button to press
-        """
-        if not self.is_initialized():
-            raise RuntimeError("Emulator not initialized. Call initialize() first.")
-        
-        press_event, _ = BUTTON_EVENTS[button]
-        self.pyboy.send_input(press_event)
-    
-    def release_button(self, button: GameButton) -> None:
-        """Release a button.
-        
-        Args:
-            button: The button to release
-        """
-        if not self.is_initialized():
-            raise RuntimeError("Emulator not initialized. Call initialize() first.")
-        
-        _, release_event = BUTTON_EVENTS[button]
-        self.pyboy.send_input(release_event)
-    
     def save_state(self) -> bytes:
         """Save the current emulator state to bytes.
         
@@ -268,27 +242,6 @@ class GameController:
         self.pyboy.load_state(buffer)
         
         logger.info(f"Loaded save state for chat {self.chat_id}")
-    
-    def load_state_from_file(self, file_path: Path) -> bool:
-        """Load emulator state from a file.
-        
-        Args:
-            file_path: Path to the save state file
-            
-        Returns:
-            True if loaded successfully, False if file doesn't exist
-        """
-        if not file_path.exists():
-            return False
-        
-        try:
-            with open(file_path, "rb") as f:
-                state_data = f.read()
-            self.load_state(state_data)
-            return True
-        except Exception as e:
-            logger.error(f"Failed to load state from {file_path}: {e}")
-            return False
     
     def should_update_frame(self, current_frame: Optional[np.ndarray] = None) -> tuple[bool, str]:
         """Check if the frame has changed and should be sent.
@@ -435,26 +388,6 @@ class GameControllerManager:
             logger.info(f"Removed GameController for chat {chat_id}")
             return True
         return False
-    
-    def cleanup_idle(self, timeout_seconds: int = 3600) -> int:
-        """Remove controllers that have been idle.
-        
-        Args:
-            timeout_seconds: Idle timeout (default: 1 hour)
-            
-        Returns:
-            Number of controllers removed
-        """
-        from datetime import datetime, timedelta
-        
-        removed = 0
-        now = datetime.utcnow()
-        
-        # Note: This would need to track last activity time
-        # For now, we just return 0
-        # In a real implementation, you'd track last_activity per controller
-        
-        return removed
     
     def stop_all(self) -> None:
         """Stop all controllers and clear the manager."""

@@ -84,9 +84,6 @@ class TestEndToEndGameFlow:
                 mock_callback.answer = AsyncMock()
                 mock_callback.bot = mock_bot_instance
                 
-                # Mock the animation to be fast
-                handler._animate_frames = AsyncMock()
-                
                 # Create session
                 from src.models.game_state import ChatGameState, GameSession
                 handler._sessions[123456] = GameSession(

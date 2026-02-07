@@ -284,9 +284,6 @@ class TestInputProcessing:
         with patch("src.handlers.input_handler.game_controller_manager") as mock_mgr:
             mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
             
-            # Mock animate to be fast
-            handler._animate_frames = AsyncMock()
-            
             await handler._process_sequence(123456, [GameButton.B], 789)
             
             # Check that send_input was called with correct button

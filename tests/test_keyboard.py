@@ -132,20 +132,20 @@ class TestCreateGameMessageText:
         """Test basic message text."""
         text = create_game_message_text()
         
-        assert "Hora de jogar" in text
+        assert "Sua vez" in text
     
     def test_text_with_status(self):
         """Test message text with status."""
         text = create_game_message_text("Processando: A...")
         
         assert "Processando: A..." in text
-        assert "Hora de jogar" in text
+        assert "Sua vez" in text
     
     def test_markdown_formatting(self):
         """Test text uses Markdown formatting."""
         text = create_game_message_text("Status")
         
-        assert "Hora de jogar" in text
+        assert "Sua vez" in text
         assert "_Status_" in text  # Italic
 
 

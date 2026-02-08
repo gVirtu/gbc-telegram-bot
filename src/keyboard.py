@@ -63,7 +63,7 @@ def create_game_message_text(
         >>> "Processing: A..." in text
         True
     """
-    base_text = "Hora de jogar!"
+    base_text = "Sua vez!"
 
     # Add recent inputs if available
     if recent_inputs:

@@ -236,14 +236,14 @@ class TestMessageDisplay:
         """Test message creation with no recent inputs (default behavior)."""
         text = create_game_message_text()
 
-        assert "Hora de jogar" in text
+        assert "Sua vez" in text
         assert "Atividade recente" not in text
 
     def test_create_message_with_empty_list(self):
         """Test message creation with empty recent_inputs list."""
         text = create_game_message_text(recent_inputs=[])
 
-        assert "Hora de jogar" in text
+        assert "Sua vez" in text
         assert "Atividade recente" not in text
 
     def test_create_message_with_one_input(self):

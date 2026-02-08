@@ -412,13 +412,13 @@ class InputHandler:
 
         logger.info(f"Executing sequence of {len(buttons)} buttons for chat {chat_id}")
 
-        # Animation capture settings
+        # Animation capture settings - GameBoy runs at 60fps, capture at 10fps
         frames = []
+        game_fps = 30
         capture_fps = 10
-        capture_interval = 1.0 / capture_fps
-        frames_per_tick = 6  # 60fps game / 10fps capture
+        capture_interval_frames = game_fps // capture_fps  # Capture every 6th frame
 
-        # Execute each button with delays
+        # Execute each button with delays (synchronous, no real-time waiting)
         for i, button in enumerate(buttons):
             # Execute button
             if button == GameButton.WAIT:
@@ -431,24 +431,24 @@ class InputHandler:
             # Capture frame after button
             frames.append(controller.get_frame().copy())
 
-            # Apply delay between buttons (if not last)
+            # Apply delay between buttons (if not last) - synchronous frame generation
             if i < len(buttons) - 1:
-                delay_start = asyncio.get_event_loop().time()
-                while (asyncio.get_event_loop().time() - delay_start) < settings.sequence_delay_seconds:
-                    controller.tick(frames_per_tick)
-                    frames.append(controller.get_frame().copy())
-                    await asyncio.sleep(capture_interval)
+                delay_frames = int(settings.sequence_delay_seconds * game_fps)
+                for frame_num in range(delay_frames):
+                    controller.tick(1)
+                    if frame_num % capture_interval_frames == 0:
+                        frames.append(controller.get_frame().copy())
 
-        # Continue animating after last button
+        # Continue animating after last button - synchronous frame generation
         session = self._get_session(chat_id)
         recent = session.state.recent_inputs if session else []
         caption = create_game_message_text(recent_inputs=recent)
 
-        animation_start = asyncio.get_event_loop().time()
-        while (asyncio.get_event_loop().time() - animation_start) < settings.animation_duration:
-            controller.tick(frames_per_tick)
-            frames.append(controller.get_frame().copy())
-            await asyncio.sleep(capture_interval)
+        animation_frames = int(settings.animation_duration * game_fps)
+        for frame_num in range(animation_frames):
+            controller.tick(1)
+            if frame_num % capture_interval_frames == 0:
+                frames.append(controller.get_frame().copy())
 
         # Generate and send MP4
         if frames:

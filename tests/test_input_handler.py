@@ -567,9 +567,9 @@ class TestWaitButtonProcessing:
                 # First call should be for button execution with input_hold_frames
                 from unittest.mock import call
                 assert mock_controller.tick.call_args_list[0] == call(frames=30)
-                # Subsequent calls are for animation with 6 frames each
+                # Subsequent calls are for animation with 1 frame each (synchronous generation)
                 for tick_call in mock_controller.tick.call_args_list[1:]:
-                    assert tick_call == call(6)
+                    assert tick_call == call(1)
 
     @pytest.mark.asyncio
     async def test_wait_button_runs_animation(self, handler, mock_bot, mock_controller):

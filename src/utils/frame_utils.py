@@ -5,11 +5,17 @@ including hashing for deduplication and conversion to PNG format.
 """
 
 import hashlib
+import logging
+import os
+import tempfile
 from io import BytesIO
 from typing import Tuple
 
+import ffmpeg
 import numpy as np
 from PIL import Image
+
+logger = logging.getLogger(__name__)
 
 
 def hash_frame(frame: np.ndarray) -> str:
@@ -193,6 +199,8 @@ def save_frames_as_gif(
 ) -> BytesIO:
     """Save a sequence of frames as an animated GIF.
     
+    DEPRECATED: Use save_frames_as_mp4 instead for better compression.
+    
     Args:
         frames: List of NumPy arrays (H, W, 3)
         duration: Duration of each frame in milliseconds
@@ -238,3 +246,75 @@ def save_frames_as_gif(
     buffer.seek(0)
     
     return buffer
+
+
+def save_frames_as_mp4(
+    frames: list[np.ndarray],
+    fps: int = 10,
+    crf: int = 28,
+    preset: str = "fast",
+) -> BytesIO:
+    """Save a sequence of frames as an MP4 video using FFmpeg.
+    
+    Args:
+        frames: List of NumPy arrays (H, W, 3) in RGB format
+        fps: Frames per second for the output video
+        crf: Constant Rate Factor (quality, lower=better, 0-51)
+        preset: Encoding speed preset (ultrafast to veryslow)
+        
+    Returns:
+        BytesIO object containing MP4 data
+        
+    Raises:
+        ValueError: If no frames provided
+        RuntimeError: If FFmpeg encoding fails
+        
+    Example:
+        >>> frames = [create_empty_frame() for _ in range(5)]
+        >>> mp4_buffer = save_frames_as_mp4(frames)
+        >>> len(mp4_buffer.getvalue()) > 0
+        True
+    """
+    if not frames:
+        raise ValueError("No frames provided")
+    
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Save frames as PNG files
+        for i, frame in enumerate(frames):
+            # Upscale 2x for better quality (matches GIF behavior)
+            image = Image.fromarray(frame, mode="RGB").resize(
+                (frame.shape[1] * 2, frame.shape[0] * 2), Image.Resampling.NEAREST
+            )
+            frame_path = os.path.join(temp_dir, f"frame_{i:04d}.png")
+            image.save(frame_path, format="PNG")
+        
+        # Output MP4 path
+        output_path = os.path.join(temp_dir, "output.mp4")
+        
+        try:
+            # Run FFmpeg to create MP4
+            (
+                ffmpeg
+                .input(os.path.join(temp_dir, "frame_%04d.png"), framerate=fps)
+                .output(
+                    output_path,
+                    vcodec="libx264",
+                    pix_fmt="yuv420p",
+                    crf=crf,
+                    preset=preset,
+                    movflags="faststart",
+                )
+                .overwrite_output()
+                .run(quiet=True)
+            )
+            
+            # Read the output file into BytesIO
+            with open(output_path, "rb") as f:
+                buffer = BytesIO(f.read())
+            
+            buffer.seek(0)
+            return buffer
+            
+        except ffmpeg.Error as e:
+            logger.error(f"FFmpeg encoding failed: {e}")
+            raise RuntimeError(f"Failed to encode MP4: {e}")

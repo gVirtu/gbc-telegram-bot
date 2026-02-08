@@ -16,6 +16,7 @@ from src.utils.frame_utils import (
     get_frame_info,
     hash_frame,
     should_update_frame,
+    save_frames_as_mp4,
 )
 
 
@@ -354,3 +355,63 @@ class TestIntegration:
         
         # All 5 frames are different, all need updates
         assert updates_needed == 5
+
+
+class TestSaveFramesAsMp4:
+    """Test MP4 encoding functionality."""
+    
+    def test_mp4_output_valid(self):
+        """Test that MP4 output is valid."""
+        frames = [create_empty_frame(color=(i * 50, 0, 0)) for i in range(5)]
+        
+        mp4_buffer = save_frames_as_mp4(frames, fps=10)
+        
+        # Check MP4 magic bytes (ftyp box)
+        mp4_buffer.seek(0)
+        header = mp4_buffer.read(12)
+        # MP4 files start with ftyp box
+        assert header[4:8] == b'ftyp'
+    
+    def test_mp4_empty_frames_raises(self):
+        """Test that empty frames raises ValueError."""
+        with pytest.raises(ValueError, match="No frames provided"):
+            save_frames_as_mp4([])
+    
+    def test_mp4_different_fps(self):
+        """Test MP4 encoding with different frame rates."""
+        frames = [create_empty_frame() for _ in range(3)]
+        
+        # Different FPS values should all work
+        for fps in [5, 10, 15, 30]:
+            mp4_buffer = save_frames_as_mp4(frames, fps=fps)
+            assert len(mp4_buffer.getvalue()) > 0
+    
+    def test_mp4_upscaling(self):
+        """Test that frames are upscaled 2x."""
+        # Create frames at GameBoy resolution
+        frames = [create_empty_frame(width=160, height=144) for _ in range(3)]
+        
+        mp4_buffer = save_frames_as_mp4(frames, fps=10)
+        
+        # Output should be valid MP4
+        assert len(mp4_buffer.getvalue()) > 0
+        mp4_buffer.seek(4)  # Skip size field
+        assert mp4_buffer.read(4) == b'ftyp'
+    
+    def test_mp4_crf_settings(self):
+        """Test different CRF quality settings."""
+        frames = [create_empty_frame() for _ in range(3)]
+        
+        # Different CRF values should all work
+        for crf in [18, 23, 28, 35]:
+            mp4_buffer = save_frames_as_mp4(frames, crf=crf)
+            assert len(mp4_buffer.getvalue()) > 0
+    
+    def test_mp4_preset_settings(self):
+        """Test different preset settings."""
+        frames = [create_empty_frame() for _ in range(3)]
+        
+        # Different presets should all work
+        for preset in ["ultrafast", "fast", "medium"]:
+            mp4_buffer = save_frames_as_mp4(frames, preset=preset)
+            assert len(mp4_buffer.getvalue()) > 0

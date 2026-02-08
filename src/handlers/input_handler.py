@@ -23,7 +23,7 @@ from src.keyboard import (
     is_valid_button_callback,
 )
 from src.models.game_state import ChatGameState, GameButton, GameSession, SequenceBuilder
-from src.utils.frame_utils import should_update_frame, save_frames_as_gif
+from src.utils.frame_utils import should_update_frame, save_frames_as_mp4
 from src.utils.state_manager import state_manager
 
 logger = logging.getLogger(__name__)
@@ -416,7 +416,6 @@ class InputHandler:
         frames = []
         capture_fps = 10
         capture_interval = 1.0 / capture_fps
-        duration_ms = int(capture_interval * 1000)
         frames_per_tick = 6  # 60fps game / 10fps capture
 
         # Execute each button with delays
@@ -451,23 +450,21 @@ class InputHandler:
             frames.append(controller.get_frame().copy())
             await asyncio.sleep(capture_interval)
 
-        # Generate and send GIF
+        # Generate and send MP4
         if frames:
-            logger.info(f"Generating GIF with {len(frames)} frames for chat {chat_id}")
+            logger.info(f"Generating MP4 with {len(frames)} frames for chat {chat_id}")
             try:
-                gif_buffer = save_frames_as_gif(
-                    frames, duration=duration_ms, last_frame_duration=2000
-                )
-                gif_buffer.seek(0)
+                mp4_buffer = save_frames_as_mp4(frames, fps=capture_fps)
+                mp4_buffer.seek(0)
 
                 await self._edit_message_media(
-                    chat_id, message_id, gif_buffer, caption, media_type="animation"
+                    chat_id, message_id, mp4_buffer, caption, media_type="animation"
                 )
 
                 _, last_hash = should_update_frame(frames[-1], None)
                 controller.update_frame_hash(last_hash)
             except Exception as e:
-                logger.error(f"Failed to generate GIF for chat {chat_id}: {e}")
+                logger.error(f"Failed to generate MP4 for chat {chat_id}: {e}")
                 try:
                     png_buffer = controller.get_frame_as_png()
                     await self._edit_message_media(chat_id, message_id, png_buffer, caption)
@@ -538,7 +535,7 @@ class InputHandler:
         try:
             if media_type == "animation":
                 # Ensure buffer has a name attribute for proper file upload
-                media_buffer.name = "animation.gif"
+                media_buffer.name = "animation.mp4"
                 media = InputMediaAnimation(
                     media=media_buffer,
                     caption=caption,

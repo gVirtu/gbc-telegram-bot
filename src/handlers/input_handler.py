@@ -414,7 +414,7 @@ class InputHandler:
 
         # Animation capture settings - GameBoy runs at 60fps, capture at 10fps
         frames = []
-        game_fps = 30
+        game_fps = 60
         capture_fps = 10
         capture_interval_frames = game_fps // capture_fps  # Capture every 6th frame
 

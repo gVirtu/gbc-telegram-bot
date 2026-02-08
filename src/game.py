@@ -90,7 +90,7 @@ class GameController:
             self.pyboy = PyBoy(
                 str(self.rom_path),
                 window="null",
-                sound=False,
+                sound_emulated=False,
             )
             
             # Run a few frames to get past boot screen

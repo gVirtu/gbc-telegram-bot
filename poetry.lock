@@ -543,33 +543,43 @@ testing = ["coverage", "pytest", "pytest-benchmark"]
 
 [[package]]
 name = "pyboy"
-version = "2.2.0"
+version = "2.7.0"
 description = "Game Boy emulator written in Python"
 optional = false
-python-versions = ">=3.8"
+python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "pyboy-2.2.0-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:a83dbaedd79de186212fd4859151c539dfc71dc7ce318773721deb1296a909fa"},
-    {file = "pyboy-2.2.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:5fff762757892543316b44b1f7b03819478e0b4486e0206e06c2deee94678720"},
-    {file = "pyboy-2.2.0-cp310-cp310-musllinux_1_2_x86_64.whl", hash = "sha256:347c1e753fa3b63a30ef17e4561dd5df21ce412fa75d5122d7b66084cbf8c07e"},
-    {file = "pyboy-2.2.0-cp310-cp310-win_amd64.whl", hash = "sha256:3a3576f2a3fc5a807aeb068acd5abacccb84430721aa6548d000553383b7ddaf"},
-    {file = "pyboy-2.2.0-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:499ae05f9e25f0bd0fa4e3a24b7fbed861e3d068b5ea4674a568b1db2a660873"},
-    {file = "pyboy-2.2.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:867cdd3ab454bec85bd03645d45f19f855989c0c53d7cc6153c62e241aa86186"},
-    {file = "pyboy-2.2.0-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:75f6225e4c0151e03a692eb06c80556c188c1da34d460c9f99d418a87964e664"},
-    {file = "pyboy-2.2.0-cp311-cp311-win_amd64.whl", hash = "sha256:98d82f9b5cee67184782b1a844903ad6e4da22f64f9b21b4ee7617133a854fb6"},
-    {file = "pyboy-2.2.0-cp312-cp312-macosx_10_9_universal2.whl", hash = "sha256:8f99140b31e28b1fe05a8e06a82304c239e343b66d506d70c665266c04195303"},
-    {file = "pyboy-2.2.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:d27ff900ac551e11261dd736bce14e25f01389069c5fe1d333088650274f7931"},
-    {file = "pyboy-2.2.0-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:800a097e4fe18c0edf3742065b2ef5abd213e76291c5bf74bd9fd60cd4e9dbaa"},
-    {file = "pyboy-2.2.0-cp312-cp312-win_amd64.whl", hash = "sha256:b597affa3ddd818d3f0a6eeb0f9a0f3eee858394163d29d54b8dc85392d914af"},
-    {file = "pyboy-2.2.0-cp38-cp38-macosx_11_0_universal2.whl", hash = "sha256:b00edd08577bc8cb697c38aac4a934bfe1d1abaeeb624787caf6f06205b24c1f"},
-    {file = "pyboy-2.2.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:7b2ebb1e620b388e37d271ce57810df2f000d2cb0524c4052a52863043f364b0"},
-    {file = "pyboy-2.2.0-cp38-cp38-musllinux_1_2_x86_64.whl", hash = "sha256:a02694af3ac4cc7211f83d7a32ef330d515f8b428094016e2efdeb27f098793a"},
-    {file = "pyboy-2.2.0-cp38-cp38-win_amd64.whl", hash = "sha256:7d3fbc6d242b216d1d3ff9fa8b3028ed9183009a2b8fddfaa30647ed0c0f3846"},
-    {file = "pyboy-2.2.0-cp39-cp39-macosx_10_9_universal2.whl", hash = "sha256:3fe0b4c7cab752e88565c89fd0cc6512106823d89302ffe56f5d9df247a93b05"},
-    {file = "pyboy-2.2.0-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:2a55a53402266bbf85c026326b61111dd8e68793252dddf833e6dc1409a8e92f"},
-    {file = "pyboy-2.2.0-cp39-cp39-musllinux_1_2_x86_64.whl", hash = "sha256:d8d646751860860c67c71ab50154ff37a18e0e215c9b15288fed7558170eb08b"},
-    {file = "pyboy-2.2.0-cp39-cp39-win_amd64.whl", hash = "sha256:f128ad4a206033c424128cee1717efe36b953ba1b2afc6d784089b63fb019766"},
-    {file = "pyboy-2.2.0.tar.gz", hash = "sha256:cff645fae2feeaa554b30aa35ff0f517163c4c0f7d544f1dc39f2cd4c86cf89f"},
+    {file = "pyboy-2.7.0-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:6451e7ad2d1d3d9f8316f939b6b9963ede5d6a80fcd00ee5b9aef1497fe5ece6"},
+    {file = "pyboy-2.7.0-cp310-cp310-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:40e263743b78451f1baebb3a798a5d549c41f7fd1c9b0be1b04c4bcbedf53f98"},
+    {file = "pyboy-2.7.0-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:90bedf580f00e9def3484739ec32167d35184cdf09e9fe7f079564fd8dc0c657"},
+    {file = "pyboy-2.7.0-cp310-cp310-musllinux_1_2_aarch64.whl", hash = "sha256:ab713e4643c3bc7fa86767a8e775119bdfa251eef815b2480a481bfb58449863"},
+    {file = "pyboy-2.7.0-cp310-cp310-musllinux_1_2_x86_64.whl", hash = "sha256:0374fb0d767a8cc7f8f6468a230095dbc23ed12576cfad3e13f73e8df9c60227"},
+    {file = "pyboy-2.7.0-cp310-cp310-win_amd64.whl", hash = "sha256:a56d1950009eeb21bab7e13f64d5c2985fa302b2ada8c6d42db3dec8dceaf1b3"},
+    {file = "pyboy-2.7.0-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:20b1ab830cf355a635355556e8924273146e7f939e146c0394373d0625fd0686"},
+    {file = "pyboy-2.7.0-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:57c69e7532957ac5d266a0fd5df467f6c293e85ea9fd89b5c14e2b80f8e011a1"},
+    {file = "pyboy-2.7.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:82a097fc3bc5e9a0c95b73b3dc675c1d781a163068bbc83f03f823251a855cad"},
+    {file = "pyboy-2.7.0-cp311-cp311-musllinux_1_2_aarch64.whl", hash = "sha256:cf68cd3d41b2cb4939e2a68196f352fb7b4023c4c211d036a559128cf71d2316"},
+    {file = "pyboy-2.7.0-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:0cf68c993eb64eb5a16015812da518022d2e037bcdee48c9b00a766a50b8bc2a"},
+    {file = "pyboy-2.7.0-cp311-cp311-win_amd64.whl", hash = "sha256:d8d0740923461858ca2f48f69923c41cd068e42fc95be60f1760ac62013b70f2"},
+    {file = "pyboy-2.7.0-cp312-cp312-macosx_10_13_universal2.whl", hash = "sha256:11be1062563c565d53c63485bf9c37080a809cea9faf78330e73dbd452b72d63"},
+    {file = "pyboy-2.7.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:8eb63ee10e4c2028b1ca54aa893c6020a0f09282cb34bf8dae90be23693da2e4"},
+    {file = "pyboy-2.7.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:b5858a6bbcec32bb47a3e673a5cfefc1b0839cf9e27bbaed7c996656ff73c40f"},
+    {file = "pyboy-2.7.0-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:1ec35bbe7516b388427b27d47daae4476357b41016292c58506523c43ce8f92f"},
+    {file = "pyboy-2.7.0-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:3193781f0d2fcb2237171c5f90ee22a3dd9a19926626edb8b7f78509b2634357"},
+    {file = "pyboy-2.7.0-cp312-cp312-win_amd64.whl", hash = "sha256:dfdc0c07a60abe42728f14cf7b0ce3274397fd360568fb9ece01cb7e605b8660"},
+    {file = "pyboy-2.7.0-cp313-cp313-macosx_10_13_universal2.whl", hash = "sha256:3007adead654bd4b5624d7f324d0ae88d83b782bee149af71c92e94bda3bd9c0"},
+    {file = "pyboy-2.7.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:6a32facb77ca734328d08c00a13da2117084f76d28b077af5979ddb944104322"},
+    {file = "pyboy-2.7.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:fcf29ae998c27d63f3d6598bccfbab389ef41c4fa535b4ac15711ba9096cf239"},
+    {file = "pyboy-2.7.0-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:b117068aeb2641ca12025e6b16e6c22f8cda064d1641a12eee6851df053e8502"},
+    {file = "pyboy-2.7.0-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:b8da22db6094055f200955dd66c87541ddf94997fcea9af14464abef800d88d3"},
+    {file = "pyboy-2.7.0-cp313-cp313-win_amd64.whl", hash = "sha256:2417a6bee88b05f970131986a3199f912f9dee1b37aa1dd82ca9d0fdeae149d3"},
+    {file = "pyboy-2.7.0-cp314-cp314-macosx_10_15_universal2.whl", hash = "sha256:2001957ff1aee57ea5e9f5996d04fcb4dd1057f61359806a169bfeb2eca69c12"},
+    {file = "pyboy-2.7.0-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:4fdf189e40750ea7326d5194c0ec46baf3665207ed2fc9f158ee3ef05800d07a"},
+    {file = "pyboy-2.7.0-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:8af4b55ad8270b36b00e8d1f9d386eece7f723511872e37ef2dc1d4756d09df7"},
+    {file = "pyboy-2.7.0-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:b0bb6bba5cb0433eaef5ff484ee162847489fa1f0f1c28351a93177be2e5769f"},
+    {file = "pyboy-2.7.0-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:f1611f7e0c73b2a2972d1c83b718725ad595589853971df25e35ecfcefff9898"},
+    {file = "pyboy-2.7.0-cp314-cp314-win_amd64.whl", hash = "sha256:a3817d048407b4a12d596ba967ab1d971a14a51627c97da832ed4c6960a217bb"},
+    {file = "pyboy-2.7.0.tar.gz", hash = "sha256:b97db94c366f5e54af04f94641c6107454821543015716b7182df29684ad9180"},
 ]
 
 [package.dependencies]
@@ -578,7 +588,7 @@ pysdl2 = "*"
 pysdl2-dll = "*"
 
 [package.extras]
-all = ["gym", "markdown", "pdoc3", "pyopengl"]
+all = ["PyOpenAL", "glfw", "gym", "markdown", "pdoc3", "pyopengl"]
 
 [[package]]
 name = "pydantic"
@@ -1355,4 +1365,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11"
-content-hash = "695483499967306830386e53e72f8a17480b4b7de2b3773a7681af510d55708d"
+content-hash = "8a556356e5db8172f45923f9f16d32594cd0206b26d9134db2eff213dfbcc812"

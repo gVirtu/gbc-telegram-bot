@@ -30,7 +30,7 @@ def _rate_limited_method(method_name: str):
             # Check rate limit
             rate_limit_result = limiter.check_rate_limit(chat_id)
             if rate_limit_result:
-                logger.debug(
+                logger.warning(
                     f"Rate limited {method_name} for chat {chat_id}: "
                     f"retry_after={rate_limit_result.retry_after:.1f}s"
                 )
@@ -142,7 +142,7 @@ class RateLimitedBot:
             **kwargs
         )
     
-    @_rate_limited_method("edit_message_reply_markup")
+    # @_rate_limited_method("edit_message_reply_markup")
     async def edit_message_reply_markup(
         self,
         chat_id: int,

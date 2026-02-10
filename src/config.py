@@ -143,6 +143,32 @@ class Settings(BaseSettings):
         ge=0.1,
     )
 
+    # Rate limiter settings
+    rate_limit_per_chat: int = Field(
+        default=1,
+        description="Maximum messages per chat within the window",
+        ge=1,
+        le=100,
+    )
+    rate_limit_per_chat_window: float = Field(
+        default=1.0,
+        description="Time window in seconds for per-chat rate limit",
+        ge=0.1,
+        le=60.0,
+    )
+    rate_limit_global: int = Field(
+        default=30,
+        description="Maximum messages globally across all chats within the window",
+        ge=1,
+        le=1000,
+    )
+    rate_limit_global_window: float = Field(
+        default=1.0,
+        description="Time window in seconds for global rate limit",
+        ge=0.1,
+        le=60.0,
+    )
+
     allowed_chat_ids: str = Field(
         default="",
         description="Comma-separated list of allowed Telegram chat IDs (empty = allow all)",

@@ -388,3 +388,120 @@ class TestSuiteSummary:
             __import__(module)
         
         assert True  # If we get here, all imports succeeded
+
+
+class TestRateLimiterIntegration:
+    """Integration tests for rate limiting."""
+    
+    @pytest.fixture(autouse=True)
+    def reset_rate_limiter(self):
+        """Reset rate limiter singleton before each test."""
+        import src.utils.rate_limiter as rl_module
+        rl_module._rate_limiter = None
+        yield
+    
+    def test_rate_limiter_importable(self):
+        """Verify rate limiter module can be imported."""
+        from src.utils.rate_limiter import RateLimiter, get_rate_limiter, init_rate_limiter
+        assert RateLimiter is not None
+        assert get_rate_limiter is not None
+        assert init_rate_limiter is not None
+        
+    def test_rate_limiter_singleton_pattern(self):
+        """Test rate limiter singleton pattern works correctly."""
+        from src.utils.rate_limiter import get_rate_limiter, init_rate_limiter
+        
+        limiter1 = init_rate_limiter(max_per_chat=2, per_chat_window=1.0, max_global=20, global_window=1.0)
+        limiter2 = get_rate_limiter()
+        
+        assert limiter1 is limiter2
+        
+    def test_telegram_client_importable(self):
+        """Verify telegram client module can be imported."""
+        from src.utils.telegram_client import RateLimitedBot
+        assert RateLimitedBot is not None
+        
+    def test_full_rate_limit_flow(self):
+        """Test full rate limit check and record flow."""
+        from src.utils.rate_limiter import init_rate_limiter
+        
+        limiter = init_rate_limiter(
+            max_per_chat=2,
+            per_chat_window=1.0,
+            max_global=10,
+            global_window=1.0
+        )
+        
+        # First two requests should succeed
+        result1 = limiter.check_rate_limit(chat_id=111)
+        assert result1 is None
+        
+        result2 = limiter.check_rate_limit(chat_id=111)
+        assert result2 is None
+        
+        # Third request should be rate limited
+        result3 = limiter.check_rate_limit(chat_id=111)
+        assert result3 is not None
+        assert result3.retry_after > 0
+        
+    def test_external_retry_after_blocks_all(self):
+        """Test that external retry-after blocks all requests."""
+        from src.utils.rate_limiter import init_rate_limiter
+        
+        limiter = init_rate_limiter(
+            max_per_chat=100,
+            per_chat_window=1.0,
+            max_global=100,
+            global_window=1.0
+        )
+        
+        # Set external block
+        limiter.set_retry_after(5)
+        
+        # All requests should be blocked
+        result = limiter.check_rate_limit(chat_id=999)
+        assert result is not None
+        assert result.is_global is True
+        assert "Telegram" in result.message
+        
+    def test_different_chats_independent(self):
+        """Test that different chats have independent rate limits."""
+        from src.utils.rate_limiter import init_rate_limiter
+        
+        limiter = init_rate_limiter(
+            max_per_chat=1,
+            per_chat_window=60.0,
+            max_global=100,
+            global_window=1.0
+        )
+        
+        # Chat 111 uses its limit
+        limiter.check_rate_limit(chat_id=111)
+        result_blocked = limiter.check_rate_limit(chat_id=111)
+        assert result_blocked is not None
+        
+        # Chat 222 should still work (independent)
+        result_ok = limiter.check_rate_limit(chat_id=222)
+        assert result_ok is None
+        
+    def test_global_limit_applies_across_chats(self):
+        """Test that global limit applies across all chats."""
+        from src.utils.rate_limiter import init_rate_limiter
+        
+        limiter = init_rate_limiter(
+            max_per_chat=100,
+            per_chat_window=60.0,
+            max_global=3,
+            global_window=1.0
+        )
+        
+        # Three requests from different chats fill global limit
+        limiter.check_rate_limit(chat_id=111)
+        limiter.check_rate_limit(chat_id=222)
+        limiter.check_rate_limit(chat_id=333)
+        
+        # Fourth request should hit global limit
+        result = limiter.check_rate_limit(chat_id=444)
+        assert result is not None
+        assert result.is_global is True
+

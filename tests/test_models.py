@@ -349,25 +349,23 @@ class TestButtonLayout:
         assert isinstance(BUTTON_LAYOUT, list)
         assert all(isinstance(row, list) for row in BUTTON_LAYOUT)
 
-        # Check first row (Up and Wait buttons)
+        # Check first row (Select, Up and Start buttons)
+        assert GameButton.SELECT in BUTTON_LAYOUT[0]
         assert GameButton.UP in BUTTON_LAYOUT[0]
-        assert GameButton.WAIT in BUTTON_LAYOUT[0]
+        assert GameButton.START in BUTTON_LAYOUT[0]
 
-        # Check second row (Left, Right)
+        # Check second row (Left, Down, Right)
         assert GameButton.LEFT in BUTTON_LAYOUT[1]
+        assert GameButton.DOWN in BUTTON_LAYOUT[1]
         assert GameButton.RIGHT in BUTTON_LAYOUT[1]
 
-        # Check third row (Down button and Sequence button)
-        assert GameButton.SEQUENCE in BUTTON_LAYOUT[2]
-        assert GameButton.DOWN in BUTTON_LAYOUT[2]
+        # Check third row (Wait, A, B)
+        assert GameButton.WAIT in BUTTON_LAYOUT[2]
+        assert GameButton.A in BUTTON_LAYOUT[2]
+        assert GameButton.B in BUTTON_LAYOUT[2]
 
-        # Check fourth row (A, B)
-        assert GameButton.A in BUTTON_LAYOUT[3]
-        assert GameButton.B in BUTTON_LAYOUT[3]
-
-        # Check fifth row (Start, Select)
-        assert GameButton.START in BUTTON_LAYOUT[4]
-        assert GameButton.SELECT in BUTTON_LAYOUT[4]
+        # Check fourth row (Sequence)
+        assert GameButton.SEQUENCE in BUTTON_LAYOUT[3]
     
     def test_all_buttons_in_layout(self):
         """Test all buttons are included in layout (except ENVIAR which is only shown during sequence building)."""
@@ -379,9 +377,3 @@ class TestButtonLayout:
         expected_buttons = set(GameButton) - {GameButton.ENVIAR}
         assert all_buttons == expected_buttons
         assert len(all_buttons) == 10  # 10 buttons (excluding ENVIAR)
-
-    def test_wait_button_in_first_row(self):
-        """Test WAIT button is positioned with UP button."""
-        assert GameButton.WAIT in BUTTON_LAYOUT[0]
-        assert GameButton.UP in BUTTON_LAYOUT[0]
-        assert len(BUTTON_LAYOUT[0]) == 2

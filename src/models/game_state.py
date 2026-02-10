@@ -38,7 +38,7 @@ class GameButton(str, Enum):
             GameButton.START: "START",
             GameButton.SELECT: "SELECT",
             GameButton.WAIT: "👁️",
-            GameButton.SEQUENCE: "🔢",
+            GameButton.SEQUENCE: "🔢 SEQUÊNCIA",
             GameButton.ENVIAR: "✅",
         }
         return emoji_map[self]
@@ -308,9 +308,8 @@ class GameSession:
 
 # Button layout for inline keyboard (3x3 grid with Start/Select at bottom)
 BUTTON_LAYOUT = [
-    [GameButton.WAIT, GameButton.UP],
-    [GameButton.LEFT, GameButton.RIGHT],
-    [GameButton.SEQUENCE, GameButton.DOWN,],
-    [GameButton.A, GameButton.B],
-    [GameButton.START, GameButton.SELECT],
+    [GameButton.SELECT, GameButton.UP, GameButton.START],
+    [GameButton.LEFT, GameButton.DOWN, GameButton.RIGHT],
+    [GameButton.WAIT, GameButton.A, GameButton.B],
+    [GameButton.SEQUENCE],
 ]

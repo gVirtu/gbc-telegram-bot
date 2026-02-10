@@ -39,7 +39,7 @@ class TestCreateInputKeyboard:
         keyboard = create_input_keyboard()
 
         # Should have 5 rows based on BUTTON_LAYOUT
-        assert len(keyboard.inline_keyboard) == 5
+        assert len(keyboard.inline_keyboard) == 4
     
     def test_contains_all_buttons(self):
         """Test all game buttons are present (except ENVIAR which is only in sequence mode)."""
@@ -55,74 +55,29 @@ class TestCreateInputKeyboard:
         expected_buttons = {b.value for b in GameButton if b != GameButton.ENVIAR}
         assert all_buttons == expected_buttons
     
-    def test_button_callback_data(self):
-        """Test buttons have correct callback data."""
-        keyboard = create_input_keyboard()
-
-        # Check first row (should be UP and WAIT)
-        first_row = keyboard.inline_keyboard[0]
-        assert len(first_row) == 2
-        assert first_row[1].callback_data == "up"
-        assert "⬆️" in first_row[1].text
-        assert first_row[0].callback_data == "wait"
-        assert "👁️" in first_row[0].text
-    
     def test_button_order(self):
         """Test buttons are in correct order."""
         keyboard = create_input_keyboard()
 
-        # Row 0: [WAIT, UP]
-        assert keyboard.inline_keyboard[0][0].callback_data == "wait"
+        # Row 0: [SELECT, UP, START]
+        assert keyboard.inline_keyboard[0][0].callback_data == "select"
         assert keyboard.inline_keyboard[0][1].callback_data == "up"
+        assert keyboard.inline_keyboard[0][2].callback_data == "start"
 
-        # Row 1: [LEFT, RIGHT]
+        # Row 1: [LEFT, DOWN, RIGHT]
         row1 = keyboard.inline_keyboard[1]
         assert row1[0].callback_data == "left"
-        assert row1[1].callback_data == "right"
+        assert row1[1].callback_data == "down"
+        assert row1[2].callback_data == "right"
 
-        # Row 2: [SEQUENCE, DOWN]
-        assert keyboard.inline_keyboard[2][0].callback_data == "sequence"
-        assert keyboard.inline_keyboard[2][1].callback_data == "down"
+        # Row 2: [WAIT, A, B]
+        assert keyboard.inline_keyboard[2][0].callback_data == "wait"
+        assert keyboard.inline_keyboard[2][1].callback_data == "a"
+        assert keyboard.inline_keyboard[2][2].callback_data == "b"
 
-        # Row 3: [A, B]
+        # Row 3: [SEQUENCE]
         row3 = keyboard.inline_keyboard[3]
-        assert row3[0].callback_data == "a"
-        assert row3[1].callback_data == "b"
-
-        # Row 4: [START, SELECT]
-        row4 = keyboard.inline_keyboard[4]
-        assert row4[0].callback_data == "start"
-        assert row4[1].callback_data == "select"
-
-    def test_wait_button_present(self):
-        """Test WAIT button is in the keyboard."""
-        keyboard = create_input_keyboard()
-        all_buttons = set()
-        for row in keyboard.inline_keyboard:
-            for button in row:
-                all_buttons.add(button.callback_data)
-        assert "wait" in all_buttons
-
-    def test_wait_button_in_first_row(self):
-        """Test WAIT button is in first row with UP."""
-        keyboard = create_input_keyboard()
-        first_row = keyboard.inline_keyboard[0]
-        assert len(first_row) == 2
-        callback_data = [btn.callback_data for btn in first_row]
-        assert "up" in callback_data
-        assert "wait" in callback_data
-
-    def test_wait_button_emoji(self):
-        """Test WAIT button shows correct emoji."""
-        keyboard = create_input_keyboard()
-        wait_button = None
-        for row in keyboard.inline_keyboard:
-            for button in row:
-                if button.callback_data == "wait":
-                    wait_button = button
-                    break
-        assert wait_button is not None
-        assert "👁️" in wait_button.text
+        assert row3[0].callback_data == "sequence"
 
 
 class TestCreateGameMessageText:

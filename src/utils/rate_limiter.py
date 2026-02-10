@@ -81,7 +81,7 @@ class RateLimiter:
                 return RateLimitResult(
                     retry_after=retry_after,
                     is_global=True,
-                    message=f"Bot is rate limited by Telegram. Retry after {int(retry_after)}s."
+                    message=f"Aguardando liberação do Telegram. Tente de novo em {int(retry_after)}s."
                 )
             else:
                 # Block has expired
@@ -97,7 +97,7 @@ class RateLimiter:
             return RateLimitResult(
                 retry_after=max(0.1, retry_after),
                 is_global=True,
-                message=f"Global rate limit exceeded. Retry after {int(retry_after)}s."
+                message=f"O bot está sobrecarregado. Tente de novo em {int(retry_after)}s."
             )
         
         # Check per-chat limit
@@ -108,7 +108,7 @@ class RateLimiter:
             return RateLimitResult(
                 retry_after=max(0.1, retry_after),
                 is_global=False,
-                message=f"Rate limit exceeded for this chat. Retry after {int(retry_after)}s."
+                message=f"Muitos comandos de uma vez! Tente de novo em {int(retry_after)}s."
             )
         
         # Record this request

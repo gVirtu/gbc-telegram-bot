@@ -461,12 +461,16 @@ class InputHandler:
         """
         controller = await game_controller_manager.get_or_create_controller(chat_id)
 
+        # Check running mode
+        config = state_manager.get_or_create_chat_config(chat_id)
+        running_mode = config.running_mode if config else False
+
         # Update to processing state
         await self._edit_message_keyboard(
             chat_id, message_id, create_processing_keyboard_for_sequence(buttons)
         )
 
-        logger.info(f"Executing sequence of {len(buttons)} buttons for chat {chat_id}")
+        logger.info(f"Executing sequence of {len(buttons)} buttons for chat {chat_id} (running_mode={running_mode})")
 
         # Animation capture settings - GameBoy runs at 60fps, capture at 10fps
         frames = []
@@ -474,12 +478,19 @@ class InputHandler:
         capture_fps = 10
         capture_interval_frames = game_fps // capture_fps  # Capture every 6th frame
 
+        # Directional buttons that can use running mode
+        directional_buttons = (GameButton.UP, GameButton.DOWN, GameButton.LEFT, GameButton.RIGHT)
+
         # Execute each button with delays (synchronous, no real-time waiting)
         for i, button in enumerate(buttons):
             # Execute button
             if button == GameButton.WAIT:
                 logger.debug(f"WAIT button in sequence for chat {chat_id}")
                 controller.tick(frames=settings.input_hold_frames)
+            elif running_mode and button in directional_buttons:
+                # Running mode: hold B throughout directional input
+                logger.debug(f"Executing {button.value} with B in running mode for chat {chat_id}")
+                controller.send_input_with_modifier(button, GameButton.B, frames=settings.input_hold_frames)
             else:
                 logger.debug(f"Executing {button.value} in sequence for chat {chat_id}")
                 controller.send_input(button, frames=settings.input_hold_frames)

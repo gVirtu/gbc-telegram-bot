@@ -75,9 +75,10 @@ class TestCreateInputKeyboard:
         assert keyboard.inline_keyboard[2][1].callback_data == "a"
         assert keyboard.inline_keyboard[2][2].callback_data == "b"
 
-        # Row 3: [SEQUENCE]
+        # Row 3: [RUN, SEQUENCE]
         row3 = keyboard.inline_keyboard[3]
-        assert row3[0].callback_data == "sequence"
+        assert row3[0].callback_data == "run"
+        assert row3[1].callback_data == "sequence"
 
 
 class TestCreateGameMessageText:

@@ -212,6 +212,65 @@ class GameController:
         
         return self.get_frame()
     
+    def send_input_with_modifier(
+        self,
+        button: GameButton,
+        modifier: GameButton,
+        frames: int
+    ) -> np.ndarray:
+        """Press and hold a button with a modifier button held throughout.
+        
+        Used for running mode where B button is held during directional inputs.
+        
+        Args:
+            button: The primary button to press (e.g., UP, DOWN, LEFT, RIGHT)
+            modifier: The modifier button to hold throughout (e.g., B)
+            frames: Number of frames to hold both buttons
+            
+        Returns:
+            The frame after releasing both buttons
+            
+        Example:
+            >>> # Press UP while holding B for 30 frames (running)
+            >>> frame = controller.send_input_with_modifier(GameButton.UP, GameButton.B, frames=30)
+        """
+        if not self.is_initialized():
+            raise RuntimeError("Emulator not initialized. Call initialize() first.")
+        
+        if button not in BUTTON_EVENTS:
+            raise ValueError(f"Invalid button: {button}")
+        if modifier not in BUTTON_EVENTS:
+            raise ValueError(f"Invalid modifier: {modifier}")
+        
+        button_press, button_release = BUTTON_EVENTS[button]
+        modifier_press, modifier_release = BUTTON_EVENTS[modifier]
+        
+        logger.debug(
+            f"Sending input {button.value} with {modifier.value} modifier for {frames} frames "
+            f"to chat {self.chat_id}"
+        )
+        
+        # Press modifier first
+        self.pyboy.send_input(modifier_press)
+        
+        # Press primary button
+        self.pyboy.send_input(button_press)
+        
+        # Hold both for specified frames
+        for _ in range(frames):
+            self.pyboy.tick()
+        
+        # Release primary button
+        self.pyboy.send_input(button_release)
+        
+        # Release modifier button
+        self.pyboy.send_input(modifier_release)
+        
+        # One more tick to process releases
+        self.pyboy.tick()
+        
+        return self.get_frame()
+    
     def save_state(self) -> bytes:
         """Save the current emulator state to bytes.
         

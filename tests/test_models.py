@@ -365,6 +365,7 @@ class TestButtonLayout:
         assert GameButton.B in BUTTON_LAYOUT[2]
 
         # Check fourth row (Sequence)
+        assert GameButton.RUN in BUTTON_LAYOUT[3]
         assert GameButton.SEQUENCE in BUTTON_LAYOUT[3]
     
     def test_all_buttons_in_layout(self):
@@ -376,4 +377,4 @@ class TestButtonLayout:
         # ENVIAR is not in the normal layout - it replaces SEQUENCE during sequence building
         expected_buttons = set(GameButton) - {GameButton.ENVIAR}
         assert all_buttons == expected_buttons
-        assert len(all_buttons) == 10  # 10 buttons (excluding ENVIAR)
+        assert len(all_buttons) == 11  # 11 buttons (excluding ENVIAR)

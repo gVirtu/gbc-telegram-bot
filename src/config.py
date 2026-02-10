@@ -112,7 +112,7 @@ class Settings(BaseSettings):
 
     # Sequence input settings
     max_sequence_length: int = Field(
-        default=4,
+        default=6,
         description="Maximum number of buttons in a sequence",
         ge=1,
         le=10,

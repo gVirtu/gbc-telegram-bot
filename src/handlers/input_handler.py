@@ -24,7 +24,7 @@ from src.keyboard import (
 )
 from src.models.game_state import ChatGameState, GameButton, GameSession, SequenceBuilder
 from src.utils.frame_utils import should_update_frame, save_frames_as_mp4
-from src.utils.rate_limiter import get_rate_limiter, RateLimitException
+from src.utils.rate_limiter import RateLimitException
 from src.utils.state_manager import state_manager
 
 logger = logging.getLogger(__name__)
@@ -146,19 +146,6 @@ class InputHandler:
         self, callback_query, session, chat_id, message_id, user_id, user_name
     ) -> None:
         """Handle SEQUENCE button press to start building."""
-        # Check rate limits first
-        limiter = get_rate_limiter()
-        try:
-            limiter.check_rate_limit(chat_id)
-        except RateLimitException as e:
-            try:
-                await callback_query.answer(
-                    f"⏳ {e.message}",
-                    show_alert=False
-                )
-            except Exception as e_inner:
-                logger.error(f"Error answering callback for chat {chat_id}: {e_inner}")
-            return
         
         if chat_id in self._processing:
             try:
@@ -177,6 +164,15 @@ class InputHandler:
         try:
             await callback_query.answer("Iniciando construção de sequência...")
             await self._start_sequence_building(chat_id, message_id, user_id, user_name)
+        except RateLimitException as e:
+            try:
+                await callback_query.answer(
+                    f"⏳ {e.message}",
+                    show_alert=False
+                )
+            except Exception as e_inner:
+                logger.error(f"Error answering callback for chat {chat_id}: {e_inner}")
+            return
         except Exception as e:
             logger.error(f"Error starting sequence for chat {chat_id}: {e}")
             await self._send_error_message(chat_id, "Erro ao iniciar sequência.")
@@ -250,21 +246,7 @@ class InputHandler:
         self, callback_query, session, chat_id, message_id, button, user_id, user_name
     ) -> None:
         """Handle normal single button press (existing logic)."""
-        # Check rate limits first
-        limiter = get_rate_limiter()
-        try:
-            limiter.check_rate_limit(chat_id)
-        except RateLimitException as e:
-            try:
-                await callback_query.answer(
-                    f"⏳ {e.message}",
-                    show_alert=False
-                )
-            except Exception as e_inner:
-                logger.error(f"Error answering callback for chat {chat_id}: {e_inner}")
-            return
-        
-        # This is the existing logic from the original handle_button_press
+
         if chat_id in self._processing:
             try:
                 await callback_query.answer("Input já está em progresso! Por favor aguarde.")
@@ -290,6 +272,15 @@ class InputHandler:
         try:
             await callback_query.answer(f"Processando: {button.display_name}")
             await self._process_sequence(chat_id, [button], message_id)
+        except RateLimitException as e:
+            try:
+                await callback_query.answer(
+                    f"⏳ {e.message}",
+                    show_alert=False
+                )
+            except Exception as e_inner:
+                logger.error(f"Error answering callback for chat {chat_id}: {e_inner}")
+            return
         except Exception as e:
             logger.error(f"Error processing input for chat {chat_id}: {e}")
             await self._send_error_message(chat_id, "Erro ao processar, por favor tente novamente.")

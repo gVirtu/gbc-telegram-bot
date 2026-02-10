@@ -236,6 +236,15 @@ class WebhookHandler:
             # Startup
             logger.info("Starting up webhook handler...")
             
+            # Initialize rate limiter
+            from src.utils.rate_limiter import init_rate_limiter
+            init_rate_limiter(
+                max_per_chat=settings.rate_limit_per_chat,
+                per_chat_window=settings.rate_limit_per_chat_window,
+                max_global=settings.rate_limit_global,
+                global_window=settings.rate_limit_global_window,
+            )
+            
             # Initialize Telegram application
             from telegram.ext import ApplicationBuilder
             

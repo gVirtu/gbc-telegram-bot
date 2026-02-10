@@ -254,8 +254,12 @@ class WebhookHandler:
                 .build()
             )
             
-            # Initialize input handler
-            self.input_handler = get_input_handler(self.telegram_app.bot)
+            # Initialize rate-limited bot wrapper
+            from src.utils.telegram_client import RateLimitedBot
+            rate_limited_bot = RateLimitedBot(self.telegram_app.bot)
+            
+            # Initialize input handler with rate-limited bot
+            self.input_handler = get_input_handler(rate_limited_bot)
             
             logger.info("Webhook handler started successfully")
             

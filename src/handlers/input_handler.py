@@ -24,6 +24,7 @@ from src.keyboard import (
 )
 from src.models.game_state import ChatGameState, GameButton, GameSession, SequenceBuilder
 from src.utils.frame_utils import should_update_frame, save_frames_as_mp4
+from src.utils.rate_limiter import get_rate_limiter
 from src.utils.state_manager import state_manager
 
 logger = logging.getLogger(__name__)
@@ -145,6 +146,20 @@ class InputHandler:
         self, callback_query, session, chat_id, message_id, user_id, user_name
     ) -> None:
         """Handle SEQUENCE button press to start building."""
+        # Check rate limits first
+        limiter = get_rate_limiter()
+        rate_limit_result = limiter.check_rate_limit(chat_id)
+        
+        if rate_limit_result:
+            try:
+                await callback_query.answer(
+                    f"⏳ {rate_limit_result.message}",
+                    show_alert=False
+                )
+            except Exception as e:
+                logger.error(f"Error answering callback for chat {chat_id}: {e}")
+            return
+        
         if chat_id in self._processing:
             try:
                 await callback_query.answer("Input já está em progresso! Por favor aguarde.")
@@ -235,6 +250,20 @@ class InputHandler:
         self, callback_query, session, chat_id, message_id, button, user_id, user_name
     ) -> None:
         """Handle normal single button press (existing logic)."""
+        # Check rate limits first
+        limiter = get_rate_limiter()
+        rate_limit_result = limiter.check_rate_limit(chat_id)
+        
+        if rate_limit_result:
+            try:
+                await callback_query.answer(
+                    f"⏳ {rate_limit_result.message}",
+                    show_alert=False
+                )
+            except Exception as e:
+                logger.error(f"Error answering callback for chat {chat_id}: {e}")
+            return
+        
         # This is the existing logic from the original handle_button_press
         if chat_id in self._processing:
             try:

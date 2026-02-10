@@ -11,7 +11,7 @@ from functools import wraps
 from telegram import Bot, InputMedia
 from telegram.error import RetryAfter, TelegramError
 
-from src.utils.rate_limiter import get_rate_limiter, RateLimitResult
+from src.utils.rate_limiter import get_rate_limiter, RateLimitException
 
 logger = logging.getLogger(__name__)
 
@@ -28,11 +28,12 @@ def _rate_limited_method(method_name: str):
             limiter = get_rate_limiter()
             
             # Check rate limit
-            rate_limit_result = limiter.check_rate_limit(chat_id)
-            if rate_limit_result:
+            try:
+                limiter.check_rate_limit(chat_id)
+            except RateLimitException as e:
                 logger.warning(
                     f"Rate limited {method_name} for chat {chat_id}: "
-                    f"retry_after={rate_limit_result.retry_after:.1f}s"
+                    f"retry_after={e.retry_after:.1f}s"
                 )
                 return False
             

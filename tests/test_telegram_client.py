@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 from telegram.error import RetryAfter
 
 from src.utils.telegram_client import RateLimitedBot
+from src.utils.rate_limiter import RateLimitException
 
 
 class TestRateLimitedBot:

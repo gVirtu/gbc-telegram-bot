@@ -24,6 +24,7 @@ class GameButton(str, Enum):
     WAIT = "wait"
     SEQUENCE = "sequence"
     ENVIAR = "enviar"
+    RUN = "run"
     
     @property
     def emoji(self) -> str:
@@ -40,6 +41,7 @@ class GameButton(str, Enum):
             GameButton.WAIT: "👁️",
             GameButton.SEQUENCE: "🔢",
             GameButton.ENVIAR: "✅",
+            GameButton.RUN: "🏃",
         }
         return emoji_map[self]
     
@@ -58,6 +60,7 @@ class GameButton(str, Enum):
             GameButton.WAIT: "Espera",
             GameButton.SEQUENCE: "Sequência",
             GameButton.ENVIAR: "Enviar",
+            GameButton.RUN: "Correr",
         }
         return name_map[self]
 

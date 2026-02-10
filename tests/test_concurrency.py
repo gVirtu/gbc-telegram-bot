@@ -12,6 +12,21 @@ from src.handlers.input_handler import InputHandler
 from src.models.game_state import ChatGameState, GameButton, GameSession
 
 
+@pytest.fixture(autouse=True)
+def reset_rate_limiter():
+    """Reset rate limiter singleton before each test and initialize with high limits."""
+    import src.utils.rate_limiter as rl_module
+    rl_module._rate_limiter = None
+    # Initialize with high limits for concurrency tests
+    rl_module.init_rate_limiter(
+        max_per_chat=100,
+        per_chat_window=60.0,
+        max_global=1000,
+        global_window=1.0,
+    )
+    yield
+
+
 class TestInputLocking:
     """Test input processing lock prevents concurrent inputs."""
 

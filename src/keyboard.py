@@ -32,7 +32,7 @@ def create_input_keyboard(running_mode: bool = False) -> InlineKeyboardMarkup:
         for button in row:
             # Special handling for RUN button based on running_mode
             if button == GameButton.RUN:
-                emoji = "🏃" if running_mode else "🚶"
+                emoji = "🏃 CORRENDO" if running_mode else "🚶 ANDANDO"
                 keyboard_row.append(
                     InlineKeyboardButton(
                         emoji,
@@ -141,7 +141,7 @@ def create_processing_keyboard(button: GameButton) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(keyboard)
 
 
-def create_sequence_building_keyboard() -> InlineKeyboardMarkup:
+def create_sequence_building_keyboard(running_mode: bool = False) -> InlineKeyboardMarkup:
     """Create keyboard for sequence building mode.
 
     Shows all game buttons with SEQUENCE replaced by ENVIAR.
@@ -156,6 +156,15 @@ def create_sequence_building_keyboard() -> InlineKeyboardMarkup:
                     InlineKeyboardButton(
                         f"{GameButton.ENVIAR.emoji} {GameButton.ENVIAR.display_name}",
                         callback_data=GameButton.ENVIAR.value,
+                    )
+                )
+            # Special handling for RUN button based on running_mode
+            elif button == GameButton.RUN:
+                emoji = "🏃 CORRENDO" if running_mode else "🚶 ANDANDO"
+                keyboard_row.append(
+                    InlineKeyboardButton(
+                        emoji,
+                        callback_data=button.value,
                     )
                 )
             else:

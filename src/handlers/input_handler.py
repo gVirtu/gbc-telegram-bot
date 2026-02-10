@@ -359,13 +359,17 @@ class InputHandler:
             user_name=user_name,
             max_length=settings.max_sequence_length,
         )
+        
+        # Check running mode
+        config = state_manager.get_or_create_chat_config(chat_id)
+        running_mode = config.running_mode if config else False
 
         # Lock processing
         self._processing.add(chat_id)
 
         # Update keyboard
         await self._edit_message_keyboard(
-            chat_id, message_id, create_sequence_building_keyboard()
+            chat_id, message_id, create_sequence_building_keyboard(running_mode)
         )
 
         # Start timeout check
@@ -393,8 +397,11 @@ class InputHandler:
                     session.state.sequence_builder = None
                     self._processing.discard(chat_id)
 
+                    config = state_manager.get_or_create_chat_config(chat_id)
+                    running_mode = config.running_mode if config else False
+
                     await self._edit_message_keyboard(
-                        chat_id, message_id, create_input_keyboard()
+                        chat_id, message_id, create_input_keyboard(running_mode=running_mode)
                     )
 
                     state_manager.save_game_state(session.state)
@@ -530,7 +537,7 @@ class InputHandler:
                     logger.error(f"Fallback failed for chat {chat_id}: {e2}")
 
         # Re-enable input
-        await self._edit_message_keyboard(chat_id, message_id, create_input_keyboard())
+        await self._edit_message_keyboard(chat_id, message_id, create_input_keyboard(running_mode=running_mode))
 
         # Auto-save if enabled
         config = state_manager.get_or_create_chat_config(chat_id)
@@ -641,6 +648,9 @@ class InputHandler:
         # Create session
         session = self._create_session(chat_id, 0)  # Will update message_id after sending
         
+        config = state_manager.get_or_create_chat_config(chat_id)
+        running_mode = config.running_mode if config else False
+        
         # Send initial message
 
         recent = session.state.recent_inputs if session else []
@@ -648,7 +658,7 @@ class InputHandler:
             chat_id=chat_id,
             photo=png_buffer,
             caption=create_game_message_text(recent_inputs=recent),
-            reply_markup=create_input_keyboard(),
+            reply_markup=create_input_keyboard(running_mode=running_mode),
             parse_mode="Markdown",
         )
         
@@ -678,6 +688,9 @@ class InputHandler:
         if not controller or not controller.is_initialized():
             return None
         
+        config = state_manager.get_or_create_chat_config(chat_id)
+        running_mode = config.running_mode if config else False
+        
         # Get current frame
         frame = controller.get_frame()
         png_buffer = controller.get_frame_as_png()
@@ -696,7 +709,7 @@ class InputHandler:
                 await self._edit_message_keyboard(
                     chat_id,
                     session.state.message_id,
-                    create_input_keyboard(),
+                    create_input_keyboard(running_mode=running_mode),
                 )
                 return session.state.message_id
             except TelegramError:
@@ -707,7 +720,7 @@ class InputHandler:
             chat_id=chat_id,
             photo=png_buffer,
             caption=caption,
-            reply_markup=create_input_keyboard() if not (session and session.state.input_in_progress) else None,
+            reply_markup=create_input_keyboard(running_mode=running_mode) if not (session and session.state.input_in_progress) else None,
             parse_mode="Markdown",
         )
         
@@ -738,6 +751,9 @@ class InputHandler:
         if not controller or not controller.is_initialized():
             return None
 
+        config = state_manager.get_or_create_chat_config(chat_id)
+        running_mode = config.running_mode if config else False
+
         # Get current frame
         png_buffer = controller.get_frame_as_png()
 
@@ -758,7 +774,7 @@ class InputHandler:
             chat_id=chat_id,
             photo=png_buffer,
             caption=create_game_message_text(recent_inputs=recent),
-            reply_markup=create_input_keyboard(),
+            reply_markup=create_input_keyboard(running_mode=running_mode),
             parse_mode="Markdown",
         )
 

@@ -41,7 +41,7 @@ class GameButton(str, Enum):
             GameButton.WAIT: "👁️",
             GameButton.SEQUENCE: "🔢 SEQUÊNCIA",
             GameButton.ENVIAR: "✅",
-            GameButton.RUN: "🏃",
+            GameButton.RUN: "🏃 CORRER",
         }
         return emoji_map[self]
     

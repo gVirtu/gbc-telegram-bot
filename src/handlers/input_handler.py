@@ -22,7 +22,7 @@ from src.keyboard import (
     get_button_from_callback,
     is_valid_button_callback,
 )
-from src.models.game_state import ChatGameState, GameButton, GameSession, SequenceBuilder
+from src.models.game_state import ChatGameState, ChatConfig, GameButton, GameSession, SequenceBuilder
 from src.utils.frame_utils import should_update_frame, save_frames_as_mp4
 from src.utils.rate_limiter import get_rate_limiter, RateLimitException
 from src.utils.state_manager import state_manager
@@ -126,7 +126,12 @@ class InputHandler:
         )
 
         # STATE MACHINE ROUTING
-        if session.state.sequence_builder is not None:
+        if button == GameButton.RUN:
+            # Handle RUN button specially - toggle running mode
+            await self._handle_run_button_press(
+                callback_query, session, chat_id, message_id
+            )
+        elif session.state.sequence_builder is not None:
             # State: BUILDING_SEQUENCE
             await self._handle_button_in_sequence_mode(
                 callback_query, session, button, user_id, user_name
@@ -180,6 +185,28 @@ class InputHandler:
         except Exception as e:
             logger.error(f"Error starting sequence for chat {chat_id}: {e}")
             await self._send_error_message(chat_id, "Erro ao iniciar sequência.")
+
+    async def _handle_run_button_press(
+        self, callback_query, session, chat_id, message_id
+    ) -> None:
+        """Handle RUN button press to toggle running mode."""
+        # Toggle running mode
+        config = state_manager.get_or_create_chat_config(chat_id)
+        
+        config.running_mode = not config.running_mode
+        state_manager.save_chat_config(config)
+        
+        # Update keyboard with new emoji
+        await self._edit_message_keyboard(
+            chat_id, message_id, create_input_keyboard(running_mode=config.running_mode)
+        )
+        
+        # Answer callback
+        message = "Corrida ativada 🏃" if config.running_mode else "Corrida desativada 🚶"
+        try:
+            await callback_query.answer(message, show_alert=False)
+        except Exception as e:
+            logger.error(f"Error answering callback for chat {chat_id}: {e}")
 
     async def _handle_button_in_sequence_mode(
         self, callback_query, session, button, user_id, user_name

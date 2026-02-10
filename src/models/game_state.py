@@ -317,7 +317,7 @@ class GameSession:
 BUTTON_LAYOUT = [
     [GameButton.WAIT, GameButton.UP],
     [GameButton.LEFT, GameButton.RIGHT],
-    [GameButton.SEQUENCE, GameButton.DOWN,],
+    [GameButton.RUN, GameButton.SEQUENCE, GameButton.DOWN],
     [GameButton.A, GameButton.B],
     [GameButton.START, GameButton.SELECT],
 ]

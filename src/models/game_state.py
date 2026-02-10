@@ -24,6 +24,7 @@ class GameButton(str, Enum):
     WAIT = "wait"
     SEQUENCE = "sequence"
     ENVIAR = "enviar"
+    RUN = "run"
     
     @property
     def emoji(self) -> str:
@@ -40,6 +41,7 @@ class GameButton(str, Enum):
             GameButton.WAIT: "👁️",
             GameButton.SEQUENCE: "🔢 SEQUÊNCIA",
             GameButton.ENVIAR: "✅",
+            GameButton.RUN: "🏃",
         }
         return emoji_map[self]
     
@@ -58,6 +60,7 @@ class GameButton(str, Enum):
             GameButton.WAIT: "Espera",
             GameButton.SEQUENCE: "Sequência",
             GameButton.ENVIAR: "Enviar",
+            GameButton.RUN: "Correr",
         }
         return name_map[self]
 
@@ -190,6 +193,7 @@ class ChatConfig:
         input_hold_frames: Custom button hold duration
         animation_duration: Custom animation phase duration
         auto_save_enabled: Whether auto-save is enabled
+        running_mode: Whether running mode is enabled (holds B during directional inputs)
         created_at: When this config was created
         updated_at: When this config was last updated
     """
@@ -198,6 +202,7 @@ class ChatConfig:
     input_hold_frames: Optional[int] = None
     animation_duration: Optional[int] = None
     auto_save_enabled: bool = True
+    running_mode: bool = False
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
     
@@ -208,6 +213,7 @@ class ChatConfig:
             "input_hold_frames": self.input_hold_frames,
             "animation_duration": self.animation_duration,
             "auto_save_enabled": self.auto_save_enabled,
+            "running_mode": self.running_mode,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
@@ -220,6 +226,7 @@ class ChatConfig:
             input_hold_frames=data.get("input_hold_frames"),
             animation_duration=data.get("animation_duration"),
             auto_save_enabled=data.get("auto_save_enabled", True),
+            running_mode=data.get("running_mode", False),
             created_at=datetime.fromisoformat(data["created_at"]),
             updated_at=datetime.fromisoformat(data["updated_at"]),
         )
@@ -311,5 +318,5 @@ BUTTON_LAYOUT = [
     [GameButton.SELECT, GameButton.UP, GameButton.START],
     [GameButton.LEFT, GameButton.DOWN, GameButton.RIGHT],
     [GameButton.WAIT, GameButton.A, GameButton.B],
-    [GameButton.SEQUENCE],
+    [GameButton.RUN, GameButton.SEQUENCE],
 ]

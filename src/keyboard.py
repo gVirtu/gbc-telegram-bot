@@ -9,17 +9,13 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from src.models.game_state import BUTTON_LAYOUT, GameButton
 
 
-def create_input_keyboard() -> InlineKeyboardMarkup:
+def create_input_keyboard(running_mode: bool = False) -> InlineKeyboardMarkup:
     """Create the inline keyboard for game input.
     
     Creates a 3x3-style layout with D-pad, A/B buttons, and Start/Select.
     
-    Layout:
-        [⬆️]
-        [⬅️] [➡️]
-        [⬇️]
-        [🅰️] [🅱️]
-        [▶️] [🔘]
+    Args:
+        running_mode: Whether running mode is enabled (affects RUN button emoji)
     
     Returns:
         InlineKeyboardMarkup with game control buttons
@@ -34,12 +30,22 @@ def create_input_keyboard() -> InlineKeyboardMarkup:
     for row in BUTTON_LAYOUT:
         keyboard_row = []
         for button in row:
-            keyboard_row.append(
-                InlineKeyboardButton(
-                    button.emoji,
-                    callback_data=button.value,
+            # Special handling for RUN button based on running_mode
+            if button == GameButton.RUN:
+                emoji = "🏃" if running_mode else "🚶"
+                keyboard_row.append(
+                    InlineKeyboardButton(
+                        emoji,
+                        callback_data=button.value,
+                    )
                 )
-            )
+            else:
+                keyboard_row.append(
+                    InlineKeyboardButton(
+                        button.emoji,
+                        callback_data=button.value,
+                    )
+                )
         keyboard.append(keyboard_row)
     
     return InlineKeyboardMarkup(keyboard)
@@ -291,6 +297,7 @@ BUTTON_DESCRIPTIONS = {
     GameButton.WAIT: "Esperar / Deixar o jogo progredir sem input",
     GameButton.SEQUENCE: "Construir uma sequência de comandos",
     GameButton.ENVIAR: "Enviar a sequência construída",
+    GameButton.RUN: "Alternar modo corrida (segura B ao andar)",
 }
 
 

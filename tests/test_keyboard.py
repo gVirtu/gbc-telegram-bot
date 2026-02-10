@@ -76,23 +76,21 @@ class TestCreateInputKeyboard:
         assert keyboard.inline_keyboard[0][1].callback_data == "up"
 
         # Row 1: [LEFT, RIGHT]
-        row1 = keyboard.inline_keyboard[1]
-        assert row1[0].callback_data == "left"
-        assert row1[1].callback_data == "right"
+        assert keyboard.inline_keyboard[1][0].callback_data == "left"
+        assert keyboard.inline_keyboard[1][1].callback_data == "right"
 
-        # Row 2: [SEQUENCE, DOWN]
-        assert keyboard.inline_keyboard[2][0].callback_data == "sequence"
-        assert keyboard.inline_keyboard[2][1].callback_data == "down"
+        # Row 2: [RUN, SEQUENCE, DOWN]
+        assert keyboard.inline_keyboard[2][0].callback_data == "run"
+        assert keyboard.inline_keyboard[2][1].callback_data == "sequence"
+        assert keyboard.inline_keyboard[2][2].callback_data == "down"
 
         # Row 3: [A, B]
-        row3 = keyboard.inline_keyboard[3]
-        assert row3[0].callback_data == "a"
-        assert row3[1].callback_data == "b"
+        assert keyboard.inline_keyboard[3][0].callback_data == "a"
+        assert keyboard.inline_keyboard[3][1].callback_data == "b"
 
         # Row 4: [START, SELECT]
-        row4 = keyboard.inline_keyboard[4]
-        assert row4[0].callback_data == "start"
-        assert row4[1].callback_data == "select"
+        assert keyboard.inline_keyboard[4][0].callback_data == "start"
+        assert keyboard.inline_keyboard[4][1].callback_data == "select"
 
     def test_wait_button_present(self):
         """Test WAIT button is in the keyboard."""

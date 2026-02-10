@@ -357,7 +357,8 @@ class TestButtonLayout:
         assert GameButton.LEFT in BUTTON_LAYOUT[1]
         assert GameButton.RIGHT in BUTTON_LAYOUT[1]
 
-        # Check third row (Down button and Sequence button)
+        # Check third row (RUN, SEQUENCE, DOWN)
+        assert GameButton.RUN in BUTTON_LAYOUT[2]
         assert GameButton.SEQUENCE in BUTTON_LAYOUT[2]
         assert GameButton.DOWN in BUTTON_LAYOUT[2]
 
@@ -378,7 +379,7 @@ class TestButtonLayout:
         # ENVIAR is not in the normal layout - it replaces SEQUENCE during sequence building
         expected_buttons = set(GameButton) - {GameButton.ENVIAR}
         assert all_buttons == expected_buttons
-        assert len(all_buttons) == 10  # 10 buttons (excluding ENVIAR)
+        assert len(all_buttons) == 11  # 11 buttons (excluding ENVIAR)
 
     def test_wait_button_in_first_row(self):
         """Test WAIT button is positioned with UP button."""

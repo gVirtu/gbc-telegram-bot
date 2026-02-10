@@ -402,10 +402,11 @@ class TestRateLimiterIntegration:
     
     def test_rate_limiter_importable(self):
         """Verify rate limiter module can be imported."""
-        from src.utils.rate_limiter import RateLimiter, get_rate_limiter, init_rate_limiter
+        from src.utils.rate_limiter import RateLimiter, get_rate_limiter, init_rate_limiter, RateLimitException
         assert RateLimiter is not None
         assert get_rate_limiter is not None
         assert init_rate_limiter is not None
+        assert RateLimitException is not None
         
     def test_rate_limiter_singleton_pattern(self):
         """Test rate limiter singleton pattern works correctly."""
@@ -423,7 +424,7 @@ class TestRateLimiterIntegration:
         
     def test_full_rate_limit_flow(self):
         """Test full rate limit check and record flow."""
-        from src.utils.rate_limiter import init_rate_limiter
+        from src.utils.rate_limiter import init_rate_limiter, RateLimitException
         
         limiter = init_rate_limiter(
             max_per_chat=2,
@@ -433,20 +434,17 @@ class TestRateLimiterIntegration:
         )
         
         # First two requests should succeed
-        result1 = limiter.check_rate_limit(chat_id=111)
-        assert result1 is None
+        limiter.check_rate_limit(chat_id=111)
+        limiter.check_rate_limit(chat_id=111)
         
-        result2 = limiter.check_rate_limit(chat_id=111)
-        assert result2 is None
-        
-        # Third request should be rate limited
-        result3 = limiter.check_rate_limit(chat_id=111)
-        assert result3 is not None
-        assert result3.retry_after > 0
+        # Third request should be rate limited (raises exception)
+        with pytest.raises(RateLimitException) as exc_info:
+            limiter.check_rate_limit(chat_id=111)
+        assert exc_info.value.retry_after > 0
         
     def test_external_retry_after_blocks_all(self):
         """Test that external retry-after blocks all requests."""
-        from src.utils.rate_limiter import init_rate_limiter
+        from src.utils.rate_limiter import init_rate_limiter, RateLimitException
         
         limiter = init_rate_limiter(
             max_per_chat=100,
@@ -458,15 +456,15 @@ class TestRateLimiterIntegration:
         # Set external block
         limiter.set_retry_after(5)
         
-        # All requests should be blocked
-        result = limiter.check_rate_limit(chat_id=999)
-        assert result is not None
-        assert result.is_global is True
-        assert "Telegram" in result.message
+        # All requests should be blocked (raises exception)
+        with pytest.raises(RateLimitException) as exc_info:
+            limiter.check_rate_limit(chat_id=999)
+        assert exc_info.value.is_global is True
+        assert "Telegram" in exc_info.value.message
         
     def test_different_chats_independent(self):
         """Test that different chats have independent rate limits."""
-        from src.utils.rate_limiter import init_rate_limiter
+        from src.utils.rate_limiter import init_rate_limiter, RateLimitException
         
         limiter = init_rate_limiter(
             max_per_chat=1,
@@ -477,16 +475,15 @@ class TestRateLimiterIntegration:
         
         # Chat 111 uses its limit
         limiter.check_rate_limit(chat_id=111)
-        result_blocked = limiter.check_rate_limit(chat_id=111)
-        assert result_blocked is not None
+        with pytest.raises(RateLimitException):
+            limiter.check_rate_limit(chat_id=111)
         
         # Chat 222 should still work (independent)
-        result_ok = limiter.check_rate_limit(chat_id=222)
-        assert result_ok is None
+        limiter.check_rate_limit(chat_id=222)
         
     def test_global_limit_applies_across_chats(self):
         """Test that global limit applies across all chats."""
-        from src.utils.rate_limiter import init_rate_limiter
+        from src.utils.rate_limiter import init_rate_limiter, RateLimitException
         
         limiter = init_rate_limiter(
             max_per_chat=100,
@@ -500,8 +497,8 @@ class TestRateLimiterIntegration:
         limiter.check_rate_limit(chat_id=222)
         limiter.check_rate_limit(chat_id=333)
         
-        # Fourth request should hit global limit
-        result = limiter.check_rate_limit(chat_id=444)
-        assert result is not None
-        assert result.is_global is True
+        # Fourth request should hit global limit (raises exception)
+        with pytest.raises(RateLimitException) as exc_info:
+            limiter.check_rate_limit(chat_id=444)
+        assert exc_info.value.is_global is True
 

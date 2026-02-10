@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class RateLimitResult:
-    """Result of a rate limit check."""
+class RateLimitException(Exception):
+    """Exception raised when a request is rate limited."""
     retry_after: float
     is_global: bool
     message: str
@@ -29,9 +29,10 @@ class RateLimiter:
     
     Example:
         >>> limiter = RateLimiter(max_per_chat=1, per_chat_window=1.0, max_global=30, global_window=1.0)
-        >>> result = limiter.check_rate_limit(chat_id=12345)
-        >>> if result:
-        ...     print(f"Rate limited, retry after {result.retry_after}s")
+        >>> try:
+        ...     limiter.check_rate_limit(chat_id=12345)
+        ... except RateLimitException as e:
+        ...     print(f"Rate limited, retry after {e.retry_after}s")
     """
     
     def __init__(
@@ -63,14 +64,14 @@ class RateLimiter:
         # External block (from 429 error): timestamp when block expires
         self._blocked_until: Optional[float] = None
     
-    def check_rate_limit(self, chat_id: int) -> Optional[RateLimitResult]:
+    def check_rate_limit(self, chat_id: int) -> None:
         """Check if a request should be rate limited.
         
         Args:
             chat_id: Telegram chat ID
             
-        Returns:
-            RateLimitResult if rate limited, None if allowed
+        Raises:
+            RateLimitException: If request is rate limited
         """
         now = time.monotonic()
         
@@ -78,7 +79,7 @@ class RateLimiter:
         if self._blocked_until is not None:
             if now < self._blocked_until:
                 retry_after = self._blocked_until - now
-                return RateLimitResult(
+                raise RateLimitException(
                     retry_after=retry_after,
                     is_global=True,
                     message=f"Bot is rate limited by Telegram. Retry after {int(retry_after)}s."
@@ -94,7 +95,7 @@ class RateLimiter:
         if len(self._global_requests) >= self.max_global:
             oldest_global = self._global_requests[0]
             retry_after = (oldest_global + self.global_window) - now
-            return RateLimitResult(
+            raise RateLimitException(
                 retry_after=max(0.1, retry_after),
                 is_global=True,
                 message=f"Global rate limit exceeded. Retry after {int(retry_after)}s."
@@ -105,7 +106,7 @@ class RateLimiter:
         if len(chat_deque) >= self.max_per_chat:
             oldest_chat = chat_deque[0]
             retry_after = (oldest_chat + self.per_chat_window) - now
-            return RateLimitResult(
+            raise RateLimitException(
                 retry_after=max(0.1, retry_after),
                 is_global=False,
                 message=f"Rate limit exceeded for this chat. Retry after {int(retry_after)}s."
@@ -114,8 +115,6 @@ class RateLimiter:
         # Record this request
         self._global_requests.append(now)
         self._chat_requests[chat_id].append(now)
-        
-        return None
     
     def set_retry_after(self, retry_after: int) -> None:
         """Set external block from Telegram 429 response.

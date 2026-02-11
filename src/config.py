@@ -103,8 +103,12 @@ class Settings(BaseSettings):
         description="Frames to advance between animation updates",
         ge=1,
     )
+    tbc_overlay_path: Path = Field(
+        default=Path("./assets/to_be_continued.png"),
+        description="Path to To Be Continued overlay image",
+    )
     tbc_duration_frames: int = Field(
-        default=20,
+        default=10,
         description="Number of frames for the 'To Be Continued' end sequence",
         ge=5,
         le=60,

@@ -253,7 +253,7 @@ def save_frames_as_mp4(
     frames: list[np.ndarray],
     fps: int = 10,
     crf: int = 28,
-    preset: str = "fast",
+    preset: str = "ultrafast",
 ) -> BytesIO:
     """Save a sequence of frames as an MP4 video using FFmpeg.
     
@@ -325,7 +325,7 @@ def generate_tbc_frames(
     base_frame: np.ndarray,
     duration_frames: int = 20,
     overlay_path: Path = Path("./assets/to_be_continued.png"),
-    max_width_percent: float = 0.30,
+    max_width_percent: float = 0.7,
 ) -> list[np.ndarray]:
     """Generate "To Be Continued" padding frames.
 
@@ -356,17 +356,18 @@ def generate_tbc_frames(
         aspect_ratio = overlay.height / overlay.width
         target_height = int(target_width * aspect_ratio)
 
-        overlay = overlay.resize((target_width, target_height), Image.Resampling.LANCZOS)
+        overlay = overlay.resize((target_width, target_height), Image.Resampling.NEAREST)
 
         start_x = frame_width
         end_x = frame_width - target_width
-        start_y = frame_height
         end_y = frame_height - target_height
 
         for i in range(duration_frames):
-            progress = i / (duration_frames - 1) if duration_frames > 1 else 1.0
+            t = i / (duration_frames - 1) if duration_frames > 1 else 1.0
+            progress = 1 - (1 - t) ** 2
+            
             x = int(start_x + (end_x - start_x) * progress)
-            y = int(start_y + (end_y - start_y) * progress)
+            y = end_y
 
             frame_image = Image.fromarray(base_frame, mode="RGB")
             frame_image.paste(overlay, (x, y), overlay)

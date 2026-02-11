@@ -21,8 +21,9 @@ COPY --chown=appuser:appgroup pyproject.toml ./
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir .
 
-# Copy source code
+# Copy source code and assets
 COPY --chown=appuser:appgroup src/ ./src/
+COPY --chown=appuser:appgroup assets/ ./assets/
 
 # Create directories for volumes
 RUN mkdir -p /app/data /app/roms && \

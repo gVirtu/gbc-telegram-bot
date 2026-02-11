@@ -519,7 +519,9 @@ class InputHandler:
         from src.utils.frame_utils import generate_tbc_frames
         tbc_frames = generate_tbc_frames(
             frames[-1] if frames else controller.get_frame(),
+            overlay_path=settings.tbc_overlay_path,
             duration_frames=settings.tbc_duration_frames,
+            max_width_percent=0.7
         )
         frames.extend(tbc_frames)
 

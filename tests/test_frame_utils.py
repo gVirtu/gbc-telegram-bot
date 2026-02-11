@@ -415,3 +415,54 @@ class TestSaveFramesAsMp4:
         for preset in ["ultrafast", "fast", "medium"]:
             mp4_buffer = save_frames_as_mp4(frames, preset=preset)
             assert len(mp4_buffer.getvalue()) > 0
+
+
+class TestGenerateTbcFrames:
+    """Test TBC frame generation functionality."""
+
+    def test_generate_tbc_frames_returns_list(self):
+        """Test that generate_tbc_frames returns a list of frames."""
+        from src.utils.frame_utils import generate_tbc_frames
+        from src.utils.frame_utils import create_empty_frame
+        base_frame = create_empty_frame()
+        result = generate_tbc_frames(base_frame)
+        assert isinstance(result, list)
+        assert len(result) == 20  # default duration
+
+    def test_generate_tbc_frames_uses_custom_duration(self):
+        """Test that generate_tbc_frames respects custom duration."""
+        from src.utils.frame_utils import generate_tbc_frames
+        from src.utils.frame_utils import create_empty_frame
+        base_frame = create_empty_frame()
+        result = generate_tbc_frames(base_frame, duration_frames=10)
+        assert len(result) == 10
+
+    def test_generate_tbc_frames_preserves_shape(self):
+        """Test that generated frames have same shape as base frame."""
+        from src.utils.frame_utils import generate_tbc_frames
+        from src.utils.frame_utils import create_empty_frame
+        base_frame = create_empty_frame(width=160, height=144)
+        frames = generate_tbc_frames(base_frame, duration_frames=5)
+        assert len(frames) == 5
+        for f in frames:
+            assert f.shape == base_frame.shape
+
+    def test_generate_tbc_frames_returns_numpy_arrays(self):
+        """Test that returned frames are numpy arrays."""
+        from src.utils.frame_utils import generate_tbc_frames
+        from src.utils.frame_utils import create_empty_frame
+        from numpy import ndarray
+        base_frame = create_empty_frame()
+        frames = generate_tbc_frames(base_frame, duration_frames=5)
+        for f in frames:
+            assert isinstance(f, ndarray)
+
+    def test_generate_tbc_frames_handles_missing_overlay(self, tmp_path, monkeypatch):
+        """Test graceful handling when overlay file is missing."""
+        from src.utils.frame_utils import generate_tbc_frames
+        from src.utils.frame_utils import create_empty_frame
+        from pathlib import Path
+        base_frame = create_empty_frame()
+        monkeypatch.setattr(Path, 'exists', lambda self: False)
+        result = generate_tbc_frames(base_frame, overlay_path=Path("/nonexistent.png"))
+        assert result == []  # Should gracefully return empty list

@@ -8,7 +8,7 @@ import asyncio
 import logging
 from typing import Optional
 
-from telegram import Bot, InputMediaPhoto, InputMediaAnimation
+from telegram import Bot, InputMediaPhoto, InputMediaAnimation, InlineKeyboardMarkup
 from telegram.error import TelegramError
 
 from src.config import settings
@@ -467,6 +467,7 @@ class InputHandler:
         await self._edit_message_keyboard(
             chat_id, message_id, create_processing_keyboard_for_sequence(buttons)
         )
+        input_keyboard = create_input_keyboard(running_mode=running_mode)
 
         logger.info(f"Executing sequence of {len(buttons)} buttons for chat {chat_id} (running_mode={running_mode})")
 
@@ -523,7 +524,7 @@ class InputHandler:
                 mp4_buffer.seek(0)
 
                 await self._edit_message_media(
-                    chat_id, message_id, mp4_buffer, caption, media_type="animation"
+                    chat_id, message_id, mp4_buffer, caption, media_type="animation", reply_markup=input_keyboard
                 )
 
                 _, last_hash = should_update_frame(frames[-1], None)
@@ -532,12 +533,9 @@ class InputHandler:
                 logger.error(f"Failed to generate MP4 for chat {chat_id}: {e}")
                 try:
                     png_buffer = controller.get_frame_as_png()
-                    await self._edit_message_media(chat_id, message_id, png_buffer, caption)
+                    await self._edit_message_media(chat_id, message_id, png_buffer, caption, reply_markup=input_keyboard)
                 except Exception as e2:
                     logger.error(f"Fallback failed for chat {chat_id}: {e2}")
-
-        # Re-enable input
-        await self._edit_message_keyboard(chat_id, message_id, create_input_keyboard(running_mode=running_mode))
 
         # Auto-save if enabled
         config = state_manager.get_or_create_chat_config(chat_id)
@@ -587,6 +585,7 @@ class InputHandler:
         media_buffer,
         caption: str,
         media_type: str = "photo",
+        reply_markup: Optional[InlineKeyboardMarkup] = None,
     ) -> None:
         """Edit a message's media (photo or animation).
 
@@ -613,6 +612,7 @@ class InputHandler:
                 chat_id=chat_id,
                 message_id=message_id,
                 media=media,
+                reply_markup=reply_markup,
             )
         except TelegramError as e:
             logger.warning(f"Failed to edit media for chat {chat_id}: {e}")

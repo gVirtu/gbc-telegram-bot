@@ -186,7 +186,12 @@ def create_processing_keyboard_for_sequence(buttons: list[GameButton]) -> Inline
         emoji_sequence = " ".join([b.emoji for b in buttons])
         text = f"Processando: {emoji_sequence}..."
 
-    keyboard = [[InlineKeyboardButton(text, callback_data="processing")]]
+    keyboard = [
+        [InlineKeyboardButton(text, callback_data="processing")],
+        [InlineKeyboardButton("---", callback_data="processing_filler_1")],
+        [InlineKeyboardButton("Por favor aguarde.", callback_data="processing_filler_2")],
+        [InlineKeyboardButton("---", callback_data="processing_filler_3")],
+    ]
     return InlineKeyboardMarkup(keyboard)
 
 

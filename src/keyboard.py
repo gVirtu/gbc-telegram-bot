@@ -84,15 +84,15 @@ def create_game_message_text(
                 buttons = [GameButton(b) for b in inp["buttons"]]
                 if len(buttons) == 1:
                     button = buttons[0]
-                    base_text += f"\n  {user_name} pressionou {button.emoji} {button.display_name}"
+                    base_text += f"\n  {user_name}: {button.emoji} {button.display_name}"
                 else:
                     # Sequence: comma-separated emojis
                     emoji_sequence = ", ".join([b.emoji for b in buttons])
-                    base_text += f"\n  {user_name} executou {emoji_sequence}"
+                    base_text += f"\n  {user_name}: {emoji_sequence}"
             else:
                 # Old format: single button (backward compatibility)
                 button = GameButton(inp["button"])
-                base_text += f"\n  {user_name} pressionou {button.emoji} {button.display_name}"
+                base_text += f"\n  {user_name}: {button.emoji} {button.display_name}"
 
     if status:
         base_text += f"\n\n_{status}_"

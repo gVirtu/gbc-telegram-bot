@@ -137,7 +137,7 @@ class ChatGameState:
     last_input: Optional[GameButton] = None
     last_input_time: Optional[datetime] = None
     frame_hash: Optional[str] = None
-    user_input_counts: dict[int, int] = field(default_factory=dict)
+    user_input_counts: dict[str, int] = field(default_factory=dict)
     recent_inputs: list[dict] = field(default_factory=list)
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)

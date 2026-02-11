@@ -28,7 +28,7 @@ class TestChatGameStateSerialization:
     def test_to_dict_includes_new_fields(self):
         """Test that to_dict includes user tracking fields."""
         state = ChatGameState(chat_id=123)
-        state.user_input_counts = {456: 5, 789: 3}
+        state.user_input_counts = {"456": 5, "789": 3}
         state.recent_inputs = [
             {
                 "user_id": 456,
@@ -41,7 +41,7 @@ class TestChatGameStateSerialization:
         data = state.to_dict()
 
         assert "user_input_counts" in data
-        assert data["user_input_counts"] == {456: 5, 789: 3}
+        assert data["user_input_counts"] == {"456": 5, "789": 3}
         assert "recent_inputs" in data
         assert len(data["recent_inputs"]) == 1
         assert data["recent_inputs"][0]["user_name"] == "Alice"
@@ -55,7 +55,7 @@ class TestChatGameStateSerialization:
             "last_input": "a",
             "last_input_time": None,
             "frame_hash": "abc123",
-            "user_input_counts": {789: 10},
+            "user_input_counts": {"789": 10},
             "recent_inputs": [
                 {
                     "user_id": 789,
@@ -70,7 +70,7 @@ class TestChatGameStateSerialization:
 
         state = ChatGameState.from_dict(data)
 
-        assert state.user_input_counts == {789: 10}
+        assert state.user_input_counts == {"789": 10}
         assert len(state.recent_inputs) == 1
         assert state.recent_inputs[0]["user_name"] == "Bob"
 
@@ -96,7 +96,7 @@ class TestChatGameStateSerialization:
     def test_serialization_roundtrip(self):
         """Test that data survives serialization roundtrip."""
         original = ChatGameState(chat_id=123)
-        original.user_input_counts = {111: 1, 222: 2}
+        original.user_input_counts = {"111": 1, "222": 2}
         original.recent_inputs = [
             {
                 "user_id": 111,
@@ -132,11 +132,11 @@ class TestInputRecording:
 
         handler._record_user_input(session, 456, "Alice", [GameButton.A])
 
-        assert session.state.user_input_counts[456] == 1
+        assert session.state.user_input_counts["456"] == 1
 
         handler._record_user_input(session, 456, "Alice", [GameButton.B])
 
-        assert session.state.user_input_counts[456] == 2
+        assert session.state.user_input_counts["456"] == 2
 
     def test_record_user_input_multiple_users(self):
         """Test recording inputs from multiple users."""
@@ -150,8 +150,8 @@ class TestInputRecording:
         handler._record_user_input(session, 789, "Bob", [GameButton.B])
         handler._record_user_input(session, 456, "Alice", [GameButton.UP])
 
-        assert session.state.user_input_counts[456] == 2
-        assert session.state.user_input_counts[789] == 1
+        assert session.state.user_input_counts["456"] == 2
+        assert session.state.user_input_counts["789"] == 1
 
     def test_record_user_input_adds_to_recent(self):
         """Test that recording input adds to recent_inputs."""
@@ -394,7 +394,7 @@ class TestIntegration:
                 await handler.handle_button_press(callback_query)
 
         # Verify user input was recorded
-        assert session.state.user_input_counts[456] == 1
+        assert session.state.user_input_counts["456"] == 1
         assert len(session.state.recent_inputs) == 1
         assert session.state.recent_inputs[0]["user_name"] == "Alice"
         assert session.state.recent_inputs[0]["buttons"] == ["a"]
@@ -424,9 +424,9 @@ class TestIntegration:
             handler._record_user_input(session, user_id, user_name, button)
 
         # Verify counts
-        assert session.state.user_input_counts[456] == 1
-        assert session.state.user_input_counts[789] == 1
-        assert session.state.user_input_counts[101] == 1
+        assert session.state.user_input_counts["456"] == 1
+        assert session.state.user_input_counts["789"] == 1
+        assert session.state.user_input_counts["101"] == 1
 
         # Verify recent inputs
         assert len(session.state.recent_inputs) == 3

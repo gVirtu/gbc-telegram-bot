@@ -327,8 +327,8 @@ class InputHandler:
         from datetime import datetime
 
         # Increment by number of buttons in sequence
-        session.state.user_input_counts[user_id] = (
-            session.state.user_input_counts.get(user_id, 0) + len(buttons)
+        session.state.user_input_counts[str(user_id)] = (
+            session.state.user_input_counts.get(str(user_id), 0) + len(buttons)
         )
 
         # Add to recent inputs (store as list)

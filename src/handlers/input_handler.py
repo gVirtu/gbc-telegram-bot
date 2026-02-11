@@ -516,6 +516,13 @@ class InputHandler:
             if frame_num % capture_interval_frames == 0:
                 frames.append(controller.get_frame().copy())
 
+        from src.utils.frame_utils import generate_tbc_frames
+        tbc_frames = generate_tbc_frames(
+            frames[-1] if frames else controller.get_frame(),
+            duration_frames=settings.tbc_duration_frames,
+        )
+        frames.extend(tbc_frames)
+
         # Generate and send MP4
         if frames:
             logger.info(f"Generating MP4 with {len(frames)} frames for chat {chat_id}")

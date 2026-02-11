@@ -9,6 +9,7 @@ import logging
 import os
 import tempfile
 from io import BytesIO
+from pathlib import Path
 from typing import Tuple
 
 import ffmpeg
@@ -318,3 +319,63 @@ def save_frames_as_mp4(
         except ffmpeg.Error as e:
             logger.error(f"FFmpeg encoding failed: {e}")
             raise RuntimeError(f"Failed to encode MP4: {e}")
+
+
+def generate_tbc_frames(
+    base_frame: np.ndarray,
+    duration_frames: int = 20,
+    overlay_path: Path = Path("./assets/to_be_continued.png"),
+    max_width_percent: float = 0.30,
+) -> list[np.ndarray]:
+    """Generate "To Be Continued" padding frames.
+
+    Creates a sequence where the overlay slides in from the right side
+    of the screen, ending at the bottom-right corner.
+
+    Args:
+        base_frame: The final game frame to use as background
+        duration_frames: Number of frames to generate
+        overlay_path: Path to the "to_be_continued.png" asset
+        max_width_percent: Maximum width of overlay as percentage of frame width
+
+    Returns:
+        List of numpy arrays representing the animation frames
+    """
+    frames = []
+
+    if not overlay_path.exists():
+        logger.warning(f"TBC overlay not found at {overlay_path}")
+        return frames
+
+    try:
+        overlay = Image.open(overlay_path).convert("RGBA")
+        frame_width = base_frame.shape[1]
+        frame_height = base_frame.shape[0]
+
+        target_width = int(frame_width * max_width_percent)
+        aspect_ratio = overlay.height / overlay.width
+        target_height = int(target_width * aspect_ratio)
+
+        overlay = overlay.resize((target_width, target_height), Image.Resampling.LANCZOS)
+
+        start_x = frame_width
+        end_x = frame_width - target_width
+        start_y = frame_height
+        end_y = frame_height - target_height
+
+        for i in range(duration_frames):
+            progress = i / (duration_frames - 1) if duration_frames > 1 else 1.0
+            x = int(start_x + (end_x - start_x) * progress)
+            y = int(start_y + (end_y - start_y) * progress)
+
+            frame_image = Image.fromarray(base_frame, mode="RGB")
+            frame_image.paste(overlay, (x, y), overlay)
+
+            frame = np.array(frame_image)
+            frames.append(frame)
+
+    except Exception as e:
+        logger.error(f"Error generating TBC frames: {e}")
+        return []
+
+    return frames

@@ -1,0 +1,78 @@
+# version: '3.8'
+
+services:
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gbc-telegram-bot
+    restart: on-failure:5
+    
+    # Environment variables from host
+    environment:
+      # Required - must be set in host environment or .env file
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - WEBHOOK_URL=${WEBHOOK_URL}
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET}
+      
+      # Optional - use defaults if not set
+      - PORT=${PORT:-8000}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ROM_PATH=${ROM_PATH:-/app/roms/game.gbc}
+      - DATA_DIR=${DATA_DIR:-/app/data}
+      - INITIAL_SAVE_PATH=${INITIAL_SAVE_PATH:-/app/roms/initial.state}
+      - ALLOWED_CHAT_IDS=${ALLOWED_CHAT_IDS:-}
+      - INPUT_HOLD_FRAMES=${INPUT_HOLD_FRAMES:-10}
+      - ANIMATION_DURATION=${ANIMATION_DURATION:-5}
+      - ANIMATION_TICK_FRAMES=${ANIMATION_TICK_FRAMES:-60}
+      - SAVE_SLOTS=${SAVE_SLOTS:-5}
+      - MAX_SEQUENCE_LENGTH=${MAX_SEQUENCE_LENGTH:-6}
+      - SEQUENCE_DELAY_SECONDS=${SEQUENCE_DELAY_SECONDS:-1.0}
+      - SEQUENCE_BUILD_TIMEOUT=${SEQUENCE_BUILD_TIMEOUT:-10.0}
+      - MAX_RETRIES=${MAX_RETRIES:-3}
+      - RETRY_DELAY=${RETRY_DELAY:-1.0}
+      - RATE_LIMIT_PER_CHAT=${RATE_LIMIT_PER_CHAT:-1}
+      - RATE_LIMIT_PER_CHAT_WINDOW=${RATE_LIMIT_PER_CHAT_WINDOW:-1.0}
+      - RATE_LIMIT_GLOBAL=${RATE_LIMIT_GLOBAL:-30}
+      - RATE_LIMIT_GLOBAL_WINDOW=${RATE_LIMIT_GLOBAL_WINDOW:-1.0}
+      - WEB_CONCURRENCY=${WEB_CONCURRENCY:-2}
+    
+    # Port mapping
+    ports:
+      - "8000:8000"
+    
+    # Volume mounts for persistence
+    volumes:
+      # Data directory for saves, config, and polls (read-write)
+      - ./data:/app/data
+      # ROMs directory (read-write - saves .sav, .ram, .rtc files here)
+      - ./roms:/app/roms
+    
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

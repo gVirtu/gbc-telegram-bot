@@ -285,7 +285,7 @@ class WebhookHandler:
             """Health check endpoint."""
             return {
                 "status": "healthy",
-                "service": "pokemon-red-bot",
+                "service": "gbc-telegram-bot",
             }
         
         @app.post(settings.get_webhook_path())

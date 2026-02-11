@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  bot:
+    # Development-specific settings
+    # More verbose logging in development
+    environment:
+      - LOG_LEVEL=DEBUG
+    
+    # Don't restart automatically in development
+    restart: "no"

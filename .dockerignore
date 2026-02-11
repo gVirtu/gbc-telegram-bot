@@ -1,7 +1,10 @@
-.worktrees/
+# Git
+.git
+.gitignore
+.gitattributes
 
 # Python
-**/__pycache__/
+__pycache__/
 *.py[cod]
 *$py.class
 *.so
@@ -30,9 +33,11 @@ ENV/
 env/
 .venv
 
-# Environment Variables
+# Environment Variables - CRITICAL: Never include these
 .env
 .env.local
+.env.*.local
+.env.example
 
 # IDE
 .vscode/
@@ -43,30 +48,40 @@ env/
 
 # Testing
 .pytest_cache/
+.ruff_cache/
 .coverage
 htmlcov/
 .tox/
 
-# Data (keep directory, ignore contents)
+# Data directories (will be mounted as volumes)
 data/*
 !data/.gitkeep
 
-# ROM Files
-*.gbc
-*.gbc.zip
-*.gbc.ram
-*.gbc.rtc
-*.gb
-*.state
-*.sav
+# ROM files (will be mounted as volumes)
+roms/*
 
 # Logs
 *.log
 logs/
 
 # OS
-**/.DS_Store
+.DS_Store
 Thumbs.db
 
-# Docker
-docker-compose.override.yml
+# Documentation
+docs/
+README.md
+CLAUDE.md
+
+# CI/CD
+.github/
+
+# Worktrees
+.worktrees/
+
+# Mise
+mise.toml
+
+# AI
+.opencode/
+.claude/

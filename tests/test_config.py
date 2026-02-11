@@ -65,7 +65,6 @@ class TestOptionalSettingsDefaults:
     @pytest.fixture
     def valid_settings(self, tmp_path):
         """Create valid settings with temporary paths."""
-        # Create dummy ROM file
         rom_path = tmp_path / "game.gbc"
         rom_path.write_bytes(b"dummy rom data")
         
@@ -100,6 +99,10 @@ class TestOptionalSettingsDefaults:
     def test_save_slots_default(self, valid_settings):
         """Test save_slots defaults to 5."""
         assert valid_settings.save_slots == 5
+    
+    def test_tbc_duration_frames_default(self, valid_settings):
+        """Test tbc_duration_frames defaults to 20."""
+        assert valid_settings.tbc_duration_frames == 20
     
     def test_max_retries_default(self, valid_settings):
         """Test max_retries defaults to 3."""

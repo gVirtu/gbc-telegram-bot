@@ -139,7 +139,13 @@ class Settings(BaseSettings):
         ge=5.0,
         le=60.0,
     )
-    
+    max_queue_size: int = Field(
+        default=10,
+        description="Maximum number of items in the input queue",
+        ge=1,
+        le=50,
+    )
+
     # Telegram API settings
     max_retries: int = Field(
         default=3,

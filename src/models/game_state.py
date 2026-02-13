@@ -4,10 +4,15 @@ This module defines all data structures used throughout the application,
 including game state, chat configuration, and input tracking.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from src.models.input_queue import InputQueue
 
 
 class GameButton(str, Enum):
@@ -142,6 +147,7 @@ class ChatGameState:
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
     sequence_builder: Optional[SequenceBuilder] = None
+    input_queue: Optional[InputQueue] = None
     
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
@@ -157,11 +163,14 @@ class ChatGameState:
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
             "sequence_builder": self.sequence_builder.to_dict() if self.sequence_builder else None,
+            "input_queue": self.input_queue.to_dict() if self.input_queue else None,
         }
     
     @classmethod
     def from_dict(cls, data: dict) -> "ChatGameState":
         """Create instance from dictionary."""
+        from src.models.input_queue import InputQueue
+        
         return cls(
             chat_id=data["chat_id"],
             message_id=data.get("message_id"),
@@ -174,6 +183,7 @@ class ChatGameState:
             created_at=datetime.fromisoformat(data["created_at"]),
             updated_at=datetime.fromisoformat(data["updated_at"]),
             sequence_builder=SequenceBuilder.from_dict(data["sequence_builder"]) if data.get("sequence_builder") else None,
+            input_queue=InputQueue.from_dict(data["input_queue"]) if data.get("input_queue") else None,
         )
     
     def update_timestamp(self) -> None:

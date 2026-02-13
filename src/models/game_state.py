@@ -328,5 +328,5 @@ BUTTON_LAYOUT = [
     [GameButton.SELECT, GameButton.UP, GameButton.START],
     [GameButton.LEFT, GameButton.DOWN, GameButton.RIGHT],
     [GameButton.WAIT, GameButton.A, GameButton.B],
-    [GameButton.RUN, GameButton.SEQUENCE],
+    [GameButton.RUN],
 ]

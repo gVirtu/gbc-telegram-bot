@@ -42,7 +42,7 @@ class TestCreateInputKeyboard:
         assert len(keyboard.inline_keyboard) == 4
     
     def test_contains_all_buttons(self):
-        """Test all game buttons are present (except ENVIAR which is only in sequence mode)."""
+        """Test all game buttons are present (except SEQUENCE and ENVIAR which are deprecated)."""
         keyboard = create_input_keyboard()
 
         # Collect all buttons from keyboard
@@ -51,8 +51,8 @@ class TestCreateInputKeyboard:
             for button in row:
                 all_buttons.add(button.callback_data)
 
-        # Should have all buttons except ENVIAR (which is only shown during sequence building)
-        expected_buttons = {b.value for b in GameButton if b != GameButton.ENVIAR}
+        # Should have all buttons except SEQUENCE and ENVIAR (which are deprecated)
+        expected_buttons = {b.value for b in GameButton if b not in (GameButton.SEQUENCE, GameButton.ENVIAR)}
         assert all_buttons == expected_buttons
     
     def test_button_order(self):
@@ -75,10 +75,10 @@ class TestCreateInputKeyboard:
         assert keyboard.inline_keyboard[2][1].callback_data == "a"
         assert keyboard.inline_keyboard[2][2].callback_data == "b"
 
-        # Row 3: [RUN, SEQUENCE]
+        # Row 3: [RUN]
         row3 = keyboard.inline_keyboard[3]
         assert row3[0].callback_data == "run"
-        assert row3[1].callback_data == "sequence"
+        assert len(row3) == 1
 
 
 class TestCreateGameMessageText:
@@ -253,12 +253,14 @@ class TestCreateHelpText:
         assert "Como jogar" in text
     
     def test_contains_all_buttons(self):
-        """Test help text describes all buttons."""
+        """Test help text describes all active buttons (excluding deprecated SEQUENCE and ENVIAR)."""
         text = create_help_text()
-        
-        for button in GameButton:
+
+        # Only check active buttons (excluding deprecated SEQUENCE and ENVIAR)
+        active_buttons = [b for b in GameButton if b not in (GameButton.SEQUENCE, GameButton.ENVIAR)]
+        for button in active_buttons:
             assert button.emoji in text
-            
+
             if button not in [GameButton.UP, GameButton.DOWN, GameButton.LEFT, GameButton.RIGHT]:
                 assert button.display_name in text
     
@@ -270,8 +272,10 @@ class TestCreateHelpText:
         assert "/help" in text
     
     def test_button_descriptions_exist(self):
-        """Test all buttons have descriptions."""
-        for button in GameButton:
+        """Test all active buttons have descriptions (excluding deprecated SEQUENCE and ENVIAR)."""
+        # Only check active buttons (excluding deprecated SEQUENCE and ENVIAR)
+        active_buttons = [b for b in GameButton if b not in (GameButton.SEQUENCE, GameButton.ENVIAR)]
+        for button in active_buttons:
             assert button in BUTTON_DESCRIPTIONS
             assert len(BUTTON_DESCRIPTIONS[button]) > 0
 
@@ -280,8 +284,10 @@ class TestButtonDescriptions:
     """Test button description constants."""
     
     def test_all_buttons_have_descriptions(self):
-        """Test every GameButton has a description."""
-        for button in GameButton:
+        """Test every active GameButton has a description (excluding deprecated SEQUENCE and ENVIAR)."""
+        # Only check active buttons (excluding deprecated SEQUENCE and ENVIAR)
+        active_buttons = [b for b in GameButton if b not in (GameButton.SEQUENCE, GameButton.ENVIAR)]
+        for button in active_buttons:
             assert button in BUTTON_DESCRIPTIONS
             assert isinstance(BUTTON_DESCRIPTIONS[button], str)
     

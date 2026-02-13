@@ -166,10 +166,6 @@ class InputHandler:
                 logger.error(f"Error answering callback for chat {chat_id}: {e}")
             return
         
-        # Record the input immediately (for user tracking)
-        # This records a single button input for tracking purposes
-        self._record_user_input(session, user_id, user_name, [button])
-        
         # Save queue to session state
         session.state.input_queue = queue
         state_manager.save_game_state(session.state)
@@ -309,7 +305,11 @@ class InputHandler:
             item: QueueItem to process
         """
         controller = await game_controller_manager.get_or_create_controller(chat_id)
+        session = self._get_session(chat_id)
         buttons = item.buttons
+        
+        # Record the input for user tracking
+        self._record_user_input(session, item.user_id, item.user_name, buttons)
 
         # Check running mode
         config = state_manager.get_or_create_chat_config(chat_id)
@@ -357,7 +357,6 @@ class InputHandler:
                         frames.append(controller.get_frame().copy())
 
         # Continue animating after last button - synchronous frame generation
-        session = self._get_session(chat_id)
         recent = session.state.recent_inputs if session else []
         caption = create_game_message_text(recent_inputs=recent)
 

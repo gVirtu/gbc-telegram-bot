@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Optional
 
 from src.models.game_state import GameButton
+from src.config import settings
 
 
 @dataclass
@@ -91,6 +92,7 @@ class InputQueue:
     
     items: list[QueueItem] = field(default_factory=list)
     max_size: int = 10
+    max_sequence_length: int = settings.max_sequence_length
     
     def is_empty(self) -> bool:
         """Check if queue has no items."""
@@ -145,6 +147,8 @@ class InputQueue:
         
         # Check if we should extend the back item
         if self.items and self.items[-1].user_id == user_id:
+            if len(self.items[-1].buttons) >= self.max_sequence_length:
+                return False, "Você atingiu o tamanho máximo da sequência de botões!"
             self.items[-1].add_button(button)
             position = len(self.items)
             return True, f"Adicionado à sua sequência. (posição na fila: {position})"

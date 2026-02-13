@@ -20,7 +20,7 @@ class TestButtonEvents:
     def test_all_buttons_mapped(self):
         """Test that all GameButtons have event mappings (except meta-actions)."""
         # Meta-actions that don't correspond to physical GameBoy buttons
-        meta_actions = {GameButton.WAIT, GameButton.SEQUENCE, GameButton.ENVIAR, GameButton.RUN}
+        meta_actions = {GameButton.WAIT, GameButton.RUN, GameButton.SEQUENCE, GameButton.ENVIAR}
 
         for button in GameButton:
             if button in meta_actions:

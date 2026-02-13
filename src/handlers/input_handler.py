@@ -17,8 +17,6 @@ from src.keyboard import (
     create_input_keyboard,
     create_game_message_text,
     create_processing_keyboard,
-    create_sequence_building_keyboard,
-    create_processing_keyboard_for_sequence,
     get_button_from_callback,
     is_valid_button_callback,
 )
@@ -132,14 +130,11 @@ class InputHandler:
                 callback_query, session, chat_id, message_id
             )
         elif session.state.sequence_builder is not None:
-            # State: BUILDING_SEQUENCE
-            await self._handle_button_in_sequence_mode(
-                callback_query, session, button, user_id, user_name
-            )
-        elif button == GameButton.SEQUENCE:
-            # Transition: IDLE → BUILDING_SEQUENCE
-            await self._handle_sequence_button_press(
-                callback_query, session, chat_id, message_id, user_id, user_name
+            # State: BUILDING_SEQUENCE - disabled, clear it
+            session.state.sequence_builder = None
+            state_manager.save_game_state(session.state)
+            await self._handle_normal_button_press(
+                callback_query, session, chat_id, message_id, button, user_id, user_name
             )
         else:
             # State: IDLE (normal single button press)
@@ -369,7 +364,7 @@ class InputHandler:
 
         # Update keyboard
         await self._edit_message_keyboard(
-            chat_id, message_id, create_sequence_building_keyboard(running_mode)
+            chat_id, message_id, create_input_keyboard(running_mode=running_mode)
         )
 
         # Start timeout check
@@ -465,7 +460,7 @@ class InputHandler:
 
         # Update to processing state
         await self._edit_message_keyboard(
-            chat_id, message_id, create_processing_keyboard_for_sequence(buttons)
+            chat_id, message_id, create_processing_keyboard()
         )
         input_keyboard = create_input_keyboard(running_mode=running_mode)
 
@@ -479,6 +474,9 @@ class InputHandler:
 
         # Directional buttons that can use running mode
         directional_buttons = (GameButton.UP, GameButton.DOWN, GameButton.LEFT, GameButton.RIGHT)
+
+        # Capture current frame
+        frames.append(controller.get_frame().copy())
 
         # Execute each button with delays (synchronous, no real-time waiting)
         for i, button in enumerate(buttons):

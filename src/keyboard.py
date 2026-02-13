@@ -54,6 +54,7 @@ def create_input_keyboard(running_mode: bool = False) -> InlineKeyboardMarkup:
 def create_game_message_text(
     status: str = "",
     recent_inputs: list[dict] | None = None,
+    queue_length: int = 0,
 ) -> str:
     """Create the caption text for the game message.
 
@@ -69,7 +70,10 @@ def create_game_message_text(
         >>> "Processing: A..." in text
         True
     """
-    base_text = "Sua vez!"
+    if queue_length == 0:
+        base_text = "Sua vez!"
+    else:
+        base_text = f"{queue_length} input#{'s' if queue_length > 1 else ''} na fila."
 
     # Add recent inputs if available
     if recent_inputs:

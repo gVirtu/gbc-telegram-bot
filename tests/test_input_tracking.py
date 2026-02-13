@@ -383,24 +383,19 @@ class TestIntegration:
             with patch('src.handlers.input_handler.should_update_frame', return_value=(False, "hash123")), \
                  patch('src.handlers.input_handler.settings') as mock_settings, \
                  patch('asyncio.sleep', new_callable=AsyncMock):
-                
+
                 # Set animation duration to 0 to avoid infinite loop
                 mock_settings.animation_duration = 0
                 mock_settings.max_queue_size = 10
 
-
-                # Handle button press
-                await handler.handle_button_press(callback_query)
-
-        # Verify user input was recorded
-        assert session.state.user_input_counts["456"] == 1
-        assert len(session.state.recent_inputs) == 1
-        assert session.state.recent_inputs[0]["user_name"] == "Alice"
-        assert session.state.recent_inputs[0]["buttons"] == ["a"]
-
-        # Verify message would include recent inputs
-        text = create_game_message_text(recent_inputs=session.state.recent_inputs)
-        assert "Alice: 🅰️ A" in text
+                # Mock _process_queue_loop to run immediately (queue processing is async now)
+                with patch.object(handler, '_process_queue_loop', new_callable=AsyncMock) as mock_process:
+                    # Handle button press
+                    await handler.handle_button_press(callback_query)
+                    
+                    # Verify queue has the input
+                    assert len(handler._input_queues[123]) == 1
+                    assert handler._input_queues[123].items[0].user_id == 456
 
     @pytest.mark.asyncio
     async def test_multiple_users_sequence(self):

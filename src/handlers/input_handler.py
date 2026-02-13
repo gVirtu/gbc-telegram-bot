@@ -135,6 +135,14 @@ class InputHandler:
                 logger.error(f"Error processing input for chat {chat_id}: {e}")
             return
 
+        # Validate message is current
+        if session.state.message_id != message_id:
+            try:
+                await callback_query.answer("Esta mensagem está desatualizada. Use /resume para continuar.")
+            except Exception as e:
+                logger.error(f"Error processing input for chat {chat_id}: {e}")
+            return
+
         user_id = callback_query.from_user.id
         user_name = (
             callback_query.from_user.first_name or
@@ -670,6 +678,7 @@ class InputHandler:
         if chat_id in self._sessions:
             del self._sessions[chat_id]
             self._processing.discard(chat_id)
+            self._input_queues.pop(chat_id, None)
             
             # Stop the game controller
             game_controller_manager.remove_controller(chat_id)

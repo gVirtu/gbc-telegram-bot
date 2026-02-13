@@ -114,7 +114,7 @@ class TestButtonPressHandling:
     
     @pytest.mark.asyncio
     async def test_outdated_message(self, handler, mock_callback_query):
-        """Test button press on outdated message still adds to queue."""
+        """Test button press on outdated message is rejected."""
         with patch("src.handlers.input_handler.state_manager") as mock_state:
             # Create session with different message ID
             handler._sessions[123456] = GameSession(
@@ -126,10 +126,10 @@ class TestButtonPressHandling:
             
             await handler.handle_button_press(mock_callback_query)
             
-            # Queue-based system processes regardless of message ID
+            # Should reject with outdated message
             mock_callback_query.answer.assert_called_once()
             call_args = mock_callback_query.answer.call_args[0][0]
-            assert "Processing" in call_args or "Added" in call_args
+            assert "desatualizada" in call_args
     
     @pytest.mark.asyncio
     async def test_successful_button_press(self, handler, mock_callback_query):

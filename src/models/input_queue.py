@@ -141,13 +141,13 @@ class InputQueue:
         if self.is_full():
             # Check if we can extend the back item
             if not self.items or self.items[-1].user_id != user_id:
-                return False, "Queue full! Please wait for current inputs to finish."
+                return False, "Fila cheia! Por favor aguarde."
         
         # Check if we should extend the back item
         if self.items and self.items[-1].user_id == user_id:
             self.items[-1].add_button(button)
             position = len(self.items)
-            return True, f"Added to your sequence (queue position: {position})"
+            return True, f"Adicionado à sua sequência. (posição na fila: {position})"
         
         # Create new item
         new_item = QueueItem(
@@ -157,20 +157,20 @@ class InputQueue:
         )
         self.items.append(new_item)
         position = len(self.items)
-        return True, f"Added to queue (position: {position})"
+        return True, f"Adicionado à fila. (posição na fila: {position})"
     
     def get_queue_status(self) -> str:
         """Get a human-readable queue status."""
         if self.is_empty():
-            return "Queue empty"
+            return "Fila vazia"
         
         items_desc = []
         for i, item in enumerate(self.items, 1):
             button_count = len(item.buttons)
-            buttons_text = "1 button" if button_count == 1 else f"{button_count} buttons"
+            buttons_text = "1 botão" if button_count == 1 else f"{button_count} botões"
             items_desc.append(f"{i}. {item.user_name} ({buttons_text})")
         
-        return "Queue:\n" + "\n".join(items_desc)
+        return "Fila:\n" + "\n".join(items_desc)
     
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""

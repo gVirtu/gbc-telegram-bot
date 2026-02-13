@@ -110,7 +110,7 @@ class TestButtonPressHandling:
             # Queue-based system should add to queue, not reject
             mock_callback_query.answer.assert_called_once()
             call_args = mock_callback_query.answer.call_args[0][0]
-            assert "Added to queue" in call_args or "Added to your sequence" in call_args
+            assert "Adicionado à fila" in call_args or "Adicionado à sua sequência" in call_args
     
     @pytest.mark.asyncio
     async def test_outdated_message(self, handler, mock_callback_query):

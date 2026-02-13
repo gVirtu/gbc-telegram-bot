@@ -125,22 +125,6 @@ def create_disabled_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(keyboard)
 
 
-def create_processing_keyboard(button: GameButton) -> InlineKeyboardMarkup:
-    """Create a keyboard showing processing state.
-
-    Args:
-        button: The button being processed
-
-    Returns:
-        InlineKeyboardMarkup showing processing state
-    """
-    keyboard = [
-        [InlineKeyboardButton(f"Processando: {button.display_name}...", callback_data="processing")]
-    ]
-
-    return InlineKeyboardMarkup(keyboard)
-
-
 def remove_keyboard() -> None:
     """Remove the keyboard entirely.
     

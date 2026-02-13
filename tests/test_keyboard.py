@@ -10,7 +10,6 @@ from src.keyboard import (
     create_input_keyboard,
     create_game_message_text,
     create_disabled_keyboard,
-    create_processing_keyboard,
     remove_keyboard,
     create_save_slot_keyboard,
     create_confirmation_keyboard,
@@ -123,25 +122,6 @@ class TestCreateDisabledKeyboard:
             for button in row:
                 assert button.callback_data == "disabled"
                 assert "❌" in button.text
-
-
-class TestCreateProcessingKeyboard:
-    """Test processing keyboard creation."""
-    
-    def test_single_button(self):
-        """Test processing keyboard has one button."""
-        keyboard = create_processing_keyboard(GameButton.A)
-        
-        assert len(keyboard.inline_keyboard) == 1
-        assert len(keyboard.inline_keyboard[0]) == 1
-    
-    def test_shows_button_name(self):
-        """Test button shows processing text."""
-        keyboard = create_processing_keyboard(GameButton.START)
-        
-        button = keyboard.inline_keyboard[0][0]
-        assert "Processando: Start" in button.text
-        assert button.callback_data == "processing"
 
 
 class TestRemoveKeyboard:

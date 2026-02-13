@@ -16,7 +16,6 @@ from src.game import GameController, game_controller_manager
 from src.keyboard import (
     create_input_keyboard,
     create_game_message_text,
-    create_processing_keyboard,
     get_button_from_callback,
     is_valid_button_callback,
 )
@@ -316,11 +315,6 @@ class InputHandler:
         config = state_manager.get_or_create_chat_config(chat_id)
         running_mode = config.running_mode if config else False
 
-        # Update to processing state (show first button being processed)
-        first_button = buttons[0] if buttons else GameButton.A
-        await self._edit_message_keyboard(
-            chat_id, message_id, create_processing_keyboard(button=first_button)
-        )
         input_keyboard = create_input_keyboard(running_mode=running_mode)
 
         logger.info(f"Executing sequence of {len(buttons)} buttons for chat {chat_id} (running_mode={running_mode})")

@@ -173,11 +173,11 @@ class InputHandler:
         # Check if we should start processing
         if not self._is_processing(chat_id):
             try:
-                await callback_query.answer(f"Processing: {button.display_name}")
+                await callback_query.answer(f"Processando: {button.display_name}")
                 asyncio.create_task(self._process_queue_loop(chat_id, message_id))
             except Exception as e:
                 logger.error(f"Error starting queue processing for chat {chat_id}: {e}")
-                await self._send_error_message(chat_id, "Error starting input processing.")
+                await self._send_error_message(chat_id, "Erro ao processar inputs! Tente de novo depois.")
         else:
             try:
                 await callback_query.answer(message)
@@ -304,6 +304,7 @@ class InputHandler:
             message_id: Message ID to edit
             item: QueueItem to process
         """
+        queue = self._get_or_create_queue(chat_id)
         controller = await game_controller_manager.get_or_create_controller(chat_id)
         session = self._get_session(chat_id)
         buttons = item.buttons
@@ -357,9 +358,6 @@ class InputHandler:
                         frames.append(controller.get_frame().copy())
 
         # Continue animating after last button - synchronous frame generation
-        recent = session.state.recent_inputs if session else []
-        caption = create_game_message_text(recent_inputs=recent)
-
         animation_frames = int(settings.animation_duration * game_fps)
         for frame_num in range(animation_frames):
             controller.tick(1)
@@ -374,6 +372,9 @@ class InputHandler:
             max_width_percent=0.7
         )
         frames.extend(tbc_frames)
+        
+        recent = session.state.recent_inputs if session else []
+        caption = create_game_message_text(recent_inputs=recent, queue_length=len(queue))
 
         # Generate and send MP4
         if frames:
@@ -509,6 +510,8 @@ class InputHandler:
         
         config = state_manager.get_or_create_chat_config(chat_id)
         running_mode = config.running_mode if config else False
+
+        queue = self._get_or_create_queue(chat_id)
         
         # Send initial message
 
@@ -516,7 +519,7 @@ class InputHandler:
         message = await self.bot.send_photo(
             chat_id=chat_id,
             photo=png_buffer,
-            caption=create_game_message_text(recent_inputs=recent),
+            caption=create_game_message_text(recent_inputs=recent, queue_length=len(queue)),
             reply_markup=create_input_keyboard(running_mode=running_mode),
             parse_mode="Markdown",
         )
@@ -550,11 +553,13 @@ class InputHandler:
         config = state_manager.get_or_create_chat_config(chat_id)
         running_mode = config.running_mode if config else False
         
+        queue = self._get_or_create_queue(chat_id)
+        
         # Get current frame
         frame = controller.get_frame()
         png_buffer = controller.get_frame_as_png()
         recent = session.state.recent_inputs if session else []
-        caption = create_game_message_text(recent_inputs=recent)
+        caption = create_game_message_text(recent_inputs=recent, queue_length=len(queue))
         
         if session and session.state.message_id and not session.state.input_in_progress:
             # Edit existing message
@@ -606,13 +611,14 @@ class InputHandler:
         """
         session = self._get_session(chat_id)
         controller = game_controller_manager.get_controller(chat_id)
+        queue = self._get_or_create_queue(chat_id)
 
         if not controller or not controller.is_initialized():
             return None
 
         config = state_manager.get_or_create_chat_config(chat_id)
         running_mode = config.running_mode if config else False
-
+        
         # Get current frame
         png_buffer = controller.get_frame_as_png()
 
@@ -632,7 +638,7 @@ class InputHandler:
         message = await self.bot.send_photo(
             chat_id=chat_id,
             photo=png_buffer,
-            caption=create_game_message_text(recent_inputs=recent),
+            caption=create_game_message_text(recent_inputs=recent, queue_length=len(queue)),
             reply_markup=create_input_keyboard(running_mode=running_mode),
             parse_mode="Markdown",
         )

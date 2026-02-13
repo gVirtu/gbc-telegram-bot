@@ -145,7 +145,7 @@ class TestButtonPressHandling:
                 await handler.handle_button_press(mock_callback_query)
                 
                 # Should acknowledge with button name
-                mock_callback_query.answer.assert_called_once_with("Processing: A")
+                mock_callback_query.answer.assert_called_once_with("Processando: A")
                 
                 # Should create a task for queue processing
                 mock_create_task.assert_called_once()

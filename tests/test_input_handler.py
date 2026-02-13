@@ -94,62 +94,65 @@ class TestButtonPressHandling:
     
     @pytest.mark.asyncio
     async def test_input_already_in_progress(self, handler, mock_callback_query):
-        """Test button press while input already processing."""
-        # Add to processing set
-        handler._processing.add(123456)
-        
-        # Create a session
-        handler._sessions[123456] = GameSession(
-            chat_id=123456,
-            state=ChatGameState(chat_id=123456, message_id=789)
-        )
-        
-        await handler.handle_button_press(mock_callback_query)
-        
-        mock_callback_query.answer.assert_called_once_with(
-            "Input já está em progresso! Por favor aguarde."
-        )
-    
-    @pytest.mark.asyncio
-    async def test_outdated_message(self, handler, mock_callback_query):
-        """Test button press on outdated message."""
-        # Create session with different message ID
-        handler._sessions[123456] = GameSession(
-            chat_id=123456,
-            state=ChatGameState(chat_id=123456, message_id=999)
-        )
-        
-        mock_callback_query.message.message_id = 789
-        
-        await handler.handle_button_press(mock_callback_query)
-        
-        mock_callback_query.answer.assert_called_once_with(
-            "Esta mensagem está desatualizada. Use /resume para continuar."
-        )
-    
-    @pytest.mark.asyncio
-    async def test_successful_button_press(self, handler, mock_callback_query):
-        """Test successful button press."""
+        """Test button press while input already processing adds to queue."""
         with patch("src.handlers.input_handler.state_manager") as mock_state:
-            # Create session
+            # Add to processing set
+            handler._processing.add(123456)
+            
+            # Create a session
             handler._sessions[123456] = GameSession(
                 chat_id=123456,
                 state=ChatGameState(chat_id=123456, message_id=789)
             )
             
-            # Mock the processing method
-            handler._process_sequence = AsyncMock()
+            await handler.handle_button_press(mock_callback_query)
+            
+            # Queue-based system should add to queue, not reject
+            mock_callback_query.answer.assert_called_once()
+            call_args = mock_callback_query.answer.call_args[0][0]
+            assert "Added to queue" in call_args or "Added to your sequence" in call_args
+    
+    @pytest.mark.asyncio
+    async def test_outdated_message(self, handler, mock_callback_query):
+        """Test button press on outdated message still adds to queue."""
+        with patch("src.handlers.input_handler.state_manager") as mock_state:
+            # Create session with different message ID
+            handler._sessions[123456] = GameSession(
+                chat_id=123456,
+                state=ChatGameState(chat_id=123456, message_id=999)
+            )
+            
+            mock_callback_query.message.message_id = 789
             
             await handler.handle_button_press(mock_callback_query)
             
-            # Should acknowledge with button name
-            mock_callback_query.answer.assert_called_once_with("Processando: A")
-            
-            # Should process the input
-            handler._process_sequence.assert_called_once_with(123456, [GameButton.A], 789)
-            
-            # Should be marked as processing during execution
-            assert 123456 not in handler._processing  # Should be cleaned up
+            # Queue-based system processes regardless of message ID
+            mock_callback_query.answer.assert_called_once()
+            call_args = mock_callback_query.answer.call_args[0][0]
+            assert "Processing" in call_args or "Added" in call_args
+    
+    @pytest.mark.asyncio
+    async def test_successful_button_press(self, handler, mock_callback_query):
+        """Test successful button press creates queue task."""
+        with patch("src.handlers.input_handler.state_manager") as mock_state:
+            with patch("src.handlers.input_handler.asyncio.create_task") as mock_create_task:
+                # Create session
+                handler._sessions[123456] = GameSession(
+                    chat_id=123456,
+                    state=ChatGameState(chat_id=123456, message_id=789)
+                )
+                
+                await handler.handle_button_press(mock_callback_query)
+                
+                # Should acknowledge with button name
+                mock_callback_query.answer.assert_called_once_with("Processing: A")
+                
+                # Should create a task for queue processing
+                mock_create_task.assert_called_once()
+                
+                # Verify queue was populated
+                assert 123456 in handler._input_queues
+                assert not handler._input_queues[123456].is_empty()
 
 
 class TestStartGame:

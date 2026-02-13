@@ -44,174 +44,146 @@ class TestInputLocking:
         )
 
     @pytest.mark.asyncio
-    async def test_concurrent_inputs_rejected(self, handler, session, chat_id):
-        """Test that concurrent inputs to same chat are rejected.
+    async def test_concurrent_inputs_queued(self, handler, session, chat_id):
+        """Test that concurrent inputs to same chat are queued.
         
         When input is being processed, subsequent inputs should be
-        rejected until the first completes.
+        added to the queue for sequential processing.
         """
-        # Setup session
-        handler._sessions[chat_id] = session
-        
-        # Mock the processing to be slow
-        async def slow_process(*args, **kwargs):
-            await asyncio.sleep(0.1)
-        
-        handler._process_sequence = AsyncMock(side_effect=slow_process)
-        
-        # Create two callback queries
-        cq1 = MagicMock()
-        cq1.message.chat.id = chat_id
-        cq1.message.message_id = 789
-        cq1.data = "a"
-        cq1.from_user.id = 1001
-        cq1.from_user.first_name = "User1"
-        cq1.from_user.username = "user1"
-        cq1.answer = AsyncMock()
+        with patch("src.handlers.input_handler.state_manager"):
+            # Setup session
+            handler._sessions[chat_id] = session
+            
+            # Create two callback queries from different users
+            cq1 = MagicMock()
+            cq1.message.chat.id = chat_id
+            cq1.message.message_id = 789
+            cq1.data = "a"
+            cq1.from_user.id = 1001
+            cq1.from_user.first_name = "User1"
+            cq1.from_user.username = "user1"
+            cq1.answer = AsyncMock()
 
-        cq2 = MagicMock()
-        cq2.message.chat.id = chat_id
-        cq2.message.message_id = 789
-        cq2.data = "b"
-        cq2.from_user.id = 1002
-        cq2.from_user.first_name = "User2"
-        cq2.from_user.username = "user2"
-        cq2.answer = AsyncMock()
-        
-        # Fire both at the same time
-        task1 = asyncio.create_task(handler.handle_button_press(cq1))
-        task2 = asyncio.create_task(handler.handle_button_press(cq2))
-        
-        # Wait for both to complete
-        await asyncio.gather(task1, task2, return_exceptions=True)
-        
-        # One should be processing, one should be rejected
-        processing_calls = handler._process_sequence.call_count
-        
-        # Either first processed and second rejected, or vice versa
-        assert processing_calls == 1, "Only one input should be processed"
+            cq2 = MagicMock()
+            cq2.message.chat.id = chat_id
+            cq2.message.message_id = 789
+            cq2.data = "b"
+            cq2.from_user.id = 1002
+            cq2.from_user.first_name = "User2"
+            cq2.from_user.username = "user2"
+            cq2.answer = AsyncMock()
+            
+            # Fire both at the same time
+            await handler.handle_button_press(cq1)
+            await handler.handle_button_press(cq2)
+            
+            # Both inputs should be acknowledged
+            assert cq1.answer.called, "First input should be acknowledged"
+            assert cq2.answer.called, "Second input should be acknowledged"
+            # Queue should be created with items from both users
+            assert chat_id in handler._input_queues, "Queue should be created"
 
     @pytest.mark.asyncio
-    async def test_lock_released_after_completion(self, handler, session, chat_id):
-        """Test that lock is released after input processing completes.
+    async def test_processing_cleared_after_completion(self, handler, session, chat_id):
+        """Test that processing flag is set during input handling.
         
-        After processing finishes, new inputs should be accepted.
+        The processing flag is set by the queue loop when it starts processing.
         """
-        handler._sessions[chat_id] = session
-        
-        # Fast processing
-        handler._process_sequence = AsyncMock()
-        
-        cq1 = MagicMock()
-        cq1.message.chat.id = chat_id
-        cq1.message.message_id = 789
-        cq1.data = "a"
-        cq1.from_user.id = 1001
-        cq1.from_user.first_name = "User1"
-        cq1.from_user.username = "user1"
-        cq1.answer = AsyncMock()
+        with patch("src.handlers.input_handler.state_manager"):
+            handler._sessions[chat_id] = session
+            
+            cq1 = MagicMock()
+            cq1.message.chat.id = chat_id
+            cq1.message.message_id = 789
+            cq1.data = "a"
+            cq1.from_user.id = 1001
+            cq1.from_user.first_name = "User1"
+            cq1.from_user.username = "user1"
+            cq1.answer = AsyncMock()
 
-        cq2 = MagicMock()
-        cq2.message.chat.id = chat_id
-        cq2.message.message_id = 789
-        cq2.data = "b"
-        cq2.from_user.id = 1002
-        cq2.from_user.first_name = "User2"
-        cq2.from_user.username = "user2"
-        cq2.answer = AsyncMock()
-
-        # Process first input
-        await handler.handle_button_press(cq1)
-        assert chat_id not in handler._processing, "Lock should be released"
-        
-        # Process second input
-        await handler.handle_button_press(cq2)
-        assert handler._process_sequence.call_count == 2, "Both inputs should be processed"
+            # Process first input
+            await handler.handle_button_press(cq1)
+            
+            # Queue should be created
+            assert chat_id in handler._input_queues, "Queue should be created"
+            # Input should be acknowledged as processing
+            cq1.answer.assert_called_once_with("Processing: A")
 
     @pytest.mark.asyncio
-    async def test_lock_released_on_exception(self, handler, session, chat_id):
-        """Test that lock is released even if processing raises exception.
+    async def test_queue_item_created_on_input(self, handler, session, chat_id):
+        """Test that queue item is created when input is received.
         
-        Lock should always be released to prevent deadlock.
+        When a button press is received, it should be added to the queue.
         """
-        handler._sessions[chat_id] = session
-        
-        # Processing that raises exception
-        async def failing_process(*args, **kwargs):
-            raise ValueError("Test error")
-        
-        handler._process_sequence = AsyncMock(side_effect=failing_process)
-        handler._send_error_message = AsyncMock()
-        
-        cq = MagicMock()
-        cq.message.chat.id = chat_id
-        cq.message.message_id = 789
-        cq.data = "a"
-        cq.from_user.id = 1001
-        cq.from_user.first_name = "User1"
-        cq.from_user.username = "user1"
-        cq.answer = AsyncMock()
+        with patch("src.handlers.input_handler.state_manager"):
+            handler._sessions[chat_id] = session
+            
+            cq = MagicMock()
+            cq.message.chat.id = chat_id
+            cq.message.message_id = 789
+            cq.data = "a"
+            cq.from_user.id = 1001
+            cq.from_user.first_name = "User1"
+            cq.from_user.username = "user1"
+            cq.answer = AsyncMock()
 
-        # Process (will raise)
-        await handler.handle_button_press(cq)
-        
-        # Lock should still be released
-        assert chat_id not in handler._processing, "Lock must be released even on error"
+            # Process input
+            await handler.handle_button_press(cq)
+            
+            # Queue should be created with one item
+            assert chat_id in handler._input_queues, "Queue should be created"
+            # Input should be acknowledged
+            assert cq.answer.called, "Input should be acknowledged"
 
     @pytest.mark.asyncio
-    async def test_different_chats_can_process_concurrently(self, handler):
-        """Test that different chats can process inputs simultaneously.
+    async def test_different_chats_have_independent_queues(self, handler):
+        """Test that different chats have independent queues.
         
-        The lock is per-chat, not global.
+        Each chat has its own queue and can receive inputs independently.
         """
-        chat_id1 = 111
-        chat_id2 = 222
-        
-        handler._sessions[chat_id1] = GameSession(
-            chat_id=chat_id1,
-            state=ChatGameState(chat_id=chat_id1, message_id=100)
-        )
-        handler._sessions[chat_id2] = GameSession(
-            chat_id=chat_id2,
-            state=ChatGameState(chat_id=chat_id2, message_id=200)
-        )
-        
-        processing_started = []
-        
-        async def record_and_delay(*args, **kwargs):
-            chat = args[0]  # First arg is chat_id
-            processing_started.append(chat)
-            await asyncio.sleep(0.05)
-        
-        handler._process_sequence = AsyncMock(side_effect=record_and_delay)
-        
-        cq1 = MagicMock()
-        cq1.message.chat.id = chat_id1
-        cq1.message.message_id = 100
-        cq1.data = "a"
-        cq1.from_user.id = 1001
-        cq1.from_user.first_name = "User1"
-        cq1.from_user.username = "user1"
-        cq1.answer = AsyncMock()
+        with patch("src.handlers.input_handler.state_manager"):
+            chat_id1 = 111
+            chat_id2 = 222
+            
+            handler._sessions[chat_id1] = GameSession(
+                chat_id=chat_id1,
+                state=ChatGameState(chat_id=chat_id1, message_id=100)
+            )
+            handler._sessions[chat_id2] = GameSession(
+                chat_id=chat_id2,
+                state=ChatGameState(chat_id=chat_id2, message_id=200)
+            )
+            
+            cq1 = MagicMock()
+            cq1.message.chat.id = chat_id1
+            cq1.message.message_id = 100
+            cq1.data = "a"
+            cq1.from_user.id = 1001
+            cq1.from_user.first_name = "User1"
+            cq1.from_user.username = "user1"
+            cq1.answer = AsyncMock()
 
-        cq2 = MagicMock()
-        cq2.message.chat.id = chat_id2
-        cq2.message.message_id = 200
-        cq2.data = "b"
-        cq2.from_user.id = 1002
-        cq2.from_user.first_name = "User2"
-        cq2.from_user.username = "user2"
-        cq2.answer = AsyncMock()
-        
-        # Start both concurrently
-        task1 = asyncio.create_task(handler.handle_button_press(cq1))
-        task2 = asyncio.create_task(handler.handle_button_press(cq2))
-        
-        await asyncio.gather(task1, task2)
-        
-        # Both should have started processing (not blocked by each other)
-        assert chat_id1 in processing_started
-        assert chat_id2 in processing_started
+            cq2 = MagicMock()
+            cq2.message.chat.id = chat_id2
+            cq2.message.message_id = 200
+            cq2.data = "b"
+            cq2.from_user.id = 1002
+            cq2.from_user.first_name = "User2"
+            cq2.from_user.username = "user2"
+            cq2.answer = AsyncMock()
+            
+            # Start both concurrently
+            task1 = asyncio.create_task(handler.handle_button_press(cq1))
+            task2 = asyncio.create_task(handler.handle_button_press(cq2))
+            
+            await asyncio.gather(task1, task2)
+            
+            # Both should have their own queues created
+            assert chat_id1 in handler._input_queues, "Chat 1 should have a queue"
+            assert chat_id2 in handler._input_queues, "Chat 2 should have a queue"
+            # Both inputs should be acknowledged
+            assert cq1.answer.called, "Chat 1 input should be acknowledged"
+            assert cq2.answer.called, "Chat 2 input should be acknowledged"
 
 
 class TestGameControllerManagerConcurrency:

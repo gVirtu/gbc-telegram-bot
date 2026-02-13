@@ -386,6 +386,7 @@ class TestIntegration:
                 
                 # Set animation duration to 0 to avoid infinite loop
                 mock_settings.animation_duration = 0
+                mock_settings.max_queue_size = 10
 
 
                 # Handle button press

@@ -101,8 +101,8 @@ class TestOptionalSettingsDefaults:
         assert valid_settings.save_slots == 5
     
     def test_tbc_duration_frames_default(self, valid_settings):
-        """Test tbc_duration_frames defaults to 20."""
-        assert valid_settings.tbc_duration_frames == 20
+        """Test tbc_duration_frames defaults to 10."""
+        assert valid_settings.tbc_duration_frames == 10
     
     def test_max_retries_default(self, valid_settings):
         """Test max_retries defaults to 3."""

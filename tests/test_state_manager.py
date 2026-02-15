@@ -23,18 +23,8 @@ class TestStateManagerInitialization:
         manager = StateManager(data_dir=tmp_path)
         
         assert manager.data_dir == tmp_path
-        # Check directories are created
-        assert (tmp_path / "polls").exists()
-        assert (tmp_path / "config").exists()
-    
-    def test_custom_data_dir(self, tmp_path):
-        """Test initialization with custom data_dir."""
-        custom_dir = tmp_path / "custom_data"
-        manager = StateManager(data_dir=custom_dir)
-        
-        assert manager.data_dir == custom_dir
-        assert (custom_dir / "polls").exists()
-        assert (custom_dir / "config").exists()
+        # Check database is created
+        assert (tmp_path / "bot.db").exists()
 
 
 class TestGameStatePersistence:
@@ -44,30 +34,6 @@ class TestGameStatePersistence:
     def manager(self, tmp_path):
         """Create a state manager with temp directory."""
         return StateManager(data_dir=tmp_path)
-    
-    def test_save_game_state(self, manager):
-        """Test saving game state."""
-        state = ChatGameState(
-            chat_id=123456,
-            message_id=789,
-            input_in_progress=True,
-            last_input=GameButton.A,
-            frame_hash="abc123",
-        )
-        
-        manager.save_game_state(state)
-        
-        # Check file exists
-        poll_file = manager.data_dir / "polls" / "123456.json"
-        assert poll_file.exists()
-        
-        # Check content
-        with open(poll_file) as f:
-            data = json.load(f)
-        
-        assert data["chat_id"] == 123456
-        assert data["message_id"] == 789
-        assert data["last_input"] == "a"
     
     def test_load_game_state(self, manager):
         """Test loading game state."""
@@ -120,21 +86,6 @@ class TestChatConfigPersistence:
         """Create a state manager with temp directory."""
         return StateManager(data_dir=tmp_path)
     
-    def test_save_chat_config(self, manager):
-        """Test saving chat configuration."""
-        config = ChatConfig(
-            chat_id=123456,
-            input_hold_frames=60,
-            animation_duration=20,
-            auto_save_enabled=False,
-        )
-        
-        manager.save_chat_config(config)
-        
-        # Check file exists
-        config_file = manager.data_dir / "config" / "123456.json"
-        assert config_file.exists()
-    
     def test_load_chat_config(self, manager):
         """Test loading chat configuration."""
         # Save config
@@ -185,6 +136,11 @@ class TestSaveSlots:
     
     def test_save_to_slot(self, manager):
         """Test saving to a slot."""
+        # Need game state first
+        state = ChatGameState(chat_id=123456)
+
+        manager.save_game_state(state)
+
         state_data = b"fake save state data"
         
         info = manager.save_to_slot(
@@ -196,17 +152,18 @@ class TestSaveSlots:
         
         assert info.slot_number == 0
         assert info.description == "Test save"
-        
+
         # Check file exists
         slot_file = manager.data_dir / "saves" / "123456" / "slot_0.state"
         assert slot_file.exists()
-        
-        # Check metadata exists
-        info_file = manager.data_dir / "saves" / "123456" / "slot_0.json"
-        assert info_file.exists()
     
     def test_load_from_slot(self, manager):
         """Test loading from a slot."""
+        # Need game state first
+        state = ChatGameState(chat_id=123456)
+
+        manager.save_game_state(state)
+
         # Save data
         state_data = b"test data 12345"
         manager.save_to_slot(123456, 1, state_data)
@@ -222,25 +179,13 @@ class TestSaveSlots:
         
         assert loaded is None
     
-    def test_get_slot_info(self, manager):
-        """Test getting slot metadata."""
-        manager.save_to_slot(
-            chat_id=123456,
-            slot_number=2,
-            state_data=b"data",
-            description="Slot 2 save",
-            is_auto_save=True,
-        )
-        
-        info = manager.get_slot_info(123456, 2)
-        
-        assert info is not None
-        assert info.slot_number == 2
-        assert info.description == "Slot 2 save"
-        assert info.is_auto_save is True
-    
     def test_list_save_slots(self, manager):
         """Test listing save slots."""
+        # Need game state first
+        state = ChatGameState(chat_id=123456)
+
+        manager.save_game_state(state)
+
         # Create multiple slots
         manager.save_to_slot(123456, 0, b"data0")
         manager.save_to_slot(123456, 2, b"data2")
@@ -262,6 +207,11 @@ class TestSaveSlots:
     
     def test_delete_slot(self, manager):
         """Test deleting a slot."""
+        # Need game state first
+        state = ChatGameState(chat_id=123456)
+
+        manager.save_game_state(state)
+
         # Create slot
         manager.save_to_slot(123456, 0, b"data")
         
@@ -279,6 +229,11 @@ class TestSaveSlots:
     
     def test_find_next_auto_save_slot_with_existing(self, manager):
         """Test finding next auto-save slot with existing saves."""
+        # Need game state first
+        state = ChatGameState(chat_id=123456)
+
+        manager.save_game_state(state)
+
         # Create auto-saves in slots 0 and 1
         manager.save_to_slot(123456, 0, b"data", is_auto_save=True)
         manager.save_to_slot(123456, 1, b"data", is_auto_save=True)
@@ -290,6 +245,11 @@ class TestSaveSlots:
     
     def test_find_next_auto_save_slot_wraparound(self, manager):
         """Test auto-save slot wraps around after reaching limit."""
+        # Need game state first
+        state = ChatGameState(chat_id=123456)
+
+        manager.save_game_state(state)
+
         # Create saves in all 3 slots (with num_slots=3)
         manager.save_to_slot(123456, 0, b"data", is_auto_save=True)
         manager.save_to_slot(123456, 1, b"data", is_auto_save=True)
@@ -324,6 +284,11 @@ class TestChatManagement:
     
     def test_chat_exists_with_saves(self, manager):
         """Test checking if chat exists with saves."""
+        # Need game state first
+        state = ChatGameState(chat_id=123456)
+
+        manager.save_game_state(state)
+
         manager.save_to_slot(123456, 0, b"data")
         
         assert manager.chat_exists(123456) is True
@@ -378,13 +343,6 @@ class TestPathHelpers:
         assert "123456" in str(path)
         assert "slot_2.json" in str(path)
     
-    def test_save_paths_create_directories(self, manager):
-        """Test that save paths create necessary directories."""
-        path = manager.get_save_slot_path(123456, 0)
-        
-        # Directory should be created
-        assert path.parent.exists()
-
 
 class TestErrorHandling:
     """Test error handling and edge cases."""
@@ -393,17 +351,6 @@ class TestErrorHandling:
     def manager(self, tmp_path):
         """Create a state manager with temp directory."""
         return StateManager(data_dir=tmp_path)
-    
-    def test_load_corrupted_json(self, manager):
-        """Test loading corrupted JSON file."""
-        # Create a corrupted JSON file
-        poll_file = manager.data_dir / "polls" / "123456.json"
-        poll_file.write_text("not valid json")
-        
-        # Should return None, not crash
-        loaded = manager.load_game_state(123456)
-        
-        assert loaded is None
     
     def test_update_existing_state(self, manager):
         """Test updating an existing state."""

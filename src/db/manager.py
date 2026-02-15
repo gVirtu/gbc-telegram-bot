@@ -345,3 +345,201 @@ class DatabaseManager:
         queue = InputQueue()
         queue.items = items
         return queue
+    
+    # ==================== Save Slots ====================
+    
+    def save_to_slot(
+        self,
+        chat_id: int,
+        slot_number: int,
+        state_data: bytes,
+        state_file_path: Path,
+        description: Optional[str] = None,
+        is_auto_save: bool = False,
+    ) -> SaveSlotInfo:
+        """Save game state to a specific slot.
+        
+        Args:
+            chat_id: The Telegram chat ID
+            slot_number: The slot number to save to
+            state_data: The raw save state bytes from PyBoy
+            state_file_path: Path where to save the binary state file
+            description: Optional description of the save
+            is_auto_save: Whether this is an auto-save
+            
+        Returns:
+            SaveSlotInfo with metadata about the save
+        """
+        # Ensure parent directory exists
+        state_file_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Save binary state data to file
+        with open(state_file_path, "wb") as f:
+            f.write(state_data)
+        
+        # Save metadata to database
+        now = datetime.utcnow()
+        sql = """
+        INSERT INTO save_slots 
+            (chat_id, slot_number, is_auto_save, description, created_at, updated_at, state_file_path)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(chat_id, slot_number) DO UPDATE SET
+            is_auto_save = excluded.is_auto_save,
+            description = excluded.description,
+            updated_at = excluded.updated_at,
+            state_file_path = excluded.state_file_path;
+        """
+        
+        self.connection.execute(sql, (
+            chat_id, slot_number, 1 if is_auto_save else 0, description,
+            now.isoformat(), now.isoformat(), str(state_file_path)
+        ))
+        self.connection.commit()
+        
+        info = SaveSlotInfo(
+            slot_number=slot_number,
+            created_at=now,
+            updated_at=now,
+            is_auto_save=is_auto_save,
+            description=description
+        )
+        
+        logger.info(f"Saved state to slot {slot_number} for chat {chat_id}")
+        return info
+    
+    def load_from_slot(self, chat_id: int, slot_number: int) -> Optional[bytes]:
+        """Load game state from a specific slot.
+        
+        Args:
+            chat_id: The Telegram chat ID
+            slot_number: The slot number to load from
+            
+        Returns:
+            The raw save state bytes, or None if slot doesn't exist
+        """
+        sql = "SELECT state_file_path FROM save_slots WHERE chat_id = ? AND slot_number = ?;"
+        cursor = self.connection.execute(sql, (chat_id, slot_number))
+        row = cursor.fetchone()
+        
+        if row is None:
+            return None
+        
+        state_file_path = Path(row['state_file_path'])
+        
+        if not state_file_path.exists():
+            logger.error(f"State file missing for chat {chat_id}, slot {slot_number}")
+            return None
+        
+        try:
+            with open(state_file_path, "rb") as f:
+                data = f.read()
+            logger.info(f"Loaded state from slot {slot_number} for chat {chat_id}")
+            return data
+        except Exception as e:
+            logger.error(f"Failed to load state from slot {slot_number} for chat {chat_id}: {e}")
+            return None
+    
+    def get_slot_info(self, chat_id: int, slot_number: int) -> Optional[SaveSlotInfo]:
+        """Get metadata for a save slot.
+        
+        Args:
+            chat_id: The Telegram chat ID
+            slot_number: The slot number
+            
+        Returns:
+            SaveSlotInfo if slot exists, None otherwise
+        """
+        sql = "SELECT * FROM save_slots WHERE chat_id = ? AND slot_number = ?;"
+        cursor = self.connection.execute(sql, (chat_id, slot_number))
+        row = cursor.fetchone()
+        
+        if row is None:
+            return None
+        
+        return SaveSlotInfo(
+            slot_number=row['slot_number'],
+            created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else None,
+            updated_at=datetime.fromisoformat(row['updated_at']) if row['updated_at'] else None,
+            is_auto_save=bool(row['is_auto_save']),
+            description=row['description']
+        )
+    
+    def list_save_slots(self, chat_id: int, max_slots: int | None = None) -> list[SaveSlotInfo]:
+        """List all save slots for a chat.
+        
+        Args:
+            chat_id: The Telegram chat ID
+            max_slots: Maximum number of slots to check (ignored, kept for compatibility)
+            
+        Returns:
+            List of SaveSlotInfo for existing slots
+        """
+        sql = "SELECT * FROM save_slots WHERE chat_id = ? ORDER BY slot_number;"
+        cursor = self.connection.execute(sql, (chat_id,))
+        
+        slots = []
+        for row in cursor.fetchall():
+            slots.append(SaveSlotInfo(
+                slot_number=row['slot_number'],
+                created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else None,
+                updated_at=datetime.fromisoformat(row['updated_at']) if row['updated_at'] else None,
+                is_auto_save=bool(row['is_auto_save']),
+                description=row['description']
+            ))
+        
+        return slots
+    
+    def delete_slot(self, chat_id: int, slot_number: int) -> bool:
+        """Delete a save slot.
+        
+        Args:
+            chat_id: The Telegram chat ID
+            slot_number: The slot number to delete
+            
+        Returns:
+            True if deleted, False if didn't exist
+        """
+        # Get file path before deleting
+        sql = "SELECT state_file_path FROM save_slots WHERE chat_id = ? AND slot_number = ?;"
+        cursor = self.connection.execute(sql, (chat_id, slot_number))
+        row = cursor.fetchone()
+        
+        if row is None:
+            return False
+        
+        # Delete file
+        state_file_path = Path(row['state_file_path'])
+        if state_file_path.exists():
+            state_file_path.unlink()
+        
+        # Delete from database
+        sql = "DELETE FROM save_slots WHERE chat_id = ? AND slot_number = ?;"
+        self.connection.execute(sql, (chat_id, slot_number))
+        self.connection.commit()
+        
+        logger.info(f"Deleted slot {slot_number} for chat {chat_id}")
+        return True
+    
+    def find_next_auto_save_slot(self, chat_id: int, num_slots: int | None = None) -> int:
+        """Find the next slot for auto-save using round-robin.
+        
+        Args:
+            chat_id: The Telegram chat ID
+            num_slots: Total number of slots (default: 5)
+            
+        Returns:
+            Slot number for next auto-save
+        """
+        max_slots = num_slots if num_slots is not None else 5
+        
+        sql = """SELECT slot_number FROM save_slots 
+                 WHERE chat_id = ? AND is_auto_save = 1
+                 ORDER BY slot_number;"""
+        cursor = self.connection.execute(sql, (chat_id,))
+        auto_saves = [row['slot_number'] for row in cursor.fetchall()]
+        
+        if not auto_saves:
+            return 0
+        
+        max_slot = max(auto_saves)
+        return (max_slot + 1) % max_slots

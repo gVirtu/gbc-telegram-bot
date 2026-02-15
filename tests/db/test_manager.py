@@ -206,3 +206,104 @@ class TestInputQueueOperations:
         assert len(loaded_queue.items[0].buttons) == 2
         assert loaded_queue.items[0].buttons[0] == GameButton.A
         assert loaded_queue.items[0].buttons[1] == GameButton.B
+
+
+class TestSaveSlotOperations:
+    """Test save slot operations."""
+    
+    def test_save_to_slot_creates_metadata(self, db_manager, tmp_path):
+        """Verify save creates slot metadata in database."""
+        # Need game state first
+        state = ChatGameState(chat_id=123)
+        db_manager.save_game_state(state)
+        
+        state_data = b"fake_state_data"
+        state_file_path = tmp_path / "state_file.state"
+        
+        info = db_manager.save_to_slot(
+            chat_id=123,
+            slot_number=0,
+            state_data=state_data,
+            state_file_path=state_file_path,
+            description="Test save",
+            is_auto_save=True
+        )
+        
+        assert info.slot_number == 0
+        assert info.is_auto_save is True
+        assert info.description == "Test save"
+        
+        # Verify file was created
+        assert state_file_path.exists()
+        assert state_file_path.read_bytes() == state_data
+    
+    def test_get_slot_info(self, db_manager, tmp_path):
+        """Verify loading slot info."""
+        state = ChatGameState(chat_id=123)
+        db_manager.save_game_state(state)
+        
+        db_manager.save_to_slot(
+            chat_id=123,
+            slot_number=1,
+            state_data=b"data",
+            state_file_path=tmp_path / "slot1.state",
+            description="Manual save"
+        )
+        
+        info = db_manager.get_slot_info(123, 1)
+        assert info is not None
+        assert info.slot_number == 1
+        assert info.description == "Manual save"
+        assert info.is_auto_save is False
+    
+    def test_list_save_slots(self, db_manager, tmp_path):
+        """Verify listing save slots."""
+        state = ChatGameState(chat_id=123)
+        db_manager.save_game_state(state)
+        
+        db_manager.save_to_slot(123, 0, b"data1", tmp_path / "slot0.state")
+        db_manager.save_to_slot(123, 2, b"data2", tmp_path / "slot2.state")
+        
+        slots = db_manager.list_save_slots(123)
+        assert len(slots) == 2
+        slot_numbers = [s.slot_number for s in slots]
+        assert 0 in slot_numbers
+        assert 2 in slot_numbers
+    
+    def test_delete_slot(self, db_manager, tmp_path):
+        """Verify deleting slot removes metadata and file."""
+        state = ChatGameState(chat_id=123)
+        db_manager.save_game_state(state)
+        
+        state_file = tmp_path / "slot0.state"
+        db_manager.save_to_slot(123, 0, b"data", state_file)
+        
+        deleted = db_manager.delete_slot(123, 0)
+        assert deleted is True
+        
+        info = db_manager.get_slot_info(123, 0)
+        assert info is None
+        assert not state_file.exists()
+    
+    def test_find_next_auto_save_slot(self, db_manager, tmp_path):
+        """Verify round-robin auto-save slot selection."""
+        state = ChatGameState(chat_id=123)
+        db_manager.save_game_state(state)
+        
+        # Save auto-saves to slots 0 and 2
+        db_manager.save_to_slot(123, 0, b"data0", tmp_path / "slot0.state", is_auto_save=True)
+        db_manager.save_to_slot(123, 2, b"data2", tmp_path / "slot2.state", is_auto_save=True)
+        
+        next_slot = db_manager.find_next_auto_save_slot(123, num_slots=5)
+        assert next_slot == 3  # Should be slot after 2
+    
+    def test_load_from_slot(self, db_manager, tmp_path):
+        """Verify loading binary state data from slot."""
+        state = ChatGameState(chat_id=123)
+        db_manager.save_game_state(state)
+        
+        state_data = b"pyboy_save_state_data"
+        db_manager.save_to_slot(123, 0, state_data, tmp_path / "slot0.state")
+        
+        loaded_data = db_manager.load_from_slot(123, 0)
+        assert loaded_data == state_data

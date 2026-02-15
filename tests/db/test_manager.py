@@ -155,3 +155,54 @@ class TestGameStateOperations:
         loaded = db_manager.load_game_state(123)
         assert len(loaded.recent_inputs) == 1
         assert loaded.recent_inputs[0]["user_name"] == "Alice"
+
+
+class TestInputQueueOperations:
+    """Test input queue persistence operations."""
+    
+    def test_save_input_queue_with_items(self, db_manager):
+        """Verify saving input queue with items."""
+        from src.models.input_queue import InputQueue, QueueItem
+        from src.models.game_state import GameButton
+        
+        # Need game state first (foreign key constraint)
+        state = ChatGameState(chat_id=123)
+        db_manager.save_game_state(state)
+        
+        queue = InputQueue()
+        queue.add_input(456, "Alice", GameButton.A)
+        queue.add_input(789, "Bob", GameButton.B)
+        
+        db_manager._save_input_queue(123, queue)
+        
+        loaded_queue = db_manager._load_input_queue(123)
+        assert loaded_queue is not None
+        assert len(loaded_queue.items) == 2
+        assert loaded_queue.items[0].user_name == "Alice"
+        assert loaded_queue.items[1].user_name == "Bob"
+    
+    def test_load_input_queue_empty(self, db_manager):
+        """Verify loading empty input queue returns None."""
+        queue = db_manager._load_input_queue(123)
+        assert queue is None
+    
+    def test_save_input_queue_with_multiple_buttons(self, db_manager):
+        """Verify queue items can have multiple buttons."""
+        from src.models.input_queue import InputQueue
+        from src.models.game_state import GameButton
+        
+        # Need game state first
+        state = ChatGameState(chat_id=123)
+        db_manager.save_game_state(state)
+        
+        queue = InputQueue()
+        queue.add_input(456, "Alice", GameButton.A)
+        queue.add_input(456, "Alice", GameButton.B)  # Same user extends item
+        
+        db_manager._save_input_queue(123, queue)
+        
+        loaded_queue = db_manager._load_input_queue(123)
+        assert len(loaded_queue.items) == 1
+        assert len(loaded_queue.items[0].buttons) == 2
+        assert loaded_queue.items[0].buttons[0] == GameButton.A
+        assert loaded_queue.items[0].buttons[1] == GameButton.B

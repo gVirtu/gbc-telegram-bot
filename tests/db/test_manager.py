@@ -309,6 +309,18 @@ class TestSaveSlotOperations:
         assert loaded_data == state_data
 
 
+def test_db_package_imports():
+    """Verify all public exports are importable."""
+    from src.db import DatabaseManager, DatabaseConnection, get_db_path
+    from src.db import get_schema_sql, SCHEMA_VERSION
+    
+    assert DatabaseManager is not None
+    assert DatabaseConnection is not None
+    assert callable(get_db_path)
+    assert callable(get_schema_sql)
+    assert isinstance(SCHEMA_VERSION, int)
+
+
 class TestUtilityOperations:
     """Test utility operations."""
     

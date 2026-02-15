@@ -307,3 +307,56 @@ class TestSaveSlotOperations:
         
         loaded_data = db_manager.load_from_slot(123, 0)
         assert loaded_data == state_data
+
+
+class TestUtilityOperations:
+    """Test utility operations."""
+    
+    def test_chat_exists_with_game_state(self, db_manager):
+        """Verify chat_exists returns True with game state."""
+        state = ChatGameState(chat_id=123)
+        db_manager.save_game_state(state)
+        
+        assert db_manager.chat_exists(123) is True
+    
+    def test_chat_exists_with_config(self, db_manager):
+        """Verify chat_exists returns True with config."""
+        config = ChatConfig(chat_id=456)
+        db_manager.save_chat_config(config)
+        
+        assert db_manager.chat_exists(456) is True
+    
+    def test_chat_exists_with_save_slot(self, db_manager, tmp_path):
+        """Verify chat_exists returns True with save slot."""
+        state = ChatGameState(chat_id=789)
+        db_manager.save_game_state(state)
+        
+        db_manager.save_to_slot(789, 0, b"data", tmp_path / "slot.state")
+        
+        assert db_manager.chat_exists(789) is True
+    
+    def test_chat_exists_nonexistent(self, db_manager):
+        """Verify chat_exists returns False for nonexistent chat."""
+        assert db_manager.chat_exists(999) is False
+    
+    def test_delete_all_chat_data(self, db_manager, tmp_path):
+        """Verify delete_all removes all data for chat."""
+        state = ChatGameState(chat_id=123)
+        db_manager.save_game_state(state)
+        
+        config = ChatConfig(chat_id=123)
+        db_manager.save_chat_config(config)
+        
+        db_manager.save_to_slot(123, 0, b"data", tmp_path / "slot.state")
+        
+        deleted = db_manager.delete_all_chat_data(123)
+        assert deleted is True
+        
+        assert db_manager.load_game_state(123) is None
+        assert db_manager.load_chat_config(123) is None
+        assert db_manager.list_save_slots(123) == []
+    
+    def test_delete_all_chat_data_nonexistent(self, db_manager):
+        """Verify delete_all returns False for nonexistent chat."""
+        result = db_manager.delete_all_chat_data(999)
+        assert result is False

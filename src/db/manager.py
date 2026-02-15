@@ -543,3 +543,87 @@ class DatabaseManager:
         
         max_slot = max(auto_saves)
         return (max_slot + 1) % max_slots
+    
+    # ==================== Utility Methods ====================
+    
+    def chat_exists(self, chat_id: int) -> bool:
+        """Check if any data exists for a chat.
+        
+        Args:
+            chat_id: The Telegram chat ID
+            
+        Returns:
+            True if chat has any saved data
+        """
+        # Check for game state
+        cursor = self.connection.execute(
+            "SELECT 1 FROM game_states WHERE chat_id = ? LIMIT 1;",
+            (chat_id,)
+        )
+        if cursor.fetchone():
+            return True
+        
+        # Check for config
+        cursor = self.connection.execute(
+            "SELECT 1 FROM chat_configs WHERE chat_id = ? LIMIT 1;",
+            (chat_id,)
+        )
+        if cursor.fetchone():
+            return True
+        
+        # Check for saves
+        cursor = self.connection.execute(
+            "SELECT 1 FROM save_slots WHERE chat_id = ? LIMIT 1;",
+            (chat_id,)
+        )
+        if cursor.fetchone():
+            return True
+        
+        return False
+    
+    def delete_all_chat_data(self, chat_id: int) -> bool:
+        """Delete all data for a chat.
+        
+        Args:
+            chat_id: The Telegram chat ID
+            
+        Returns:
+            True if any data was deleted
+        """
+        deleted = False
+        
+        # Delete game state (cascade deletes user_input_counts, recent_inputs, queue)
+        if self.delete_game_state(chat_id):
+            deleted = True
+        
+        # Delete config
+        cursor = self.connection.execute(
+            "DELETE FROM chat_configs WHERE chat_id = ?;",
+            (chat_id,)
+        )
+        if cursor.rowcount > 0:
+            deleted = True
+        
+        # Delete saves (delete files first)
+        cursor = self.connection.execute(
+            "SELECT state_file_path FROM save_slots WHERE chat_id = ?;",
+            (chat_id,)
+        )
+        for row in cursor.fetchall():
+            state_file_path = Path(row['state_file_path'])
+            if state_file_path.exists():
+                state_file_path.unlink()
+        
+        cursor = self.connection.execute(
+            "DELETE FROM save_slots WHERE chat_id = ?;",
+            (chat_id,)
+        )
+        if cursor.rowcount > 0:
+            deleted = True
+        
+        self.connection.commit()
+        
+        if deleted:
+            logger.info(f"Deleted all data for chat {chat_id}")
+        
+        return deleted

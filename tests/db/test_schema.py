@@ -1,7 +1,7 @@
 """Tests for database schema."""
 import sqlite3
 import pytest
-from src.db.schema import get_schema_sql, SCHEMA_VERSION
+from src.db.schema import get_schema_sql, get_schema_version_sql, SCHEMA_VERSION
 
 
 def test_schema_creates_all_tables(tmp_path):
@@ -35,6 +35,35 @@ def test_schema_creates_indexes(tmp_path):
     
     assert 'idx_user_counts_chat' in indexes
     assert 'idx_recent_inputs_chat' in indexes
+    assert 'idx_queue_items_chat' in indexes
+    assert 'idx_queue_buttons_item' in indexes
+    assert 'idx_save_slots_chat' in indexes
+    conn.close()
+
+
+def test_schema_version_value():
+    """Verify SCHEMA_VERSION constant has expected value."""
+    assert SCHEMA_VERSION == 1
+
+
+def test_schema_version_sql(tmp_path):
+    """Verify get_schema_version_sql() returns valid SQL."""
+    sql = get_schema_version_sql()
+    
+    assert isinstance(sql, str)
+    assert "INSERT OR REPLACE INTO schema_version" in sql
+    assert f"VALUES ({SCHEMA_VERSION})" in sql
+    
+    # Verify SQL executes correctly on real connection
+    db_path = tmp_path / "test.db"
+    conn = sqlite3.connect(db_path)
+    conn.executescript(get_schema_sql())
+    conn.execute(sql)
+    conn.commit()
+    
+    cursor = conn.execute("SELECT version FROM schema_version")
+    version = cursor.fetchone()[0]
+    assert version == SCHEMA_VERSION
     conn.close()
 
 

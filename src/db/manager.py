@@ -196,7 +196,7 @@ class DatabaseManager:
             updated_at=datetime.fromisoformat(row['updated_at']),
             user_input_counts=self._load_user_input_counts(chat_id),
             recent_inputs=self._load_recent_inputs(chat_id),
-            input_queue=None  # Will be implemented in Task 5
+            input_queue=self._load_input_queue(chat_id)
         )
         
         logger.debug(f"Loaded game state for chat {chat_id}")
@@ -278,3 +278,70 @@ class DatabaseManager:
                 'timestamp': row['timestamp']
             })
         return inputs
+    
+    # ==================== Input Queue ====================
+    
+    def _save_input_queue(self, chat_id: int, queue: InputQueue) -> None:
+        """Save input queue to database."""
+        # Delete existing queue items (cascade deletes buttons)
+        self.connection.execute(
+            "DELETE FROM input_queue_items WHERE chat_id = ?;",
+            (chat_id,)
+        )
+        
+        # Insert queue items
+        for position, item in enumerate(queue.items):
+            cursor = self.connection.execute(
+                """INSERT INTO input_queue_items 
+                    (chat_id, position, user_id, user_name, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?);""",
+                (chat_id, position, item.user_id, item.user_name, 
+                 item.created_at.isoformat(), item.updated_at.isoformat())
+            )
+            item_id = cursor.lastrowid
+            
+            # Insert buttons for this item
+            for btn_position, button in enumerate(item.buttons):
+                self.connection.execute(
+                    """INSERT INTO input_queue_buttons 
+                        (queue_item_id, button, position)
+                       VALUES (?, ?, ?);""",
+                    (item_id, button.value, btn_position)
+                )
+    
+    def _load_input_queue(self, chat_id: int) -> Optional[InputQueue]:
+        """Load input queue from database."""
+        cursor = self.connection.execute(
+            """SELECT id, position, user_id, user_name, created_at, updated_at
+               FROM input_queue_items
+               WHERE chat_id = ?
+               ORDER BY position;""",
+            (chat_id,)
+        )
+        
+        items = []
+        for row in cursor.fetchall():
+            # Load buttons for this item
+            btn_cursor = self.connection.execute(
+                """SELECT button FROM input_queue_buttons
+                   WHERE queue_item_id = ?
+                   ORDER BY position;""",
+                (row['id'],)
+            )
+            buttons = [GameButton(btn_row['button']) for btn_row in btn_cursor.fetchall()]
+            
+            item = QueueItem(
+                user_id=row['user_id'],
+                user_name=row['user_name'],
+                buttons=buttons,
+                created_at=datetime.fromisoformat(row['created_at']),
+                updated_at=datetime.fromisoformat(row['updated_at'])
+            )
+            items.append(item)
+        
+        if not items:
+            return None
+        
+        queue = InputQueue()
+        queue.items = items
+        return queue

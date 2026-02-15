@@ -54,10 +54,7 @@ class DatabaseConnection:
             # Ensure parent directory exists
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
             
-            self._connection = sqlite3.connect(
-                self.db_path,
-                detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES
-            )
+            self._connection = sqlite3.connect(self.db_path)
             # Enable foreign keys
             self._connection.execute("PRAGMA foreign_keys = ON;")
             # Return rows as sqlite3.Row for dict-like access

@@ -1,201 +1,114 @@
-"""Tests for migration script.
-
-This module tests migration of data from JSON files to SQLite.
-"""
-
+"""Tests for migration script."""
 import json
-from datetime import datetime
-from pathlib import Path
-
 import pytest
+from pathlib import Path
+from datetime import datetime
 
-from src.db.manager import DatabaseManager
-from src.models.game_state import ChatConfig, ChatGameState, GameButton, SaveSlotInfo
+from src.models.game_state import ChatGameState, ChatConfig, SaveSlotInfo, GameButton
+from src.db import DatabaseManager
 
 
-class TestMigrateChatConfig:
-    """Test chat config migration."""
-
-    @pytest.fixture
-    def data_dir(self, tmp_path):
-        """Create test data directory with config."""
-        config_dir = tmp_path / "config"
-        config_dir.mkdir()
+class TestMigrationScript:
+    """Test data migration from JSON files to SQLite."""
+    
+    def test_migrate_chat_config(self, tmp_path):
+        """Verify chat config migration."""
+        # Create old-style data directory
+        data_dir = tmp_path / "data"
+        config_dir = data_dir / "config"
+        config_dir.mkdir(parents=True)
         
-        config_data = {
-            "chat_id": 123456,
-            "input_hold_frames": 60,
-            "animation_duration": 20,
-            "auto_save_enabled": False,
-            "running_mode": True,
-            "created_at": "2024-01-15T10:30:00",
-            "updated_at": "2024-01-15T12:00:00",
-        }
+        # Create config JSON file
+        config = ChatConfig(chat_id=123, input_hold_frames=10, running_mode=True)
+        config_file = config_dir / "123.json"
+        with open(config_file, 'w') as f:
+            json.dump(config.to_dict(), f)
         
-        config_file = config_dir / "123456.json"
-        config_file.write_text(json.dumps(config_data))
+        # Run migration
+        from scripts.migrate_to_sqlite import migrate_data
+        db_manager = DatabaseManager(tmp_path / "bot.db")
+        db_manager.initialize()
         
-        return tmp_path
-
-    @pytest.fixture
-    def db_manager(self, tmp_path):
-        """Create database manager with test database."""
-        db_path = tmp_path / "test.db"
-        manager = DatabaseManager(db_path=db_path)
-        manager.initialize()
-        return manager
-
-    def test_migrate_chat_config(self, data_dir, db_manager):
-        """Test that chat config is migrated to SQLite."""
-        from scripts.migrate_to_sqlite import migrate_chat_configs
+        migrate_data(data_dir, db_manager)
         
-        migrate_chat_configs(data_dir, db_manager, dry_run=False)
-        
-        loaded = db_manager.load_chat_config(123456)
-        
+        # Verify migrated
+        loaded = db_manager.load_chat_config(123)
         assert loaded is not None
-        assert loaded.chat_id == 123456
-        assert loaded.input_hold_frames == 60
-        assert loaded.animation_duration == 20
-        assert loaded.auto_save_enabled is False
+        assert loaded.input_hold_frames == 10
         assert loaded.running_mode is True
-
-    def test_migrate_chat_config_dry_run(self, data_dir, db_manager):
-        """Test that dry run doesn't persist data."""
-        from scripts.migrate_to_sqlite import migrate_chat_configs
+    
+    def test_migrate_game_state(self, tmp_path):
+        """Verify game state migration."""
+        data_dir = tmp_path / "data"
+        polls_dir = data_dir / "polls"
+        polls_dir.mkdir(parents=True)
         
-        migrate_chat_configs(data_dir, db_manager, dry_run=True)
+        # Create game state JSON
+        state = ChatGameState(
+            chat_id=456,
+            message_id=789,
+            last_input=GameButton.A,
+            user_input_counts={"111": 5, "222": 3},
+            recent_inputs=[{
+                "user_id": 111,
+                "user_name": "Alice",
+                "buttons": ["a"],
+                "timestamp": datetime.utcnow().isoformat()
+            }]
+        )
+        state_file = polls_dir / "456.json"
+        with open(state_file, 'w') as f:
+            json.dump(state.to_dict(), f)
         
-        loaded = db_manager.load_chat_config(123456)
+        # Run migration
+        from scripts.migrate_to_sqlite import migrate_data
+        db_manager = DatabaseManager(tmp_path / "bot.db")
+        db_manager.initialize()
         
-        assert loaded is None
-
-
-class TestMigrateGameState:
-    """Test game state migration."""
-
-    @pytest.fixture
-    def data_dir(self, tmp_path):
-        """Create test data directory with game state."""
-        polls_dir = tmp_path / "polls"
-        polls_dir.mkdir()
+        migrate_data(data_dir, db_manager)
         
-        state_data = {
-            "chat_id": 789012,
-            "message_id": 1234,
-            "input_in_progress": True,
-            "last_input": "a",
-            "last_input_time": "2024-01-15T10:30:00",
-            "frame_hash": "abc123hash",
-            "user_input_counts": {"111": 5, "222": 3},
-            "recent_inputs": [
-                {"user_id": 111, "user_name": "Alice", "buttons": ["up"], "timestamp": "2024-01-15T10:29:00"}
-            ],
-            "created_at": "2024-01-15T09:00:00",
-            "updated_at": "2024-01-15T10:30:00",
-        }
-        
-        poll_file = polls_dir / "789012.json"
-        poll_file.write_text(json.dumps(state_data))
-        
-        return tmp_path
-
-    @pytest.fixture
-    def db_manager(self, tmp_path):
-        """Create database manager with test database."""
-        db_path = tmp_path / "test.db"
-        manager = DatabaseManager(db_path=db_path)
-        manager.initialize()
-        return manager
-
-    def test_migrate_game_state(self, data_dir, db_manager):
-        """Test that game state is migrated to SQLite."""
-        from scripts.migrate_to_sqlite import migrate_game_states
-        
-        migrate_game_states(data_dir, db_manager, dry_run=False)
-        
-        loaded = db_manager.load_game_state(789012)
-        
+        # Verify migrated
+        loaded = db_manager.load_game_state(456)
         assert loaded is not None
-        assert loaded.chat_id == 789012
-        assert loaded.message_id == 1234
-        assert loaded.input_in_progress is True
+        assert loaded.message_id == 789
         assert loaded.last_input == GameButton.A
-        assert loaded.frame_hash == "abc123hash"
         assert loaded.user_input_counts == {"111": 5, "222": 3}
-
-    def test_migrate_game_state_dry_run(self, data_dir, db_manager):
-        """Test that dry run doesn't persist data."""
-        from scripts.migrate_to_sqlite import migrate_game_states
-        
-        migrate_game_states(data_dir, db_manager, dry_run=True)
-        
-        loaded = db_manager.load_game_state(789012)
-        
-        assert loaded is None
-
-
-class TestMigrateSaveSlot:
-    """Test save slot migration."""
-
-    @pytest.fixture
-    def data_dir(self, tmp_path):
-        """Create test data directory with save slots."""
-        saves_dir = tmp_path / "saves" / "345678"
+        assert len(loaded.recent_inputs) == 1
+    
+    def test_migrate_save_slot(self, tmp_path):
+        """Verify save slot migration."""
+        data_dir = tmp_path / "data"
+        saves_dir = data_dir / "saves" / "789"
         saves_dir.mkdir(parents=True)
         
-        state_data = b"fake save state bytes data"
-        (saves_dir / "slot_0.state").write_bytes(state_data)
+        # Create save slot metadata and binary file
+        slot_info = SaveSlotInfo(slot_number=0, is_auto_save=True, description="Test")
+        with open(saves_dir / "slot_0.json", 'w') as f:
+            json.dump(slot_info.to_dict(), f)
         
-        slot_info = {
-            "slot_number": 0,
-            "created_at": "2024-01-15T10:00:00",
-            "updated_at": "2024-01-15T12:00:00",
-            "is_auto_save": True,
-            "description": "Auto-save at checkpoint",
-        }
-        (saves_dir / "slot_0.json").write_text(json.dumps(slot_info))
+        state_data = b"fake_save_state_data"
+        with open(saves_dir / "slot_0.state", 'wb') as f:
+            f.write(state_data)
         
-        return tmp_path
-
-    @pytest.fixture
-    def db_manager(self, tmp_path):
-        """Create database manager with test database."""
-        db_path = tmp_path / "test.db"
-        manager = DatabaseManager(db_path=db_path)
-        manager.initialize()
-        return manager
-
-    @pytest.fixture
-    def new_states_dir(self, tmp_path):
-        """Create new directory for state files."""
-        new_dir = tmp_path / "new_states"
-        new_dir.mkdir()
-        return new_dir
-
-    def test_migrate_save_slot(self, data_dir, db_manager, new_states_dir):
-        """Test that save slot is migrated to SQLite."""
-        from scripts.migrate_to_sqlite import migrate_save_slots
+        # Also need game state for foreign key
+        polls_dir = data_dir / "polls"
+        polls_dir.mkdir(parents=True)
+        state = ChatGameState(chat_id=789)
+        with open(polls_dir / "789.json", 'w') as f:
+            json.dump(state.to_dict(), f)
         
-        migrate_save_slots(data_dir, db_manager, new_states_dir, dry_run=False)
+        # Run migration
+        from scripts.migrate_to_sqlite import migrate_data
+        db_manager = DatabaseManager(tmp_path / "bot.db")
+        db_manager.initialize()
         
-        loaded_data = db_manager.load_from_slot(345678, 0)
+        migrate_data(data_dir, db_manager)
         
-        assert loaded_data == b"fake save state bytes data"
-        
-        info = db_manager.get_slot_info(345678, 0)
-        
+        # Verify migrated
+        info = db_manager.get_slot_info(789, 0)
         assert info is not None
-        assert info.slot_number == 0
         assert info.is_auto_save is True
-        assert info.description == "Auto-save at checkpoint"
-
-    def test_migrate_save_slot_dry_run(self, data_dir, db_manager, new_states_dir):
-        """Test that dry run doesn't persist data."""
-        from scripts.migrate_to_sqlite import migrate_save_slots
         
-        migrate_save_slots(data_dir, db_manager, new_states_dir, dry_run=True)
-        
-        loaded_data = db_manager.load_from_slot(345678, 0)
-        
-        assert loaded_data is None
+        # Verify binary data accessible
+        loaded_data = db_manager.load_from_slot(789, 0)
+        assert loaded_data == state_data

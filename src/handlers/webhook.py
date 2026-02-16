@@ -4,6 +4,7 @@ This module implements FastAPI routes for receiving and processing
 Telegram webhook updates, including callback queries and commands.
 """
 
+import asyncio
 import hashlib
 import logging
 from contextlib import asynccontextmanager
@@ -260,17 +261,32 @@ class WebhookHandler:
             
             # Initialize input handler with rate-limited bot
             self.input_handler = get_input_handler(rate_limited_bot)
-            
+
+            # Start daily backup task
+            from src.tasks.backup_task import run_backup_loop
+            from src.utils.backup_manager import BackupManager
+            from src.utils.state_manager import state_manager
+            from src.game import game_controller_manager
+
+            backup_manager = BackupManager(state_manager, game_controller_manager, settings)
+            backup_task = asyncio.create_task(run_backup_loop(backup_manager, settings))
+
             logger.info("Webhook handler started successfully")
-            
+
             yield
-            
+
             # Shutdown
             logger.info("Shutting down webhook handler...")
-            
+
+            backup_task.cancel()
+            try:
+                await backup_task
+            except asyncio.CancelledError:
+                pass
+
             if self.telegram_app:
                 await self.telegram_app.shutdown()
-            
+
             logger.info("Webhook handler shut down")
         
         app = FastAPI(

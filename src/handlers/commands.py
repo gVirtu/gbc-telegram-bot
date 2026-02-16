@@ -5,6 +5,7 @@ This module implements handlers for all bot commands:
 """
 
 import logging
+from datetime import datetime
 from io import BytesIO
 from time import time
 from typing import Optional, Dict, Tuple
@@ -24,6 +25,17 @@ from src.models.game_state import GameButton
 from src.utils.state_manager import state_manager
 
 logger = logging.getLogger(__name__)
+
+# Lazy singleton for BackupManager (stateless, but avoids repeated construction)
+_backup_manager = None
+
+
+def _get_backup_manager():
+    global _backup_manager
+    if _backup_manager is None:
+        from src.utils.backup_manager import BackupManager
+        _backup_manager = BackupManager(state_manager, game_controller_manager, settings)
+    return _backup_manager
 
 # Cache: (chat_id, user_id) -> (is_admin: bool, timestamp: float)
 _admin_cache: Dict[Tuple[int, int], Tuple[bool, float]] = {}
@@ -397,6 +409,34 @@ async def load_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         )
         return
     
+    # Check for "backup YYYYMMDD" syntax
+    if context.args[0].lower() == "backup":
+        if len(context.args) < 2:
+            await update.message.reply_text("Uso: /load backup YYYYMMDD")
+            return
+        date_str = context.args[1]
+        try:
+            datetime.strptime(date_str, "%Y%m%d")
+        except ValueError:
+            await update.message.reply_text(
+                "Formato de data inválido. Use YYYYMMDD (ex: 20260215)"
+            )
+            return
+        backup_mgr = _get_backup_manager()
+        state_data = backup_mgr.load_backup(chat_id, date_str)
+        if state_data is None:
+            available = backup_mgr.list_backups(chat_id)
+            avail_str = ", ".join(available) if available else "nenhum"
+            await update.message.reply_text(
+                f"Backup {date_str} não encontrado. Disponíveis: {avail_str}"
+            )
+            return
+        controller.load_state(state_data)
+        await update.message.reply_text(
+            f"✅ Backup de {date_str} carregado com sucesso."
+        )
+        return
+
     try:
         slot_number = int(context.args[0])
         if slot_number < 0 or slot_number >= settings.save_slots:

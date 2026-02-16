@@ -419,6 +419,135 @@ class TestLoadCommand:
                         )
 
 
+class TestLoadBackupCommand:
+    """Test /load backup YYYYMMDD subcommand."""
+
+    @pytest.fixture
+    def update(self):
+        return MockUpdate()
+
+    @pytest.fixture
+    def context(self):
+        return MockContext()
+
+    def _active_game_patches(self, mock_mgr, mock_handler):
+        """Set up mocks for an active, non-processing game."""
+        mock_controller = MagicMock()
+        mock_controller.is_initialized.return_value = True
+        mock_mgr.get_controller.return_value = mock_controller
+        mock_handler.is_input_in_progress.return_value = False
+        return mock_controller
+
+    @pytest.mark.asyncio
+    async def test_load_backup_valid_date_admin(self, update, context):
+        """Admin loading a valid backup date succeeds."""
+        context.args = ["backup", "20260215"]
+
+        with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
+            with patch("src.handlers.commands.get_input_handler") as mock_get_handler:
+                mock_handler = MagicMock()
+                mock_controller = self._active_game_patches(mock_mgr, mock_handler)
+                mock_get_handler.return_value = mock_handler
+
+                mock_backup_mgr = MagicMock()
+                mock_backup_mgr.load_backup.return_value = b"backup_bytes"
+
+                with patch("src.handlers.commands._get_backup_manager", return_value=mock_backup_mgr):
+                    with patch("src.handlers.commands.settings") as mock_settings:
+                        mock_settings.allowed_chat_ids = []
+                        mock_settings.save_slots = 5
+
+                        await load_command(update, context)
+
+                        mock_backup_mgr.load_backup.assert_called_once_with(123456, "20260215")
+                        mock_controller.load_state.assert_called_once_with(b"backup_bytes")
+                        update.message.reply_text.assert_called_with(
+                            "✅ Backup de 20260215 carregado com sucesso."
+                        )
+
+    @pytest.mark.asyncio
+    async def test_load_backup_not_admin(self, update, context):
+        """Non-admin in group chat gets permission error."""
+        update.effective_chat.type = "supergroup"
+        context.args = ["backup", "20260215"]
+
+        with patch("src.handlers.commands._check_admin_permission", return_value=(False, "🔒 Apenas administradores do grupo podem usar este comando.")):
+            with patch("src.handlers.commands.settings") as mock_settings:
+                mock_settings.allowed_chat_ids = []
+
+                await load_command(update, context)
+
+                update.message.reply_text.assert_called_with(
+                    "🔒 Apenas administradores do grupo podem usar este comando."
+                )
+
+    @pytest.mark.asyncio
+    async def test_load_backup_invalid_date(self, update, context):
+        """Invalid date format returns a helpful error message."""
+        context.args = ["backup", "not-a-date"]
+
+        with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
+            with patch("src.handlers.commands.get_input_handler") as mock_get_handler:
+                mock_handler = MagicMock()
+                self._active_game_patches(mock_mgr, mock_handler)
+                mock_get_handler.return_value = mock_handler
+
+                with patch("src.handlers.commands.settings") as mock_settings:
+                    mock_settings.allowed_chat_ids = []
+                    mock_settings.save_slots = 5
+
+                    await load_command(update, context)
+
+                    update.message.reply_text.assert_called_with(
+                        "Formato de data inválido. Use YYYYMMDD (ex: 20260215)"
+                    )
+
+    @pytest.mark.asyncio
+    async def test_load_backup_not_found(self, update, context):
+        """Missing backup lists available dates."""
+        context.args = ["backup", "20260101"]
+
+        with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
+            with patch("src.handlers.commands.get_input_handler") as mock_get_handler:
+                mock_handler = MagicMock()
+                self._active_game_patches(mock_mgr, mock_handler)
+                mock_get_handler.return_value = mock_handler
+
+                mock_backup_mgr = MagicMock()
+                mock_backup_mgr.load_backup.return_value = None
+                mock_backup_mgr.list_backups.return_value = ["20260102", "20260103"]
+
+                with patch("src.handlers.commands._get_backup_manager", return_value=mock_backup_mgr):
+                    with patch("src.handlers.commands.settings") as mock_settings:
+                        mock_settings.allowed_chat_ids = []
+                        mock_settings.save_slots = 5
+
+                        await load_command(update, context)
+
+                        update.message.reply_text.assert_called_with(
+                            "Backup 20260101 não encontrado. Disponíveis: 20260102, 20260103"
+                        )
+
+    @pytest.mark.asyncio
+    async def test_load_backup_missing_date_arg(self, update, context):
+        """'/load backup' without a date shows usage hint."""
+        context.args = ["backup"]
+
+        with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
+            with patch("src.handlers.commands.get_input_handler") as mock_get_handler:
+                mock_handler = MagicMock()
+                self._active_game_patches(mock_mgr, mock_handler)
+                mock_get_handler.return_value = mock_handler
+
+                with patch("src.handlers.commands.settings") as mock_settings:
+                    mock_settings.allowed_chat_ids = []
+                    mock_settings.save_slots = 5
+
+                    await load_command(update, context)
+
+                    update.message.reply_text.assert_called_with("Uso: /load backup YYYYMMDD")
+
+
 class TestStatusCommand:
     """Test /status command."""
 

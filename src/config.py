@@ -119,6 +119,23 @@ class Settings(BaseSettings):
         ge=1,
         le=10,
     )
+    backup_hour: int = Field(
+        default=0,
+        ge=0,
+        le=23,
+        description="Hour (UTC) to run daily backup (BACKUP_HOUR env var)",
+    )
+    backup_minute: int = Field(
+        default=0,
+        ge=0,
+        le=59,
+        description="Minute (UTC) to run daily backup (BACKUP_MINUTE env var)",
+    )
+    backup_retention_days: int = Field(
+        default=30,
+        ge=1,
+        description="Days to keep backups before purging (BACKUP_RETENTION_DAYS env var)",
+    )
 
     # Sequence input settings
     max_sequence_length: int = Field(
@@ -258,6 +275,19 @@ class Settings(BaseSettings):
         save_dir.mkdir(parents=True, exist_ok=True)
         return save_dir
     
+    def get_chat_backup_dir(self, chat_id: int) -> Path:
+        """Get backup directory for a specific chat.
+
+        Args:
+            chat_id: Telegram chat ID
+
+        Returns:
+            Path to chat's backup directory (created if doesn't exist)
+        """
+        backup_dir = self.data_dir / "backups" / str(chat_id)
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        return backup_dir
+
     def get_poll_file(self, chat_id: int) -> Path:
         """Get poll state file path for a specific chat.
         

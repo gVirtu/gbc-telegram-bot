@@ -83,7 +83,7 @@ class TestFrameToPng:
         
         assert image.format == "PNG"
         assert image.mode == "RGB"
-        assert image.size == (160, 144)
+        assert image.size == (320, 288)
     
     @pytest.mark.parametrize("width,height", [
         (160, 144),   # Standard GameBoy
@@ -99,7 +99,7 @@ class TestFrameToPng:
         png_buffer.seek(0)
         image = Image.open(png_buffer)
 
-        assert image.size == (width, height)
+        assert image.size == (width * 2, height * 2)
 
     @pytest.mark.parametrize("color,expected_rgb", [
         ((255, 0, 0), (255, 0, 0)),      # Red
@@ -319,7 +319,7 @@ class TestIntegration:
         # Verify PNG is valid
         png_buffer.seek(0)
         image = Image.open(png_buffer)
-        assert image.size == (160, 144)
+        assert image.size == (320, 288)
         
         # Same frame should not need update
         should_update, new_hash = should_update_frame(frame, frame_hash)

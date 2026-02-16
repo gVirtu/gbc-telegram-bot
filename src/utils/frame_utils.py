@@ -7,12 +7,12 @@ including hashing for deduplication and conversion to PNG format.
 import hashlib
 import logging
 import os
+import subprocess
 import tempfile
 from io import BytesIO
 from pathlib import Path
 from typing import Tuple
 
-import ffmpeg
 import numpy as np
 from PIL import Image
 
@@ -68,7 +68,9 @@ def frame_to_png(frame: np.ndarray, optimize: bool = True) -> BytesIO:
         )
     
     # Create PIL Image from numpy array
-    image = Image.fromarray(frame, mode="RGB")
+    image = Image.fromarray(frame, mode="RGB").resize(
+            (frame.shape[1] * 2, frame.shape[0] * 2), Image.Resampling.NEAREST
+        )
     
     # Save to bytes buffer
     buffer = BytesIO()
@@ -255,7 +257,10 @@ def save_frames_as_mp4(
     crf: int = 28,
     preset: str = "ultrafast",
 ) -> BytesIO:
-    """Save a sequence of frames as an MP4 video using FFmpeg.
+    """Save a sequence of frames as an MP4 video using FFmpeg rawvideo piping.
+    
+    Uses stdin to pipe frames directly to ffmpeg (no intermediate PNG files),
+    then writes output to a temp file and reads into BytesIO.
     
     Args:
         frames: List of NumPy arrays (H, W, 3) in RGB format
@@ -279,46 +284,60 @@ def save_frames_as_mp4(
     if not frames:
         raise ValueError("No frames provided")
     
-    with tempfile.TemporaryDirectory() as temp_dir:
-        # Save frames as PNG files
-        for i, frame in enumerate(frames):
-            # Upscale 2x for better quality (matches GIF behavior)
-            image = Image.fromarray(frame, mode="RGB").resize(
-                (frame.shape[1] * 2, frame.shape[0] * 2), Image.Resampling.NEAREST
-            )
-            frame_path = os.path.join(temp_dir, f"frame_{i:04d}.png")
-            image.save(frame_path, format="PNG")
+    h, w = frames[0].shape[:2]
+    h_scaled, w_scaled = h * 2, w * 2
+    
+    with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as tmp_out:
+        output_path = tmp_out.name
+    
+    try:
+        cmd = [
+            'ffmpeg', '-y',
+            '-f', 'rawvideo',
+            '-pix_fmt', 'rgb24',
+            '-s', f'{w_scaled}x{h_scaled}',
+            '-framerate', str(fps),
+            '-i', 'pipe:0',
+            '-vcodec', 'libx264',
+            '-pix_fmt', 'yuv420p',
+            '-crf', str(crf),
+            '-preset', preset,
+            '-movflags', 'faststart',
+            output_path,
+        ]
         
-        # Output MP4 path
-        output_path = os.path.join(temp_dir, "output.mp4")
+        process = subprocess.Popen(
+            cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
         
-        try:
-            # Run FFmpeg to create MP4
-            (
-                ffmpeg
-                .input(os.path.join(temp_dir, "frame_%04d.png"), framerate=fps)
-                .output(
-                    output_path,
-                    vcodec="libx264",
-                    pix_fmt="yuv420p",
-                    crf=crf,
-                    preset=preset,
-                    movflags="faststart",
-                )
-                .overwrite_output()
-                .run(quiet=True)
+        for frame in frames:
+            img = Image.fromarray(frame, mode='RGB').resize(
+                (w_scaled, h_scaled), Image.Resampling.NEAREST
             )
-            
-            # Read the output file into BytesIO
-            with open(output_path, "rb") as f:
-                buffer = BytesIO(f.read())
-            
-            buffer.seek(0)
-            return buffer
-            
-        except ffmpeg.Error as e:
-            logger.error(f"FFmpeg encoding failed: {e}")
-            raise RuntimeError(f"Failed to encode MP4: {e}")
+            process.stdin.write(np.array(img).tobytes())
+        
+        process.stdin.close()
+        
+        process.wait()
+        return_code = process.returncode
+        
+        if return_code != 0:
+            stderr = process.stderr.read().decode() if process.stderr else ""
+            logger.error(f"FFmpeg encoding failed: {stderr}")
+            raise RuntimeError(f"FFmpeg encoding failed with return code {return_code}")
+        
+        with open(output_path, 'rb') as f:
+            buffer = BytesIO(f.read())
+        
+        buffer.seek(0)
+        return buffer
+        
+    finally:
+        if os.path.exists(output_path):
+            os.remove(output_path)
 
 
 def generate_tbc_frames(

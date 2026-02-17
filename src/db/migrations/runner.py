@@ -47,6 +47,52 @@ class MigrationRunner:
         """
         self.connection.executescript(sql)
     
+    def _is_existing_database(self) -> bool:
+        """Check if database existed before migrations were introduced.
+        
+        Detects existing database by checking for schema_version table
+        or other application tables that would indicate the DB was in use.
+        
+        Returns:
+            True if database has existing schema.
+        """
+        cursor = self.connection.execute(
+            """SELECT name FROM sqlite_master 
+               WHERE type='table' 
+               AND name IN ('schema_version', 'chat_configs', 'game_states');"""
+        )
+        return cursor.fetchone() is not None
+    
+    def _mark_baseline_as_applied_if_needed(self) -> bool:
+        """Mark baseline migration as applied for existing databases.
+        
+        If this is an existing database (created before migrations),
+        mark the baseline migration as already applied without running it.
+        
+        Returns:
+            True if baseline was marked as applied.
+        """
+        # Check if migration_history table exists
+        cursor = self.connection.execute(
+            """SELECT name FROM sqlite_master 
+               WHERE type='table' AND name='migration_history';"""
+        )
+        if cursor.fetchone() is None:
+            return False
+        
+        # Check if baseline (v1) is already applied
+        if self.is_migration_applied(1):
+            return False
+        
+        # Check if this is an existing database
+        if not self._is_existing_database():
+            return False
+        
+        # Mark baseline as applied
+        logger.info("Detected existing database - marking baseline migration as applied")
+        self._record_migration_applied(1, "001_baseline")
+        return True
+    
     def get_applied_migrations(self) -> List[Dict[str, Any]]:
         """Get list of applied migrations.
         
@@ -156,8 +202,12 @@ class MigrationRunner:
         
         Discovers all migrations, then runs each one that hasn't been applied.
         If any migration fails, raises MigrationError and stops.
+        For existing databases, marks baseline as applied without running it.
         """
         self._ensure_migration_history_table()
+        
+        # Handle existing databases (created before migrations existed)
+        self._mark_baseline_as_applied_if_needed()
         
         migrations = discover_migrations()
         if not migrations:

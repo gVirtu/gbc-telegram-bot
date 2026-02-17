@@ -121,3 +121,63 @@ class TestMigrationRunner:
         runner._record_migration_applied(1, "001_baseline")
         assert runner.is_migration_applied(1)
         conn.close()
+
+
+class TestBaselineMigration:
+    """Test baseline migration for existing databases."""
+    
+    def test_detect_existing_database_with_schema_version(self, tmp_path):
+        """Verify detection of existing database via schema_version table."""
+        from src.db.connection import DatabaseConnection
+        from src.db.migrations.runner import MigrationRunner
+        from src.db.schema import get_schema_sql
+        
+        db_path = tmp_path / "test.db"
+        conn = DatabaseConnection(db_path)
+        
+        # Simulate existing database (before migrations existed)
+        raw_conn = conn.get_connection()
+        raw_conn.executescript(get_schema_sql())
+        
+        # Verify schema_version table exists
+        cursor = raw_conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='schema_version';"
+        )
+        assert cursor.fetchone() is not None
+        
+        runner = MigrationRunner(conn)
+        assert runner._is_existing_database()
+        conn.close()
+    
+    def test_detect_new_database(self, tmp_path):
+        """Verify new database is detected as not existing."""
+        from src.db.connection import DatabaseConnection
+        from src.db.migrations.runner import MigrationRunner
+        
+        db_path = tmp_path / "test.db"
+        conn = DatabaseConnection(db_path)
+        runner = MigrationRunner(conn)
+        
+        assert not runner._is_existing_database()
+        conn.close()
+    
+    def test_mark_baseline_as_applied(self, tmp_path):
+        """Verify baseline is marked as applied for existing DBs."""
+        from src.db.connection import DatabaseConnection
+        from src.db.migrations.runner import MigrationRunner
+        from src.db.schema import get_schema_sql
+        
+        db_path = tmp_path / "test.db"
+        conn = DatabaseConnection(db_path)
+        
+        # Simulate existing database
+        raw_conn = conn.get_connection()
+        raw_conn.executescript(get_schema_sql())
+        
+        runner = MigrationRunner(conn)
+        runner._ensure_migration_history_table()
+        runner._mark_baseline_as_applied_if_needed()
+        
+        # Verify baseline is marked as applied
+        assert runner.is_migration_applied(1)
+        conn.close()

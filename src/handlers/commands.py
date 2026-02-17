@@ -6,7 +6,6 @@ This module implements handlers for all bot commands:
 
 import logging
 from datetime import datetime
-from io import BytesIO
 from time import time
 from typing import Optional, Dict, Tuple
 
@@ -18,10 +17,8 @@ from src.game import game_controller_manager
 from src.handlers.input_handler import get_input_handler
 from src.keyboard import (
     create_help_text,
-    create_input_keyboard,
     create_save_slot_keyboard,
 )
-from src.models.game_state import GameButton
 from src.utils.state_manager import state_manager
 
 logger = logging.getLogger(__name__)
@@ -332,11 +329,11 @@ async def save_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         
         # Save the state
         state_data = controller.save_state()
-        info = state_manager.save_to_slot(
+        state_manager.save_to_slot(
             chat_id=chat_id,
             slot_number=slot_number,
             state_data=state_data,
-            description=f"Salvar jogo manualmente",
+            description="Salvar jogo manualmente",
             is_auto_save=False,
         )
         
@@ -504,7 +501,6 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     lines = ["📊 *Status do jogo*\n"]
 
-    controller = game_controller_manager.get_controller(chat_id)
     lines.append("✅ Jogo ativo")
 
     # Check input status

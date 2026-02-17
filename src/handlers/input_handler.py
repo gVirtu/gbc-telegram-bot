@@ -13,17 +13,20 @@ from telegram import Bot, InputMediaPhoto, InputMediaAnimation, InlineKeyboardMa
 from telegram.error import TelegramError
 
 from src.config import settings
-from src.game import GameController, game_controller_manager
+from src.game import game_controller_manager
 from src.keyboard import (
     create_input_keyboard,
     create_game_message_text,
     get_button_from_callback,
     is_valid_button_callback,
 )
-from src.models.game_state import ChatGameState, ChatConfig, GameButton, GameSession
+from src.models.game_state import ChatGameState, GameButton, GameSession
 from src.models.input_queue import InputQueue, QueueItem
-from src.utils.frame_utils import should_update_frame, save_frames_as_mp4, generate_tbc_frames
-from src.utils.rate_limiter import RateLimitException
+from src.utils.frame_utils import (  # noqa: F401 (needed for test patching)
+    should_update_frame,
+    save_frames_as_mp4,
+    generate_tbc_frames,
+)
 from src.utils.state_manager import state_manager
 
 logger = logging.getLogger(__name__)
@@ -368,7 +371,7 @@ class InputHandler:
         for frame_num in range(animation_frames):
             controller.tick(1)
             if hook_context.get("inputWaitCalls", {}).get("_total", 0) > wait_call_threshold:
-                logger.info(f"Input wait loop detected, finishing animation early")
+                logger.info("Input wait loop detected, finishing animation early")
                 break
             if frame_num % capture_interval_frames == 0:
                 frames.append(controller.get_frame().copy())
@@ -428,7 +431,7 @@ class InputHandler:
                     chat_id=chat_id,
                     slot_number=slot,
                     state_data=state_data,
-                    description=f"Auto-save",
+                    description="Auto-save",
                     is_auto_save=True,
                 )
                 logger.debug(f"Auto-saved to slot {slot} for chat {chat_id}")
@@ -533,7 +536,6 @@ class InputHandler:
         controller = await game_controller_manager.get_or_create_controller(chat_id)
         
         # Get initial frame
-        frame = controller.get_frame()
         png_buffer = controller.get_frame_as_png()
         
         # Create session
@@ -587,7 +589,6 @@ class InputHandler:
         queue = self._get_or_create_queue(chat_id)
         
         # Get current frame
-        frame = controller.get_frame()
         png_buffer = controller.get_frame_as_png()
         recent = session.state.recent_inputs if session else []
         caption = create_game_message_text(recent_inputs=recent, queue_length=len(queue))

@@ -261,7 +261,7 @@ def create_help_text() -> str:
 
     text += "*Controles*\n"
     
-    text += f"⬆️⬅️⬇️➡️ Direcionais: Mover\n"
+    text += "⬆️⬅️⬇️➡️ Direcionais: Mover\n"
     # Skip deprecated buttons (SEQUENCE, ENVIAR) and directional buttons
     skip_buttons = [GameButton.UP, GameButton.DOWN, GameButton.LEFT, GameButton.RIGHT, GameButton.SEQUENCE, GameButton.ENVIAR]
     for button in GameButton:

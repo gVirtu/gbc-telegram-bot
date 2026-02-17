@@ -17,7 +17,7 @@ from pyboy.utils import WindowEvent
 from src.config import settings
 from src.models.game_state import GameButton
 from src.utils.state_manager import state_manager
-from src.utils.frame_utils import frame_to_png, hash_frame
+from src.utils.frame_utils import frame_to_png
 
 logger = logging.getLogger(__name__)
 
@@ -346,7 +346,7 @@ class GameController:
         try:
             return self._hook_module.begin_hooks(self.pyboy)
         except AttributeError:
-            logger.warning(f"Hook module missing begin_hooks function")
+            logger.warning("Hook module missing begin_hooks function")
             return {}
         except Exception as e:
             logger.error(f"Hook registration failed: {e}")
@@ -365,7 +365,7 @@ class GameController:
         try:
             self._hook_module.end_hooks(self.pyboy, context)
         except AttributeError:
-            logger.warning(f"Hook module missing end_hooks function")
+            logger.warning("Hook module missing end_hooks function")
         except Exception as e:
             logger.error(f"Hook deregistration failed: {e}")
         

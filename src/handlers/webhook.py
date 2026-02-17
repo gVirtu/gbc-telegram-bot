@@ -18,7 +18,7 @@ from telegram.ext import Application
 from src.config import settings
 from src.handlers.commands import COMMAND_HANDLERS
 from src.handlers.input_handler import get_input_handler
-from src.keyboard import get_button_from_callback, is_valid_button_callback
+from src.keyboard import is_valid_button_callback
 
 logger = logging.getLogger(__name__)
 

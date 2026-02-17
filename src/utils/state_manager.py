@@ -7,12 +7,15 @@ NOTE: This module now uses DatabaseManager (SQLite) instead of file-based storag
 The migration from JSON files to SQLite was performed by migrate_to_sqlite.py.
 """
 
+from __future__ import annotations
+
 import logging
 from pathlib import Path
 from typing import Optional
 
 from src.config import settings
 from src.db import DatabaseManager
+from src.models.game_state import SaveSlotInfo
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +79,7 @@ class StateManager(DatabaseManager):
         state_data: bytes,
         description: Optional[str] = None,
         is_auto_save: bool = False,
-    ) -> 'src.models.game_state.SaveSlotInfo':
+    ) -> SaveSlotInfo:
         """Save game state to a specific slot (backward compatible signature).
         
         Args:

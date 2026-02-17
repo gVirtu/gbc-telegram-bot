@@ -20,7 +20,6 @@ Environment Variables:
 
 import logging
 import sys
-from contextlib import asynccontextmanager
 
 from src.config import settings
 from src.handlers.webhook import get_webhook_handler

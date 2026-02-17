@@ -7,7 +7,7 @@ including frame capture, input injection, and save state management.
 import logging
 from io import BytesIO
 from pathlib import Path
-from typing import Optional
+from typing import IO, Optional
 from types import ModuleType
 
 import numpy as np
@@ -92,12 +92,24 @@ class GameController:
         try:
             logger.info(f"Initializing PyBoy for chat {self.chat_id}")
             
+            save_dir = settings.get_chat_save_dir(self.chat_id)
+            
+            ram_file = None
+            if (save_dir / "game.ram").exists():
+                ram_file = open(save_dir / "game.ram", "r+b")
+                
+            rtc_file = None
+            if (save_dir / "game.rtc").exists():
+                rtc_file = open(save_dir / "game.rtc", "r+b")
+            
             # Initialize PyBoy with no window (headless)
             self.pyboy = PyBoy(
                 str(self.rom_path),
                 window="null",
                 sound_emulated=False,
-                symbols=str(self.sym_path)
+                symbols=str(self.sym_path),
+                ram_file=ram_file,
+                rtc_file=rtc_file
             )
             
             # Run a few frames to get past boot screen
@@ -373,7 +385,12 @@ class GameController:
         """Stop the emulator and clean up resources."""
         if self.pyboy is not None:
             logger.info(f"Stopping emulator for chat {self.chat_id}")
-            self.pyboy.stop()
+
+            save_dir = settings.get_chat_save_dir(self.chat_id)
+            with open(save_dir / "game.ram", "w+b") as ram_file:
+                with open(save_dir / "game.rtc", "w+b") as rtc_file:
+                    self.pyboy.stop(save=True, ram_file=ram_file, rtc_file=rtc_file)
+            
             self.pyboy = None
             self._initialized = False
             self._hook_module = None

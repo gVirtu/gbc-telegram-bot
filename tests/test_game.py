@@ -215,6 +215,9 @@ class TestGameControllerManager:
         mock_settings.rom_path = mock_rom_path
         mock_settings.data_dir = mock_rom_path.parent / "data"
         mock_settings.save_slots = 5
+        save_dir = mock_rom_path.parent / "saves" / "123456"
+        save_dir.mkdir(parents=True, exist_ok=True)
+        mock_settings.get_chat_save_dir.return_value = save_dir
         
         with patch("src.game.settings", mock_settings):
             with patch("src.game.PyBoy") as mock_pyboy_class:

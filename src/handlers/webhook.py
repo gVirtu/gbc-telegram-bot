@@ -16,6 +16,7 @@ from telegram import Update
 from telegram.ext import Application
 
 from src.config import settings
+from src.game import game_controller_manager
 from src.handlers.commands import COMMAND_HANDLERS
 from src.handlers.input_handler import get_input_handler
 from src.keyboard import is_valid_button_callback
@@ -277,7 +278,6 @@ class WebhookHandler:
             from src.tasks.backup_task import run_backup_loop
             from src.utils.backup_manager import BackupManager
             from src.utils.state_manager import state_manager
-            from src.game import game_controller_manager
 
             backup_manager = BackupManager(state_manager, game_controller_manager, settings)
             backup_task = asyncio.create_task(run_backup_loop(backup_manager, settings))
@@ -297,6 +297,8 @@ class WebhookHandler:
 
             if self.telegram_app:
                 await self.telegram_app.shutdown()
+                
+            game_controller_manager.stop_all()
 
             logger.info("Webhook handler shut down")
         

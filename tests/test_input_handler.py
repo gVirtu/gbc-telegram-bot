@@ -436,13 +436,15 @@ class TestEditOperations:
         await handler._edit_message_keyboard(123456, 789, MagicMock())
     
     @pytest.mark.asyncio
-    async def test_edit_media(self, handler, mock_bot):
+    async def test_edit_media(self, tmp_path, handler, mock_bot):
         """Test editing message media."""
-        photo_buffer = BytesIO(b"png")
-        
-        await handler._edit_message_media(123456, 789, photo_buffer, "caption")
-        
-        mock_bot.edit_message_media.assert_called_once()
+        with patch("src.handlers.input_handler.settings") as mock_settings:
+            mock_settings.get_chat_save_dir.return_value = tmp_path / "saves" / "123456"
+            photo_buffer = BytesIO(b"png")
+            
+            await handler._edit_message_media(123456, 789, photo_buffer, "caption")
+            
+            mock_bot.edit_message_media.assert_called_once()
     
     @pytest.mark.asyncio
     async def test_edit_media_handles_error(self, handler, mock_bot):

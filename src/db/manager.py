@@ -62,13 +62,14 @@ class DatabaseManager:
         """
         sql = """
         INSERT INTO chat_configs 
-            (chat_id, input_hold_frames, animation_duration, auto_save_enabled, running_mode, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+            (chat_id, input_hold_frames, animation_duration, auto_save_enabled, running_mode, message_base_text, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(chat_id) DO UPDATE SET
             input_hold_frames = excluded.input_hold_frames,
             animation_duration = excluded.animation_duration,
             auto_save_enabled = excluded.auto_save_enabled,
             running_mode = excluded.running_mode,
+            message_base_text = excluded.message_base_text,
             updated_at = excluded.updated_at;
         """
         
@@ -78,6 +79,7 @@ class DatabaseManager:
             config.animation_duration,
             1 if config.auto_save_enabled else 0,
             1 if config.running_mode else 0,
+            config.message_base_text,
             config.created_at.isoformat() if config.created_at else datetime.utcnow().isoformat(),
             datetime.utcnow().isoformat()
         ))
@@ -106,6 +108,7 @@ class DatabaseManager:
             animation_duration=row['animation_duration'],
             auto_save_enabled=bool(row['auto_save_enabled']),
             running_mode=bool(row['running_mode']),
+            message_base_text=row.get('message_base_text'),
             created_at=datetime.fromisoformat(row['created_at']),
             updated_at=datetime.fromisoformat(row['updated_at'])
         )

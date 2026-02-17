@@ -271,6 +271,43 @@ class MigrationRunner:
         self._ensure_migration_history_table()
         all_migrations = discover_migrations()
         return [m for m in all_migrations if not self.is_migration_applied(m.version)]
+    
+    def get_status(self) -> Dict[str, Any]:
+        """Get current migration status.
+        
+        Returns:
+            Dict with keys:
+                - current_version: highest applied version
+                - pending_count: number of pending migrations
+                - applied_count: number of applied migrations
+                - total_count: total number of migrations
+                - migrations: list of dicts with version, name, applied status
+        """
+        self._ensure_migration_history_table()
+        
+        all_migrations = discover_migrations()
+        applied = self.get_applied_migrations()
+        applied_versions = {m["version"] for m in applied}
+        
+        current_version = max(applied_versions) if applied_versions else 0
+        pending = [m for m in all_migrations if m.version not in applied_versions]
+        
+        migrations_info = []
+        for m in all_migrations:
+            migrations_info.append({
+                "version": m.version,
+                "name": m.name,
+                "applied": m.version in applied_versions,
+                "has_downgrade": m.downgrade is not None
+            })
+        
+        return {
+            "current_version": current_version,
+            "pending_count": len(pending),
+            "applied_count": len(applied),
+            "total_count": len(all_migrations),
+            "migrations": migrations_info
+        }
 
 
 class MigrationError(Exception):

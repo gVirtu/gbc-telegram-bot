@@ -286,3 +286,44 @@ class TestSampleMigration:
         # Verify it's no longer applied
         assert not runner.is_migration_applied(2)
         conn.close()
+
+
+class TestMigrationStatus:
+    """Test migration status reporting."""
+    
+    def test_get_migration_status_new_db(self, tmp_path):
+        """Verify status for new database."""
+        from src.db.connection import DatabaseConnection
+        from src.db.migrations.runner import MigrationRunner
+        
+        db_path = tmp_path / "test.db"
+        conn = DatabaseConnection(db_path)
+        runner = MigrationRunner(conn)
+        
+        status = runner.get_status()
+        
+        assert status["current_version"] == 0
+        assert status["pending_count"] > 0
+        assert len(status["migrations"]) > 0
+        conn.close()
+    
+    def test_get_migration_status_after_migrations(self, tmp_path):
+        """Verify status after running migrations."""
+        from src.db.connection import DatabaseConnection
+        from src.db.migrations.runner import MigrationRunner
+        
+        db_path = tmp_path / "test.db"
+        conn = DatabaseConnection(db_path)
+        runner = MigrationRunner(conn)
+        runner.run_migrations()
+        
+        status = runner.get_status()
+        
+        assert status["current_version"] > 0
+        assert status["pending_count"] == 0
+        
+        # Check all migrations are marked as applied
+        for m in status["migrations"]:
+            if m["version"] <= status["current_version"]:
+                assert m["applied"] is True
+        conn.close()

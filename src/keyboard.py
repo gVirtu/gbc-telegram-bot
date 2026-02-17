@@ -285,5 +285,6 @@ def create_help_text() -> str:
     text += "/start\\_game - Inicia ou reinicia o jogo\n"
     text += "/save [slot] - Salva o jogo em um slot\n"
     text += "/load [slot] - Carrega o jogo de um slot\n"
+    text += "/m [texto] - Define mensagem personalizada (sem texto = volta ao padrão)"
 
     return text

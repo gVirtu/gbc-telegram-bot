@@ -108,7 +108,7 @@ class DatabaseManager:
             animation_duration=row['animation_duration'],
             auto_save_enabled=bool(row['auto_save_enabled']),
             running_mode=bool(row['running_mode']),
-            message_base_text=row.get('message_base_text'),
+            message_base_text=row['message_base_text'] if 'message_base_text' in row.keys() else None,
             created_at=datetime.fromisoformat(row['created_at']),
             updated_at=datetime.fromisoformat(row['updated_at'])
         )

@@ -139,3 +139,59 @@ class TestBeginHooksModuleMissingFunction:
 
         # Should not raise
         controller.end_hooks({})
+
+
+class TestIntegration:
+    """Integration tests for hook loading during initialization."""
+
+    @pytest.mark.asyncio
+    async def test_hooks_loaded_during_init(self, tmp_path):
+        """Test that hooks are loaded during GameController initialization."""
+        from src.game import GameController
+        from unittest.mock import patch, MagicMock, PropertyMock
+        import numpy as np
+
+        rom_path = tmp_path / "test.gbc"
+        rom_path.write_bytes(b"rom data")
+
+        controller = GameController(123456, rom_path=rom_path)
+
+        with patch("src.game.PyBoy") as mock_pyboy_class:
+            mock_instance = MagicMock()
+            mock_instance.cartridge_title = "PKPCRYSTAL"
+            mock_frame = np.zeros((144, 160, 3), dtype=np.uint8)
+            mock_screen = MagicMock()
+            type(mock_screen).ndarray = PropertyMock(return_value=mock_frame)
+            mock_instance.screen = mock_screen
+            mock_pyboy_class.return_value = mock_instance
+
+            await controller.initialize()
+
+            assert controller._hook_module is not None
+            assert controller._hook_module.__name__ == "src.game_hooks.pkpcrystal"
+
+    @pytest.mark.asyncio
+    async def test_hooks_not_loaded_for_unknown_game(self, tmp_path):
+        """Test that hooks are None for unknown games."""
+        from src.game import GameController
+        from unittest.mock import patch, MagicMock, PropertyMock
+        import numpy as np
+
+        rom_path = tmp_path / "test.gbc"
+        rom_path.write_bytes(b"rom data")
+
+        controller = GameController(123456, rom_path=rom_path)
+
+        with patch("src.game.PyBoy") as mock_pyboy_class:
+            mock_instance = MagicMock()
+            mock_instance.cartridge_title = "UNKNOWN_GAME"
+            mock_frame = np.zeros((144, 160, 3), dtype=np.uint8)
+            mock_screen = MagicMock()
+            type(mock_screen).ndarray = PropertyMock(return_value=mock_frame)
+            mock_instance.screen = mock_screen
+            mock_pyboy_class.return_value = mock_instance
+
+            await controller.initialize()
+
+            assert controller._hook_module is None
+            assert controller.begin_hooks() == {}

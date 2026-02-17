@@ -85,6 +85,18 @@ CREATE TABLE IF NOT EXISTS save_slots (
 CREATE TABLE IF NOT EXISTS schema_version (
     version INTEGER PRIMARY KEY
 );
+
+-- Migration history tracking
+CREATE TABLE IF NOT EXISTS migration_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    version INTEGER UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    reverted_at TIMESTAMP,
+    CHECK (version > 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_migration_history_version ON migration_history(version);
 """
 
 INDEXES_SQL = """

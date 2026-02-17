@@ -637,6 +637,63 @@ async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     )
 
 
+async def message_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /m command.
+
+    Sets or clears the custom message base text for game messages.
+    Usage: /m [TEXT]
+    Without TEXT, clears the custom message and reverts to default "Sua vez!"
+    With TEXT, sets the custom message base text.
+    Only admins can use this command.
+    """
+    if not _check_chat_allowed(update):
+        await update.message.reply_text(
+            "❌ Este bot não está autorizado para este chat."
+        )
+        return
+
+    # Check admin permission for group chats
+    is_allowed, error_msg = await _check_admin_permission(update, context)
+    if not is_allowed:
+        await update.message.reply_text(error_msg)
+        return
+
+    chat_id = update.effective_chat.id
+    
+    # Get or create config
+    config = state_manager.get_or_create_chat_config(chat_id)
+    
+    # Check if TEXT was provided
+    if not context.args:
+        # Clear custom message (set to None)
+        config.message_base_text = None
+        state_manager.save_chat_config(config)
+        await update.message.reply_text(
+            "✅ Mensagem personalizada removida. Usando padrão: \"Sua vez!\""
+        )
+        logger.info(f"Cleared custom message base text for chat {chat_id}")
+        return
+    
+    # Join args to form the custom text
+    custom_text = " ".join(context.args)
+    
+    # Validate text length (reasonable limit)
+    if len(custom_text) > 200:
+        await update.message.reply_text(
+            "❌ Texto muito longo. Use no máximo 200 caracteres."
+        )
+        return
+    
+    # Save custom text
+    config.message_base_text = custom_text
+    state_manager.save_chat_config(config)
+    
+    await update.message.reply_text(
+        f"✅ Mensagem personalizada definida: \"{custom_text}\""
+    )
+    logger.info(f"Set custom message base text for chat {chat_id}: {custom_text}")
+
+
 # Command handlers dictionary for easy registration
 COMMAND_HANDLERS = {
     "start_game": start_game_command,
@@ -647,4 +704,5 @@ COMMAND_HANDLERS = {
     "status": status_command,
     "help": help_command,
     "recap": recap_command,
+    "m": message_command,
 }

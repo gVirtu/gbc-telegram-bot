@@ -359,6 +359,7 @@ class GameController:
                 "ButtonSound.input_wait_loop": 0,
                 "Do2DMenuRTCJoypad_loop": 0,
                 "SummaryScreenLoop": 0,
+                "NamingScreenJoypadLoop": 0,
                 "_total": 0
             }
         }

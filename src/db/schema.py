@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS chat_configs (
     animation_duration INTEGER,
     auto_save_enabled BOOLEAN DEFAULT 1,
     running_mode BOOLEAN DEFAULT 0,
+    message_base_text TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

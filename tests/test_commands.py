@@ -25,6 +25,7 @@ from src.handlers.commands import (
     status_command,
     help_command,
     unknown_command,
+    message_command,
     _ensure_game_active,
     COMMAND_HANDLERS,
 )
@@ -1050,3 +1051,106 @@ class TestAdminPermissions:
 
                             # Should NOT call get_chat_member (private chat bypass)
                             assert not mock_context.bot.get_chat_member.called
+
+
+class TestMessageCommand:
+    """Test /m command for custom message base text."""
+
+    @pytest.fixture
+    def update(self):
+        return MockUpdate()
+
+    @pytest.fixture
+    def context(self):
+        return MockContext()
+
+    @pytest.mark.asyncio
+    async def test_message_command_sets_custom_text(self, update, context):
+        """Test setting custom message base text."""
+        context.args = ["Vamos", "jogar!"]
+
+        with patch("src.handlers.commands.state_manager") as mock_state:
+            mock_config = MagicMock()
+            mock_config.message_base_text = None
+            mock_state.get_or_create_chat_config.return_value = mock_config
+            mock_state.save_chat_config = MagicMock()
+
+            with patch("src.handlers.commands.settings") as mock_settings:
+                mock_settings.allowed_chat_ids = []
+
+                await message_command(update, context)
+
+                assert mock_config.message_base_text == "Vamos jogar!"
+                mock_state.save_chat_config.assert_called_once_with(mock_config)
+                update.message.reply_text.assert_called_with(
+                    '✅ Mensagem personalizada definida: "Vamos jogar!"'
+                )
+
+    @pytest.mark.asyncio
+    async def test_message_command_clears_text(self, update, context):
+        """Test clearing custom message base text (no args)."""
+        context.args = []
+
+        with patch("src.handlers.commands.state_manager") as mock_state:
+            mock_config = MagicMock()
+            mock_config.message_base_text = "Custom text"
+            mock_state.get_or_create_chat_config.return_value = mock_config
+            mock_state.save_chat_config = MagicMock()
+
+            with patch("src.handlers.commands.settings") as mock_settings:
+                mock_settings.allowed_chat_ids = []
+
+                await message_command(update, context)
+
+                assert mock_config.message_base_text is None
+                mock_state.save_chat_config.assert_called_once_with(mock_config)
+                update.message.reply_text.assert_called_with(
+                    '✅ Mensagem personalizada removida. Usando padrão: "Sua vez!"'
+                )
+
+    @pytest.mark.asyncio
+    async def test_message_command_text_too_long(self, update, context):
+        """Test validation for text length limit."""
+        context.args = ["x" * 201]  # 201 characters
+
+        with patch("src.handlers.commands.state_manager") as mock_state:
+            mock_config = MagicMock()
+            mock_state.get_or_create_chat_config.return_value = mock_config
+
+            with patch("src.handlers.commands.settings") as mock_settings:
+                mock_settings.allowed_chat_ids = []
+
+                await message_command(update, context)
+
+                # Should not save, should show error
+                mock_state.save_chat_config.assert_not_called()
+                update.message.reply_text.assert_called_with(
+                    "❌ Texto muito longo. Use no máximo 200 caracteres."
+                )
+
+    @pytest.mark.asyncio
+    async def test_message_command_non_admin_blocked(self, update, context):
+        """Test that /m is blocked for non-admins in groups."""
+        update.effective_chat.type = "group"
+        update.effective_user = MagicMock()
+        update.effective_user.id = 999
+
+        context.args = ["Hello"]
+
+        with patch("src.handlers.commands._check_admin_permission") as mock_check:
+            mock_check.return_value = (False, "🔒 Apenas administradores do grupo podem usar este comando.")
+
+            with patch("src.handlers.commands.settings") as mock_settings:
+                mock_settings.allowed_chat_ids = []
+
+                await message_command(update, context)
+
+                update.message.reply_text.assert_called_with(
+                    "🔒 Apenas administradores do grupo podem usar este comando."
+                )
+
+    @pytest.mark.asyncio
+    async def test_message_command_in_command_handlers(self):
+        """Test that 'm' is registered in COMMAND_HANDLERS."""
+        assert "m" in COMMAND_HANDLERS
+        assert COMMAND_HANDLERS["m"] == message_command

@@ -53,15 +53,18 @@ class GameController:
         self,
         chat_id: int,
         rom_path: Optional[Path] = None,
+        sym_path: Optional[Path] = None,
     ):
         """Initialize the game controller.
         
         Args:
             chat_id: Telegram chat ID for this game instance
             rom_path: Path to the ROM file (default: from settings)
+            sym_path: Path to the SYM file (default: from settings)
         """
         self.chat_id = chat_id
         self.rom_path = rom_path or settings.rom_path
+        self.sym_path = sym_path or settings.sym_path
         self.pyboy: Optional[PyBoy] = None
         self.last_frame_hash: Optional[str] = None
         self._initialized = False
@@ -83,6 +86,9 @@ class GameController:
         if not self.rom_path.exists():
             raise FileNotFoundError(f"ROM file not found: {self.rom_path}")
         
+        if self.sym_path is not None and not self.sym_path.exists():
+            raise FileNotFoundError(f"SYM file not found: {self.sym_path}")
+        
         try:
             logger.info(f"Initializing PyBoy for chat {self.chat_id}")
             
@@ -91,6 +97,7 @@ class GameController:
                 str(self.rom_path),
                 window="null",
                 sound_emulated=False,
+                symbols=str(self.sym_path)
             )
             
             # Run a few frames to get past boot screen
@@ -335,7 +342,61 @@ class GameController:
             frame_hash: The hash of the sent frame
         """
         self.last_frame_hash = frame_hash
-    
+        
+    def begin_polished_crystal_hooks(self):
+        context = {
+            "dangerousActions": {
+                "TossMenu": 0,
+                "BillsPC_Release": 0,
+                "BillsPC_ReleaseAll": 0,
+                "_total": 0
+            },
+            "inputWaitCalls": {
+                "DoPlayerMovement.GetAction": 0,
+                "JoyWaitAorB": 0,
+                "WaitButton": 0,
+                "WaitPressAorB_BlinkCursor": 0,
+                "ButtonSound.input_wait_loop": 0,
+                "Do2DMenuRTCJoypad_loop": 0,
+                "SummaryScreenLoop": 0,
+                "_total": 0
+            }
+        }
+        
+        def increment_context_counter(ctx, path):
+            target = ctx
+            for key in path[:-1]:
+                target = target[key]
+            target[path[-1]] += 1
+            target["_total"] += 1
+            return None
+        
+        def make_hook(category, action):
+            return lambda ctx: increment_context_counter(ctx, [category, action])
+
+        for action in context["dangerousActions"].keys():
+            if action.startswith("_"):
+                continue
+            self.pyboy.hook_register(None, action, make_hook("dangerousActions", action), context)
+        
+        for action in context["inputWaitCalls"].keys():
+            if action.startswith("_"):
+                continue
+            self.pyboy.hook_register(None, action, make_hook("inputWaitCalls", action), context)
+        
+        return context
+
+
+    def end_polished_crystal_hooks(self, context: dict):
+        for action in context["dangerousActions"].keys():
+            if action.startswith("_"):
+                continue
+            self.pyboy.hook_deregister(None, action)
+        for action in context["inputWaitCalls"].keys():
+            if action.startswith("_"):
+                continue
+            self.pyboy.hook_deregister(None, action)
+        
     def stop(self) -> None:
         """Stop the emulator and clean up resources."""
         if self.pyboy is not None:
@@ -459,7 +520,6 @@ class GameControllerManager:
                 logger.error(f"Error stopping controller for chat {chat_id}: {e}")
         
         self._controllers.clear()
-
 
 # Global manager instance
 game_controller_manager = GameControllerManager()

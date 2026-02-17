@@ -278,6 +278,7 @@ class TestInputProcessing:
         controller = MagicMock()
         controller.send_input.return_value = MagicMock()
         controller.get_frame_as_png.return_value = BytesIO(b"png")
+        controller.begin_polished_crystal_hooks.return_value = {}
         controller.last_frame_hash = None
         return controller
     
@@ -522,6 +523,7 @@ class TestWaitButtonProcessing:
         controller.tick.return_value = MagicMock()
         controller.send_input.return_value = MagicMock()
         controller.get_frame_as_png.return_value = BytesIO(b"png")
+        controller.begin_polished_crystal_hooks.return_value = {}
         controller.last_frame_hash = None
         return controller
 

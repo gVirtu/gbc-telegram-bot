@@ -7,6 +7,7 @@ including the first-vote-wins logic and animation phases.
 import asyncio
 import logging
 from typing import Optional
+from datetime import datetime
 
 from telegram import Bot, InputMediaPhoto, InputMediaAnimation, InlineKeyboardMarkup
 from telegram.error import TelegramError
@@ -21,7 +22,7 @@ from src.keyboard import (
 )
 from src.models.game_state import ChatGameState, ChatConfig, GameButton, GameSession
 from src.models.input_queue import InputQueue, QueueItem
-from src.utils.frame_utils import should_update_frame, save_frames_as_mp4
+from src.utils.frame_utils import should_update_frame, save_frames_as_mp4, generate_tbc_frames
 from src.utils.rate_limiter import RateLimitException
 from src.utils.state_manager import state_manager
 
@@ -232,8 +233,6 @@ class InputHandler:
         buttons: list[GameButton],
     ) -> None:
         """Record user input (single button or sequence)."""
-        from datetime import datetime
-
         # Increment by number of buttons in sequence
         session.state.user_input_counts[str(user_id)] = (
             session.state.user_input_counts.get(str(user_id), 0) + len(buttons)
@@ -274,15 +273,17 @@ class InputHandler:
                     break
                     
                 session.state.input_queue = queue
+                wait_time = self._calculate_processing_time(item.buttons)
                 
                 try:
-                    await self._process_queue_item(chat_id, message_id, item)
+                    result = await self._process_queue_item(chat_id, message_id, item)
+                    if result["animation_duration"]:
+                        wait_time = result["animation_duration"]
                 except Exception as e:
                     logger.error(f"Error processing queue item for chat {chat_id}: {e}")
                 
                 state_manager.save_game_state(session.state)
                 
-                wait_time = self._calculate_processing_time(item.buttons)
                 if wait_time > 0:
                     await asyncio.sleep(wait_time)
         
@@ -296,7 +297,7 @@ class InputHandler:
 
     async def _process_queue_item(
         self, chat_id: int, message_id: int, item: QueueItem
-    ) -> None:
+    ) -> dict:
         """Process a single queue item.
 
         Args:
@@ -306,8 +307,11 @@ class InputHandler:
         """
         queue = self._get_or_create_queue(chat_id)
         controller = await game_controller_manager.get_or_create_controller(chat_id)
+        checkpoint = controller.save_state()
         session = self._get_session(chat_id)
         buttons = item.buttons
+        
+        hook_context = controller.begin_polished_crystal_hooks()
         
         # Record the input for user tracking
         self._record_user_input(session, item.user_id, item.user_name, buttons)
@@ -359,12 +363,28 @@ class InputHandler:
 
         # Continue animating after last button - synchronous frame generation
         animation_frames = int(settings.animation_duration * game_fps)
+        wait_call_threshold = hook_context.get("inputWaitCalls", {}).get("_total", 0) + game_fps
+
         for frame_num in range(animation_frames):
             controller.tick(1)
+            if hook_context.get("inputWaitCalls", {}).get("_total", 0) > wait_call_threshold:
+                logger.info(f"Input wait loop detected, finishing animation early")
+                break
             if frame_num % capture_interval_frames == 0:
                 frames.append(controller.get_frame().copy())
+                
+        logger.info(f"Animation completed for chat {chat_id} in {animation_frames} frames")
+                
+        controller.end_polished_crystal_hooks(hook_context)
+        
+        if hook_context.get("dangerousActions", {}).get("_total", 0) > 0:
+            logger.info(f"Dangerous action ({str(hook_context.get('dangerousActions', {}))}) blocked for chat {chat_id}")
+            controller.load_state(checkpoint)
+            await self._send_error_message(chat_id, "Modo seguro ativado, esta ação foi bloqueada.")
+            return {"animation_duration": None}
+        
+        animation_duration_seconds = len(frames) / capture_fps
 
-        from src.utils.frame_utils import generate_tbc_frames
         tbc_frames = generate_tbc_frames(
             frames[-1] if frames else controller.get_frame(),
             overlay_path=settings.tbc_overlay_path,
@@ -415,6 +435,7 @@ class InputHandler:
                 logger.warning(f"Failed to auto-save for chat {chat_id}: {e}")
 
         logger.info(f"Completed queue item processing for chat {chat_id}")
+        return {"animation_duration": animation_duration_seconds}
     
     async def _edit_message_keyboard(
         self,

@@ -72,6 +72,10 @@ class Settings(BaseSettings):
         default=Path("./roms/game.gbc"),
         description="Path to GBC ROM file",
     )
+    sym_path: Path | None = Field(
+        default=None,
+        description="Path to GBC ROM symbol file",
+    )
     data_dir: Path = Field(
         default=Path("./data"),
         description="Directory for data storage (saves, config, polls)",
@@ -213,6 +217,12 @@ class Settings(BaseSettings):
         """Validate that ROM paths are absolute or relative to working directory."""
         return v.expanduser().resolve()
     
+    @field_validator("sym_path")
+    @classmethod
+    def validate_sym_path(cls, v: Path | None) -> Path | None:
+        """Validate that SYM paths are absolute or relative to working directory."""
+        return None if v is None else v.expanduser().resolve()
+    
     @field_validator("data_dir")
     @classmethod
     def validate_data_dir(cls, v: Path) -> Path:
@@ -241,6 +251,12 @@ class Settings(BaseSettings):
                 f"ROM file not found: {self.rom_path}. "
                 "Please provide a valid ROM file path."
             )
+        if self.sym_path is not None and not self.sym_path.exists():
+            raise ValueError(
+                f"SYM file not found: {self.sym_path}. "
+                "Please provide a valid SYM file path."
+            )
+
         return self
     
     def get_webhook_hash(self) -> str:

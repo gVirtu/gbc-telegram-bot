@@ -19,6 +19,7 @@ services:
       - PORT=${PORT:-8000}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - ROM_PATH=${ROM_PATH:-/app/roms/game.gbc}
+      - SYM_PATH=${SYM_PATH}
       - DATA_DIR=${DATA_DIR:-/app/data}
       - INITIAL_SAVE_PATH=${INITIAL_SAVE_PATH:-/app/roms/initial.state}
       - ALLOWED_CHAT_IDS=${ALLOWED_CHAT_IDS:-}

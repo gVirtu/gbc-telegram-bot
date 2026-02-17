@@ -129,7 +129,6 @@ class ChatGameState:
         input_in_progress: Whether an input is currently being processed
         last_input: The last button that was pressed
         last_input_time: When the last input was processed
-        frame_hash: Hash of the last sent frame (for optimization)
         user_input_counts: Track total inputs per user (user_id -> count)
         recent_inputs: Last 3 inputs with user info (FIFO)
         created_at: When this game state was created
@@ -141,7 +140,6 @@ class ChatGameState:
     input_in_progress: bool = False
     last_input: Optional[GameButton] = None
     last_input_time: Optional[datetime] = None
-    frame_hash: Optional[str] = None
     last_animation_file_id: Optional[str] = None
     user_input_counts: dict[str, int] = field(default_factory=dict)
     recent_inputs: list[dict] = field(default_factory=list)
@@ -158,7 +156,6 @@ class ChatGameState:
             "input_in_progress": self.input_in_progress,
             "last_input": self.last_input.value if self.last_input else None,
             "last_input_time": self.last_input_time.isoformat() if self.last_input_time else None,
-            "frame_hash": self.frame_hash,
             "last_animation_file_id": self.last_animation_file_id,
             "user_input_counts": self.user_input_counts,
             "recent_inputs": self.recent_inputs,
@@ -179,7 +176,6 @@ class ChatGameState:
             input_in_progress=data.get("input_in_progress", False),
             last_input=GameButton(data["last_input"]) if data.get("last_input") else None,
             last_input_time=datetime.fromisoformat(data["last_input_time"]) if data.get("last_input_time") else None,
-            frame_hash=data.get("frame_hash"),
             last_animation_file_id=data.get("last_animation_file_id"),
             user_input_counts=data.get("user_input_counts", {}),
             recent_inputs=data.get("recent_inputs", []),

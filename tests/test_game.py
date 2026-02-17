@@ -170,44 +170,6 @@ class TestGameControllerMocked:
         assert isinstance(call_args, BytesIO)
         assert call_args.read() == state_data
     
-    def test_should_update_frame_first_frame(self, controller):
-        """Test first frame always updates."""
-        frame = np.zeros((144, 160, 3), dtype=np.uint8)
-        
-        should_update, frame_hash = controller.should_update_frame(frame)
-        
-        assert should_update is True
-        assert len(frame_hash) == 64  # SHA256 hex
-    
-    def test_should_update_frame_same_frame(self, controller):
-        """Test same frame doesn't update."""
-        frame = np.zeros((144, 160, 3), dtype=np.uint8)
-        
-        # First call
-        should_update, frame_hash = controller.should_update_frame(frame)
-        controller.update_frame_hash(frame_hash)
-        
-        # Second call with same frame
-        should_update, new_hash = controller.should_update_frame(frame)
-        
-        assert should_update is False
-        assert new_hash == frame_hash
-    
-    def test_should_update_frame_different_frame(self, controller):
-        """Test different frame updates."""
-        frame1 = np.zeros((144, 160, 3), dtype=np.uint8)
-        frame2 = np.ones((144, 160, 3), dtype=np.uint8)
-        
-        # First call
-        should_update, hash1 = controller.should_update_frame(frame1)
-        controller.update_frame_hash(hash1)
-        
-        # Second call with different frame
-        should_update, hash2 = controller.should_update_frame(frame2)
-        
-        assert should_update is True
-        assert hash1 != hash2
-    
     def test_stop(self, controller, mock_pyboy):
         """Test stopping the emulator."""
         controller.stop()
@@ -411,21 +373,6 @@ class TestFrameHashTracking:
 
         return controller
     
-    def test_update_frame_hash(self, controller_with_mock):
-        """Test updating frame hash."""
-        assert controller_with_mock.last_frame_hash is None
-        
-        controller_with_mock.update_frame_hash("abc123")
-        
-        assert controller_with_mock.last_frame_hash == "abc123"
-    
-    def test_should_update_frame_without_argument(self, controller_with_mock):
-        """Test should_update_frame capturing its own frame."""
-        should_update, frame_hash = controller_with_mock.should_update_frame()
-        
-        assert should_update is True
-        assert len(frame_hash) == 64
-
 
 class TestGetFrameAsPng:
     """Test PNG conversion integration."""

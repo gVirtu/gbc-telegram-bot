@@ -22,7 +22,6 @@ CREATE TABLE IF NOT EXISTS game_states (
     input_in_progress BOOLEAN DEFAULT 0,
     last_input TEXT,
     last_input_time TIMESTAMP,
-    frame_hash TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

@@ -233,7 +233,6 @@ class TestStateManagerConcurrency:
         async def save_state(iteration):
             state = ChatGameState(
                 chat_id=chat_id,
-                frame_hash=f"hash_{iteration}"
             )
             manager.save_game_state(state)
         
@@ -244,7 +243,6 @@ class TestStateManagerConcurrency:
         # Load state - should be one of the saved values
         loaded = manager.load_game_state(chat_id)
         assert loaded is not None
-        assert loaded.frame_hash.startswith("hash_")
 
     @pytest.mark.asyncio
     async def test_read_while_writing(self, tmp_path):
@@ -256,12 +254,12 @@ class TestStateManagerConcurrency:
         chat_id = 123456
         
         # Initial save
-        manager.save_game_state(ChatGameState(chat_id=chat_id, frame_hash="initial"))
+        manager.save_game_state(ChatGameState(chat_id=chat_id, message_id=-1))
         
         async def writer():
             for i in range(5):
                 manager.save_game_state(
-                    ChatGameState(chat_id=chat_id, frame_hash=f"write_{i}")
+                    ChatGameState(chat_id=chat_id, message_id=i)
                 )
                 await asyncio.sleep(0.01)
         
@@ -270,7 +268,7 @@ class TestStateManagerConcurrency:
             for _ in range(10):
                 state = manager.load_game_state(chat_id)
                 if state:
-                    results.append(state.frame_hash)
+                    results.append(state.message_id)
                 await asyncio.sleep(0.005)
             return results
         

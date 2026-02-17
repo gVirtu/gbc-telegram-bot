@@ -303,29 +303,6 @@ class TestShouldUpdateFrame:
 class TestIntegration:
     """Integration tests for frame processing pipeline."""
     
-    def test_full_pipeline(self):
-        """Test the complete frame processing pipeline."""
-        # Create a frame
-        frame = create_empty_frame(color=(100, 150, 200))
-        
-        # Check if we should update (first frame)
-        should_update, frame_hash = should_update_frame(frame, None)
-        assert should_update is True
-        
-        # Convert to PNG
-        png_buffer = frame_to_png(frame)
-        assert len(png_buffer.getvalue()) > 0
-        
-        # Verify PNG is valid
-        png_buffer.seek(0)
-        image = Image.open(png_buffer)
-        assert image.size == (320, 288)
-        
-        # Same frame should not need update
-        should_update, new_hash = should_update_frame(frame, frame_hash)
-        assert should_update is False
-        assert new_hash == frame_hash
-    
     def test_optimization_saves_bandwidth(self):
         """Test that frame deduplication would save bandwidth."""
         # Simulate 10 identical frames

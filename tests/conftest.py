@@ -78,7 +78,6 @@ def mock_controller(mock_pyboy, mock_rom_path):
     controller = GameController(123456, rom_path=mock_rom_path)
     controller.pyboy = mock_pyboy
     controller._initialized = True
-    controller.last_frame_hash = None
     return controller
 
 

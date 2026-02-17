@@ -101,7 +101,6 @@ def migrate_game_states(data_dir: Path, db_manager: DatabaseManager, dry_run: bo
                 input_in_progress=data.get('input_in_progress', False),
                 last_input=GameButton(data['last_input']) if data.get('last_input') else None,
                 last_input_time=datetime.fromisoformat(data['last_input_time']) if data.get('last_input_time') else None,
-                frame_hash=data.get('frame_hash'),
                 user_input_counts=data.get('user_input_counts', {}),
                 recent_inputs=data.get('recent_inputs', []),
                 created_at=datetime.fromisoformat(data.get('created_at', datetime.utcnow().isoformat())),

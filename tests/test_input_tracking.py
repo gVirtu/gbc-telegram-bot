@@ -54,7 +54,6 @@ class TestChatGameStateSerialization:
             "input_in_progress": False,
             "last_input": "a",
             "last_input_time": None,
-            "frame_hash": "abc123",
             "user_input_counts": {"789": 10},
             "recent_inputs": [
                 {
@@ -82,7 +81,6 @@ class TestChatGameStateSerialization:
             "input_in_progress": False,
             "last_input": None,
             "last_input_time": None,
-            "frame_hash": None,
             "created_at": "2026-02-06T12:00:00.000000",
             "updated_at": "2026-02-06T12:00:00.000000",
         }
@@ -376,7 +374,6 @@ class TestIntegration:
             mock_controller.send_input = Mock(return_value=None)
             mock_controller.tick = Mock(return_value=None)
             mock_controller.get_frame_as_png = Mock(return_value=b"fake_png")
-            mock_controller.last_frame_hash = "hash123"
             mock_gcm.get_or_create_controller = AsyncMock(return_value=mock_controller)
 
             # Mock should_update_frame to skip animation

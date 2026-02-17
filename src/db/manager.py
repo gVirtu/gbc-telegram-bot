@@ -138,14 +138,13 @@ class DatabaseManager:
         """
         sql = """
         INSERT INTO game_states 
-            (chat_id, message_id, input_in_progress, last_input, last_input_time, frame_hash, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (chat_id, message_id, input_in_progress, last_input, last_input_time, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(chat_id) DO UPDATE SET
             message_id = excluded.message_id,
             input_in_progress = excluded.input_in_progress,
             last_input = excluded.last_input,
             last_input_time = excluded.last_input_time,
-            frame_hash = excluded.frame_hash,
             updated_at = excluded.updated_at;
         """
         
@@ -155,7 +154,6 @@ class DatabaseManager:
             1 if state.input_in_progress else 0,
             state.last_input.value if state.last_input else None,
             state.last_input_time.isoformat() if state.last_input_time else None,
-            state.frame_hash,
             state.created_at.isoformat() if state.created_at else datetime.utcnow().isoformat(),
             datetime.utcnow().isoformat()
         ))
@@ -191,7 +189,6 @@ class DatabaseManager:
             input_in_progress=bool(row['input_in_progress']),
             last_input=GameButton(row['last_input']) if row['last_input'] else None,
             last_input_time=datetime.fromisoformat(row['last_input_time']) if row['last_input_time'] else None,
-            frame_hash=row['frame_hash'],
             created_at=datetime.fromisoformat(row['created_at']),
             updated_at=datetime.fromisoformat(row['updated_at']),
             user_input_counts=self._load_user_input_counts(chat_id),

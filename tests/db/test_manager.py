@@ -82,7 +82,6 @@ class TestGameStateOperations:
             message_id=456,
             input_in_progress=True,
             last_input=GameButton.A,
-            frame_hash="abc123"
         )
         
         db_manager.save_game_state(state)
@@ -93,7 +92,6 @@ class TestGameStateOperations:
         assert loaded.message_id == 456
         assert loaded.input_in_progress is True
         assert loaded.last_input == GameButton.A
-        assert loaded.frame_hash == "abc123"
     
     def test_load_game_state_nonexistent_returns_none(self, db_manager):
         """Verify loading nonexistent state returns None."""

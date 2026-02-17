@@ -91,7 +91,6 @@ class TestChatGameState:
             message_id=100,
             input_in_progress=False,
             last_input=GameButton.A,
-            frame_hash="abc123",
         )
     
     def test_initial_state(self, game_state):
@@ -100,7 +99,6 @@ class TestChatGameState:
         assert game_state.message_id == 100
         assert game_state.input_in_progress is False
         assert game_state.last_input == GameButton.A
-        assert game_state.frame_hash == "abc123"
         assert isinstance(game_state.created_at, datetime)
         assert isinstance(game_state.updated_at, datetime)
     
@@ -112,7 +110,6 @@ class TestChatGameState:
         assert data["message_id"] == 100
         assert data["input_in_progress"] is False
         assert data["last_input"] == "a"
-        assert data["frame_hash"] == "abc123"
         assert "created_at" in data
         assert "updated_at" in data
     
@@ -123,7 +120,6 @@ class TestChatGameState:
         
         assert data["message_id"] is None
         assert data["last_input"] is None
-        assert data["frame_hash"] is None
         assert data["last_input_time"] is None
     
     def test_from_dict(self):
@@ -134,7 +130,6 @@ class TestChatGameState:
             "input_in_progress": True,
             "last_input": "b",
             "last_input_time": "2024-01-01T12:00:00",
-            "frame_hash": "def456",
             "created_at": "2024-01-01T10:00:00",
             "updated_at": "2024-01-01T12:00:00",
         }
@@ -145,7 +140,6 @@ class TestChatGameState:
         assert state.message_id == 100
         assert state.input_in_progress is True
         assert state.last_input == GameButton.B
-        assert state.frame_hash == "def456"
         assert state.last_input_time == datetime(2024, 1, 1, 12, 0, 0)
     
     def test_from_dict_with_none(self):
@@ -156,7 +150,6 @@ class TestChatGameState:
             "input_in_progress": False,
             "last_input": None,
             "last_input_time": None,
-            "frame_hash": None,
             "created_at": "2024-01-01T10:00:00",
             "updated_at": "2024-01-01T10:00:00",
         }

@@ -410,8 +410,6 @@ class InputHandler:
                     # State will be persisted in _process_queue_loop
                     session.state.last_animation_file_id = file_id
 
-                _, last_hash = should_update_frame(frames[-1], None)
-                controller.update_frame_hash(last_hash)
             except Exception as e:
                 logger.error(f"Failed to generate MP4 for chat {chat_id}: {e}")
                 try:

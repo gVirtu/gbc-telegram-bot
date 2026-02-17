@@ -66,7 +66,6 @@ class GameController:
         self.rom_path = rom_path or settings.rom_path
         self.sym_path = sym_path or settings.sym_path
         self.pyboy: Optional[PyBoy] = None
-        self.last_frame_hash: Optional[str] = None
         self._initialized = False
     
     async def initialize(self) -> None:
@@ -309,40 +308,6 @@ class GameController:
         
         logger.info(f"Loaded save state for chat {self.chat_id}")
     
-    def should_update_frame(self, current_frame: Optional[np.ndarray] = None) -> tuple[bool, str]:
-        """Check if the frame has changed and should be sent.
-        
-        Args:
-            current_frame: The current frame (if None, captures new frame)
-            
-        Returns:
-            Tuple of (should_update, current_hash)
-        """
-        if current_frame is None:
-            current_frame = self.get_frame()
-        
-        current_hash = hash_frame(current_frame)
-        
-        if self.last_frame_hash is None:
-            # First frame always updates
-            return True, current_hash
-        
-        if current_hash == self.last_frame_hash:
-            # No change
-            return False, current_hash
-        
-        return True, current_hash
-    
-    def update_frame_hash(self, frame_hash: str) -> None:
-        """Update the stored frame hash.
-        
-        Call this after sending a frame to track changes.
-        
-        Args:
-            frame_hash: The hash of the sent frame
-        """
-        self.last_frame_hash = frame_hash
-        
     def begin_polished_crystal_hooks(self):
         context = {
             "dangerousActions": {

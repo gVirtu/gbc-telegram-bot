@@ -96,7 +96,6 @@ class TestEndToEndGameFlow:
                     mock_controller = MagicMock()
                     mock_controller.send_input.return_value = mock_frame
                     mock_controller.get_frame_as_png.return_value = BytesIO(b"png")
-                    mock_controller.last_frame_hash = None
                     mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
                     
                     # Process button press

@@ -35,6 +35,9 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: "poetry"
 
+      - name: Setup FFmpeg
+        uses: AnimMouse/setup-ffmpeg@v1
+
       - name: Install dependencies
         run: |
           poetry install --all-extras

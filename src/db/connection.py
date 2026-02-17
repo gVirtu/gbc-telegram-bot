@@ -5,8 +5,6 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from src.db.schema import get_schema_sql, get_schema_version_sql
-
 logger = logging.getLogger(__name__)
 
 

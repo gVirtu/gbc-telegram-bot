@@ -2,6 +2,7 @@
 
 import pytest
 import sqlite3
+import importlib
 from pathlib import Path
 from datetime import datetime
 
@@ -41,14 +42,14 @@ class TestFullMigrationWorkflow:
         """Verify existing database marks baseline as applied without running."""
         from src.db.connection import DatabaseConnection
         from src.db.migrations.runner import MigrationRunner
-        from src.db.schema import get_schema_sql
+        baseline = importlib.import_module("src.db.migrations.001_baseline")
         
         db_path = tmp_path / "test.db"
         conn = DatabaseConnection(db_path)
         
         # Create database the "old" way (before migrations)
         raw_conn = conn.get_connection()
-        raw_conn.executescript(get_schema_sql())
+        baseline.upgrade(raw_conn)
         
         # Now run migrations
         runner = MigrationRunner(conn)

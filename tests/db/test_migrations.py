@@ -1,5 +1,6 @@
 """Tests for database migration system."""
 import pytest
+import importlib
 from pathlib import Path
 
 
@@ -130,14 +131,14 @@ class TestBaselineMigration:
         """Verify detection of existing database via schema_version table."""
         from src.db.connection import DatabaseConnection
         from src.db.migrations.runner import MigrationRunner
-        from src.db.schema import get_schema_sql
+        baseline = importlib.import_module("src.db.migrations.001_baseline")
         
         db_path = tmp_path / "test.db"
         conn = DatabaseConnection(db_path)
         
         # Simulate existing database (before migrations existed)
         raw_conn = conn.get_connection()
-        raw_conn.executescript(get_schema_sql())
+        baseline.upgrade(raw_conn)
         
         # Verify schema_version table exists
         cursor = raw_conn.execute(
@@ -165,14 +166,14 @@ class TestBaselineMigration:
         """Verify baseline is marked as applied for existing DBs."""
         from src.db.connection import DatabaseConnection
         from src.db.migrations.runner import MigrationRunner
-        from src.db.schema import get_schema_sql
+        baseline = importlib.import_module("src.db.migrations.001_baseline")
         
         db_path = tmp_path / "test.db"
         conn = DatabaseConnection(db_path)
         
         # Simulate existing database
         raw_conn = conn.get_connection()
-        raw_conn.executescript(get_schema_sql())
+        baseline.upgrade(raw_conn)
         
         runner = MigrationRunner(conn)
         runner._ensure_migration_history_table()

@@ -55,12 +55,15 @@ def create_game_message_text(
     status: str = "",
     recent_inputs: list[dict] | None = None,
     queue_length: int = 0,
+    base_text_override: str | None = None,
 ) -> str:
     """Create the caption text for the game message.
 
     Args:
         status: Optional status message to display
         recent_inputs: List of recent input records (max 3) to display
+        queue_length: Number of inputs in queue
+        base_text_override: Custom base text to use instead of default "Sua vez!"
 
     Returns:
         Formatted message text with game title, instructions, and recent inputs
@@ -71,7 +74,7 @@ def create_game_message_text(
         True
     """
     if queue_length == 0:
-        base_text = "Sua vez!"
+        base_text = base_text_override if base_text_override is not None else "Sua vez!"
     else:
         base_text = f"{queue_length} input#{'s' if queue_length > 1 else ''} na fila."
 

@@ -311,7 +311,7 @@ class InputHandler:
         session = self._get_session(chat_id)
         buttons = item.buttons
         
-        hook_context = controller.begin_polished_crystal_hooks()
+        hook_context = controller.begin_hooks()
         
         # Record the input for user tracking
         self._record_user_input(session, item.user_id, item.user_name, buttons)
@@ -375,7 +375,7 @@ class InputHandler:
                 
         logger.info(f"Animation completed for chat {chat_id} in {animation_frames} frames")
                 
-        controller.end_polished_crystal_hooks(hook_context)
+        controller.end_hooks(hook_context)
         
         if hook_context.get("dangerousActions", {}).get("_total", 0) > 0:
             logger.info(f"Dangerous action ({str(hook_context.get('dangerousActions', {}))}) blocked for chat {chat_id}")

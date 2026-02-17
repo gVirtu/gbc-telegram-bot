@@ -26,7 +26,7 @@ async def test_auto_save_on_input():
             
             mock_controller = MagicMock()
             mock_controller.save_state.return_value = b"save_data"
-            mock_controller.begin_polished_crystal_hooks.return_value = {}
+            mock_controller.begin_hooks.return_value = {}
             mock_game_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
             
             # Mock animation methods to avoid side effects
@@ -62,7 +62,7 @@ async def test_no_auto_save_when_disabled():
             mock_state_mgr.get_or_create_chat_config.return_value = mock_config
             
             mock_controller = MagicMock()
-            mock_controller.begin_polished_crystal_hooks.return_value = {}
+            mock_controller.begin_hooks.return_value = {}
             mock_game_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
             
             # Mock animation methods

@@ -181,3 +181,61 @@ class TestBaselineMigration:
         # Verify baseline is marked as applied
         assert runner.is_migration_applied(1)
         conn.close()
+
+
+class TestMigrationIntegration:
+    """Test migration integration with database initialization."""
+    
+    def test_migrations_run_on_connection_initialize(self, tmp_path):
+        """Verify migrations run when DatabaseConnection.initialize() is called."""
+        from src.db.connection import DatabaseConnection
+        
+        db_path = tmp_path / "test.db"
+        conn = DatabaseConnection(db_path)
+        conn.initialize()
+        
+        # Verify migration_history table exists
+        cursor = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='migration_history';"
+        )
+        assert cursor.fetchone() is not None
+        
+        # Verify baseline is marked as applied
+        cursor = conn.execute(
+            "SELECT version FROM migration_history WHERE version = 1;"
+        )
+        assert cursor.fetchone() is not None
+        conn.close()
+    
+    def test_migration_error_aborts_initialization(self, tmp_path):
+        """Verify migration failure aborts with error."""
+        from src.db.connection import DatabaseConnection
+        from src.db.migrations.runner import MigrationError
+        
+        db_path = tmp_path / "test.db"
+        conn = DatabaseConnection(db_path)
+        
+        # Temporarily add a bad migration - patch where it's used, not defined
+        import src.db.migrations.runner
+        original_discover = src.db.migrations.runner.discover_migrations
+        
+        def mock_discover():
+            from src.db.migrations.base import Migration
+            
+            def bad_upgrade(conn):
+                raise ValueError("Migration failed!")
+            
+            return [
+                Migration(version=999, name="999_bad", upgrade=bad_upgrade, downgrade=None)
+            ]
+        
+        src.db.migrations.runner.discover_migrations = mock_discover
+        
+        try:
+            with pytest.raises(MigrationError) as exc_info:
+                conn.initialize()
+            
+            assert "Migration 999_bad (v999) failed" in str(exc_info.value)
+        finally:
+            src.db.migrations.runner.discover_migrations = original_discover
+            conn.close()

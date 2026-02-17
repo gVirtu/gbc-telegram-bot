@@ -65,17 +65,28 @@ class DatabaseConnection:
         return self._connection
     
     def initialize(self) -> None:
-        """Initialize database with schema.
+        """Initialize database with schema and migrations.
         
-        Creates tables and indexes if they don't exist.
+        Creates tables if they don't exist and runs pending migrations.
         Safe to call multiple times (idempotent).
+        
+        Raises:
+            MigrationError: If any migration fails.
         """
         conn = self.get_connection()
         
-        # Execute schema creation
-        conn.executescript(get_schema_sql())
-        conn.executescript(get_schema_version_sql())
-        conn.commit()
+        # Run migrations (handles both new and existing databases)
+        # Lazy import to avoid circular dependency
+        from src.db.migrations.runner import MigrationRunner, MigrationError
+        runner = MigrationRunner(self)
+        try:
+            runner.run_migrations()
+        except MigrationError:
+            # Re-raise to abort initialization
+            raise
+        except Exception as e:
+            # Wrap unexpected errors
+            raise MigrationError(f"Failed to run migrations: {e}") from e
         
         logger.info(f"Initialized database at {self.db_path}")
     

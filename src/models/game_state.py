@@ -203,6 +203,7 @@ class ChatConfig:
         animation_duration: Custom animation phase duration
         auto_save_enabled: Whether auto-save is enabled
         running_mode: Whether running mode is enabled (holds B during directional inputs)
+        message_base_text: Custom base text for game messages (default: "Sua vez!")
         created_at: When this config was created
         updated_at: When this config was last updated
     """
@@ -212,6 +213,7 @@ class ChatConfig:
     animation_duration: Optional[int] = None
     auto_save_enabled: bool = True
     running_mode: bool = False
+    message_base_text: Optional[str] = None
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
     
@@ -223,6 +225,7 @@ class ChatConfig:
             "animation_duration": self.animation_duration,
             "auto_save_enabled": self.auto_save_enabled,
             "running_mode": self.running_mode,
+            "message_base_text": self.message_base_text,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
@@ -236,6 +239,7 @@ class ChatConfig:
             animation_duration=data.get("animation_duration"),
             auto_save_enabled=data.get("auto_save_enabled", True),
             running_mode=data.get("running_mode", False),
+            message_base_text=data.get("message_base_text"),
             created_at=datetime.fromisoformat(data["created_at"]),
             updated_at=datetime.fromisoformat(data["updated_at"]),
         )

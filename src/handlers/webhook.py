@@ -237,6 +237,17 @@ class WebhookHandler:
             # Startup
             logger.info("Starting up webhook handler...")
             
+            # Initialize database (runs migrations)
+            from src.db.migrations.runner import MigrationError
+            try:
+                from src.db.manager import DatabaseManager
+                db_manager = DatabaseManager()
+                db_manager.initialize()
+                logger.info("Database initialized with migrations")
+            except MigrationError as e:
+                logger.error(f"Failed to run database migrations: {e}")
+                raise
+            
             # Initialize rate limiter
             from src.utils.rate_limiter import init_rate_limiter
             init_rate_limiter(

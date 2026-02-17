@@ -8,6 +8,7 @@ import logging
 from io import BytesIO
 from pathlib import Path
 from typing import Optional
+from types import ModuleType
 
 import numpy as np
 from pyboy import PyBoy
@@ -104,7 +105,9 @@ class GameController:
                 self.pyboy.tick()
             
             self._initialized = True
-            logger.info(f"PyBoy initialized successfully for chat {self.chat_id}")
+            # Load game-specific hooks based on cartridge title
+            self._hook_module = self._load_hook_module(self.pyboy.cartridge_title)
+            logger.info(f"Game '{self.pyboy.cartridge_title}' initialized successfully for chat {self.chat_id}")
             
         except Exception as e:
             logger.error(f"Failed to initialize PyBoy for chat {self.chat_id}: {e}")
@@ -118,6 +121,29 @@ class GameController:
             True if initialized, False otherwise
         """
         return self._initialized and self.pyboy is not None
+    
+    def _load_hook_module(self, cartridge_title: str) -> Optional[ModuleType]:
+        """Dynamically load hook module for a cartridge.
+
+        Args:
+            cartridge_title: PyBoy cartridge title (e.g., "PKPCRYSTAL")
+
+        Returns:
+            Module if found, None otherwise
+        """
+        if not cartridge_title:
+            return None
+
+        module_name = f"src.game_hooks.{cartridge_title.lower()}"
+
+        try:
+            import importlib
+            module = importlib.import_module(module_name)
+            logger.debug(f"Loaded hook module: {module_name}")
+            return module
+        except ImportError:
+            logger.debug(f"No hook module found for: {cartridge_title}")
+            return None
     
     def get_frame(self) -> np.ndarray:
         """Get the current screen frame as a numpy array.
@@ -308,60 +334,40 @@ class GameController:
         
         logger.info(f"Loaded save state for chat {self.chat_id}")
     
-    def begin_polished_crystal_hooks(self):
-        context = {
-            "dangerousActions": {
-                "TossMenu": 0,
-                "BillsPC_Release": 0,
-                "BillsPC_ReleaseAll": 0,
-                "_total": 0
-            },
-            "inputWaitCalls": {
-                "DoPlayerMovement.GetAction": 0,
-                "JoyWaitAorB": 0,
-                "WaitButton": 0,
-                "WaitPressAorB_BlinkCursor": 0,
-                "ButtonSound.input_wait_loop": 0,
-                "Do2DMenuRTCJoypad_loop": 0,
-                "SummaryScreenLoop": 0,
-                "NamingScreenJoypadLoop": 0,
-                "_total": 0
-            }
-        }
-        
-        def increment_context_counter(ctx, path):
-            target = ctx
-            for key in path[:-1]:
-                target = target[key]
-            target[path[-1]] += 1
-            target["_total"] += 1
-            return None
-        
-        def make_hook(category, action):
-            return lambda ctx: increment_context_counter(ctx, [category, action])
+    def begin_hooks(self) -> dict:
+        """Begin hooks for the current game.
 
-        for action in context["dangerousActions"].keys():
-            if action.startswith("_"):
-                continue
-            self.pyboy.hook_register(None, action, make_hook("dangerousActions", action), context)
-        
-        for action in context["inputWaitCalls"].keys():
-            if action.startswith("_"):
-                continue
-            self.pyboy.hook_register(None, action, make_hook("inputWaitCalls", action), context)
-        
-        return context
+        Returns:
+            Context dict from hook module, or empty dict if no hooks.
+        """
+        if self._hook_module is None:
+            return {}
+
+        try:
+            return self._hook_module.begin_hooks(self.pyboy)
+        except AttributeError:
+            logger.warning(f"Hook module missing begin_hooks function")
+            return {}
+        except Exception as e:
+            logger.error(f"Hook registration failed: {e}")
+            return {}
 
 
-    def end_polished_crystal_hooks(self, context: dict):
-        for action in context["dangerousActions"].keys():
-            if action.startswith("_"):
-                continue
-            self.pyboy.hook_deregister(None, action)
-        for action in context["inputWaitCalls"].keys():
-            if action.startswith("_"):
-                continue
-            self.pyboy.hook_deregister(None, action)
+    def end_hooks(self, context: dict) -> None:
+        """End hooks for the current game.
+
+        Args:
+            context: Context dict from begin_hooks
+        """
+        if self._hook_module is None:
+            return
+
+        try:
+            self._hook_module.end_hooks(self.pyboy, context)
+        except AttributeError:
+            logger.warning(f"Hook module missing end_hooks function")
+        except Exception as e:
+            logger.error(f"Hook deregistration failed: {e}")
         
     def stop(self) -> None:
         """Stop the emulator and clean up resources."""
@@ -370,6 +376,7 @@ class GameController:
             self.pyboy.stop()
             self.pyboy = None
             self._initialized = False
+            self._hook_module = None
     
     def __del__(self):
         """Destructor to ensure emulator is stopped."""

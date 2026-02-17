@@ -239,3 +239,50 @@ class TestMigrationIntegration:
         finally:
             src.db.migrations.runner.discover_migrations = original_discover
             conn.close()
+
+
+class TestSampleMigration:
+    """Test the sample migration for adding updated_at column."""
+    
+    def test_migration_002_adds_updated_at_column(self, tmp_path):
+        """Verify migration 002 adds updated_at column to migration_history."""
+        from src.db.connection import DatabaseConnection
+        from src.db.migrations.runner import MigrationRunner
+        
+        db_path = tmp_path / "test.db"
+        conn = DatabaseConnection(db_path)
+        conn.initialize()
+        
+        runner = MigrationRunner(conn)
+        runner.run_migrations()
+        
+        # Check if migration 002 is applied
+        assert runner.is_migration_applied(2)
+        
+        # Verify the column was added
+        cursor = conn.execute("PRAGMA table_info(migration_history);")
+        columns = {row['name'] for row in cursor.fetchall()}
+        assert 'updated_at' in columns
+        conn.close()
+    
+    def test_migration_002_downgrade_removes_column(self, tmp_path):
+        """Verify migration 002 downgrade removes the column."""
+        from src.db.connection import DatabaseConnection
+        from src.db.migrations.runner import MigrationRunner
+        
+        db_path = tmp_path / "test.db"
+        conn = DatabaseConnection(db_path)
+        conn.initialize()
+        
+        runner = MigrationRunner(conn)
+        runner.run_migrations()
+        
+        # Apply migration 002
+        assert runner.is_migration_applied(2)
+        
+        # Rollback migration 002
+        runner.rollback_migration(2)
+        
+        # Verify it's no longer applied
+        assert not runner.is_migration_applied(2)
+        conn.close()

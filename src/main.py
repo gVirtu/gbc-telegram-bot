@@ -54,8 +54,6 @@ def setup_webhook() -> None:
             logger.info(f"Webhook set successfully: {webhook_url}")
         except Exception as e:
             logger.error(f"Failed to set webhook: {e}")
-        finally:
-            await bot.session.close()
     
     asyncio.run(_setup())
 

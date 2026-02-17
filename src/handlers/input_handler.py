@@ -112,6 +112,23 @@ class InputHandler:
             base_time += delay_time
         return base_time
     
+    def _get_message_base_text(self, chat_id: int) -> str | None:
+        """Get custom message base text for a chat if configured.
+        
+        Args:
+            chat_id: The Telegram chat ID
+            
+        Returns:
+            Custom base text or None to use default
+        """
+        try:
+            config = state_manager.load_chat_config(chat_id)
+            if config and config.message_base_text:
+                return config.message_base_text
+        except Exception:
+            pass
+        return None
+    
     def _is_processing(self, chat_id: int) -> bool:
         """Check if a chat is currently processing input."""
         return chat_id in self._processing
@@ -397,7 +414,8 @@ class InputHandler:
         frames.extend(tbc_frames)
         
         recent = session.state.recent_inputs if session else []
-        caption = create_game_message_text(recent_inputs=recent, queue_length=len(queue))
+        base_text = self._get_message_base_text(chat_id)
+        caption = create_game_message_text(recent_inputs=recent, queue_length=len(queue), base_text_override=base_text)
 
         # Generate and send MP4
         if frames:
@@ -549,10 +567,11 @@ class InputHandler:
         # Send initial message
 
         recent = session.state.recent_inputs if session else []
+        base_text = self._get_message_base_text(chat_id)
         message = await self.bot.send_photo(
             chat_id=chat_id,
             photo=png_buffer,
-            caption=create_game_message_text(recent_inputs=recent, queue_length=len(queue)),
+            caption=create_game_message_text(recent_inputs=recent, queue_length=len(queue), base_text_override=base_text),
             reply_markup=create_input_keyboard(running_mode=running_mode),
             parse_mode="Markdown",
         )
@@ -591,7 +610,8 @@ class InputHandler:
         # Get current frame
         png_buffer = controller.get_frame_as_png()
         recent = session.state.recent_inputs if session else []
-        caption = create_game_message_text(recent_inputs=recent, queue_length=len(queue))
+        base_text = self._get_message_base_text(chat_id)
+        caption = create_game_message_text(recent_inputs=recent, queue_length=len(queue), base_text_override=base_text)
         
         if session and session.state.message_id and not session.state.input_in_progress:
             # Edit existing message
@@ -667,10 +687,11 @@ class InputHandler:
                 pass
 
         recent = session.state.recent_inputs if session else []
+        base_text = self._get_message_base_text(chat_id)
         message = await self.bot.send_photo(
             chat_id=chat_id,
             photo=png_buffer,
-            caption=create_game_message_text(recent_inputs=recent, queue_length=len(queue)),
+            caption=create_game_message_text(recent_inputs=recent, queue_length=len(queue), base_text_override=base_text),
             reply_markup=create_input_keyboard(running_mode=running_mode),
             parse_mode="Markdown",
         )

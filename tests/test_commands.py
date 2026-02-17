@@ -1083,7 +1083,7 @@ class TestMessageCommand:
                 assert mock_config.message_base_text == "Vamos jogar!"
                 mock_state.save_chat_config.assert_called_once_with(mock_config)
                 update.message.reply_text.assert_called_with(
-                    '✅ Mensagem personalizada definida: "Vamos jogar!"'
+                    '✅ Mensagem definida: "Vamos jogar!"'
                 )
 
     @pytest.mark.asyncio
@@ -1105,13 +1105,13 @@ class TestMessageCommand:
                 assert mock_config.message_base_text is None
                 mock_state.save_chat_config.assert_called_once_with(mock_config)
                 update.message.reply_text.assert_called_with(
-                    '✅ Mensagem personalizada removida. Usando padrão: "Sua vez!"'
+                    '✅ Mensagem personalizada removida..'
                 )
 
     @pytest.mark.asyncio
     async def test_message_command_text_too_long(self, update, context):
         """Test validation for text length limit."""
-        context.args = ["x" * 201]  # 201 characters
+        context.args = ["x" * 241]  # 241 characters
 
         with patch("src.handlers.commands.state_manager") as mock_state:
             mock_config = MagicMock()
@@ -1125,7 +1125,7 @@ class TestMessageCommand:
                 # Should not save, should show error
                 mock_state.save_chat_config.assert_not_called()
                 update.message.reply_text.assert_called_with(
-                    "❌ Texto muito longo. Use no máximo 200 caracteres."
+                    "❌ Texto muito longo. Use no máximo 240 caracteres."
                 )
 
     @pytest.mark.asyncio

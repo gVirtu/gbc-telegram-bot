@@ -668,19 +668,17 @@ async def message_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         # Clear custom message (set to None)
         config.message_base_text = None
         state_manager.save_chat_config(config)
-        await update.message.reply_text(
-            "✅ Mensagem personalizada removida. Usando padrão: \"Sua vez!\""
-        )
+        await update.message.reply_text("✅ Mensagem personalizada removida..")
         logger.info(f"Cleared custom message base text for chat {chat_id}")
         return
     
     # Join args to form the custom text
     custom_text = " ".join(context.args)
     
-    # Validate text length (reasonable limit)
-    if len(custom_text) > 200:
+    # Validate text length
+    if len(custom_text) > 240:
         await update.message.reply_text(
-            "❌ Texto muito longo. Use no máximo 200 caracteres."
+            "❌ Texto muito longo. Use no máximo 240 caracteres."
         )
         return
     
@@ -689,7 +687,7 @@ async def message_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     state_manager.save_chat_config(config)
     
     await update.message.reply_text(
-        f"✅ Mensagem personalizada definida: \"{custom_text}\""
+        f"✅ Mensagem definida: \"{custom_text}\""
     )
     logger.info(f"Set custom message base text for chat {chat_id}: {custom_text}")
 

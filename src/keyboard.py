@@ -273,6 +273,7 @@ def create_help_text() -> str:
     text += "\n*Comandos do jogador:*\n"
     text += "/resume - Retoma o jogo em uma nova mensagem\n"
     text += "/print - Captura a tela atual e envia na conversa\n"
+    text += "/recap - Envia o último trecho de animação novamente\n"
     text += "/status - Mostra algumas informações de status\n"
     text += "/help - Mostra esta mensagem de ajuda"
 

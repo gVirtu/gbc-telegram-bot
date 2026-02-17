@@ -403,9 +403,12 @@ class InputHandler:
                 mp4_buffer = save_frames_as_mp4(frames, fps=capture_fps)
                 mp4_buffer.seek(0)
 
-                await self._edit_message_media(
+                file_id = await self._edit_message_media(
                     chat_id, message_id, mp4_buffer, caption, media_type="animation", reply_markup=input_keyboard
                 )
+                if file_id and session:
+                    # State will be persisted in _process_queue_loop
+                    session.state.last_animation_file_id = file_id
 
                 _, last_hash = should_update_frame(frames[-1], None)
                 controller.update_frame_hash(last_hash)
@@ -467,7 +470,7 @@ class InputHandler:
         caption: str,
         media_type: str = "photo",
         reply_markup: Optional[InlineKeyboardMarkup] = None,
-    ) -> None:
+    ) -> Optional[str]:
         """Edit a message's media (photo or animation).
 
         Args:
@@ -476,7 +479,12 @@ class InputHandler:
             media_buffer: BytesIO containing image or animation data
             caption: Message caption
             media_type: Type of media ("photo" or "animation")
+            reply_markup: Optional keyboard to attach
+
+        Returns:
+            file_id if animation was sent, None otherwise
         """
+        file_id = None
         try:
             if media_type == "animation":
                 # Ensure buffer has a name attribute for proper file upload
@@ -489,14 +497,18 @@ class InputHandler:
             else:
                 media = InputMediaPhoto(media=media_buffer, caption=caption, parse_mode="Markdown")
 
-            await self.bot.edit_message_media(
+            message = await self.bot.edit_message_media(
                 chat_id=chat_id,
                 message_id=message_id,
                 media=media,
                 reply_markup=reply_markup,
             )
+            # Capture file_id from the returned message
+            if media_type == "animation" and message and message.animation:
+                file_id = message.animation.file_id
         except TelegramError as e:
             logger.warning(f"Failed to edit media for chat {chat_id}: {e}")
+        return file_id
     
     async def _send_error_message(self, chat_id: int, text: str) -> None:
         """Send an error message to the chat.

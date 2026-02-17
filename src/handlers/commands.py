@@ -595,6 +595,45 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     )
 
 
+async def recap_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /recap command.
+
+    Resends the most recently sent animation as a new standalone message
+    (no caption) in the chat. Any group member can use this command.
+    """
+    if not _check_chat_allowed(update):
+        await update.message.reply_text(
+            "❌ Este bot não está autorizado para este chat."
+        )
+        return
+
+    chat_id = update.effective_chat.id
+
+    handler = get_input_handler(context.bot)
+    session = handler._get_session(chat_id)
+
+    if not session or not session.state.last_animation_file_id:
+        await update.message.reply_text(
+            "Nenhum trecho de gameplay recente encontrado."
+        )
+        return
+
+    try:
+        await context.bot.send_animation(
+            chat_id=chat_id,
+            animation=session.state.last_animation_file_id,
+            caption="",
+        )
+
+        logger.info(f"Sent recap animation for chat {chat_id}")
+
+    except Exception as e:
+        logger.error(f"Error sending recap for chat {chat_id}: {e}")
+        await update.message.reply_text(
+            "❌ Não consegui enviar a animação, ela pode ter expirado."
+        )
+        return
+
 async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle unknown commands."""
     await update.message.reply_text(
@@ -611,4 +650,5 @@ COMMAND_HANDLERS = {
     "load": load_command,
     "status": status_command,
     "help": help_command,
+    "recap": recap_command,
 }

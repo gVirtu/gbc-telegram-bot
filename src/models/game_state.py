@@ -142,6 +142,7 @@ class ChatGameState:
     last_input: Optional[GameButton] = None
     last_input_time: Optional[datetime] = None
     frame_hash: Optional[str] = None
+    last_animation_file_id: Optional[str] = None
     user_input_counts: dict[str, int] = field(default_factory=dict)
     recent_inputs: list[dict] = field(default_factory=list)
     created_at: datetime = field(default_factory=datetime.utcnow)
@@ -158,6 +159,7 @@ class ChatGameState:
             "last_input": self.last_input.value if self.last_input else None,
             "last_input_time": self.last_input_time.isoformat() if self.last_input_time else None,
             "frame_hash": self.frame_hash,
+            "last_animation_file_id": self.last_animation_file_id,
             "user_input_counts": self.user_input_counts,
             "recent_inputs": self.recent_inputs,
             "created_at": self.created_at.isoformat(),
@@ -178,6 +180,7 @@ class ChatGameState:
             last_input=GameButton(data["last_input"]) if data.get("last_input") else None,
             last_input_time=datetime.fromisoformat(data["last_input_time"]) if data.get("last_input_time") else None,
             frame_hash=data.get("frame_hash"),
+            last_animation_file_id=data.get("last_animation_file_id"),
             user_input_counts=data.get("user_input_counts", {}),
             recent_inputs=data.get("recent_inputs", []),
             created_at=datetime.fromisoformat(data["created_at"]),

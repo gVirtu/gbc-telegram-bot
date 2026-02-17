@@ -80,10 +80,6 @@ class Settings(BaseSettings):
         default=Path("./data"),
         description="Directory for data storage (saves, config, polls)",
     )
-    initial_save_path: Path = Field(
-        default=Path("./roms/initial.state"),
-        description="Path to initial save state file",
-    )
     
     # Logging
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
@@ -167,19 +163,6 @@ class Settings(BaseSettings):
         le=50,
     )
 
-    # Telegram API settings
-    max_retries: int = Field(
-        default=3,
-        description="Maximum retry attempts for Telegram API calls",
-        ge=1,
-        le=10,
-    )
-    retry_delay: float = Field(
-        default=1.0,
-        description="Seconds to wait between retry attempts",
-        ge=0.1,
-    )
-
     # Rate limiter settings
     rate_limit_per_chat: int = Field(
         default=1,
@@ -211,7 +194,7 @@ class Settings(BaseSettings):
         description="Comma-separated list of allowed Telegram chat IDs (empty = allow all)",
     )
     
-    @field_validator("rom_path", "initial_save_path")
+    @field_validator("rom_path")
     @classmethod
     def validate_rom_path(cls, v: Path) -> Path:
         """Validate that ROM paths are absolute or relative to working directory."""
@@ -304,19 +287,6 @@ class Settings(BaseSettings):
         backup_dir.mkdir(parents=True, exist_ok=True)
         return backup_dir
 
-    def get_poll_file(self, chat_id: int) -> Path:
-        """Get poll state file path for a specific chat.
-        
-        Args:
-            chat_id: Telegram chat ID
-            
-        Returns:
-            Path to chat's poll state file
-        """
-        polls_dir = self.data_dir / "polls"
-        polls_dir.mkdir(parents=True, exist_ok=True)
-        return polls_dir / f"{chat_id}.json"
-    
     def get_config_file(self, chat_id: int) -> Path:
         """Get config file path for a specific chat.
         

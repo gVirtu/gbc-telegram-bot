@@ -103,14 +103,6 @@ class TestOptionalSettingsDefaults:
     def test_tbc_duration_frames_default(self, valid_settings):
         """Test tbc_duration_frames defaults to 10."""
         assert valid_settings.tbc_duration_frames == 10
-    
-    def test_max_retries_default(self, valid_settings):
-        """Test max_retries defaults to 3."""
-        assert valid_settings.max_retries == 3
-    
-    def test_retry_delay_default(self, valid_settings):
-        """Test retry_delay defaults to 1.0."""
-        assert valid_settings.retry_delay == 1.0
 
 
 class TestSettingsValidation:
@@ -280,13 +272,6 @@ class TestHelperMethods:
         assert dir1 != dir2
         assert "111" in str(dir1)
         assert "222" in str(dir2)
-    
-    def test_get_poll_file(self, settings):
-        """Test poll file path generation."""
-        poll_file = settings.get_poll_file(123456789)
-        
-        assert "polls" in str(poll_file)
-        assert "123456789.json" in str(poll_file)
     
     def test_get_config_file(self, settings):
         """Test config file path generation."""

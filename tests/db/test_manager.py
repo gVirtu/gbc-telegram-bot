@@ -370,3 +370,39 @@ class TestUtilityOperations:
         """Verify delete_all returns False for nonexistent chat."""
         result = db_manager.delete_all_chat_data(999)
         assert result is False
+
+
+class TestDatabaseManagerMigrationHandling:
+    """Test DatabaseManager handles migration errors correctly."""
+    
+    def test_manager_initialization_propagates_migration_error(self, tmp_path):
+        """Verify DatabaseManager propagates migration errors."""
+        import src.db.migrations.runner
+        from src.db.manager import DatabaseManager
+        from src.db.migrations.runner import MigrationError
+        
+        original_discover = src.db.migrations.runner.discover_migrations
+        
+        def mock_discover_with_failure():
+            from src.db.migrations.base import Migration
+            
+            def failing_upgrade(conn):
+                raise RuntimeError("Migration failed during manager init!")
+            
+            return [
+                Migration(version=1, name="001_baseline", upgrade=lambda c: None, downgrade=None),
+                Migration(version=2, name="002_failing", upgrade=failing_upgrade, downgrade=None),
+            ]
+        
+        src.db.migrations.runner.discover_migrations = mock_discover_with_failure
+        
+        manager = DatabaseManager(tmp_path / "test.db")
+        try:
+            with pytest.raises(MigrationError) as exc_info:
+                manager.initialize()
+            
+            assert "Migration failed during manager init!" in str(exc_info.value)
+        finally:
+            src.db.migrations.runner.discover_migrations = original_discover
+            if hasattr(manager, 'connection'):
+                manager.close()

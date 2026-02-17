@@ -5,7 +5,7 @@ A Telegram bot that allows group chats to collaboratively play GBC games through
 ## Features
 
 - Group-based collaborative gameplay
-- Real-time GameBoy emulation using PyBoy
+- Real-time GameBoy emulation using [PyBoy](https://github.com/Baekalfen/PyBoy)
 - Webhook-based Telegram bot architecture
 - SQLite-based state persistence
 
@@ -85,12 +85,16 @@ python -m src.main
 ```
 .
 ├── src/
+│   ├── assets/      # Static assets (images and such)
+│   ├── db/          # Database migrations and utilities
+│   ├── game_hooks/  # Game-specific PyBoy hooks
+│   ├── handlers/    # Telegram handlers
 │   ├── models/      # Data models
-│   ├── utils/       # Utility functions
-│   └── handlers/    # Telegram handlers
+│   ├── tasks/       # Async tasks
+│   └── utils/       # Utility functions
 ├── tests/           # Test files
-├── data/            # Runtime data (polls, saves)
-├── roms/            # ROM files
+├── data/            # Persistent data (db, saved states)
+├── roms/            # Place ROM files here
 ├── pyproject.toml
 └── .env.example
 ```

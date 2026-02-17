@@ -92,10 +92,6 @@ class TestOptionalSettingsDefaults:
         """Test animation_duration defaults to 5."""
         assert valid_settings.animation_duration == 5
     
-    def test_animation_tick_frames_default(self, valid_settings):
-        """Test animation_tick_frames defaults to 60."""
-        assert valid_settings.animation_tick_frames == 60
-    
     def test_save_slots_default(self, valid_settings):
         """Test save_slots defaults to 5."""
         assert valid_settings.save_slots == 5

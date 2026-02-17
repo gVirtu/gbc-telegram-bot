@@ -98,11 +98,6 @@ class Settings(BaseSettings):
         description="Animation phase duration in seconds",
         ge=1,
     )
-    animation_tick_frames: int = Field(
-        default=60,
-        description="Frames to advance between animation updates",
-        ge=1,
-    )
     tbc_overlay_path: Path = Field(
         default=Path("./assets/to_be_continued.png"),
         description="Path to To Be Continued overlay image",
@@ -149,12 +144,6 @@ class Settings(BaseSettings):
         description="Delay in seconds between button presses in a sequence",
         ge=0.1,
         le=5.0,
-    )
-    sequence_build_timeout: float = Field(
-        default=10.0,
-        description="Timeout in seconds for building a sequence",
-        ge=5.0,
-        le=60.0,
     )
     max_queue_size: int = Field(
         default=10,

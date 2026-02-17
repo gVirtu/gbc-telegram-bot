@@ -49,7 +49,6 @@ def mock_settings(tmp_path, mock_rom_path):
     settings.log_level = "INFO"
     settings.input_hold_frames = 30
     settings.animation_duration = 5
-    settings.animation_tick_frames = 60
     settings.get_webhook_path.return_value = "/webhook/test_hash_1234"
     settings.get_chat_save_dir.return_value = tmp_path / "saves" / "123456"
     settings.get_config_file.return_value = tmp_path / "config" / "123456.json"

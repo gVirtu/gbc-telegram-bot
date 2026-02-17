@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: gvirtu/pyboy-telegram-bot
+    image: ${DOCKER_REGISTRY:-docker.io/gvirtu}/pyboy-telegram-bot:${IMAGE_TAG:-latest}
     container_name: gbc-telegram-bot
     restart: on-failure:5
     

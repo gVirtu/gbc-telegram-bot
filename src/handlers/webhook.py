@@ -120,7 +120,7 @@ class WebhookHandler:
                 # Check if user is admin
                 is_allowed = False
                 try:
-                    is_allowed, error = await check_admin_permission(update, BotContext(callback_query.bot, []))
+                    is_allowed, error = await check_admin_permission(update, BotContext(self.telegram_app.bot, []))
                 except Exception as e:
                     logger.warning(f"Failed to check admin status for user {user_id} in chat {chat_id}: {e}")
                 
@@ -144,7 +144,7 @@ class WebhookHandler:
             try:
                 slot = int(callback_data.split("_")[-1])
                 from src.handlers.commands import load_command
-                await load_command(update, BotContext(callback_query.bot, [str(slot)]))
+                await load_command(update, BotContext(self.telegram_app.bot, [str(slot)]))
             except (ValueError, IndexError):
                 logger.warning(f"Invalid load_slot callback: {callback_data}")
         elif callback_data == "cancel_load":

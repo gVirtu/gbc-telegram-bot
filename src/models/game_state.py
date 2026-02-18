@@ -204,16 +204,18 @@ class ChatConfig:
         auto_save_enabled: Whether auto-save is enabled
         running_mode: Whether running mode is enabled (holds B during directional inputs)
         message_base_text: Custom base text for game messages (default: "Sua vez!")
+        maintenance_mode: Whether maintenance mode is enabled (only admins can send inputs)
         created_at: When this config was created
         updated_at: When this config was last updated
     """
-    
+
     chat_id: int
     input_hold_frames: Optional[int] = None
     animation_duration: Optional[int] = None
     auto_save_enabled: bool = True
     running_mode: bool = False
     message_base_text: Optional[str] = None
+    maintenance_mode: bool = False
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
     
@@ -226,6 +228,7 @@ class ChatConfig:
             "auto_save_enabled": self.auto_save_enabled,
             "running_mode": self.running_mode,
             "message_base_text": self.message_base_text,
+            "maintenance_mode": self.maintenance_mode,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
@@ -240,6 +243,7 @@ class ChatConfig:
             auto_save_enabled=data.get("auto_save_enabled", True),
             running_mode=data.get("running_mode", False),
             message_base_text=data.get("message_base_text"),
+            maintenance_mode=data.get("maintenance_mode", False),
             created_at=datetime.fromisoformat(data["created_at"]),
             updated_at=datetime.fromisoformat(data["updated_at"]),
         )

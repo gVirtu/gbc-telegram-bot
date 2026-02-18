@@ -479,7 +479,7 @@ class TestLoadBackupCommand:
         update.effective_chat.type = "supergroup"
         context.args = ["backup", "20260215"]
 
-        with patch("src.handlers.commands._check_admin_permission", return_value=(False, "🔒 Apenas administradores do grupo podem usar este comando.")):
+        with patch("src.handlers.commands.check_admin_permission", return_value=(False, "🔒 Apenas administradores do grupo podem usar este comando.")):
             with patch("src.handlers.commands.settings") as mock_settings:
                 mock_settings.allowed_chat_ids = []
 
@@ -878,8 +878,8 @@ class TestAdminPermissions:
         mock_update.effective_chat.type = "private"
         mock_context = MagicMock()
 
-        from src.handlers.commands import _check_admin_permission
-        is_allowed, error_msg = await _check_admin_permission(mock_update, mock_context)
+        from src.handlers.commands import check_admin_permission
+        is_allowed, error_msg = await check_admin_permission(mock_update, mock_context)
 
         assert is_allowed is True
         assert error_msg is None
@@ -897,8 +897,8 @@ class TestAdminPermissions:
         mock_chat_member.status = "administrator"
         mock_context.bot.get_chat_member = AsyncMock(return_value=mock_chat_member)
 
-        from src.handlers.commands import _check_admin_permission
-        is_allowed, error_msg = await _check_admin_permission(mock_update, mock_context)
+        from src.handlers.commands import check_admin_permission
+        is_allowed, error_msg = await check_admin_permission(mock_update, mock_context)
 
         assert is_allowed is True
         assert error_msg is None
@@ -916,8 +916,8 @@ class TestAdminPermissions:
         mock_chat_member.status = "creator"
         mock_context.bot.get_chat_member = AsyncMock(return_value=mock_chat_member)
 
-        from src.handlers.commands import _check_admin_permission
-        is_allowed, error_msg = await _check_admin_permission(mock_update, mock_context)
+        from src.handlers.commands import check_admin_permission
+        is_allowed, error_msg = await check_admin_permission(mock_update, mock_context)
 
         assert is_allowed is True
         assert error_msg is None
@@ -935,12 +935,12 @@ class TestAdminPermissions:
         mock_chat_member.status = "member"
         mock_context.bot.get_chat_member = AsyncMock(return_value=mock_chat_member)
 
-        from src.handlers.commands import _check_admin_permission, _admin_cache
+        from src.handlers.commands import check_admin_permission, _admin_cache
 
         # Clear cache to avoid interference from other tests
         _admin_cache.clear()
 
-        is_allowed, error_msg = await _check_admin_permission(mock_update, mock_context)
+        is_allowed, error_msg = await check_admin_permission(mock_update, mock_context)
 
         assert is_allowed is False
         assert "administradores" in error_msg.lower()
@@ -958,17 +958,17 @@ class TestAdminPermissions:
         mock_chat_member.status = "administrator"
         mock_context.bot.get_chat_member = AsyncMock(return_value=mock_chat_member)
 
-        from src.handlers.commands import _check_admin_permission, _admin_cache
+        from src.handlers.commands import check_admin_permission, _admin_cache
 
         # Clear cache
         _admin_cache.clear()
 
         # First call - should hit API
-        await _check_admin_permission(mock_update, mock_context)
+        await check_admin_permission(mock_update, mock_context)
         assert mock_context.bot.get_chat_member.call_count == 1
 
         # Second call - should use cache
-        await _check_admin_permission(mock_update, mock_context)
+        await check_admin_permission(mock_update, mock_context)
         assert mock_context.bot.get_chat_member.call_count == 1  # Still 1, not 2
 
     @pytest.mark.asyncio
@@ -1153,7 +1153,7 @@ class TestMessageCommand:
 
         context.args = ["Hello"]
 
-        with patch("src.handlers.commands._check_admin_permission") as mock_check:
+        with patch("src.handlers.commands.check_admin_permission") as mock_check:
             mock_check.return_value = (False, "🔒 Apenas administradores do grupo podem usar este comando.")
 
             with patch("src.handlers.commands.settings") as mock_settings:
@@ -1249,7 +1249,7 @@ class TestRebootCommand:
         update.effective_user = MagicMock()
         update.effective_user.id = 999
 
-        with patch("src.handlers.commands._check_admin_permission") as mock_check:
+        with patch("src.handlers.commands.check_admin_permission") as mock_check:
             mock_check.return_value = (
                 False,
                 "🔒 Apenas administradores do grupo podem usar este comando.",

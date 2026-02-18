@@ -83,7 +83,7 @@ def _check_chat_allowed(update: Update) -> bool:
     return chat_id in settings.allowed_chat_ids
 
 
-async def _check_admin_permission(
+async def check_admin_permission(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
 ) -> tuple[bool, str | None]:
@@ -194,7 +194,7 @@ async def start_game_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
 
     # Check admin permission for group chats
-    is_allowed, error_msg = await _check_admin_permission(update, context)
+    is_allowed, error_msg = await check_admin_permission(update, context)
     if not is_allowed:
         await update.message.reply_text(error_msg)
         return
@@ -283,7 +283,7 @@ async def reboot_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return
 
     # Check admin permission for group chats
-    is_allowed, error_msg = await _check_admin_permission(update, context)
+    is_allowed, error_msg = await check_admin_permission(update, context)
     if not is_allowed:
         await update.message.reply_text(error_msg)
         return
@@ -357,7 +357,7 @@ async def save_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     # Check admin permission for group chats
-    is_allowed, error_msg = await _check_admin_permission(update, context)
+    is_allowed, error_msg = await check_admin_permission(update, context)
     if not is_allowed:
         await update.message.reply_text(error_msg)
         return
@@ -442,7 +442,7 @@ async def load_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     # Check admin permission for group chats
-    is_allowed, error_msg = await _check_admin_permission(update, context)
+    is_allowed, error_msg = await check_admin_permission(update, context)
     if not is_allowed:
         await update.message.reply_text(error_msg)
         return
@@ -730,7 +730,7 @@ async def message_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return
 
     # Check admin permission for group chats
-    is_allowed, error_msg = await _check_admin_permission(update, context)
+    is_allowed, error_msg = await check_admin_permission(update, context)
     if not is_allowed:
         await update.message.reply_text(error_msg)
         return
@@ -783,7 +783,7 @@ async def maintenance_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
 
     # Check admin permission for group chats
-    is_allowed, error_msg = await _check_admin_permission(update, context)
+    is_allowed, error_msg = await check_admin_permission(update, context)
     if not is_allowed:
         await update.message.reply_text(error_msg)
         return
@@ -815,12 +815,12 @@ async def maintenance_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     status_msg = "ativado 🔧" if config.maintenance_mode else "desativado ✅"
     extra_msg = (
-        "Apenas admins podem enviar comandos agora."
+        "Por favor aguarde. Comandos temporariamente desabilitados."
         if config.maintenance_mode
-        else "Todos os usuários podem enviar comandos novamente."
+        else "Comandos podem ser enviados novamente."
     )
     await update.message.reply_text(
-        f"✅ Modo de manutenção {status_msg}.\n{extra_msg}"
+        f"Modo de manutenção {status_msg}.\n{extra_msg}"
     )
 
     logger.info(f"Maintenance mode {arg} for chat {chat_id}")

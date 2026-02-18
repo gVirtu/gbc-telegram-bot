@@ -17,13 +17,17 @@ from telegram.ext import Application
 
 from src.config import settings
 from src.game import game_controller_manager
-from src.handlers.commands import COMMAND_HANDLERS
+from src.handlers.commands import COMMAND_HANDLERS, check_admin_permission
 from src.handlers.input_handler import get_input_handler
 from src.keyboard import is_valid_button_callback
 from src.utils.state_manager import state_manager
 
 logger = logging.getLogger(__name__)
 
+class BotContext:
+    def __init__(self, bot, args):
+        self.bot = bot
+        self.args = args
 
 class WebhookHandler:
     """Handles Telegram webhook updates via FastAPI.
@@ -114,14 +118,13 @@ class WebhookHandler:
             
             if config.maintenance_mode:
                 # Check if user is admin
+                is_allowed = False
                 try:
-                    chat_member = await callback_query.bot.get_chat_member(chat_id, user_id)
-                    is_admin = chat_member.status in ("creator", "administrator")
+                    is_allowed, error = await check_admin_permission(update, BotContext(callback_query.bot, []))
                 except Exception as e:
                     logger.warning(f"Failed to check admin status for user {user_id} in chat {chat_id}: {e}")
-                    is_admin = False
                 
-                if not is_admin:
+                if not is_allowed:
                     await callback_query.answer(
                         "No momento estamos em manutenção, apenas admins podem enviar comandos."
                     )
@@ -141,11 +144,7 @@ class WebhookHandler:
             try:
                 slot = int(callback_data.split("_")[-1])
                 from src.handlers.commands import load_command
-                # Mock context with slot argument
-                class MockContext:
-                    args = [str(slot)]
-                    bot = callback_query.bot
-                await load_command(update, MockContext())
+                await load_command(update, BotContext(callback_query.bot, [str(slot)]))
             except (ValueError, IndexError):
                 logger.warning(f"Invalid load_slot callback: {callback_data}")
         elif callback_data == "cancel_load":
@@ -179,12 +178,7 @@ class WebhookHandler:
                 args = text.split()[1:] if len(text.split()) > 1 else []
                 
                 # Create context with args - use the bot from telegram_app
-                class Context:
-                    def __init__(self, bot, args):
-                        self.bot = bot
-                        self.args = args
-                
-                context = Context(self.telegram_app.bot, args)
+                context = BotContext(self.telegram_app.bot, args)
                 await handler(update, context)
             else:
                 # Unknown command

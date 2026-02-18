@@ -1,5 +1,6 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+from src.handlers.commands import _admin_cache
 
 from src.handlers.webhook import WebhookHandler
 
@@ -35,6 +36,9 @@ async def test_callback_blocked_when_maintenance_mode_enabled_and_non_admin(webh
         mock_member.status = "member"
         mock_update.callback_query.bot.get_chat_member = AsyncMock(return_value=mock_member)
         
+        # Clear cache
+        _admin_cache.clear()
+        
         # Mock is_valid_button_callback to return True
         with patch('src.handlers.webhook.is_valid_button_callback', return_value=True):
             await webhook_handler._handle_callback_query(mock_update)
@@ -56,7 +60,11 @@ async def test_callback_allowed_when_maintenance_mode_enabled_and_admin(webhook_
         # Mock get_chat_member to return admin
         mock_member = MagicMock()
         mock_member.status = "administrator"
+        mock_update.effective_chat.type = "group"
         mock_update.callback_query.bot.get_chat_member = AsyncMock(return_value=mock_member)
+        
+        # Clear cache
+        _admin_cache.clear()
         
         # Mock is_valid_button_callback to return True
         with patch('src.handlers.webhook.is_valid_button_callback', return_value=True):
@@ -77,6 +85,9 @@ async def test_callback_allowed_when_maintenance_mode_disabled(webhook_handler, 
         mock_config = MagicMock()
         mock_config.maintenance_mode = False
         mock_state.get_or_create_chat_config.return_value = mock_config
+        
+        # Clear cache
+        _admin_cache.clear()
         
         # Mock is_valid_button_callback to return True
         with patch('src.handlers.webhook.is_valid_button_callback', return_value=True):

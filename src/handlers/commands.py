@@ -769,6 +769,63 @@ async def message_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     logger.info(f"Set custom message base text for chat {chat_id}: {custom_text}")
 
 
+async def maintenance_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /maintenance command.
+
+    Toggles maintenance mode for the chat. When enabled, only admins
+    can send input button commands.
+    Usage: /maintenance on|off
+    """
+    if not _check_chat_allowed(update):
+        await update.message.reply_text(
+            "❌ Este bot não está autorizado para este chat."
+        )
+        return
+
+    # Check admin permission for group chats
+    is_allowed, error_msg = await _check_admin_permission(update, context)
+    if not is_allowed:
+        await update.message.reply_text(error_msg)
+        return
+
+    chat_id = update.effective_chat.id
+
+    # Parse argument
+    if not context.args:
+        # Show current status
+        config = state_manager.get_or_create_chat_config(chat_id)
+        status = "ativado 🔧" if config.maintenance_mode else "desativado ✅"
+        await update.message.reply_text(
+            f"Modo de manutenção está {status}.\n\n"
+            f"Use `/maintenance on` para ativar ou `/maintenance off` para desativar."
+        )
+        return
+
+    arg = context.args[0].lower()
+    if arg not in ("on", "off"):
+        await update.message.reply_text(
+            "❌ Argumento inválido. Use `on` ou `off`."
+        )
+        return
+
+    # Toggle maintenance mode
+    config = state_manager.get_or_create_chat_config(chat_id)
+    config.maintenance_mode = (arg == "on")
+    state_manager.save_chat_config(config)
+
+    status_msg = "ativado 🔧" if config.maintenance_mode else "desativado ✅"
+    extra_msg = (
+        "Apenas admins podem enviar comandos agora."
+        if config.maintenance_mode
+        else "Todos os usuários podem enviar comandos novamente."
+    )
+    await update.message.reply_text(
+        f"✅ Modo de manutenção {status_msg}.\n{extra_msg}"
+    )
+
+    logger.info(f"Maintenance mode {arg} for chat {chat_id}")
+
+
 # Command handlers dictionary for easy registration
 COMMAND_HANDLERS = {
     "start_game": start_game_command,
@@ -781,4 +838,5 @@ COMMAND_HANDLERS = {
     "help": help_command,
     "recap": recap_command,
     "m": message_command,
+    "maintenance": maintenance_command,
 }

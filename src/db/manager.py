@@ -62,14 +62,15 @@ class DatabaseManager:
         """
         sql = """
         INSERT INTO chat_configs 
-            (chat_id, input_hold_frames, animation_duration, auto_save_enabled, running_mode, message_base_text, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (chat_id, input_hold_frames, animation_duration, auto_save_enabled, running_mode, message_base_text, maintenance_mode, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(chat_id) DO UPDATE SET
             input_hold_frames = excluded.input_hold_frames,
             animation_duration = excluded.animation_duration,
             auto_save_enabled = excluded.auto_save_enabled,
             running_mode = excluded.running_mode,
             message_base_text = excluded.message_base_text,
+            maintenance_mode = excluded.maintenance_mode,
             updated_at = excluded.updated_at;
         """
         
@@ -80,6 +81,7 @@ class DatabaseManager:
             1 if config.auto_save_enabled else 0,
             1 if config.running_mode else 0,
             config.message_base_text,
+            1 if config.maintenance_mode else 0,
             config.created_at.isoformat() if config.created_at else datetime.utcnow().isoformat(),
             datetime.utcnow().isoformat()
         ))
@@ -109,6 +111,7 @@ class DatabaseManager:
             auto_save_enabled=bool(row['auto_save_enabled']),
             running_mode=bool(row['running_mode']),
             message_base_text=row['message_base_text'] if 'message_base_text' in row.keys() else None,
+            maintenance_mode=bool(row['maintenance_mode']) if 'maintenance_mode' in row.keys() else False,
             created_at=datetime.fromisoformat(row['created_at']),
             updated_at=datetime.fromisoformat(row['updated_at'])
         )

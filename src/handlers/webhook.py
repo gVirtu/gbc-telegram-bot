@@ -20,6 +20,7 @@ from src.game import game_controller_manager
 from src.handlers.commands import COMMAND_HANDLERS
 from src.handlers.input_handler import get_input_handler
 from src.keyboard import is_valid_button_callback
+from src.utils.state_manager import state_manager
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +106,27 @@ class WebhookHandler:
         
         # Check if it's a game button
         if is_valid_button_callback(callback_data):
+            # Check maintenance mode
+            chat_id = self._get_chat_id(update)
+            user_id = callback_query.from_user.id
+            
+            config = state_manager.get_or_create_chat_config(chat_id)
+            
+            if config.maintenance_mode:
+                # Check if user is admin
+                try:
+                    chat_member = await callback_query.bot.get_chat_member(chat_id, user_id)
+                    is_admin = chat_member.status in ("creator", "administrator")
+                except Exception as e:
+                    logger.warning(f"Failed to check admin status for user {user_id} in chat {chat_id}: {e}")
+                    is_admin = False
+                
+                if not is_admin:
+                    await callback_query.answer(
+                        "No momento estamos em manutenção, apenas admins podem enviar comandos."
+                    )
+                    return
+            
             await self.input_handler.handle_button_press(callback_query)
         elif callback_data == "refresh":
             # Handle refresh request

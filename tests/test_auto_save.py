@@ -91,7 +91,9 @@ async def test_ensure_game_active_loads_latest_auto_save():
         mock_game_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
         
         success, error = await _ensure_game_active(chat_id)
-        
+
         assert success is True
         assert error is None
-        mock_game_mgr.get_or_create_controller.assert_called_once_with(chat_id)
+        mock_game_mgr.get_or_create_controller.assert_called_once_with(
+            chat_id, auto_load=True
+        )

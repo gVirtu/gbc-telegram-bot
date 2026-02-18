@@ -19,6 +19,7 @@ from telegram import Update
 from src.handlers.commands import (
     start_game_command,
     resume_command,
+    reboot_command,
     print_command,
     save_command,
     load_command,
@@ -162,7 +163,9 @@ class TestResumeCommand:
                         await resume_command(update, context)
 
                         # Should auto-start the game
-                        mock_mgr.get_or_create_controller.assert_called_once_with(123456)
+                        mock_mgr.get_or_create_controller.assert_called_once_with(
+                            123456, auto_load=True
+                        )
                         mock_handler.resume_game.assert_called_once_with(123456)
 
     @pytest.mark.asyncio
@@ -223,7 +226,9 @@ class TestSaveCommand:
                     await save_command(update, context)
 
                     # Should auto-start the game
-                    mock_mgr.get_or_create_controller.assert_called_once_with(123456)
+                    mock_mgr.get_or_create_controller.assert_called_once_with(
+                        123456, auto_load=True
+                    )
                     mock_state.save_to_slot.assert_called_once()
                     call_args = mock_state.save_to_slot.call_args
                     assert call_args[1]["slot_number"] == 2
@@ -338,7 +343,9 @@ class TestLoadCommand:
 
                     await load_command(update, context)
 
-                    mock_mgr.get_or_create_controller.assert_called_once_with(123456)
+                    mock_mgr.get_or_create_controller.assert_called_once_with(
+                        123456, auto_load=True
+                    )
 
     @pytest.mark.asyncio
     async def test_load_input_in_progress(self, update, context):
@@ -586,7 +593,9 @@ class TestStatusCommand:
                         await status_command(update, context)
 
                         # Should auto-start and show active status
-                        mock_mgr.get_or_create_controller.assert_called_once_with(123456)
+                        mock_mgr.get_or_create_controller.assert_called_once_with(
+                        123456, auto_load=True
+                    )
                         call_args = update.message.reply_text.call_args
                         assert "Jogo ativo" in call_args[0][0]
 
@@ -669,6 +678,7 @@ class TestCommandHandlersDict:
         expected_commands = [
             "start_game",
             "resume",
+            "reboot",
             "print",
             "save",
             "load",
@@ -719,7 +729,9 @@ class TestEnsureGameActive:
 
             assert success is True
             assert error is None
-            mock_mgr.get_or_create_controller.assert_called_once_with(123456)
+            mock_mgr.get_or_create_controller.assert_called_once_with(
+                        123456, auto_load=True
+                    )
 
     @pytest.mark.asyncio
     async def test_auto_start_without_slot_1(self):
@@ -738,7 +750,9 @@ class TestEnsureGameActive:
 
             assert success is True
             assert error is None
-            mock_mgr.get_or_create_controller.assert_called_once_with(123456)
+            mock_mgr.get_or_create_controller.assert_called_once_with(
+                        123456, auto_load=True
+                    )
 
     @pytest.mark.asyncio
     async def test_slot_1_load_failure(self):
@@ -810,7 +824,9 @@ class TestPrintCommand:
                     await print_command(update, context)
 
                     # Should auto-start the game
-                    mock_mgr.get_or_create_controller.assert_called_once_with(123456)
+                    mock_mgr.get_or_create_controller.assert_called_once_with(
+                        123456, auto_load=True
+                    )
                     context.bot.send_photo.assert_called_once()
 
     @pytest.mark.asyncio
@@ -1154,3 +1170,138 @@ class TestMessageCommand:
         """Test that 'm' is registered in COMMAND_HANDLERS."""
         assert "m" in COMMAND_HANDLERS
         assert COMMAND_HANDLERS["m"] == message_command
+
+
+class TestRebootCommand:
+    """Test /reboot command."""
+
+    @pytest.fixture
+    def update(self):
+        return MockUpdate()
+
+    @pytest.fixture
+    def context(self):
+        return MockContext()
+
+    @pytest.mark.asyncio
+    async def test_reboot_success(self, update, context):
+        """Test successful reboot stops controller and starts fresh."""
+        with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
+            mock_controller = MagicMock()
+            mock_controller.is_initialized.return_value = True
+            mock_mgr.get_controller.return_value = mock_controller
+            mock_mgr.remove_controller = MagicMock(return_value=True)
+            mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
+
+            with patch("src.handlers.commands.get_input_handler") as mock_get_handler:
+                mock_handler = MagicMock()
+                mock_handler.is_input_in_progress.return_value = False
+                mock_handler._get_session.return_value = MagicMock()
+                mock_handler._get_session.return_value.state.message_id = 100
+                mock_handler.resume_game = AsyncMock(return_value=200)
+                mock_get_handler.return_value = mock_handler
+
+                with patch("src.handlers.commands._ensure_game_active") as mock_ensure:
+                    mock_ensure.return_value = (True, None)
+
+                    with patch("src.handlers.commands.settings") as mock_settings:
+                        mock_settings.allowed_chat_ids = []
+
+                        await reboot_command(update, context)
+
+                        # Should stop existing controller
+                        mock_mgr.remove_controller.assert_called_once_with(123456)
+                        # Should ensure game active with auto_load=False
+                        mock_ensure.assert_called_once_with(123456, auto_load=False)
+                        # Should resume game with new message
+                        mock_handler.resume_game.assert_called_once_with(123456)
+                        # Should send success message
+                        update.message.reply_text.assert_called_with(
+                            "🔄 Jogo reiniciado com sucesso."
+                        )
+
+    @pytest.mark.asyncio
+    async def test_reboot_input_in_progress(self, update, context):
+        """Test reboot while input processing."""
+        with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
+            mock_controller = MagicMock()
+            mock_controller.is_initialized.return_value = True
+            mock_mgr.get_controller.return_value = mock_controller
+
+            with patch("src.handlers.commands.get_input_handler") as mock_get_handler:
+                mock_handler = MagicMock()
+                mock_handler.is_input_in_progress.return_value = True
+                mock_get_handler.return_value = mock_handler
+
+                with patch("src.handlers.commands.settings") as mock_settings:
+                    mock_settings.allowed_chat_ids = []
+
+                    await reboot_command(update, context)
+
+                    update.message.reply_text.assert_called_with(
+                        "⏳ Um botão foi pressionado recentemente. Por favor aguarde..."
+                    )
+
+    @pytest.mark.asyncio
+    async def test_reboot_non_admin_blocked(self, update, context):
+        """Test that /reboot is blocked for non-admins in groups."""
+        update.effective_chat.type = "group"
+        update.effective_user = MagicMock()
+        update.effective_user.id = 999
+
+        with patch("src.handlers.commands._check_admin_permission") as mock_check:
+            mock_check.return_value = (
+                False,
+                "🔒 Apenas administradores do grupo podem usar este comando.",
+            )
+
+            with patch("src.handlers.commands.settings") as mock_settings:
+                mock_settings.allowed_chat_ids = []
+
+                await reboot_command(update, context)
+
+                update.message.reply_text.assert_called_with(
+                    "🔒 Apenas administradores do grupo podem usar este comando."
+                )
+
+    @pytest.mark.asyncio
+    async def test_reboot_in_command_handlers(self):
+        """Test that 'reboot' is registered in COMMAND_HANDLERS."""
+        assert "reboot" in COMMAND_HANDLERS
+        assert COMMAND_HANDLERS["reboot"] == reboot_command
+
+
+class TestEnsureGameActiveWithAutoLoad:
+    """Test _ensure_game_active with auto_load parameter."""
+
+    @pytest.mark.asyncio
+    async def test_ensure_game_active_with_auto_load_true(self):
+        """Test _ensure_game_active passes auto_load=True by default."""
+        with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
+            mock_controller = MagicMock()
+            mock_controller.is_initialized.return_value = True
+            mock_mgr.get_controller.return_value = None
+            mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
+
+            success, error = await _ensure_game_active(123456)
+
+            assert success is True
+            mock_mgr.get_or_create_controller.assert_called_once_with(
+                123456, auto_load=True
+            )
+
+    @pytest.mark.asyncio
+    async def test_ensure_game_active_with_auto_load_false(self):
+        """Test _ensure_game_active passes auto_load=False when specified."""
+        with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
+            mock_controller = MagicMock()
+            mock_controller.is_initialized.return_value = True
+            mock_mgr.get_controller.return_value = None
+            mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
+
+            success, error = await _ensure_game_active(123456, auto_load=False)
+
+            assert success is True
+            mock_mgr.get_or_create_controller.assert_called_once_with(
+                123456, auto_load=False
+            )

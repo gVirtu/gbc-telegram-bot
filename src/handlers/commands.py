@@ -142,16 +142,19 @@ async def _check_admin_permission(
     return (False, "🔒 Este comando não está disponível neste tipo de chat.")
 
 
-async def _ensure_game_active(chat_id: int) -> tuple[bool, str | None]:
+async def _ensure_game_active(
+    chat_id: int, auto_load: bool = True
+) -> tuple[bool, str | None]:
     """Ensure a game is active for the chat, auto-starting if needed.
 
     If no game is active, this function will:
     1. Initialize the game controller
-    2. Try to load save slot 1 if it exists
+    2. Try to load save slot 1 if it exists (unless auto_load=False)
     3. Fall back to initial state if slot 1 doesn't exist or fails
 
     Args:
         chat_id: Telegram chat ID
+        auto_load: Whether to auto-load save states (default: True)
 
     Returns:
         Tuple of (success: bool, error_message: str | None)
@@ -165,8 +168,10 @@ async def _ensure_game_active(chat_id: int) -> tuple[bool, str | None]:
 
     try:
         # Initialize controller
-        controller = await game_controller_manager.get_or_create_controller(chat_id)
-        
+        controller = await game_controller_manager.get_or_create_controller(
+            chat_id, auto_load=auto_load
+        )
+
         # Use initial state (fresh game)
         logger.info(f"Auto-started game for chat {chat_id} with initial state")
         return True, None
@@ -262,6 +267,78 @@ async def resume_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         logger.error(f"Error resuming game for chat {chat_id}: {e}")
         await update.message.reply_text(
             "❌ Não consegui retomar o jogo. Tente novamente."
+        )
+
+
+async def reboot_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /reboot command.
+
+    Stops the current game controller and starts a fresh one
+    without loading any save state. Admin only.
+    """
+    if not _check_chat_allowed(update):
+        await update.message.reply_text(
+            "❌ Este bot não está autorizado para este chat."
+        )
+        return
+
+    # Check admin permission for group chats
+    is_allowed, error_msg = await _check_admin_permission(update, context)
+    if not is_allowed:
+        await update.message.reply_text(error_msg)
+        return
+
+    chat_id = update.effective_chat.id
+
+    try:
+        handler = get_input_handler(context.bot)
+
+        # Check if input is in progress
+        if handler.is_input_in_progress(chat_id):
+            await update.message.reply_text(
+                "⏳ Um botão foi pressionado recentemente. Por favor aguarde..."
+            )
+            return
+
+        # Get session to remove keyboard from old message
+        session = handler._get_session(chat_id)
+
+        # Remove keyboard from old message if it exists
+        if session and session.state.message_id:
+            try:
+                await context.bot.edit_message_reply_markup(
+                    chat_id=chat_id,
+                    message_id=session.state.message_id,
+                    reply_markup=None,
+                )
+            except Exception:
+                # Old message might be deleted or inaccessible, continue anyway
+                pass
+
+        # Stop existing controller gracefully
+        game_controller_manager.remove_controller(chat_id)
+
+        # Create new controller without auto-loading save states
+        success, error_msg = await _ensure_game_active(chat_id, auto_load=False)
+        if not success:
+            await update.message.reply_text(f"❌ {error_msg}")
+            return
+
+        # Send new message with current frame
+        message_id = await handler.resume_game(chat_id)
+
+        if message_id:
+            await update.message.reply_text("🔄 Jogo reiniciado com sucesso.")
+            logger.info(f"Rebooted game for chat {chat_id}")
+        else:
+            await update.message.reply_text(
+                "❌ Não consegui reiniciar o jogo. Tente novamente."
+            )
+
+    except Exception as e:
+        logger.error(f"Error rebooting game for chat {chat_id}: {e}")
+        await update.message.reply_text(
+            "❌ Não consegui reiniciar o jogo. Tente novamente."
         )
 
 
@@ -696,6 +773,7 @@ async def message_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 COMMAND_HANDLERS = {
     "start_game": start_game_command,
     "resume": resume_command,
+    "reboot": reboot_command,
     "print": print_command,
     "save": save_command,
     "load": load_command,

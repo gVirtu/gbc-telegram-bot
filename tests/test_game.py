@@ -413,3 +413,103 @@ class TestGetFrameAsPng:
         png_buffer.seek(0)
         image = Image.open(png_buffer)
         assert image.format == "PNG"
+
+
+class TestGameControllerManagerAutoLoad:
+    """Test GameControllerManager auto_load parameter."""
+    
+    @pytest.fixture
+    def manager(self):
+        """Create a fresh manager."""
+        return GameControllerManager()
+    
+    @pytest.fixture
+    def mock_rom_path(self, tmp_path):
+        """Create a mock ROM file."""
+        rom_path = tmp_path / "test.gbc"
+        rom_path.write_bytes(b"rom data")
+        return rom_path
+    
+    @pytest.mark.asyncio
+    async def test_get_or_create_controller_auto_load_true(self, manager, mock_rom_path):
+        """Test get_or_create_controller with auto_load=True loads save states."""
+        mock_settings = MagicMock()
+        mock_settings.rom_path = mock_rom_path
+        mock_settings.data_dir = mock_rom_path.parent / "data"
+        mock_settings.save_slots = 5
+        save_dir = mock_rom_path.parent / "saves" / "123456"
+        save_dir.mkdir(parents=True, exist_ok=True)
+        mock_settings.get_chat_save_dir.return_value = save_dir
+        
+        with patch("src.game.settings", mock_settings):
+            with patch("src.game.PyBoy") as mock_pyboy_class:
+                mock_instance = MagicMock()
+                mock_instance.cartridge_title = "TEST"
+                mock_pyboy_class.return_value = mock_instance
+                
+                with patch("src.game.state_manager") as mock_state_mgr:
+                    # Set up auto-save slot
+                    from src.models.game_state import SaveSlotInfo
+                    mock_state_mgr.list_save_slots.return_value = [
+                        SaveSlotInfo(slot_number=0, is_auto_save=True, created_at="2024-01-01", updated_at="2024-01-01")
+                    ]
+                    mock_state_mgr.load_from_slot.return_value = b"save_data"
+                    
+                    controller = await manager.get_or_create_controller(123456, auto_load=True)
+                    
+                    # Should try to load save state
+                    mock_state_mgr.load_from_slot.assert_called_once_with(123456, 0)
+                    mock_instance.load_state.assert_called_once()
+    
+    @pytest.mark.asyncio
+    async def test_get_or_create_controller_auto_load_false(self, manager, mock_rom_path):
+        """Test get_or_create_controller with auto_load=False skips save loading."""
+        mock_settings = MagicMock()
+        mock_settings.rom_path = mock_rom_path
+        mock_settings.data_dir = mock_rom_path.parent / "data"
+        mock_settings.save_slots = 5
+        save_dir = mock_rom_path.parent / "saves" / "123456"
+        save_dir.mkdir(parents=True, exist_ok=True)
+        mock_settings.get_chat_save_dir.return_value = save_dir
+        
+        with patch("src.game.settings", mock_settings):
+            with patch("src.game.PyBoy") as mock_pyboy_class:
+                mock_instance = MagicMock()
+                mock_instance.cartridge_title = "TEST"
+                mock_pyboy_class.return_value = mock_instance
+                
+                with patch("src.game.state_manager") as mock_state_mgr:
+                    controller = await manager.get_or_create_controller(123456, auto_load=False)
+                    
+                    # Should NOT try to load save state
+                    mock_state_mgr.load_from_slot.assert_not_called()
+                    mock_instance.load_state.assert_not_called()
+    
+    @pytest.mark.asyncio
+    async def test_get_or_create_controller_auto_load_default(self, manager, mock_rom_path):
+        """Test get_or_create_controller defaults to auto_load=True."""
+        mock_settings = MagicMock()
+        mock_settings.rom_path = mock_rom_path
+        mock_settings.data_dir = mock_rom_path.parent / "data"
+        mock_settings.save_slots = 5
+        save_dir = mock_rom_path.parent / "saves" / "123456"
+        save_dir.mkdir(parents=True, exist_ok=True)
+        mock_settings.get_chat_save_dir.return_value = save_dir
+        
+        with patch("src.game.settings", mock_settings):
+            with patch("src.game.PyBoy") as mock_pyboy_class:
+                mock_instance = MagicMock()
+                mock_instance.cartridge_title = "TEST"
+                mock_pyboy_class.return_value = mock_instance
+                
+                with patch("src.game.state_manager") as mock_state_mgr:
+                    from src.models.game_state import SaveSlotInfo
+                    mock_state_mgr.list_save_slots.return_value = [
+                        SaveSlotInfo(slot_number=1, is_auto_save=False, created_at="2024-01-01")
+                    ]
+                    mock_state_mgr.load_from_slot.return_value = b"save_data"
+                    
+                    controller = await manager.get_or_create_controller(123456)
+                    
+                    # Should try to load save state (default behavior)
+                    mock_state_mgr.list_save_slots.assert_called_once()

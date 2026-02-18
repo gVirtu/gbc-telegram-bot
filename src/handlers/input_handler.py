@@ -6,6 +6,7 @@ including the first-vote-wins logic and animation phases.
 
 import asyncio
 import logging
+import time
 from typing import Optional
 from datetime import datetime
 
@@ -507,7 +508,7 @@ class InputHandler:
         try:
             if media_type == "animation":
                 # Ensure buffer has a name attribute for proper file upload
-                media_buffer.name = "animation.mp4"
+                media_buffer.name = f"animation_{int(time.time())}.mp4"
                 media = InputMediaAnimation(
                     media=media_buffer,
                     caption=caption,

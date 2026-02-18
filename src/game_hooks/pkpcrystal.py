@@ -35,6 +35,8 @@ def begin_hooks(pyboy) -> dict:
             "Do2DMenuRTCJoypad_loop": 0,
             "SummaryScreenLoop": 0,
             "NamingScreenJoypadLoop": 0,
+            "MenuJoypadLoop.loop": 0,
+            "PokeGear.loop": 0,
             "_total": 0
         }
     }

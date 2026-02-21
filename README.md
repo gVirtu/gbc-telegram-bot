@@ -64,7 +64,6 @@ python -m src.main
 | `LOG_LEVEL`                  | No       | INFO                         | Logging level                                                       |
 | `INPUT_HOLD_FRAMES`          | No       | 10                           | Number of frames to hold each input                                 |
 | `ANIMATION_DURATION`         | No       | 5                            | Maximum duration of animation phase after input presses, in seconds |
-| `ANIMATION_TICK_FRAMES`      | No       | 60                           | Number of frames between animation ticks, in seconds                |
 | `TBC_OVERLAY_PATH`           | No       | ./assets/to_be_continued.png | Path to "To Be Continued" overlay image                             |
 | `TBC_DURATION_FRAMES`        | No       | 10                           | Number of frames for the "To Be Continued" end sequence             |
 | `SAVE_SLOTS`                 | No       | 5                            | Number of save slots available                                      |

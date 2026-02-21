@@ -56,24 +56,32 @@ async def test_callback_allowed_when_maintenance_mode_enabled_and_admin(webhook_
         mock_config = MagicMock()
         mock_config.maintenance_mode = True
         mock_state.get_or_create_chat_config.return_value = mock_config
-        
-        # Mock get_chat_member to return admin
+
+        # Mock telegram_app and bot
+        mock_bot = MagicMock()
         mock_member = MagicMock()
         mock_member.status = "administrator"
+        mock_bot.get_chat_member = AsyncMock(return_value=mock_member)
+
+        webhook_handler.telegram_app = MagicMock()
+        webhook_handler.telegram_app.bot = mock_bot
+
         mock_update.effective_chat.type = "group"
-        mock_update.callback_query.bot.get_chat_member = AsyncMock(return_value=mock_member)
-        
+        mock_update.effective_chat.id = 123
+        mock_update.effective_user = MagicMock()
+        mock_update.effective_user.id = 456
+
         # Clear cache
         _admin_cache.clear()
-        
+
         # Mock is_valid_button_callback to return True
         with patch('src.handlers.webhook.is_valid_button_callback', return_value=True):
             # Mock input_handler
             webhook_handler.input_handler = MagicMock()
             webhook_handler.input_handler.handle_button_press = AsyncMock()
-            
+
             await webhook_handler._handle_callback_query(mock_update)
-            
+
             # Verify handle_button_press was called
             webhook_handler.input_handler.handle_button_press.assert_called_once_with(mock_update.callback_query)
 

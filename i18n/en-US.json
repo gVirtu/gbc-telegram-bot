@@ -1,0 +1,128 @@
+{
+  "commands": {
+    "start_game": {
+      "starting": "Starting...",
+      "error": "❌ Failed to start the game. Please try again or contact the bot administrator.",
+      "auto_start_error": "Failed to start the game. Try using the /start_game command manually."
+    },
+    "resume": {
+      "processing_wait": "⏳ A button was recently pressed. Please wait...",
+      "error": "❌ Failed to resume the game. Try again.",
+      "error_manual": "❌ Failed to resume the game. Try using the /start_game command manually."
+    },
+    "reboot": {
+      "success": "🔄 Game rebooted successfully.",
+      "error": "❌ Failed to reboot the game. Try again.",
+      "processing_wait": "⏳ A button was recently pressed. Please wait..."
+    },
+    "save": {
+      "success": "💾 Game saved to slot {slot}!",
+      "error": "❌ Failed to save the game. Try again.",
+      "invalid_slot": "❌ Invalid slot. Use 0-{max_slot}.",
+      "invalid_number": "❌ Invalid slot, you must use a number."
+    },
+    "load": {
+      "no_slots": "No save slots found. Use /save [slot] to create one.",
+      "choose_slot": "Choose a slot to load:",
+      "success": "📂 Loaded game from slot {slot}!",
+      "not_found": "❌ No save found in slot {slot}.",
+      "error": "❌ Failed to load the game. The save file may be corrupted.",
+      "invalid_slot": "❌ Invalid slot. Use 0-{max_slot}.",
+      "invalid_number": "❌ Invalid slot, you must use a number.",
+      "processing_wait": "⏳ A button was recently pressed. Before loading, please wait.",
+      "backup_usage": "Usage: /load backup YYYYMMDD",
+      "backup_invalid_date": "Invalid date format. Use YYYYMMDD (e.g., 20260215)",
+      "backup_not_found": "Backup {date} not found. Available: {available}",
+      "backup_success": "✅ Backup from {date} loaded successfully."
+    },
+    "status": {
+      "title": "📊 *Game Status*\n",
+      "game_active": "✅ Game active",
+      "input_in_progress": "⏳ Input in progress",
+      "waiting_input": "✋ Waiting for input",
+      "total_inputs": "📈 Total inputs: {count}",
+      "last_input": "🎮 Previous input: {input}",
+      "slots_used": "\n💾 Save slots used: {used}/{total}",
+      "slot_entry": "  • Slot {slot}{marker}",
+      "no_slots": "\n💾 No save slots used",
+      "auto_save_marker": " (auto)"
+    },
+    "print": {
+      "error": "❌ Failed to capture the screen. Try again."
+    },
+    "recap": {
+      "no_animation": "No recent gameplay footage found.",
+      "error": "❌ Failed to send the animation, it may have expired."
+    },
+    "message": {
+      "cleared": "✅ Custom message removed.",
+      "too_long": "❌ Text too long. Use at most 240 characters.",
+      "success": "✅ Message set: \"{text}\""
+    },
+    "maintenance": {
+      "status": "Maintenance mode is {status}.\n\nUse `/maintenance on` to enable or `/maintenance off` to disable.",
+      "invalid_arg": "❌ Invalid argument. Use `on` or `off`.",
+      "enabled": "enabled 🔧",
+      "disabled": "disabled ✅",
+      "changed": "Maintenance mode {status}.\n{message}",
+      "enabled_message": "Please wait. Commands temporarily disabled.",
+      "disabled_message": "Commands can be sent again."
+    },
+    "language": {
+      "current": "🌐 Current language: {language}",
+      "available": "Available languages: {languages}",
+      "usage": "Use /language <code> to change.",
+      "changed": "✅ Language changed to {language}!",
+      "invalid": "❌ Invalid language. Use: {languages}",
+      "admin_only": "❌ Only administrators can change the language."
+    },
+    "unknown": "❓ Unknown command. Use /help to see available commands."
+  },
+  "permissions": {
+    "chat_not_allowed": "❌ This bot is not authorized for this chat.",
+    "admin_only": "🔒 Only group administrators can use this command.",
+    "check_failed": "⚠️ Could not verify permissions. Please try again or contact the bot administrator.",
+    "unsupported_chat": "🔒 This command is not available in this type of chat."
+  },
+  "game": {
+    "no_active_game": "No active game! Use /start_game first.",
+    "message_outdated": "This message is outdated. Use /resume to continue.",
+    "running_enabled": "Running enabled 🏃",
+    "running_disabled": "Running disabled 🚶",
+    "safe_mode_blocked": "Safe mode activated, this action was blocked.",
+    "default_message": "Your turn!",
+    "queue_status": "{count} input{plural} in queue.",
+    "recent_activity": "📖 *Recent Activity*:"
+  },
+  "keyboard": {
+    "buttons": {
+      "running": "🏃 RUNNING",
+      "walking": "🚶 WALKING",
+      "slot": "Slot {slot}",
+      "cancel": "❌ Cancel",
+      "yes": "✅ Yes",
+      "no": "❌ No"
+    },
+    "descriptions": {
+      "up": "Move up",
+      "down": "Move down",
+      "left": "Move left",
+      "right": "Move right",
+      "a": "Confirm / Interact / Select",
+      "b": "Cancel / Go back",
+      "start": "Open menu / Pause",
+      "select": "Select item / Toggle",
+      "wait": "Wait / Let the game progress without input",
+      "run": "Toggle running mode (holds B while walking)"
+    }
+  },
+  "help": {
+    "intro": "How to play:\n\nPress any button to control the game. After each command, the game will advance a few seconds and update the image.\n\nYou can also build a sequence of commands and send them all at once.\n\n",
+    "controls_title": "*Controls*\n",
+    "directional": "⬆️⬅️⬇️➡️ Directional: Move\n",
+    "player_commands_title": "\n*Player commands:*\n",
+    "player_commands": "/resume - Resumes the game in a new message\n/print - Captures the current screen and sends it to the chat\n/recap - Sends the last animation clip again\n/status - Shows some status information\n/help - Shows this help message",
+    "admin_commands_title": "\n\n\n*Administrator commands:*\n",
+    "admin_commands": "/start\\_game - Starts or restarts the game\n/save [slot] - Saves the game to a slot\n/load [slot] - Loads the game from a slot\n/m [text] - Sets custom message (no text = revert to default)"
+  }
+}

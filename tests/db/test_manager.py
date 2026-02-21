@@ -403,3 +403,73 @@ class TestDatabaseManagerMigrationHandling:
             src.db.migrations.runner.discover_migrations = original_discover
             if hasattr(manager, 'connection'):
                 manager.close()
+
+    def test_save_and_load_chat_config_with_language(self, db_manager):
+        """Verify saving and loading config with language field."""
+        config = ChatConfig(
+            chat_id=123,
+            input_hold_frames=10,
+            auto_save_enabled=True,
+            language="en-US"
+        )
+        
+        db_manager.save_chat_config(config)
+        
+        loaded = db_manager.load_chat_config(123)
+        assert loaded is not None
+        assert loaded.language == "en-US"
+    
+    def test_save_chat_config_with_none_language(self, db_manager):
+        """Verify saving config with None language works."""
+        config = ChatConfig(
+            chat_id=456,
+            language=None
+        )
+        
+        db_manager.save_chat_config(config)
+        
+        loaded = db_manager.load_chat_config(456)
+        assert loaded is not None
+        assert loaded.language is None
+    
+    def test_update_language_on_existing_config(self, db_manager):
+        """Verify updating language on existing config."""
+        # Create config without language
+        config1 = ChatConfig(chat_id=789)
+        db_manager.save_chat_config(config1)
+        
+        # Update with language
+        config2 = ChatConfig(chat_id=789, language="pt-BR")
+        db_manager.save_chat_config(config2)
+        
+        # Verify language was updated
+        loaded = db_manager.load_chat_config(789)
+        assert loaded.language == "pt-BR"
+    
+    def test_change_language_from_one_to_another(self, db_manager):
+        """Verify changing language from one value to another."""
+        # Create with pt-BR
+        config1 = ChatConfig(chat_id=111, language="pt-BR")
+        db_manager.save_chat_config(config1)
+        
+        # Change to en-US
+        config2 = ChatConfig(chat_id=111, language="en-US")
+        db_manager.save_chat_config(config2)
+        
+        # Verify change
+        loaded = db_manager.load_chat_config(111)
+        assert loaded.language == "en-US"
+    
+    def test_clear_language_to_none(self, db_manager):
+        """Verify clearing language back to None."""
+        # Create with language
+        config1 = ChatConfig(chat_id=222, language="en-US")
+        db_manager.save_chat_config(config1)
+        
+        # Clear to None
+        config2 = ChatConfig(chat_id=222, language=None)
+        db_manager.save_chat_config(config2)
+        
+        # Verify cleared
+        loaded = db_manager.load_chat_config(222)
+        assert loaded.language is None

@@ -86,7 +86,13 @@ class Settings(BaseSettings):
         default="INFO",
         description="Logging level",
     )
-    
+
+    # Internationalization
+    default_language: str = Field(
+        default="pt-BR",
+        description="Default language code for bot messages (e.g., 'pt-BR', 'en-US')",
+    )
+
     # Game timing settings
     input_hold_frames: int = Field(
         default=10,

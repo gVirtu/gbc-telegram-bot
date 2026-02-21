@@ -15,6 +15,7 @@ from telegram.ext import ContextTypes
 from src.config import settings
 from src.game import game_controller_manager
 from src.handlers.input_handler import get_input_handler
+from src.i18n import translation_manager, SUPPORTED_LANGUAGES
 from src.keyboard import (
     create_help_text,
     create_save_slot_keyboard,
@@ -117,7 +118,8 @@ async def check_admin_permission(
                 if cached:
                     return (True, None)
                 else:
-                    return (False, "🔒 Apenas administradores do grupo podem usar este comando.")
+                    error_msg = translation_manager.get("permissions.admin_only", chat_id)
+                    return (False, error_msg)
 
             # Get member status from Telegram API
             chat_member = await context.bot.get_chat_member(chat_id, user_id)
@@ -136,10 +138,12 @@ async def check_admin_permission(
 
         except Exception as e:
             logger.warning(f"Failed to check admin status for user {user_id} in chat {chat_id}: {e}")
-            return (False, "⚠️ Não pude verificar as permissões. Por favor, tente novamente ou entre em contato com o administrador do bot.")
+            error_msg = translation_manager.get("permissions.check_failed", chat_id)
+            return (False, error_msg)
 
     # Other chat types (channels, etc.): default deny
-    return (False, "🔒 Este comando não está disponível neste tipo de chat.")
+    error_msg = translation_manager.get("permissions.unsupported_chat", chat_id)
+    return (False, error_msg)
 
 
 async def _ensure_game_active(
@@ -178,7 +182,8 @@ async def _ensure_game_active(
 
     except Exception as e:
         logger.error(f"Failed to auto-start game for chat {chat_id}: {e}")
-        return False, "Não consegui iniciar o jogo. Tente usar o comando /start_game manualmente."
+        error_msg = translation_manager.get("commands.start_game.auto_start_error", chat_id)
+        return False, error_msg
 
 
 async def start_game_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -188,9 +193,9 @@ async def start_game_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     Loads the initial save state and sends the first frame.
     """
     if not _check_chat_allowed(update):
-        await update.message.reply_text(
-            "❌ Este bot não está autorizado para este chat."
-        )
+        chat_id = update.effective_chat.id
+        error_msg = translation_manager.get("permissions.chat_not_allowed", chat_id)
+        await update.message.reply_text(error_msg)
         return
 
     # Check admin permission for group chats
@@ -200,25 +205,25 @@ async def start_game_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
 
     chat_id = update.effective_chat.id
-    
-    await update.message.reply_text("Iniciando...")
-    
+
+    starting_msg = translation_manager.get("commands.start_game.starting", chat_id)
+    await update.message.reply_text(starting_msg)
+
     try:
         handler = get_input_handler(context.bot)
-        
+
         # Clean up any existing session
         handler.cleanup_session(chat_id)
-        
+
         # Start new game
         message_id = await handler.start_game(chat_id)
-        
+
         logger.info(f"Started game for chat {chat_id}, message {message_id}")
-        
+
     except Exception as e:
         logger.error(f"Error starting game for chat {chat_id}: {e}")
-        await update.message.reply_text(
-            "❌ Não consegui iniciar o jogo. Por favor, tente novamente ou entre em contato com o administrador do bot."
-        )
+        error_msg = translation_manager.get("commands.start_game.error", chat_id)
+        await update.message.reply_text(error_msg)
 
 
 async def resume_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -230,9 +235,9 @@ async def resume_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     Auto-starts the game if not already active.
     """
     if not _check_chat_allowed(update):
-        await update.message.reply_text(
-            "❌ Este bot não está autorizado para este chat."
-        )
+        chat_id = update.effective_chat.id
+        error_msg = translation_manager.get("permissions.chat_not_allowed", chat_id)
+        await update.message.reply_text(error_msg)
         return
 
     chat_id = update.effective_chat.id
@@ -248,9 +253,8 @@ async def resume_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
         # Check if input is in progress
         if handler.is_input_in_progress(chat_id):
-            await update.message.reply_text(
-                "⏳ Um botão foi pressionado recentemente. Por favor aguarde..."
-            )
+            wait_msg = translation_manager.get("commands.resume.processing_wait", chat_id)
+            await update.message.reply_text(wait_msg)
             return
 
         # Resume game - remove old keyboard, send new message
@@ -259,15 +263,13 @@ async def resume_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         if message_id:
             logger.info(f"Resumed game for chat {chat_id}")
         else:
-            await update.message.reply_text(
-                "❌ Não consegui retomar o jogo. Tente usar o comando /start_game manualmente."
-            )
+            error_msg = translation_manager.get("commands.resume.error_manual", chat_id)
+            await update.message.reply_text(error_msg)
 
     except Exception as e:
         logger.error(f"Error resuming game for chat {chat_id}: {e}")
-        await update.message.reply_text(
-            "❌ Não consegui retomar o jogo. Tente novamente."
-        )
+        error_msg = translation_manager.get("commands.resume.error", chat_id)
+        await update.message.reply_text(error_msg)
 
 
 async def reboot_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -277,9 +279,9 @@ async def reboot_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     without loading any save state. Admin only.
     """
     if not _check_chat_allowed(update):
-        await update.message.reply_text(
-            "❌ Este bot não está autorizado para este chat."
-        )
+        chat_id = update.effective_chat.id
+        error_msg = translation_manager.get("permissions.chat_not_allowed", chat_id)
+        await update.message.reply_text(error_msg)
         return
 
     # Check admin permission for group chats
@@ -295,9 +297,8 @@ async def reboot_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
         # Check if input is in progress
         if handler.is_input_in_progress(chat_id):
-            await update.message.reply_text(
-                "⏳ Um botão foi pressionado recentemente. Por favor aguarde..."
-            )
+            wait_msg = translation_manager.get("commands.reboot.processing_wait", chat_id)
+            await update.message.reply_text(wait_msg)
             return
 
         # Get session to remove keyboard from old message
@@ -328,18 +329,17 @@ async def reboot_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         message_id = await handler.resume_game(chat_id)
 
         if message_id:
-            await update.message.reply_text("🔄 Jogo reiniciado com sucesso.")
+            success_msg = translation_manager.get("commands.reboot.success", chat_id)
+            await update.message.reply_text(success_msg)
             logger.info(f"Rebooted game for chat {chat_id}")
         else:
-            await update.message.reply_text(
-                "❌ Não consegui reiniciar o jogo. Tente novamente."
-            )
+            error_msg = translation_manager.get("commands.reboot.error", chat_id)
+            await update.message.reply_text(error_msg)
 
     except Exception as e:
         logger.error(f"Error rebooting game for chat {chat_id}: {e}")
-        await update.message.reply_text(
-            "❌ Não consegui reiniciar o jogo. Tente novamente."
-        )
+        error_msg = translation_manager.get("commands.reboot.error", chat_id)
+        await update.message.reply_text(error_msg)
 
 
 async def save_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -351,9 +351,9 @@ async def save_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     Auto-starts the game if not already active.
     """
     if not _check_chat_allowed(update):
-        await update.message.reply_text(
-            "❌ Este bot não está autorizado para este chat."
-        )
+        chat_id = update.effective_chat.id
+        error_msg = translation_manager.get("permissions.chat_not_allowed", chat_id)
+        await update.message.reply_text(error_msg)
         return
 
     # Check admin permission for group chats
@@ -378,23 +378,25 @@ async def save_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         try:
             slot_number = int(context.args[0])
             if slot_number < 0 or slot_number >= settings.save_slots:
-                await update.message.reply_text(
-                    f"❌ Slot inválido. Use 0-{settings.save_slots - 1}."
+                error_msg = translation_manager.get(
+                    "commands.save.invalid_slot",
+                    chat_id,
+                    max_slot=settings.save_slots - 1
                 )
+                await update.message.reply_text(error_msg)
                 return
         except ValueError:
-            await update.message.reply_text(
-                "❌ Slot inválido, você deve utilizar um número."
-            )
+            error_msg = translation_manager.get("commands.save.invalid_number", chat_id)
+            await update.message.reply_text(error_msg)
             return
-    
+
     try:
         # Get slot to save to
         if slot_number is None:
             # Find next available slot
             existing_slots = state_manager.list_save_slots(chat_id, max_slots=settings.save_slots)
             used_slots = {s.slot_number for s in existing_slots}
-            
+
             # Find first available slot
             for i in range(settings.save_slots):
                 if i not in used_slots:
@@ -403,7 +405,7 @@ async def save_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             else:
                 # All slots used, use slot 0
                 slot_number = 0
-        
+
         # Save the state
         state_data = controller.save_state()
         state_manager.save_to_slot(
@@ -413,18 +415,20 @@ async def save_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             description="Salvar jogo manualmente",
             is_auto_save=False,
         )
-        
-        await update.message.reply_text(
-            f"💾 Jogo salvo no slot {slot_number}!"
+
+        success_msg = translation_manager.get(
+            "commands.save.success",
+            chat_id,
+            slot=slot_number
         )
-        
+        await update.message.reply_text(success_msg)
+
         logger.info(f"Saved game for chat {chat_id} to slot {slot_number}")
-        
+
     except Exception as e:
         logger.error(f"Error saving game for chat {chat_id}: {e}")
-        await update.message.reply_text(
-            "❌ Não consegui salvar o jogo. Tente novamente."
-        )
+        error_msg = translation_manager.get("commands.save.error", chat_id)
+        await update.message.reply_text(error_msg)
 
 
 async def load_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -436,9 +440,9 @@ async def load_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     Auto-starts the game if not already active.
     """
     if not _check_chat_allowed(update):
-        await update.message.reply_text(
-            "❌ Este bot não está autorizado para este chat."
-        )
+        chat_id = update.effective_chat.id
+        error_msg = translation_manager.get("permissions.chat_not_allowed", chat_id)
+        await update.message.reply_text(error_msg)
         return
 
     # Check admin permission for group chats
@@ -460,25 +464,24 @@ async def load_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     # Check if input is in progress
     handler = get_input_handler(context.bot)
     if handler.is_input_in_progress(chat_id):
-        await update.message.reply_text(
-            "⏳ Um botão foi pressionado recentemente. Antes de carregar, por favor aguarde."
-        )
+        wait_msg = translation_manager.get("commands.load.processing_wait", chat_id)
+        await update.message.reply_text(wait_msg)
         return
-    
+
     # Parse slot number
     if not context.args:
         # Show available slots
         slots = state_manager.list_save_slots(chat_id, max_slots=settings.save_slots)
-        
+
         if not slots:
-            await update.message.reply_text(
-                "Nenhum slot de salvamento encontrado. Use /save [slot] para criar um."
-            )
+            no_slots_msg = translation_manager.get("commands.load.no_slots", chat_id)
+            await update.message.reply_text(no_slots_msg)
             return
-        
+
         # Show slot selection keyboard
+        choose_msg = translation_manager.get("commands.load.choose_slot", chat_id)
         await update.message.reply_text(
-            "Escolha um slot para carregar:",
+            choose_msg,
             reply_markup=create_save_slot_keyboard(chat_id, settings.save_slots)
         )
         return
@@ -486,71 +489,73 @@ async def load_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     # Check for "backup YYYYMMDD" syntax
     if context.args[0].lower() == "backup":
         if len(context.args) < 2:
-            await update.message.reply_text("Uso: /load backup YYYYMMDD")
+            usage_msg = translation_manager.get("commands.load.backup_usage", chat_id)
+            await update.message.reply_text(usage_msg)
             return
         date_str = context.args[1]
         try:
             datetime.strptime(date_str, "%Y%m%d")
         except ValueError:
-            await update.message.reply_text(
-                "Formato de data inválido. Use YYYYMMDD (ex: 20260215)"
-            )
+            error_msg = translation_manager.get("commands.load.backup_invalid_date", chat_id)
+            await update.message.reply_text(error_msg)
             return
         backup_mgr = _get_backup_manager()
         state_data = backup_mgr.load_backup(chat_id, date_str)
         if state_data is None:
             available = backup_mgr.list_backups(chat_id)
             avail_str = ", ".join(available) if available else "nenhum"
-            await update.message.reply_text(
-                f"Backup {date_str} não encontrado. Disponíveis: {avail_str}"
+            error_msg = translation_manager.get(
+                "commands.load.backup_not_found",
+                chat_id,
+                date=date_str,
+                available=avail_str
             )
+            await update.message.reply_text(error_msg)
             return
         controller.load_state(state_data)
-        await update.message.reply_text(
-            f"✅ Backup de {date_str} carregado com sucesso."
-        )
+        success_msg = translation_manager.get("commands.load.backup_success", chat_id, date=date_str)
+        await update.message.reply_text(success_msg)
         return
 
     try:
         slot_number = int(context.args[0])
         if slot_number < 0 or slot_number >= settings.save_slots:
-            await update.message.reply_text(
-                f"❌ Slot inválido. Use 0-{settings.save_slots - 1}."
+            error_msg = translation_manager.get(
+                "commands.load.invalid_slot",
+                chat_id,
+                max_slot=settings.save_slots - 1
             )
+            await update.message.reply_text(error_msg)
             return
     except ValueError:
-        await update.message.reply_text(
-            "❌ Slot inválido, você deve utilizar um número."
-        )
+        error_msg = translation_manager.get("commands.load.invalid_number", chat_id)
+        await update.message.reply_text(error_msg)
         return
-    
+
     try:
         # Load the state
         state_data = state_manager.load_from_slot(chat_id, slot_number)
-        
+
         if state_data is None:
-            await update.message.reply_text(
-                f"❌ Nenhum save encontrado no slot {slot_number}."
-            )
+            error_msg = translation_manager.get("commands.load.not_found", chat_id, slot=slot_number)
+            await update.message.reply_text(error_msg)
             return
-        
+
         # Load into emulator
         controller.load_state(state_data)
-        
+
         # Show the loaded frame
         await handler.show_current_frame(chat_id)
-        
-        await update.message.reply_text(
-            f"📂 Carregado jogo do slot {slot_number}!"
-        )
-        
+
+        success_msg = translation_manager.get("commands.load.success", chat_id, slot=slot_number)
+        await update.message.reply_text(success_msg)
+
         logger.info(f"Loaded game for chat {chat_id} from slot {slot_number}")
-        
+
     except Exception as e:
         logger.error(f"Error loading game for chat {chat_id}: {e}")
-        await update.message.reply_text(
-            "❌ Não consegui carregar o jogo. O arquivo de salvamento pode estar corrompido."
-        )
+        error_msg = translation_manager.get("commands.load.error", chat_id)
+        await update.message.reply_text(error_msg)
 
 
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -563,9 +568,9 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     Auto-starts the game if not already active.
     """
     if not _check_chat_allowed(update):
-        await update.message.reply_text(
-            "❌ Este bot não está autorizado para este chat."
-        )
+        chat_id = update.effective_chat.id
+        error_msg = translation_manager.get("permissions.chat_not_allowed", chat_id)
+        await update.message.reply_text(error_msg)
         return
 
     chat_id = update.effective_chat.id
@@ -576,36 +581,60 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await update.message.reply_text(f"❌ {error_msg}")
         return
 
-    lines = ["📊 *Status do jogo*\n"]
+    title = translation_manager.get("commands.status.title", chat_id)
+    lines = [title]
 
-    lines.append("✅ Jogo ativo")
+    game_active_msg = translation_manager.get("commands.status.game_active", chat_id)
+    lines.append(game_active_msg)
 
     # Check input status
     handler = get_input_handler(context.bot)
     if handler.is_input_in_progress(chat_id):
-        lines.append("⏳ Input em progresso")
+        in_progress_msg = translation_manager.get("commands.status.input_in_progress", chat_id)
+        lines.append(in_progress_msg)
     else:
-        lines.append("✋ Aguardando input")
-        
+        waiting_msg = translation_manager.get("commands.status.waiting_input", chat_id)
+        lines.append(waiting_msg)
+
     # Total input count
     session = handler._get_session(chat_id)
     if session and session.state.user_input_counts:
-        lines.append(f"📈 Total de inputs: {sum(session.state.user_input_counts.values())}")
+        total_count = sum(session.state.user_input_counts.values())
+        total_msg = translation_manager.get("commands.status.total_inputs", chat_id, count=total_count)
+        lines.append(total_msg)
 
     # Get last input
     session = handler._get_session(chat_id)
     if session and session.state.last_input:
-        lines.append(f"🎮 Input anterior: {session.state.last_input.display_name}")
+        last_input_msg = translation_manager.get(
+            "commands.status.last_input",
+            chat_id,
+            input=session.state.last_input.display_name
+        )
+        lines.append(last_input_msg)
 
     # Save slot info
     slots = state_manager.list_save_slots(chat_id, max_slots=settings.save_slots)
     if slots:
-        lines.append(f"\n💾 Slots de salvamento usados: {len(slots)}/{settings.save_slots}")
+        slots_msg = translation_manager.get(
+            "commands.status.slots_used",
+            chat_id,
+            used=len(slots),
+            total=settings.save_slots
+        )
+        lines.append(slots_msg)
         for slot in slots:
-            auto_save_marker = " (auto)" if slot.is_auto_save else ""
-            lines.append(f"  • Slot {slot.slot_number}{auto_save_marker}")
+            marker = translation_manager.get("commands.status.auto_save_marker", chat_id) if slot.is_auto_save else ""
+            slot_entry = translation_manager.get(
+                "commands.status.slot_entry",
+                chat_id,
+                slot=slot.slot_number,
+                marker=marker
+            )
+            lines.append(slot_entry)
     else:
-        lines.append("\n💾 Nenhum slot de salvamento usado")
+        no_slots_msg = translation_manager.get("commands.status.no_slots", chat_id)
+        lines.append(no_slots_msg)
 
     await update.message.reply_text(
         "\n".join(lines),
@@ -621,9 +650,9 @@ async def print_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     Auto-starts the game if not already active.
     """
     if not _check_chat_allowed(update):
-        await update.message.reply_text(
-            "❌ Este bot não está autorizado para este chat."
-        )
+        chat_id = update.effective_chat.id
+        error_msg = translation_manager.get("permissions.chat_not_allowed", chat_id)
+        await update.message.reply_text(error_msg)
         return
 
     chat_id = update.effective_chat.id
@@ -650,9 +679,8 @@ async def print_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     except Exception as e:
         logger.error(f"Error printing frame for chat {chat_id}: {e}")
-        await update.message.reply_text(
-            "❌ Não consegui capturar a tela. Tente novamente."
-        )
+        error_msg = translation_manager.get("commands.print.error", chat_id)
+        await update.message.reply_text(error_msg)
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -675,9 +703,9 @@ async def recap_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     (no caption) in the chat. Any group member can use this command.
     """
     if not _check_chat_allowed(update):
-        await update.message.reply_text(
-            "❌ Este bot não está autorizado para este chat."
-        )
+        chat_id = update.effective_chat.id
+        error_msg = translation_manager.get("permissions.chat_not_allowed", chat_id)
+        await update.message.reply_text(error_msg)
         return
 
     chat_id = update.effective_chat.id
@@ -686,9 +714,8 @@ async def recap_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     session = handler._get_session(chat_id)
 
     if not session or not session.state.last_animation_file_id:
-        await update.message.reply_text(
-            "Nenhum trecho de gameplay recente encontrado."
-        )
+        no_anim_msg = translation_manager.get("commands.recap.no_animation", chat_id)
+        await update.message.reply_text(no_anim_msg)
         return
 
     try:
@@ -702,16 +729,15 @@ async def recap_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     except Exception as e:
         logger.error(f"Error sending recap for chat {chat_id}: {e}")
-        await update.message.reply_text(
-            "❌ Não consegui enviar a animação, ela pode ter expirado."
-        )
+        error_msg = translation_manager.get("commands.recap.error", chat_id)
+        await update.message.reply_text(error_msg)
         return
 
 async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle unknown commands."""
-    await update.message.reply_text(
-        "❓ Comando desconhecido. Use /help para ver os comandos disponíveis."
-    )
+    chat_id = update.effective_chat.id
+    unknown_msg = translation_manager.get("commands.unknown", chat_id)
+    await update.message.reply_text(unknown_msg)
 
 
 async def message_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -724,9 +750,9 @@ async def message_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     Only admins can use this command.
     """
     if not _check_chat_allowed(update):
-        await update.message.reply_text(
-            "❌ Este bot não está autorizado para este chat."
-        )
+        chat_id = update.effective_chat.id
+        error_msg = translation_manager.get("permissions.chat_not_allowed", chat_id)
+        await update.message.reply_text(error_msg)
         return
 
     # Check admin permission for group chats
@@ -745,28 +771,97 @@ async def message_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         # Clear custom message (set to None)
         config.message_base_text = None
         state_manager.save_chat_config(config)
-        await update.message.reply_text("✅ Mensagem personalizada removida..")
+        cleared_msg = translation_manager.get("commands.message.cleared", chat_id)
+        await update.message.reply_text(cleared_msg)
         logger.info(f"Cleared custom message base text for chat {chat_id}")
         return
-    
+
     # Join args to form the custom text
     custom_text = " ".join(context.args)
-    
+
     # Validate text length
     if len(custom_text) > 240:
-        await update.message.reply_text(
-            "❌ Texto muito longo. Use no máximo 240 caracteres."
-        )
+        error_msg = translation_manager.get("commands.message.too_long", chat_id)
+        await update.message.reply_text(error_msg)
         return
-    
+
     # Save custom text
     config.message_base_text = custom_text
     state_manager.save_chat_config(config)
-    
-    await update.message.reply_text(
-        f"✅ Mensagem definida: \"{custom_text}\""
-    )
+
+    success_msg = translation_manager.get("commands.message.success", chat_id, text=custom_text)
+    await update.message.reply_text(success_msg)
     logger.info(f"Set custom message base text for chat {chat_id}: {custom_text}")
+
+
+async def language_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /language command.
+
+    Changes the language for the chat.
+    Usage: /language [code]
+    Without code, shows current language and available options.
+    With code, changes the language (admin only).
+    """
+    if not _check_chat_allowed(update):
+        chat_id = update.effective_chat.id
+        error_msg = translation_manager.get("permissions.chat_not_allowed", chat_id)
+        await update.message.reply_text(error_msg)
+        return
+
+    chat_id = update.effective_chat.id
+
+    # Parse argument
+    if not context.args:
+        # Show current language and available options
+        config = state_manager.get_or_create_chat_config(chat_id)
+        current_lang = config.language or settings.default_language
+        available_langs = ", ".join(SUPPORTED_LANGUAGES)
+
+        # Get message in current language
+        current_msg = translation_manager.get("commands.language.current", chat_id, language=current_lang)
+        available_msg = translation_manager.get("commands.language.available", chat_id, languages=available_langs)
+        usage_msg = translation_manager.get("commands.language.usage", chat_id)
+
+        await update.message.reply_text(
+            f"{current_msg}\n{available_msg}\n{usage_msg}"
+        )
+        return
+
+    # Check admin permission for changing language
+    is_allowed, error_msg = await check_admin_permission(update, context)
+    if not is_allowed:
+        await update.message.reply_text(error_msg)
+        return
+
+    # Validate language code
+    new_lang = context.args[0]
+    if new_lang not in SUPPORTED_LANGUAGES:
+        available_langs = ", ".join(SUPPORTED_LANGUAGES)
+        error_msg = translation_manager.get(
+            "commands.language.invalid",
+            chat_id,
+            languages=available_langs
+        )
+        await update.message.reply_text(error_msg)
+        return
+
+    # Update config
+    config = state_manager.get_or_create_chat_config(chat_id)
+    config.language = new_lang
+    state_manager.save_chat_config(config)
+
+    # Invalidate translation cache
+    translation_manager.invalidate_cache(chat_id)
+
+    # Confirm in NEW language
+    success_msg = translation_manager.get(
+        "commands.language.changed",
+        chat_id,
+        language=new_lang
+    )
+    await update.message.reply_text(success_msg)
+
+    logger.info(f"Language changed to {new_lang} for chat {chat_id}")
 
 
 async def maintenance_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -777,9 +872,9 @@ async def maintenance_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     Usage: /maintenance on|off
     """
     if not _check_chat_allowed(update):
-        await update.message.reply_text(
-            "❌ Este bot não está autorizado para este chat."
-        )
+        chat_id = update.effective_chat.id
+        error_msg = translation_manager.get("permissions.chat_not_allowed", chat_id)
+        await update.message.reply_text(error_msg)
         return
 
     # Check admin permission for group chats
@@ -794,18 +889,16 @@ async def maintenance_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     if not context.args:
         # Show current status
         config = state_manager.get_or_create_chat_config(chat_id)
-        status = "ativado 🔧" if config.maintenance_mode else "desativado ✅"
-        await update.message.reply_text(
-            f"Modo de manutenção está {status}.\n\n"
-            f"Use `/maintenance on` para ativar ou `/maintenance off` para desativar."
-        )
+        status_key = "commands.maintenance.enabled" if config.maintenance_mode else "commands.maintenance.disabled"
+        status = translation_manager.get(status_key, chat_id)
+        status_msg = translation_manager.get("commands.maintenance.status", chat_id, status=status)
+        await update.message.reply_text(status_msg)
         return
 
     arg = context.args[0].lower()
     if arg not in ("on", "off"):
-        await update.message.reply_text(
-            "❌ Argumento inválido. Use `on` ou `off`."
-        )
+        error_msg = translation_manager.get("commands.maintenance.invalid_arg", chat_id)
+        await update.message.reply_text(error_msg)
         return
 
     # Toggle maintenance mode
@@ -813,15 +906,14 @@ async def maintenance_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     config.maintenance_mode = (arg == "on")
     state_manager.save_chat_config(config)
 
-    status_msg = "ativado 🔧" if config.maintenance_mode else "desativado ✅"
-    extra_msg = (
-        "Por favor aguarde. Comandos temporariamente desabilitados."
-        if config.maintenance_mode
-        else "Comandos podem ser enviados novamente."
-    )
-    await update.message.reply_text(
-        f"Modo de manutenção {status_msg}.\n{extra_msg}"
-    )
+    status_key = "commands.maintenance.enabled" if config.maintenance_mode else "commands.maintenance.disabled"
+    status_text = translation_manager.get(status_key, chat_id)
+
+    message_key = "commands.maintenance.enabled_message" if config.maintenance_mode else "commands.maintenance.disabled_message"
+    extra_msg = translation_manager.get(message_key, chat_id)
+
+    changed_msg = translation_manager.get("commands.maintenance.changed", chat_id, status=status_text, message=extra_msg)
+    await update.message.reply_text(changed_msg)
 
     logger.info(f"Maintenance mode {arg} for chat {chat_id}")
 
@@ -838,5 +930,6 @@ COMMAND_HANDLERS = {
     "help": help_command,
     "recap": recap_command,
     "m": message_command,
+    "language": language_command,
     "maintenance": maintenance_command,
 }

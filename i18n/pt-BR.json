@@ -1,0 +1,128 @@
+{
+  "commands": {
+    "start_game": {
+      "starting": "Iniciando...",
+      "error": "❌ Não consegui iniciar o jogo. Por favor, tente novamente ou entre em contato com o administrador do bot.",
+      "auto_start_error": "Não consegui iniciar o jogo. Tente usar o comando /start_game manualmente."
+    },
+    "resume": {
+      "processing_wait": "⏳ Um botão foi pressionado recentemente. Por favor aguarde...",
+      "error": "❌ Não consegui retomar o jogo. Tente novamente.",
+      "error_manual": "❌ Não consegui retomar o jogo. Tente usar o comando /start_game manualmente."
+    },
+    "reboot": {
+      "success": "🔄 Jogo reiniciado com sucesso.",
+      "error": "❌ Não consegui reiniciar o jogo. Tente novamente.",
+      "processing_wait": "⏳ Um botão foi pressionado recentemente. Por favor aguarde..."
+    },
+    "save": {
+      "success": "💾 Jogo salvo no slot {slot}!",
+      "error": "❌ Não consegui salvar o jogo. Tente novamente.",
+      "invalid_slot": "❌ Slot inválido. Use 0-{max_slot}.",
+      "invalid_number": "❌ Slot inválido, você deve utilizar um número."
+    },
+    "load": {
+      "no_slots": "Nenhum slot de salvamento encontrado. Use /save [slot] para criar um.",
+      "choose_slot": "Escolha um slot para carregar:",
+      "success": "📂 Carregado jogo do slot {slot}!",
+      "not_found": "❌ Nenhum save encontrado no slot {slot}.",
+      "error": "❌ Não consegui carregar o jogo. O arquivo de salvamento pode estar corrompido.",
+      "invalid_slot": "❌ Slot inválido. Use 0-{max_slot}.",
+      "invalid_number": "❌ Slot inválido, você deve utilizar um número.",
+      "processing_wait": "⏳ Um botão foi pressionado recentemente. Antes de carregar, por favor aguarde.",
+      "backup_usage": "Uso: /load backup YYYYMMDD",
+      "backup_invalid_date": "Formato de data inválido. Use YYYYMMDD (ex: 20260215)",
+      "backup_not_found": "Backup {date} não encontrado. Disponíveis: {available}",
+      "backup_success": "✅ Backup de {date} carregado com sucesso."
+    },
+    "status": {
+      "title": "📊 *Status do jogo*\n",
+      "game_active": "✅ Jogo ativo",
+      "input_in_progress": "⏳ Input em progresso",
+      "waiting_input": "✋ Aguardando input",
+      "total_inputs": "📈 Total de inputs: {count}",
+      "last_input": "🎮 Input anterior: {input}",
+      "slots_used": "\n💾 Slots de salvamento usados: {used}/{total}",
+      "slot_entry": "  • Slot {slot}{marker}",
+      "no_slots": "\n💾 Nenhum slot de salvamento usado",
+      "auto_save_marker": " (auto)"
+    },
+    "print": {
+      "error": "❌ Não consegui capturar a tela. Tente novamente."
+    },
+    "recap": {
+      "no_animation": "Nenhum trecho de gameplay recente encontrado.",
+      "error": "❌ Não consegui enviar a animação, ela pode ter expirado."
+    },
+    "message": {
+      "cleared": "✅ Mensagem personalizada removida..",
+      "too_long": "❌ Texto muito longo. Use no máximo 240 caracteres.",
+      "success": "✅ Mensagem definida: \"{text}\""
+    },
+    "maintenance": {
+      "status": "Modo de manutenção está {status}.\n\nUse `/maintenance on` para ativar ou `/maintenance off` para desativar.",
+      "invalid_arg": "❌ Argumento inválido. Use `on` ou `off`.",
+      "enabled": "ativado 🔧",
+      "disabled": "desativado ✅",
+      "changed": "Modo de manutenção {status}.\n{message}",
+      "enabled_message": "Por favor aguarde. Comandos temporariamente desabilitados.",
+      "disabled_message": "Comandos podem ser enviados novamente."
+    },
+    "language": {
+      "current": "🌐 Idioma atual: {language}",
+      "available": "Idiomas disponíveis: {languages}",
+      "usage": "Use /language <código> para mudar.",
+      "changed": "✅ Idioma alterado para {language}!",
+      "invalid": "❌ Idioma inválido. Use: {languages}",
+      "admin_only": "❌ Apenas administradores podem mudar o idioma."
+    },
+    "unknown": "❓ Comando desconhecido. Use /help para ver os comandos disponíveis."
+  },
+  "permissions": {
+    "chat_not_allowed": "❌ Este bot não está autorizado para este chat.",
+    "admin_only": "🔒 Apenas administradores do grupo podem usar este comando.",
+    "check_failed": "⚠️ Não pude verificar as permissões. Por favor, tente novamente ou entre em contato com o administrador do bot.",
+    "unsupported_chat": "🔒 Este comando não está disponível neste tipo de chat."
+  },
+  "game": {
+    "no_active_game": "Nenhum jogo ativo! Use /start_game primeiro.",
+    "message_outdated": "Esta mensagem está desatualizada. Use /resume para continuar.",
+    "running_enabled": "Corrida ativada 🏃",
+    "running_disabled": "Corrida desativada 🚶",
+    "safe_mode_blocked": "Modo seguro ativado, esta ação foi bloqueada.",
+    "default_message": "Sua vez!",
+    "queue_status": "{count} input{plural} na fila.",
+    "recent_activity": "📖 *Atividade recente*:"
+  },
+  "keyboard": {
+    "buttons": {
+      "running": "🏃 CORRENDO",
+      "walking": "🚶 ANDANDO",
+      "slot": "Slot {slot}",
+      "cancel": "❌ Cancel",
+      "yes": "✅ Yes",
+      "no": "❌ No"
+    },
+    "descriptions": {
+      "up": "Mover para cima",
+      "down": "Mover para baixo",
+      "left": "Mover para a esquerda",
+      "right": "Mover para a direita",
+      "a": "Confirmar / Interagir / Selecionar",
+      "b": "Cancelar / Voltar",
+      "start": "Abrir menu / Pausar",
+      "select": "Selecionar item / Alternar",
+      "wait": "Esperar / Deixar o jogo progredir sem input",
+      "run": "Alternar modo corrida (segura B ao andar)"
+    }
+  },
+  "help": {
+    "intro": "Como jogar:\n\nPressione qualquer botão para controlar o jogo. Após cada comando, o jogo irá avançar alguns segundos e atualizar a imagem.\n\nVocê também pode construir uma sequência de comandos e enviar todos de uma vez.\n\n",
+    "controls_title": "*Controles*\n",
+    "directional": "⬆️⬅️⬇️➡️ Direcionais: Mover\n",
+    "player_commands_title": "\n*Comandos do jogador:*\n",
+    "player_commands": "/resume - Retoma o jogo em uma nova mensagem\n/print - Captura a tela atual e envia na conversa\n/recap - Envia o último trecho de animação novamente\n/status - Mostra algumas informações de status\n/help - Mostra esta mensagem de ajuda",
+    "admin_commands_title": "\n\n\n*Comandos do administrador:*\n",
+    "admin_commands": "/start\\_game - Inicia ou reinicia o jogo\n/save [slot] - Salva o jogo em um slot\n/load [slot] - Carrega o jogo de um slot\n/m [texto] - Define mensagem personalizada (sem texto = volta ao padrão)"
+  }
+}

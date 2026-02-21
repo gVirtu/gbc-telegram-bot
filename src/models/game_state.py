@@ -193,10 +193,10 @@ class ChatGameState:
 @dataclass
 class ChatConfig:
     """Per-chat configuration overrides.
-    
+
     Allows individual chats to customize game timing settings.
     Uses system defaults for any unspecified values.
-    
+
     Attributes:
         chat_id: Telegram chat ID
         input_hold_frames: Custom button hold duration
@@ -205,6 +205,7 @@ class ChatConfig:
         running_mode: Whether running mode is enabled (holds B during directional inputs)
         message_base_text: Custom base text for game messages (default: "Sua vez!")
         maintenance_mode: Whether maintenance mode is enabled (only admins can send inputs)
+        language: Language code for this chat (e.g., "pt-BR", "en-US"), None for default
         created_at: When this config was created
         updated_at: When this config was last updated
     """
@@ -216,6 +217,7 @@ class ChatConfig:
     running_mode: bool = False
     message_base_text: Optional[str] = None
     maintenance_mode: bool = False
+    language: Optional[str] = None
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
     
@@ -229,6 +231,7 @@ class ChatConfig:
             "running_mode": self.running_mode,
             "message_base_text": self.message_base_text,
             "maintenance_mode": self.maintenance_mode,
+            "language": self.language,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
@@ -244,6 +247,7 @@ class ChatConfig:
             running_mode=data.get("running_mode", False),
             message_base_text=data.get("message_base_text"),
             maintenance_mode=data.get("maintenance_mode", False),
+            language=data.get("language"),
             created_at=datetime.fromisoformat(data["created_at"]),
             updated_at=datetime.fromisoformat(data["updated_at"]),
         )

@@ -27,6 +27,7 @@ from src.handlers.commands import (
     help_command,
     unknown_command,
     message_command,
+    language_command,
     _ensure_game_active,
     COMMAND_HANDLERS,
 )
@@ -1305,3 +1306,125 @@ class TestEnsureGameActiveWithAutoLoad:
             mock_mgr.get_or_create_controller.assert_called_once_with(
                 123456, auto_load=False
             )
+
+
+class TestLanguageCommand:
+    """Test /language command."""
+
+    @pytest.fixture
+    def update(self):
+        """Create mock update."""
+        return MockUpdate()
+
+    @pytest.fixture
+    def context(self):
+        """Create mock context."""
+        return MockContext()
+
+    @pytest.mark.asyncio
+    async def test_language_show_current_no_args(self, update, context):
+        """Test /language without args shows current language and options."""
+        with patch("src.handlers.commands.state_manager") as mock_sm:
+            from src.models.game_state import ChatConfig
+            mock_config = ChatConfig(chat_id=123456, language="pt-BR")
+            mock_sm.get_or_create_chat_config.return_value = mock_config
+
+            with patch("src.handlers.commands.settings") as mock_settings:
+                mock_settings.allowed_chat_ids = []
+                mock_settings.default_language = "pt-BR"
+
+                with patch("src.handlers.commands.translation_manager") as mock_tm:
+                    mock_tm.get.side_effect = lambda key, chat_id, **kwargs: f"translated_{key}"
+
+                    await language_command(update, context)
+
+                    # Should call translation_manager.get for messages
+                    assert mock_tm.get.call_count >= 3
+                    # Should reply with status message
+                    update.message.reply_text.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_language_change_success_admin(self, update, context):
+        """Test /language en-US successfully changes language for admin."""
+        context.args = ["en-US"]
+        update.effective_chat.type = "group"
+        update.effective_user = MagicMock()
+        update.effective_user.id = 999
+
+        with patch("src.handlers.commands.check_admin_permission") as mock_check:
+            mock_check.return_value = (True, None)
+
+            with patch("src.handlers.commands.state_manager") as mock_sm:
+                from src.models.game_state import ChatConfig
+                mock_config = ChatConfig(chat_id=123456, language="pt-BR")
+                mock_sm.get_or_create_chat_config.return_value = mock_config
+
+                with patch("src.handlers.commands.settings") as mock_settings:
+                    mock_settings.allowed_chat_ids = []
+
+                    with patch("src.handlers.commands.translation_manager") as mock_tm:
+                        mock_tm.get.return_value = "Language changed!"
+
+                        await language_command(update, context)
+
+                        # Should update config language
+                        assert mock_config.language == "en-US"
+                        # Should save config
+                        mock_sm.save_chat_config.assert_called_once_with(mock_config)
+                        # Should invalidate cache
+                        mock_tm.invalidate_cache.assert_called_once_with(123456)
+                        # Should reply
+                        update.message.reply_text.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_language_invalid_code(self, update, context):
+        """Test /language with invalid language code."""
+        context.args = ["fr-FR"]  # Not supported
+        update.effective_chat.type = "private"
+
+        with patch("src.handlers.commands.state_manager") as mock_sm:
+            from src.models.game_state import ChatConfig
+            mock_config = ChatConfig(chat_id=123456)
+            mock_sm.get_or_create_chat_config.return_value = mock_config
+
+            with patch("src.handlers.commands.settings") as mock_settings:
+                mock_settings.allowed_chat_ids = []
+
+                with patch("src.handlers.commands.translation_manager") as mock_tm:
+                    mock_tm.get.return_value = "Invalid language"
+
+                    await language_command(update, context)
+
+                    # Should not save config
+                    mock_sm.save_chat_config.assert_not_called()
+                    # Should reply with error
+                    update.message.reply_text.assert_called_once()
+                    call_args = update.message.reply_text.call_args[0][0]
+                    assert "Invalid language" in call_args
+
+    @pytest.mark.asyncio
+    async def test_language_non_admin_blocked(self, update, context):
+        """Test /language blocked for non-admins in groups."""
+        context.args = ["en-US"]
+        update.effective_chat.type = "group"
+        update.effective_user = MagicMock()
+        update.effective_user.id = 999
+
+        with patch("src.handlers.commands.check_admin_permission") as mock_check:
+            mock_check.return_value = (False, "🔒 Apenas administradores do grupo podem usar este comando.")
+
+            with patch("src.handlers.commands.settings") as mock_settings:
+                mock_settings.allowed_chat_ids = []
+
+                await language_command(update, context)
+
+                # Should reply with error
+                update.message.reply_text.assert_called_once_with(
+                    "🔒 Apenas administradores do grupo podem usar este comando."
+                )
+
+    @pytest.mark.asyncio
+    async def test_language_in_command_handlers(self):
+        """Test that 'language' is registered in COMMAND_HANDLERS."""
+        assert "language" in COMMAND_HANDLERS
+        assert COMMAND_HANDLERS["language"] == language_command

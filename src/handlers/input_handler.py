@@ -15,6 +15,7 @@ from telegram.error import TelegramError
 
 from src.config import settings
 from src.game import game_controller_manager
+from src.i18n import translation_manager
 from src.keyboard import (
     create_input_keyboard,
     create_game_message_text,
@@ -151,7 +152,8 @@ class InputHandler:
         session = self._get_session(chat_id)
         if not session or button is None:
             try:
-                await callback_query.answer("Nenhum jogo ativo! Use /start_game primeiro.")
+                error_msg = translation_manager.get("game.no_active_game", chat_id)
+                await callback_query.answer(error_msg)
             except Exception as e:
                 logger.error(f"Error processing input for chat {chat_id}: {e}")
             return
@@ -159,7 +161,8 @@ class InputHandler:
         # Validate message is current
         if session.state.message_id != message_id:
             try:
-                await callback_query.answer("Esta mensagem está desatualizada. Use /resume para continuar.")
+                error_msg = translation_manager.get("game.message_outdated", chat_id)
+                await callback_query.answer(error_msg)
             except Exception as e:
                 logger.error(f"Error processing input for chat {chat_id}: {e}")
             return
@@ -218,11 +221,12 @@ class InputHandler:
         
         # Update keyboard with new emoji
         await self._edit_message_keyboard(
-            chat_id, message_id, create_input_keyboard(running_mode=config.running_mode)
+            chat_id, message_id, create_input_keyboard(running_mode=config.running_mode, chat_id=chat_id)
         )
-        
+
         # Answer callback
-        message = "Corrida ativada 🏃" if config.running_mode else "Corrida desativada 🚶"
+        msg_key = "game.running_enabled" if config.running_mode else "game.running_disabled"
+        message = translation_manager.get(msg_key, chat_id)
         try:
             await callback_query.answer(message, show_alert=False)
         except Exception as e:
@@ -341,7 +345,7 @@ class InputHandler:
         config = state_manager.get_or_create_chat_config(chat_id)
         running_mode = config.running_mode if config else False
 
-        input_keyboard = create_input_keyboard(running_mode=running_mode)
+        input_keyboard = create_input_keyboard(running_mode=running_mode, chat_id=chat_id)
 
         logger.info(f"Executing sequence of {len(buttons)} buttons for chat {chat_id} (running_mode={running_mode})")
 
@@ -401,7 +405,8 @@ class InputHandler:
         if hook_context.get("dangerousActions", {}).get("_total", 0) > 0:
             logger.info(f"Dangerous action ({str(hook_context.get('dangerousActions', {}))}) blocked for chat {chat_id}")
             controller.load_state(checkpoint)
-            await self._send_error_message(chat_id, "Modo seguro ativado, esta ação foi bloqueada.")
+            error_msg = translation_manager.get("game.safe_mode_blocked", chat_id)
+            await self._send_error_message(chat_id, error_msg)
             return {"animation_duration": None}
         
         animation_duration_seconds = len(frames) / capture_fps
@@ -416,7 +421,7 @@ class InputHandler:
         
         recent = session.state.recent_inputs if session else []
         base_text = self._get_message_base_text(chat_id)
-        caption = create_game_message_text(recent_inputs=recent, queue_length=len(queue), base_text_override=base_text)
+        caption = create_game_message_text(recent_inputs=recent, queue_length=len(queue), base_text_override=base_text, chat_id=chat_id)
 
         # Generate and send MP4
         if frames:
@@ -572,7 +577,7 @@ class InputHandler:
         message = await self.bot.send_photo(
             chat_id=chat_id,
             photo=png_buffer,
-            caption=create_game_message_text(recent_inputs=recent, queue_length=len(queue), base_text_override=base_text),
+            caption=create_game_message_text(recent_inputs=recent, queue_length=len(queue), base_text_override=base_text, chat_id=chat_id),
             reply_markup=create_input_keyboard(running_mode=running_mode),
             parse_mode="Markdown",
         )
@@ -612,7 +617,7 @@ class InputHandler:
         png_buffer = controller.get_frame_as_png()
         recent = session.state.recent_inputs if session else []
         base_text = self._get_message_base_text(chat_id)
-        caption = create_game_message_text(recent_inputs=recent, queue_length=len(queue), base_text_override=base_text)
+        caption = create_game_message_text(recent_inputs=recent, queue_length=len(queue), base_text_override=base_text, chat_id=chat_id)
         
         if session and session.state.message_id and not session.state.input_in_progress:
             # Edit existing message
@@ -692,7 +697,7 @@ class InputHandler:
         message = await self.bot.send_photo(
             chat_id=chat_id,
             photo=png_buffer,
-            caption=create_game_message_text(recent_inputs=recent, queue_length=len(queue), base_text_override=base_text),
+            caption=create_game_message_text(recent_inputs=recent, queue_length=len(queue), base_text_override=base_text, chat_id=chat_id),
             reply_markup=create_input_keyboard(running_mode=running_mode),
             parse_mode="Markdown",
         )

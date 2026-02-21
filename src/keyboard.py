@@ -6,33 +6,36 @@ for the game controls using python-telegram-bot.
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
+from src.i18n import translation_manager
 from src.models.game_state import BUTTON_LAYOUT, GameButton
 
 
-def create_input_keyboard(running_mode: bool = False) -> InlineKeyboardMarkup:
+def create_input_keyboard(running_mode: bool = False, chat_id: int = 0) -> InlineKeyboardMarkup:
     """Create the inline keyboard for game input.
-    
+
     Creates a 3x3-style layout with D-pad, A/B buttons, and Start/Select.
-    
+
     Args:
         running_mode: Whether running mode is enabled (affects RUN button emoji)
-    
+        chat_id: Telegram chat ID for translation (default 0 uses pt-BR)
+
     Returns:
         InlineKeyboardMarkup with game control buttons
-    
+
     Example:
         >>> keyboard = create_input_keyboard()
         >>> isinstance(keyboard, InlineKeyboardMarkup)
         True
     """
     keyboard = []
-    
+
     for row in BUTTON_LAYOUT:
         keyboard_row = []
         for button in row:
             # Special handling for RUN button based on running_mode
             if button == GameButton.RUN:
-                emoji = "🏃 CORRENDO" if running_mode else "🚶 ANDANDO"
+                emoji_key = "keyboard.buttons.running" if running_mode else "keyboard.buttons.walking"
+                emoji = translation_manager.get(emoji_key, chat_id)
                 keyboard_row.append(
                     InlineKeyboardButton(
                         emoji,
@@ -47,7 +50,7 @@ def create_input_keyboard(running_mode: bool = False) -> InlineKeyboardMarkup:
                     )
                 )
         keyboard.append(keyboard_row)
-    
+
     return InlineKeyboardMarkup(keyboard)
 
 
@@ -56,6 +59,7 @@ def create_game_message_text(
     recent_inputs: list[dict] | None = None,
     queue_length: int = 0,
     base_text_override: str | None = None,
+    chat_id: int = 0,
 ) -> str:
     """Create the caption text for the game message.
 
@@ -64,6 +68,7 @@ def create_game_message_text(
         recent_inputs: List of recent input records (max 3) to display
         queue_length: Number of inputs in queue
         base_text_override: Custom base text to use instead of default "Sua vez!"
+        chat_id: Telegram chat ID for translation (default 0 uses pt-BR)
 
     Returns:
         Formatted message text with game title, instructions, and recent inputs
@@ -74,13 +79,18 @@ def create_game_message_text(
         True
     """
     if queue_length == 0:
-        base_text = base_text_override if base_text_override is not None else "Sua vez!"
+        if base_text_override is not None:
+            base_text = base_text_override
+        else:
+            base_text = translation_manager.get("game.default_message", chat_id)
     else:
-        base_text = f"{queue_length} input#{'s' if queue_length > 1 else ''} na fila."
+        plural = "s" if queue_length > 1 else ""
+        base_text = translation_manager.get("game.queue_status", chat_id, count=queue_length, plural=plural)
 
     # Add recent inputs if available
     if recent_inputs:
-        base_text += "\n\n📖 *Atividade recente*:"
+        activity_header = translation_manager.get("game.recent_activity", chat_id)
+        base_text += f"\n\n{activity_header}"
         # Show most recent first (reversed)
         for inp in reversed(recent_inputs):
             user_name = inp["user_name"]

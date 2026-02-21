@@ -26,7 +26,7 @@ class TestCustomMessageTextIntegration:
     def test_create_game_message_text_with_queue_ignores_override(self):
         """Test that queue length overrides base text (override only used when queue is empty)."""
         text = create_game_message_text(queue_length=3, base_text_override="Custom!")
-        assert "3 input#s na fila" in text
+        assert "3 inputs na fila" in text
         assert "Custom!" not in text
 
     def test_chat_config_persistence(self):

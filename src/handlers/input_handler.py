@@ -182,11 +182,11 @@ class InputHandler:
         queue = self._get_or_create_queue(chat_id)
         
         # Add input to queue
-        success, message = queue.add_input(user_id, user_name, button)
+        success, (message_key, message_params) = queue.add_input(user_id, user_name, button)
         
         if not success:
             try:
-                await callback_query.answer(message)
+                await callback_query.answer(translation_manager.get(message_key, chat_id, **message_params))
             except Exception as e:
                 logger.error(f"Error answering callback for chat {chat_id}: {e}")
             return
@@ -198,14 +198,14 @@ class InputHandler:
         # Check if we should start processing
         if not self._is_processing(chat_id):
             try:
-                await callback_query.answer(f"Processando: {button.display_name}")
+                await callback_query.answer(translation_manager.get('game.input_processing', chat_id, input=translation_manager.get(f'keyboard.buttons.display_name.{button.value}', chat_id)))
                 asyncio.create_task(self._process_queue_loop(chat_id, message_id))
             except Exception as e:
                 logger.error(f"Error starting queue processing for chat {chat_id}: {e}")
-                await self._send_error_message(chat_id, "Erro ao processar inputs! Tente de novo depois.")
+                await self._send_error_message(chat_id, translation_manager.get('game.input_processing_error', chat_id))
         else:
             try:
-                await callback_query.answer(message)
+                await callback_query.answer(translation_manager.get(message_key, chat_id, **message_params))
             except Exception as e:
                 logger.error(f"Error answering callback for chat {chat_id}: {e}")
 
@@ -578,7 +578,7 @@ class InputHandler:
             chat_id=chat_id,
             photo=png_buffer,
             caption=create_game_message_text(recent_inputs=recent, queue_length=len(queue), base_text_override=base_text, chat_id=chat_id),
-            reply_markup=create_input_keyboard(running_mode=running_mode),
+            reply_markup=create_input_keyboard(running_mode=running_mode, chat_id=chat_id),
             parse_mode="Markdown",
         )
         
@@ -631,7 +631,7 @@ class InputHandler:
                 await self._edit_message_keyboard(
                     chat_id,
                     session.state.message_id,
-                    create_input_keyboard(running_mode=running_mode),
+                    create_input_keyboard(running_mode=running_mode, chat_id=chat_id),
                 )
                 return session.state.message_id
             except TelegramError:
@@ -642,7 +642,7 @@ class InputHandler:
             chat_id=chat_id,
             photo=png_buffer,
             caption=caption,
-            reply_markup=create_input_keyboard(running_mode=running_mode) if not (session and session.state.input_in_progress) else None,
+            reply_markup=create_input_keyboard(running_mode=running_mode, chat_id=chat_id) if not (session and session.state.input_in_progress) else None,
             parse_mode="Markdown",
         )
         
@@ -698,7 +698,7 @@ class InputHandler:
             chat_id=chat_id,
             photo=png_buffer,
             caption=create_game_message_text(recent_inputs=recent, queue_length=len(queue), base_text_override=base_text, chat_id=chat_id),
-            reply_markup=create_input_keyboard(running_mode=running_mode),
+            reply_markup=create_input_keyboard(running_mode=running_mode, chat_id=chat_id),
             parse_mode="Markdown",
         )
 

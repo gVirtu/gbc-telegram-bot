@@ -101,7 +101,7 @@ def create_game_message_text(
                 buttons = [GameButton(b) for b in inp["buttons"]]
                 if len(buttons) == 1:
                     button = buttons[0]
-                    base_text += f"\n  {user_name}: {button.emoji} {button.display_name}"
+                    base_text += f"\n  {user_name}: {button.emoji} {translation_manager.get(f'keyboard.buttons.display_name.{button.value}', chat_id)}"
                 else:
                     # Sequence: comma-separated emojis
                     emoji_sequence = ", ".join([b.emoji for b in buttons])
@@ -109,7 +109,7 @@ def create_game_message_text(
             else:
                 # Old format: single button (backward compatibility)
                 button = GameButton(inp["button"])
-                base_text += f"\n  {user_name}: {button.emoji} {button.display_name}"
+                base_text += f"\n  {user_name}: {button.emoji} {translation_manager.get(f'keyboard.buttons.display_name.{button.value}', chat_id)}"
 
     if status:
         base_text += f"\n\n_{status}_"
@@ -193,55 +193,30 @@ def is_valid_button_callback(callback_data: str) -> bool:
 
 
 # Button descriptions for help text
-BUTTON_DESCRIPTIONS = {
-    GameButton.UP: "Mover para cima",
-    GameButton.DOWN: "Mover para baixo",
-    GameButton.LEFT: "Mover para a esquerda",
-    GameButton.RIGHT: "Mover para a direita",
-    GameButton.A: "Confirmar / Interagir / Selecionar",
-    GameButton.B: "Cancelar / Voltar",
-    GameButton.START: "Abrir menu / Pausar",
-    GameButton.SELECT: "Selecionar item / Alternar",
-    GameButton.WAIT: "Esperar / Deixar o jogo progredir sem input",
-    GameButton.RUN: "Alternar modo corrida (segura B ao andar)",
-}
 
-
-def create_help_text() -> str:
+def create_help_text(chat_id: int) -> str:
     """Create help text describing all buttons.
     
     Returns:
         Formatted help text with button descriptions
     """
-    text = "Como jogar:\n\n"
-    text += "Pressione qualquer botão para controlar o jogo. Após cada comando, o jogo irá avançar alguns segundos e atualizar a imagem."
-    text += "\n\n"
-    text += "Você também pode construir uma sequência de comandos e enviar todos de uma vez."
-    text += "\n\n"
+    text = translation_manager.get("help.intro", chat_id)
 
-    text += "*Controles*\n"
+    text += translation_manager.get("help.controls_title", chat_id)
     
-    text += "⬆️⬅️⬇️➡️ Direcionais: Mover\n"
+    text += translation_manager.get("help.directional", chat_id)
     # Skip deprecated buttons (SEQUENCE, ENVIAR) and directional buttons
     skip_buttons = [GameButton.UP, GameButton.DOWN, GameButton.LEFT, GameButton.RIGHT, GameButton.SEQUENCE, GameButton.ENVIAR]
     for button in GameButton:
         if button in skip_buttons:
             continue
 
-        text += f"{button.emoji} {button.display_name}: {BUTTON_DESCRIPTIONS[button]}\n"
+        text += f"{button.emoji} {translation_manager.get(f'keyboard.buttons.display_name.{button.value}', chat_id)}: {translation_manager.get(f'help.button_descriptions.{button.value}', chat_id)}\n"
     
-    text += "\n*Comandos do jogador:*\n"
-    text += "/resume - Retoma o jogo em uma nova mensagem\n"
-    text += "/print - Captura a tela atual e envia na conversa\n"
-    text += "/recap - Envia o último trecho de animação novamente\n"
-    text += "/status - Mostra algumas informações de status\n"
-    text += "/help - Mostra esta mensagem de ajuda"
+    text += translation_manager.get("help.player_commands_title", chat_id)
+    text += translation_manager.get("help.player_commands", chat_id)
 
-    text += "\n\n"
-    text += "\n*Comandos do administrador:*\n"
-    text += "/start\\_game - Inicia ou reinicia o jogo\n"
-    text += "/save [slot] - Salva o jogo em um slot\n"
-    text += "/load [slot] - Carrega o jogo de um slot\n"
-    text += "/m [texto] - Define mensagem personalizada (sem texto = volta ao padrão)"
+    text += translation_manager.get("help.admin_commands_title", chat_id)
+    text += translation_manager.get("help.admin_commands", chat_id)
 
     return text

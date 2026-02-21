@@ -12,8 +12,7 @@ from src.keyboard import (
     create_save_slot_keyboard,
     get_button_from_callback,
     is_valid_button_callback,
-    create_help_text,
-    BUTTON_DESCRIPTIONS,
+    create_help_text
 )
 from src.models.game_state import GameButton
 
@@ -176,51 +175,26 @@ class TestCreateHelpText:
     
     def test_contains_title(self):
         """Test help text contains title."""
-        text = create_help_text()
+        text = create_help_text(123456)
         
         assert "Como jogar" in text
     
     def test_contains_all_buttons(self):
         """Test help text describes all active buttons (excluding deprecated SEQUENCE and ENVIAR)."""
-        text = create_help_text()
+        text = create_help_text(123456)
 
         # Only check active buttons (excluding deprecated SEQUENCE and ENVIAR)
         active_buttons = [b for b in GameButton if b not in (GameButton.SEQUENCE, GameButton.ENVIAR)]
         for button in active_buttons:
             assert button.emoji in text
 
-            if button not in [GameButton.UP, GameButton.DOWN, GameButton.LEFT, GameButton.RIGHT]:
-                assert button.display_name in text
-    
     def test_contains_commands(self):
         """Test help text lists commands."""
-        text = create_help_text()
+        text = create_help_text(123456)
         
         assert "/start_game" in text or "/start" in text
         assert "/help" in text
+        
+        # Make sure all descriptions have been translated
+        assert "button_descriptions" not in text
     
-    def test_button_descriptions_exist(self):
-        """Test all active buttons have descriptions (excluding deprecated SEQUENCE and ENVIAR)."""
-        # Only check active buttons (excluding deprecated SEQUENCE and ENVIAR)
-        active_buttons = [b for b in GameButton if b not in (GameButton.SEQUENCE, GameButton.ENVIAR)]
-        for button in active_buttons:
-            assert button in BUTTON_DESCRIPTIONS
-            assert len(BUTTON_DESCRIPTIONS[button]) > 0
-
-
-class TestButtonDescriptions:
-    """Test button description constants."""
-    
-    def test_all_buttons_have_descriptions(self):
-        """Test every active GameButton has a description (excluding deprecated SEQUENCE and ENVIAR)."""
-        # Only check active buttons (excluding deprecated SEQUENCE and ENVIAR)
-        active_buttons = [b for b in GameButton if b not in (GameButton.SEQUENCE, GameButton.ENVIAR)]
-        for button in active_buttons:
-            assert button in BUTTON_DESCRIPTIONS
-            assert isinstance(BUTTON_DESCRIPTIONS[button], str)
-    
-    def test_descriptions_meaningful(self):
-        """Test descriptions are meaningful."""
-        for button, description in BUTTON_DESCRIPTIONS.items():
-            assert len(description) > 5  # Should be more than just a word
-            assert button.display_name in description or len(description) > 10

@@ -49,20 +49,6 @@ class TestGameButton:
         """Test emoji mapping."""
         assert button.emoji == expected_emoji
 
-    @pytest.mark.parametrize("button,expected_name", [
-        (GameButton.UP, "Cima"),
-        (GameButton.DOWN, "Baixo"),
-        (GameButton.LEFT, "Esquerda"),
-        (GameButton.RIGHT, "Direita"),
-        (GameButton.A, "A"),
-        (GameButton.B, "B"),
-        (GameButton.START, "Start"),
-        (GameButton.SELECT, "Select"),
-    ])
-    def test_button_display_names(self, button, expected_name):
-        """Test display name mapping."""
-        assert button.display_name == expected_name
-    
     def test_button_from_string(self):
         """Test creating button from string value."""
         assert GameButton("up") == GameButton.UP
@@ -73,7 +59,6 @@ class TestGameButton:
         """Test WAIT button has correct properties."""
         assert GameButton.WAIT.value == "wait"
         assert GameButton.WAIT.emoji == "👁️"
-        assert GameButton.WAIT.display_name == "Espera"
 
     def test_wait_button_from_string(self):
         """Test creating WAIT button from string."""

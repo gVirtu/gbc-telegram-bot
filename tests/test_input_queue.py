@@ -104,9 +104,9 @@ class TestInputQueue:
         assert queue.is_full()
         
         # New user should be rejected
-        success, msg = queue.add_input(789, "Charlie", GameButton.UP)
+        success, (msg, params) = queue.add_input(789, "Charlie", GameButton.UP)
         assert not success
-        assert "cheia" in msg.lower()
+        assert msg == "queue.error_queue_full"
     
     def test_queue_full_extend_allowed(self):
         """Test same user can extend even when queue is full."""
@@ -168,13 +168,13 @@ class TestInputQueue:
         """Test queue status message generation."""
         queue = InputQueue(max_size=5)
         
-        assert queue.get_queue_status() == "Fila vazia"
+        assert queue.get_queue_status(123) == "Fila vazia"
         
         queue.add_input(123, "Alice", GameButton.A)
         queue.add_input(123, "Alice", GameButton.B)
         queue.add_input(456, "Bob", GameButton.UP)
         
-        status = queue.get_queue_status()
+        status = queue.get_queue_status(123)
         assert "Alice" in status
         assert "Bob" in status
         assert "2 botões" in status

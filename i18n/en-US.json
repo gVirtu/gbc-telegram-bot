@@ -33,7 +33,8 @@
       "backup_usage": "Usage: /load backup YYYYMMDD",
       "backup_invalid_date": "Invalid date format. Use YYYYMMDD (e.g., 20260215)",
       "backup_not_found": "Backup {date} not found. Available: {available}",
-      "backup_success": "✅ Backup from {date} loaded successfully."
+      "backup_success": "✅ Backup from {date} loaded successfully.",
+      "backup_none_available": "none"
     },
     "status": {
       "title": "📊 *Game Status*\n",
@@ -90,12 +91,28 @@
     "running_enabled": "Running enabled 🏃",
     "running_disabled": "Running disabled 🚶",
     "safe_mode_blocked": "Safe mode activated, this action was blocked.",
+    "input_processing": "Processing: {input}",
+    "input_processing_error": "Error processing inputs! Try again later.",
     "default_message": "Your turn!",
     "queue_status": "{count} input{plural} in queue.",
     "recent_activity": "📖 *Recent Activity*:"
   },
   "keyboard": {
     "buttons": {
+      "display_name": {
+        "up": "Up",
+        "down": "Down",
+        "left": "Left",
+        "right": "Right",
+        "a": "A",
+        "b": "B",
+        "start": "Start",
+        "select": "Select",
+        "wait": "Wait",
+        "sequence": "Sequence",
+        "enviar": "Send",
+        "run": "Run"
+      },
       "running": "🏃 RUNNING",
       "walking": "🚶 WALKING",
       "slot": "Slot {slot}",
@@ -116,6 +133,18 @@
       "run": "Toggle running mode (holds B while walking)"
     }
   },
+  "queue": {
+    "error_queue_full": "Queue full! Please wait.",
+    "error_max_sequence_length": "You have reached the maximum sequence length!",
+    "added_to_sequence": "Added to your sequence. (position in queue: {position})",
+    "added_to_queue": "Added to queue. (position in queue: {position})",
+    "status_header": "Queue:",
+    "one_button": "1 button",
+    "n_buttons": "{count} buttons",
+    "empty": "Queue empty",
+    "next_input": "Next: {input}",
+    "item_description": "{i}. {user} {buttons}"
+  },
   "help": {
     "intro": "How to play:\n\nPress any button to control the game. After each command, the game will advance a few seconds and update the image.\n\nYou can also build a sequence of commands and send them all at once.\n\n",
     "controls_title": "*Controls*\n",
@@ -123,6 +152,18 @@
     "player_commands_title": "\n*Player commands:*\n",
     "player_commands": "/resume - Resumes the game in a new message\n/print - Captures the current screen and sends it to the chat\n/recap - Sends the last animation clip again\n/status - Shows some status information\n/help - Shows this help message",
     "admin_commands_title": "\n\n\n*Administrator commands:*\n",
-    "admin_commands": "/start\\_game - Starts or restarts the game\n/save [slot] - Saves the game to a slot\n/load [slot] - Loads the game from a slot\n/m [text] - Sets custom message (no text = revert to default)"
+    "admin_commands": "/start\\_game - Starts or restarts the game\n/save [slot] - Saves the game to a slot\n/load [slot] - Loads the game from a slot\n/m [text] - Sets custom message (no text = revert to default)",
+    "button_descriptions": {
+      "up": "Move up",
+      "down": "Move down",
+      "left": "Move left",
+      "right": "Move right",
+      "a": "Confirm / Interact / Select",
+      "b": "Cancel / Go back",
+      "start": "Open menu / Pause",
+      "select": "Select item / Toggle",
+      "wait": "Wait / Let the game progress without input",
+      "run": "Toggle running shoes (holds B while walking)"
+    }
   }
 }

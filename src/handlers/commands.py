@@ -134,7 +134,7 @@ async def check_admin_permission(
             if is_admin:
                 return (True, None)
             else:
-                return (False, "🔒 Apenas administradores do grupo podem usar este comando.")
+                return (False, translation_manager.get("permissions.admin_only", chat_id))
 
         except Exception as e:
             logger.warning(f"Failed to check admin status for user {user_id} in chat {chat_id}: {e}")
@@ -503,7 +503,7 @@ async def load_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         state_data = backup_mgr.load_backup(chat_id, date_str)
         if state_data is None:
             available = backup_mgr.list_backups(chat_id)
-            avail_str = ", ".join(available) if available else "nenhum"
+            avail_str = ", ".join(available) if available else translation_manager.get("commands.load.backup_none_available", chat_id)
             error_msg = translation_manager.get(
                 "commands.load.backup_not_found",
                 chat_id,
@@ -609,7 +609,7 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         last_input_msg = translation_manager.get(
             "commands.status.last_input",
             chat_id,
-            input=session.state.last_input.display_name
+            input=translation_manager.get(f'keyboard.buttons.display_name.{session.state.last_input.value}', chat_id)
         )
         lines.append(last_input_msg)
 
@@ -688,7 +688,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     
     Shows help information including button descriptions and available commands.
     """
-    help_text = create_help_text()
+    chat_id = update.effective_chat.id
+
+    help_text = create_help_text(chat_id)
     
     await update.message.reply_text(
         help_text,

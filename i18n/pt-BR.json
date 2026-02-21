@@ -33,7 +33,8 @@
       "backup_usage": "Uso: /load backup YYYYMMDD",
       "backup_invalid_date": "Formato de data inválido. Use YYYYMMDD (ex: 20260215)",
       "backup_not_found": "Backup {date} não encontrado. Disponíveis: {available}",
-      "backup_success": "✅ Backup de {date} carregado com sucesso."
+      "backup_success": "✅ Backup de {date} carregado com sucesso.",
+      "backup_none_available": "nenhum"
     },
     "status": {
       "title": "📊 *Status do jogo*\n",
@@ -90,12 +91,28 @@
     "running_enabled": "Corrida ativada 🏃",
     "running_disabled": "Corrida desativada 🚶",
     "safe_mode_blocked": "Modo seguro ativado, esta ação foi bloqueada.",
+    "input_processing": "Processando: {input}",
+    "input_processing_error": "Erro ao processar inputs! Tente de novo depois.",
     "default_message": "Sua vez!",
     "queue_status": "{count} input{plural} na fila.",
     "recent_activity": "📖 *Atividade recente*:"
   },
   "keyboard": {
     "buttons": {
+      "display_name": {
+        "up": "Cima",
+        "down": "Baixo",
+        "left": "Esquerda",
+        "right": "Direita",
+        "a": "A",
+        "b": "B",
+        "start": "Start",
+        "select": "Select",
+        "wait": "Espera",
+        "sequence": "Sequência",
+        "enviar": "Enviar",
+        "run": "Correr"
+      },
       "running": "🏃 CORRENDO",
       "walking": "🚶 ANDANDO",
       "slot": "Slot {slot}",
@@ -116,6 +133,18 @@
       "run": "Alternar modo corrida (segura B ao andar)"
     }
   },
+  "queue": {
+    "error_queue_full": "Fila cheia! Por favor aguarde.",
+    "error_max_sequence_length": "Você atingiu o tamanho máximo da sequência de botões!",
+    "added_to_sequence": "Adicionado à sua sequência. (posição na fila: {position})",
+    "added_to_queue": "Adicionado à fila. (posição na fila: {position})",
+    "status_header": "Fila:",
+    "one_button": "1 botão",
+    "n_buttons": "{count} botões",
+    "empty": "Fila vazia",
+    "next_input": "Próximo: {input}",
+    "item_description": "{i}. {user} {buttons}"
+  },
   "help": {
     "intro": "Como jogar:\n\nPressione qualquer botão para controlar o jogo. Após cada comando, o jogo irá avançar alguns segundos e atualizar a imagem.\n\nVocê também pode construir uma sequência de comandos e enviar todos de uma vez.\n\n",
     "controls_title": "*Controles*\n",
@@ -123,6 +152,18 @@
     "player_commands_title": "\n*Comandos do jogador:*\n",
     "player_commands": "/resume - Retoma o jogo em uma nova mensagem\n/print - Captura a tela atual e envia na conversa\n/recap - Envia o último trecho de animação novamente\n/status - Mostra algumas informações de status\n/help - Mostra esta mensagem de ajuda",
     "admin_commands_title": "\n\n\n*Comandos do administrador:*\n",
-    "admin_commands": "/start\\_game - Inicia ou reinicia o jogo\n/save [slot] - Salva o jogo em um slot\n/load [slot] - Carrega o jogo de um slot\n/m [texto] - Define mensagem personalizada (sem texto = volta ao padrão)"
+    "admin_commands": "/start\\_game - Inicia ou reinicia o jogo\n/save [slot] - Salva o jogo em um slot\n/load [slot] - Carrega o jogo de um slot\n/m [texto] - Define mensagem personalizada (sem texto = volta ao padrão)",
+    "button_descriptions": {
+      "up": "Mover para cima",
+      "down": "Mover para baixo",
+      "left": "Mover para a esquerda",
+      "right": "Mover para a direita",
+      "a": "Confirmar / Interagir / Selecionar",
+      "b": "Cancelar / Voltar",
+      "start": "Abrir menu / Pausar",
+      "select": "Selecionar item / Alternar",
+      "wait": "Esperar / Deixar o jogo progredir sem input",
+      "run": "Alternar modo corrida (segura B ao andar)"
+    }
   }
 }

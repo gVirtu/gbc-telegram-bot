@@ -46,28 +46,9 @@ class GameButton(str, Enum):
             GameButton.WAIT: "👁️",
             GameButton.SEQUENCE: "🔢 SEQUÊNCIA",
             GameButton.ENVIAR: "✅",
-            GameButton.RUN: "🏃 CORRER",
+            GameButton.RUN: "🏃",
         }
         return emoji_map[self]
-    
-    @property
-    def display_name(self) -> str:
-        """Get human-readable button name."""
-        name_map = {
-            GameButton.UP: "Cima",
-            GameButton.DOWN: "Baixo",
-            GameButton.LEFT: "Esquerda",
-            GameButton.RIGHT: "Direita",
-            GameButton.A: "A",
-            GameButton.B: "B",
-            GameButton.START: "Start",
-            GameButton.SELECT: "Select",
-            GameButton.WAIT: "Espera",
-            GameButton.SEQUENCE: "Sequência",
-            GameButton.ENVIAR: "Enviar",
-            GameButton.RUN: "Correr",
-        }
-        return name_map[self]
 
 
 @dataclass

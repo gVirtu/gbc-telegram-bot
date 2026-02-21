@@ -9,6 +9,7 @@ from typing import Optional
 
 from src.models.game_state import GameButton
 from src.config import settings
+from src.i18n import translation_manager
 
 
 @dataclass
@@ -123,7 +124,7 @@ class InputQueue:
         user_id: int,
         user_name: str,
         button: GameButton,
-    ) -> tuple[bool, str]:
+    ) -> tuple[bool, tuple]:
         """Add an input to the queue.
         
         If the back item is from the same user, extend it.
@@ -143,15 +144,15 @@ class InputQueue:
         if self.is_full():
             # Check if we can extend the back item
             if not self.items or self.items[-1].user_id != user_id:
-                return False, "Fila cheia! Por favor aguarde."
+                return False, ("queue.error_queue_full", {})
         
         # Check if we should extend the back item
         if self.items and self.items[-1].user_id == user_id:
             if len(self.items[-1].buttons) >= self.max_sequence_length:
-                return False, "Você atingiu o tamanho máximo da sequência de botões!"
+                return False, ("queue.error_max_sequence_length", {})
             self.items[-1].add_button(button)
             position = len(self.items)
-            return True, f"Adicionado à sua sequência. (posição na fila: {position})"
+            return True, ("queue.added_to_sequence", {"position": position})
         
         # Create new item
         new_item = QueueItem(
@@ -161,20 +162,20 @@ class InputQueue:
         )
         self.items.append(new_item)
         position = len(self.items)
-        return True, f"Adicionado à fila. (posição na fila: {position})"
+        return True, ("queue.added_to_queue", {"position": position})
     
-    def get_queue_status(self) -> str:
+    def get_queue_status(self, chat_id: int) -> str:
         """Get a human-readable queue status."""
         if self.is_empty():
-            return "Fila vazia"
+            return translation_manager.get("queue.empty", chat_id)
         
         items_desc = []
         for i, item in enumerate(self.items, 1):
             button_count = len(item.buttons)
-            buttons_text = "1 botão" if button_count == 1 else f"{button_count} botões"
-            items_desc.append(f"{i}. {item.user_name} ({buttons_text})")
+            buttons_text = translation_manager.get("queue.one_button", chat_id) if button_count == 1 else translation_manager.get("queue.n_buttons", chat_id, count=button_count)
+            items_desc.append(translation_manager.get("queue.item_description", chat_id, i=i, user=item.user_name, buttons=buttons_text))
         
-        return "Fila:\n" + "\n".join(items_desc)
+        return translation_manager.get("queue.status_header", chat_id) + "\n" + "\n".join(items_desc)
     
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""

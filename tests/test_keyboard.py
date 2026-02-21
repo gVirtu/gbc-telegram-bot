@@ -9,10 +9,7 @@ from unittest.mock import MagicMock
 from src.keyboard import (
     create_input_keyboard,
     create_game_message_text,
-    create_disabled_keyboard,
-    remove_keyboard,
     create_save_slot_keyboard,
-    create_confirmation_keyboard,
     get_button_from_callback,
     is_valid_button_callback,
     create_help_text,
@@ -104,36 +101,6 @@ class TestCreateGameMessageText:
         assert "_Status_" in text  # Italic
 
 
-class TestCreateDisabledKeyboard:
-    """Test disabled keyboard creation."""
-    
-    def test_returns_markup(self):
-        """Test function returns markup."""
-        keyboard = create_disabled_keyboard()
-        
-        assert hasattr(keyboard, 'inline_keyboard')
-    
-    def test_buttons_disabled(self):
-        """Test buttons show disabled state."""
-        keyboard = create_disabled_keyboard()
-        
-        # All buttons should have "disabled" callback
-        for row in keyboard.inline_keyboard:
-            for button in row:
-                assert button.callback_data == "disabled"
-                assert "❌" in button.text
-
-
-class TestRemoveKeyboard:
-    """Test keyboard removal."""
-    
-    def test_returns_none(self):
-        """Test remove_keyboard returns None."""
-        result = remove_keyboard()
-        
-        assert result is None
-
-
 class TestCreateSaveSlotKeyboard:
     """Test save slot keyboard creation."""
     
@@ -168,25 +135,6 @@ class TestCreateSaveSlotKeyboard:
         assert len(last_row) == 1
         assert last_row[0].callback_data == "cancel_load"
         assert "Cancel" in last_row[0].text
-
-
-class TestCreateConfirmationKeyboard:
-    """Test confirmation keyboard creation."""
-    
-    def test_yes_no_buttons(self):
-        """Test keyboard has Yes/No buttons."""
-        keyboard = create_confirmation_keyboard("reset")
-        
-        assert len(keyboard.inline_keyboard) == 1
-        assert len(keyboard.inline_keyboard[0]) == 2
-    
-    def test_button_callbacks(self):
-        """Test button callbacks include action."""
-        keyboard = create_confirmation_keyboard("delete")
-        
-        row = keyboard.inline_keyboard[0]
-        assert row[0].callback_data == "confirm_delete"
-        assert row[1].callback_data == "cancel"
 
 
 class TestGetButtonFromCallback:

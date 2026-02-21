@@ -117,40 +117,6 @@ def create_game_message_text(
     return base_text
 
 
-def create_disabled_keyboard() -> InlineKeyboardMarkup:
-    """Create a disabled keyboard (shows buttons but they do nothing).
-    
-    This is used during input processing to prevent double-pressing.
-    
-    Returns:
-        InlineKeyboardMarkup with disabled-style buttons
-    """
-    keyboard = []
-    
-    for row in BUTTON_LAYOUT:
-        keyboard_row = []
-        for button in row:
-            # Use empty callback_data to make buttons do nothing
-            keyboard_row.append(
-                InlineKeyboardButton(
-                    f"{button.emoji} ❌",
-                    callback_data="disabled",
-                )
-            )
-        keyboard.append(keyboard_row)
-    
-    return InlineKeyboardMarkup(keyboard)
-
-
-def remove_keyboard() -> None:
-    """Remove the keyboard entirely.
-    
-    Returns:
-        None (pass to reply_markup to remove keyboard)
-    """
-    return None
-
-
 def create_save_slot_keyboard(chat_id: int, save_slots: int = 5) -> InlineKeyboardMarkup:
     """Create keyboard for selecting save slots.
     
@@ -183,25 +149,6 @@ def create_save_slot_keyboard(chat_id: int, save_slots: int = 5) -> InlineKeyboa
     
     # Add cancel button
     keyboard.append([InlineKeyboardButton("❌ Cancel", callback_data="cancel_load")])
-    
-    return InlineKeyboardMarkup(keyboard)
-
-
-def create_confirmation_keyboard(action: str) -> InlineKeyboardMarkup:
-    """Create a confirmation keyboard for destructive actions.
-    
-    Args:
-        action: The action being confirmed (e.g., "reset", "delete")
-    
-    Returns:
-        InlineKeyboardMarkup with Yes/No buttons
-    """
-    keyboard = [
-        [
-            InlineKeyboardButton("✅ Yes", callback_data=f"confirm_{action}"),
-            InlineKeyboardButton("❌ No", callback_data="cancel"),
-        ]
-    ]
     
     return InlineKeyboardMarkup(keyboard)
 

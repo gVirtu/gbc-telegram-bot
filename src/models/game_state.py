@@ -52,52 +52,6 @@ class GameButton(str, Enum):
 
 
 @dataclass
-class SequenceBuilder:
-    """Tracks the state of a sequence being built."""
-    user_id: int
-    user_name: str
-    buttons: list[GameButton] = field(default_factory=list)
-    start_time: datetime = field(default_factory=datetime.utcnow)
-    max_length: int = 4
-
-    def add_button(self, button: GameButton) -> bool:
-        """Add button to sequence. Returns False if full."""
-        if len(self.buttons) >= self.max_length:
-            return False
-        self.buttons.append(button)
-        return True
-
-    def is_full(self) -> bool:
-        return len(self.buttons) >= self.max_length
-
-    def is_empty(self) -> bool:
-        return len(self.buttons) == 0
-
-    def has_timed_out(self, timeout_seconds: float) -> bool:
-        elapsed = (datetime.utcnow() - self.start_time).total_seconds()
-        return elapsed > timeout_seconds
-
-    def to_dict(self) -> dict:
-        return {
-            "user_id": self.user_id,
-            "user_name": self.user_name,
-            "buttons": [b.value for b in self.buttons],
-            "start_time": self.start_time.isoformat(),
-            "max_length": self.max_length,
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "SequenceBuilder":
-        return cls(
-            user_id=data["user_id"],
-            user_name=data["user_name"],
-            buttons=[GameButton(b) for b in data.get("buttons", [])],
-            start_time=datetime.fromisoformat(data["start_time"]),
-            max_length=data.get("max_length", 4),
-        )
-
-
-@dataclass
 class ChatGameState:
     """Represents the current game state for a chat.
 
@@ -126,7 +80,6 @@ class ChatGameState:
     recent_inputs: list[dict] = field(default_factory=list)
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
-    sequence_builder: Optional[SequenceBuilder] = None
     input_queue: Optional[InputQueue] = None
     
     def to_dict(self) -> dict:
@@ -142,7 +95,6 @@ class ChatGameState:
             "recent_inputs": self.recent_inputs,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
-            "sequence_builder": self.sequence_builder.to_dict() if self.sequence_builder else None,
             "input_queue": self.input_queue.to_dict() if self.input_queue else None,
         }
     
@@ -162,7 +114,6 @@ class ChatGameState:
             recent_inputs=data.get("recent_inputs", []),
             created_at=datetime.fromisoformat(data["created_at"]),
             updated_at=datetime.fromisoformat(data["updated_at"]),
-            sequence_builder=SequenceBuilder.from_dict(data["sequence_builder"]) if data.get("sequence_builder") else None,
             input_queue=InputQueue.from_dict(data["input_queue"]) if data.get("input_queue") else None,
         )
     

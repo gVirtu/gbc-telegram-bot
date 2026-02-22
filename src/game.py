@@ -7,7 +7,7 @@ including frame capture, input injection, and save state management.
 import logging
 from io import BytesIO
 from pathlib import Path
-from typing import IO, Optional
+from typing import Optional
 from types import ModuleType
 
 import numpy as np
@@ -407,7 +407,7 @@ class GameController:
         """Context manager entry."""
         return self
     
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, _exc_type, _exc_val, _exc_tb):
         """Context manager exit."""
         self.stop()
         return False

@@ -15,15 +15,6 @@ from pydantic import Field, HttpUrl, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-def _parse_chat_ids(value: str | list[str]) -> list[int]:
-    """Parse allowed chat IDs from environment variable."""
-    if not value:
-        return []
-    if isinstance(value, list):
-        return [int(x) for x in value]
-    return [int(x.strip()) for x in value.split(",") if x.strip()]
-
-
 class Settings(BaseSettings):
     """Application settings with environment variable support.
     

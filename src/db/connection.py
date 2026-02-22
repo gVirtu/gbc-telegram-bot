@@ -130,7 +130,7 @@ class DatabaseConnection:
         self.get_connection()
         return self
     
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type, _exc_val, _exc_tb):
         """Context manager exit."""
         if exc_type:
             # Exception occurred, rollback

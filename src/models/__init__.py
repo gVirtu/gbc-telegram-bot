@@ -5,7 +5,6 @@ from src.models.game_state import (
     GameButton,
     GameSession,
     SaveSlotInfo,
-    SequenceBuilder,
 )
 from src.models.input_queue import InputQueue, QueueItem
 
@@ -16,7 +15,6 @@ __all__ = [
     "GameButton",
     "GameSession",
     "SaveSlotInfo",
-    "SequenceBuilder",
     "InputQueue",
     "QueueItem",
 ]

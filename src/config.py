@@ -114,6 +114,16 @@ class Settings(BaseSettings):
         ge=5,
         le=60,
     )
+    timelapse_frame_skip: int = Field(
+        default=20,
+        description="Keep 1 out of N frames for timelapse (higher = faster timelapse, smaller file)",
+        ge=1,
+        le=60,
+    )
+    timelapse_backoff_delays: str = Field(
+        default="1,2,4",
+        description="Comma-separated list of delays in seconds for timelapse retries (empty = no retries)",
+    )
     save_slots: int = Field(
         default=5,
         description="Number of rotating save slots",
@@ -208,6 +218,14 @@ class Settings(BaseSettings):
         v = v.expanduser().resolve()
         v.mkdir(parents=True, exist_ok=True)
         return v
+    
+    @field_validator("timelapse_backoff_delays")
+    @classmethod
+    def parse_timelapse_backoff_delays(cls, v: str) -> list[int]:
+        """Parse comma-separated delays into a list of integers."""
+        if not v:
+            return []
+        return [int(x.strip()) for x in v.split(",") if x.strip()]
     
     @field_validator("allowed_chat_ids")
     @classmethod

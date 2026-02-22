@@ -290,10 +290,16 @@ class WebhookHandler:
             # Initialize input handler with rate-limited bot
             self.input_handler = get_input_handler(rate_limited_bot)
 
+            # Initialize timelapse encoding queue
+            from src.tasks import timelapse_encoder
+            from src.utils.state_manager import state_manager
+
+            timelapse_encoder.timelapse_queue = timelapse_encoder.TimelapseEncodingQueue(state_manager)
+            logger.info("Timelapse encoding queue initialized")
+
             # Start daily backup task
             from src.tasks.backup_task import run_backup_loop
             from src.utils.backup_manager import BackupManager
-            from src.utils.state_manager import state_manager
 
             backup_manager = BackupManager(state_manager, game_controller_manager, settings)
             backup_task = asyncio.create_task(run_backup_loop(backup_manager, settings))
@@ -304,6 +310,10 @@ class WebhookHandler:
 
             # Shutdown
             logger.info("Shutting down webhook handler...")
+
+            # Shutdown timelapse queue
+            if timelapse_encoder.timelapse_queue:
+                await timelapse_encoder.timelapse_queue.shutdown()
 
             backup_task.cancel()
             try:

@@ -340,6 +340,82 @@ def save_frames_as_mp4(
             os.remove(output_path)
 
 
+async def save_frames_as_mp4_optimized(
+    frames: list[np.ndarray],
+    output_path: str,
+    fps: int = 10,
+    crf: int = 28,
+    preset: str = "medium",
+) -> None:
+    """Save a sequence of frames as an MP4 video with optimized compression.
+
+    This function is designed for timelapse storage where better compression
+    is preferred over encoding speed. Uses medium preset and CRF 28 for
+    smaller file sizes compared to save_frames_as_mp4.
+
+    Args:
+        frames: List of NumPy arrays (H, W, 3) in RGB format
+        output_path: Path where to save the MP4 file
+        fps: Frames per second for the output video
+        crf: Constant Rate Factor (quality, lower=better, 0-51)
+        preset: Encoding speed preset (medium for balanced compression)
+
+    Raises:
+        ValueError: If no frames provided
+        RuntimeError: If FFmpeg encoding fails
+
+    Example:
+        >>> frames = [create_empty_frame() for _ in range(5)]
+        >>> await save_frames_as_mp4_optimized(frames, "/tmp/output.mp4")
+    """
+    import asyncio
+
+    if not frames:
+        raise ValueError("No frames provided")
+
+    h, w = frames[0].shape[:2]
+    h_scaled, w_scaled = h * 2, w * 2
+
+    cmd = [
+        'ffmpeg', '-y',
+        '-f', 'rawvideo',
+        '-pix_fmt', 'rgb24',
+        '-s', f'{w_scaled}x{h_scaled}',
+        '-framerate', str(fps),
+        '-i', 'pipe:0',
+        '-vcodec', 'libx264',
+        '-pix_fmt', 'yuv420p',
+        '-crf', str(crf),
+        '-preset', preset,
+        output_path,
+    ]
+
+    process = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+
+    # Write frames to stdin
+    for frame in frames:
+        img = Image.fromarray(frame, mode='RGB').resize(
+            (w_scaled, h_scaled), Image.Resampling.NEAREST
+        )
+        process.stdin.write(np.array(img).tobytes())
+
+    process.stdin.close()
+
+    # Wait for process to complete
+    stdout, stderr = await process.communicate()
+
+    if process.returncode != 0:
+        logger.error(f"FFmpeg encoding failed: {stderr.decode()}")
+        raise RuntimeError(f"FFmpeg encoding failed with return code {process.returncode}")
+
+    logger.debug(f"Encoded {len(frames)} frames to {output_path}")
+
+
 def generate_tbc_frames(
     base_frame: np.ndarray,
     duration_frames: int = 20,
@@ -384,7 +460,7 @@ def generate_tbc_frames(
         for i in range(duration_frames):
             t = i / (duration_frames - 1) if duration_frames > 1 else 1.0
             progress = 1 - (1 - t) ** 2
-            
+
             x = int(start_x + (end_x - start_x) * progress)
             y = end_y
 

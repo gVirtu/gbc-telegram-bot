@@ -53,7 +53,10 @@
     },
     "recap": {
       "no_animation": "No recent gameplay footage found.",
-      "error": "❌ Failed to send the animation, it may have expired."
+      "error": "❌ Failed to send the animation, it may have expired.",
+      "no_gameplay": "📅 No gameplay recorded for {date}.",
+      "try_dates": "Try: {dates}",
+      "invalid_date": "❌ Invalid date format. Use YYYYMMDD (e.g., 20260221)."
     },
     "message": {
       "cleared": "✅ Custom message removed.",

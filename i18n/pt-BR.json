@@ -53,7 +53,10 @@
     },
     "recap": {
       "no_animation": "Nenhum trecho de gameplay recente encontrado.",
-      "error": "❌ Não consegui enviar a animação, ela pode ter expirado."
+      "error": "❌ Não consegui enviar a animação, ela pode ter expirado.",
+      "no_gameplay": "📅 Nenhum gameplay gravado para {date}.",
+      "try_dates": "Tente: {dates}",
+      "invalid_date": "❌ Formato de data inválido. Use YYYYMMDD (ex: 20260221)."
     },
     "message": {
       "cleared": "✅ Mensagem personalizada removida..",

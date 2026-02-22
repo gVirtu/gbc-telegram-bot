@@ -698,8 +698,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     )
 
 
-async def recap_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle /recap command.
+async def gif_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /gif command.
 
     Resends the most recently sent animation as a new standalone message
     (no caption) in the chat. Any group member can use this command.
@@ -727,13 +727,140 @@ async def recap_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             caption="",
         )
 
-        logger.info(f"Sent recap animation for chat {chat_id}")
+        logger.info(f"Sent last animation for chat {chat_id} via /gif command")
 
     except Exception as e:
-        logger.error(f"Error sending recap for chat {chat_id}: {e}")
+        logger.error(f"Error sending animation for chat {chat_id}: {e}")
         error_msg = translation_manager.get("commands.recap.error", chat_id)
         await update.message.reply_text(error_msg)
         return
+
+async def recap_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /recap command with optional date.
+
+    /recap - Show today's timelapse
+    /recap YYYYMMDD - Show timelapse for specific date
+
+    Sends a daily timelapse video of all gameplay from the specified date.
+    """
+    if not _check_chat_allowed(update):
+        chat_id = update.effective_chat.id
+        error_msg = translation_manager.get("permissions.chat_not_allowed", chat_id)
+        await update.message.reply_text(error_msg)
+        return
+
+    chat_id = update.effective_chat.id
+
+    # Parse date from args (default to today)
+    from datetime import datetime
+
+    if context.args:
+        date_str = context.args[0]
+
+        # Validate YYYYMMDD format
+        if len(date_str) != 8 or not date_str.isdigit():
+            invalid_msg = translation_manager.get("commands.recap.invalid_date", chat_id)
+            await update.message.reply_text(invalid_msg)
+            return
+
+        try:
+            # Validate date is valid
+            datetime.strptime(date_str, "%Y%m%d")
+        except ValueError:
+            invalid_msg = translation_manager.get("commands.recap.invalid_date", chat_id)
+            await update.message.reply_text(invalid_msg)
+            return
+    else:
+        # Default to today
+        date_str = datetime.now().strftime("%Y%m%d")
+
+    # Query database for recap file
+    recap_record = await state_manager.get_recap_file(chat_id, date_str)
+
+    if recap_record is None:
+        # No gameplay recorded for this date
+        await _send_no_gameplay_message(update, context, chat_id, date_str)
+        return
+
+    # Get video path
+    from pathlib import Path
+    from src.config import settings
+
+    video_path = settings.data_dir / "recaps" / str(chat_id) / f"{date_str}.mp4"
+
+    if not video_path.exists():
+        # File deleted but metadata exists
+        await _send_no_gameplay_message(update, context, chat_id, date_str)
+        return
+
+    try:
+        # Try sending with cached file_id first
+        if recap_record.file_id:
+            try:
+                await context.bot.send_video(
+                    chat_id=chat_id,
+                    video=recap_record.file_id,
+                    caption=f"📅 Recap: {date_str}",
+                )
+                logger.info(f"Sent cached recap for chat {chat_id}, date {date_str}")
+                return
+            except Exception as e:
+                logger.warning(f"Failed to send cached file_id, uploading from disk: {e}")
+
+        # Upload from disk
+        with open(video_path, "rb") as video_file:
+            message = await context.bot.send_video(
+                chat_id=chat_id,
+                video=video_file,
+                caption=f"📅 Recap: {date_str}",
+            )
+
+            # Update file_id in database
+            if message.video:
+                await state_manager.update_recap_file_id(chat_id, date_str, message.video.file_id)
+                logger.info(f"Uploaded and cached recap for chat {chat_id}, date {date_str}")
+
+    except Exception as e:
+        logger.error(f"Error sending recap for chat {chat_id}, date {date_str}: {e}")
+        error_msg = translation_manager.get("commands.recap.error", chat_id)
+        await update.message.reply_text(error_msg)
+
+
+async def _send_no_gameplay_message(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    chat_id: int,
+    date: str,
+) -> None:
+    """Send a message when no gameplay exists for a date.
+
+    Args:
+        update: Telegram update
+        context: Telegram context
+        chat_id: Chat ID
+        date: Date in YYYYMMDD format
+    """
+    # Get nearest dates
+    date_before = await state_manager.get_nearest_recap_date(chat_id, date, "before")
+    date_after = await state_manager.get_nearest_recap_date(chat_id, date, "after")
+
+    # Build suggestions
+    suggestions = []
+    if date_before:
+        suggestions.append(f"← {date_before}")
+    if date_after:
+        suggestions.append(f"{date_after} →")
+
+    no_gameplay_msg = translation_manager.get("commands.recap.no_gameplay", chat_id, date=date)
+
+    if suggestions:
+        try_dates_msg = translation_manager.get("commands.recap.try_dates", chat_id, dates=" | ".join(suggestions))
+        full_msg = f"{no_gameplay_msg}\n{try_dates_msg}"
+    else:
+        full_msg = no_gameplay_msg
+
+    await update.message.reply_text(full_msg)
+
 
 async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle unknown commands."""
@@ -930,6 +1057,7 @@ COMMAND_HANDLERS = {
     "load": load_command,
     "status": status_command,
     "help": help_command,
+    "gif": gif_command,
     "recap": recap_command,
     "m": message_command,
     "language": language_command,

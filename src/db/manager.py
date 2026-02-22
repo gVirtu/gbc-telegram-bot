@@ -631,5 +631,135 @@ class DatabaseManager:
         
         if deleted:
             logger.info(f"Deleted all data for chat {chat_id}")
-        
+
         return deleted
+
+    # ==================== Recap Files ====================
+
+    async def get_recap_file(self, chat_id: int, date: str) -> Optional["RecapFileRecord"]:
+        """Get recap file metadata for a specific date.
+
+        Args:
+            chat_id: The Telegram chat ID
+            date: Date in YYYYMMDD format
+
+        Returns:
+            RecapFileRecord if found, None otherwise
+        """
+        from src.models.game_state import RecapFileRecord
+
+        sql = "SELECT * FROM recap_files WHERE chat_id = ? AND date = ?;"
+        cursor = self.connection.execute(sql, (chat_id, date))
+        row = cursor.fetchone()
+
+        if row is None:
+            return None
+
+        return RecapFileRecord(
+            chat_id=row['chat_id'],
+            date=row['date'],
+            file_id=row['file_id'],
+            frame_count=row['frame_count'],
+            duration_sec=row['duration_sec'],
+            file_size_bytes=row['file_size_bytes'],
+            created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else None,
+            updated_at=datetime.fromisoformat(row['updated_at']) if row['updated_at'] else None
+        )
+
+    async def upsert_recap_metadata(
+        self,
+        chat_id: int,
+        date: str,
+        added_frame_count: int,
+        added_duration_sec: float,
+        file_size_bytes: int
+    ) -> None:
+        """Upsert recap file metadata, invalidating file_id.
+
+        Args:
+            chat_id: The Telegram chat ID
+            date: Date in YYYYMMDD format
+            added_frame_count: Added frames in timelapse
+            duration_sec: Duration in seconds
+            file_size_bytes: File size in bytes
+        """
+        now = datetime.utcnow()
+        sql = """
+        INSERT INTO recap_files
+            (chat_id, date, file_id, frame_count, duration_sec, file_size_bytes, created_at, updated_at)
+        VALUES (?, ?, NULL, ?, ?, ?, ?, ?)
+        ON CONFLICT(chat_id, date) DO UPDATE SET
+            file_id = NULL,
+            frame_count = frame_count + excluded.frame_count,
+            duration_sec = duration_sec + excluded.duration_sec,
+            file_size_bytes = excluded.file_size_bytes,
+            updated_at = excluded.updated_at;
+        """
+
+        self.connection.execute(sql, (
+            chat_id, date, added_frame_count, added_duration_sec, file_size_bytes,
+            now.isoformat(), now.isoformat()
+        ))
+        self.connection.commit()
+        logger.debug(f"Upserted recap metadata for chat {chat_id}, date {date}")
+
+    async def update_recap_file_id(self, chat_id: int, date: str, file_id: str) -> None:
+        """Update the Telegram file_id for a recap file.
+
+        Args:
+            chat_id: The Telegram chat ID
+            date: Date in YYYYMMDD format
+            file_id: Telegram file ID
+        """
+        sql = """
+        UPDATE recap_files
+        SET file_id = ?, updated_at = ?
+        WHERE chat_id = ? AND date = ?;
+        """
+
+        self.connection.execute(sql, (
+            file_id, datetime.utcnow().isoformat(), chat_id, date
+        ))
+        self.connection.commit()
+        logger.debug(f"Updated recap file_id for chat {chat_id}, date {date}")
+
+    async def get_nearest_recap_date(
+        self,
+        chat_id: int,
+        date: str,
+        direction: str
+    ) -> Optional[str]:
+        """Find the nearest recap date before or after a given date.
+
+        Args:
+            chat_id: The Telegram chat ID
+            date: Date in YYYYMMDD format
+            direction: 'before' or 'after'
+
+        Returns:
+            Nearest date in YYYYMMDD format, or None if not found
+        """
+        if direction == 'before':
+            sql = """
+            SELECT date FROM recap_files
+            WHERE chat_id = ? AND date < ?
+            ORDER BY date DESC
+            LIMIT 1;
+            """
+        elif direction == 'after':
+            sql = """
+            SELECT date FROM recap_files
+            WHERE chat_id = ? AND date > ?
+            ORDER BY date ASC
+            LIMIT 1;
+            """
+        else:
+            raise ValueError(f"Invalid direction: {direction}")
+
+        cursor = self.connection.execute(sql, (chat_id, date))
+        row = cursor.fetchone()
+
+        if row is None:
+            return None
+
+        return row['date']

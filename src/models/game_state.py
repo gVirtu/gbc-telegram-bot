@@ -279,19 +279,71 @@ class SaveSlotInfo:
 
 
 @dataclass
+class RecapFileRecord:
+    """Information about a daily recap timelapse file.
+
+    Attributes:
+        chat_id: Telegram chat ID
+        date: Date in YYYYMMDD format
+        file_id: Telegram file ID (None if invalidated)
+        frame_count: Total frames in timelapse
+        duration_sec: Duration of timelapse in seconds
+        file_size_bytes: File size in bytes
+        created_at: When this recap was first created
+        updated_at: When this recap was last updated
+    """
+
+    chat_id: int
+    date: str
+    file_id: Optional[str] = None
+    frame_count: int = 0
+    duration_sec: float = 0.0
+    file_size_bytes: int = 0
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "chat_id": self.chat_id,
+            "date": self.date,
+            "file_id": self.file_id,
+            "frame_count": self.frame_count,
+            "duration_sec": self.duration_sec,
+            "file_size_bytes": self.file_size_bytes,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "RecapFileRecord":
+        """Create instance from dictionary."""
+        return cls(
+            chat_id=data["chat_id"],
+            date=data["date"],
+            file_id=data.get("file_id"),
+            frame_count=data.get("frame_count", 0),
+            duration_sec=data.get("duration_sec", 0.0),
+            file_size_bytes=data.get("file_size_bytes", 0),
+            created_at=datetime.fromisoformat(data["created_at"]) if data.get("created_at") else None,
+            updated_at=datetime.fromisoformat(data["updated_at"]) if data.get("updated_at") else None,
+        )
+
+
+@dataclass
 class GameSession:
     """Tracks an active game session.
-    
+
     This is kept in memory while a game is active for a chat.
     It references the PyBoy instance and current state.
-    
+
     Attributes:
         chat_id: Telegram chat ID
         state: Current game state for this chat
         last_activity: Timestamp of last user interaction
         total_inputs: Total number of inputs processed
     """
-    
+
     chat_id: int
     state: ChatGameState
     last_activity: datetime = field(default_factory=datetime.utcnow)

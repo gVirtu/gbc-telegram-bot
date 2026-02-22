@@ -437,6 +437,25 @@ class InputHandler:
                     # State will be persisted in _process_queue_loop
                     session.state.last_animation_file_id = file_id
 
+                    # Enqueue timelapse encoding (non-blocking)
+                    from src.tasks.timelapse_encoder import timelapse_queue
+                    from datetime import datetime
+
+                    if timelapse_queue is not None:
+                        try:
+                            # Remove TBC frames (last N frames)
+                            frames_without_tbc = frames[:-settings.tbc_duration_frames] if len(frames) > settings.tbc_duration_frames else frames
+
+                            # Skip frames (keep every Nth frame)
+                            skipped_frames = frames_without_tbc[::settings.timelapse_frame_skip]
+
+                            # Enqueue for background encoding
+                            timestamp = datetime.now().isoformat()
+                            await timelapse_queue.enqueue(chat_id, skipped_frames, timestamp)
+                            logger.debug(f"Enqueued {len(skipped_frames)} frames for timelapse encoding (chat {chat_id})")
+                        except Exception as e:
+                            logger.warning(f"Failed to enqueue timelapse for chat {chat_id}: {e}")
+
             except Exception as e:
                 logger.error(f"Failed to generate MP4 for chat {chat_id}: {e}")
                 try:

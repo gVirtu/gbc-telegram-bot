@@ -10,17 +10,6 @@ from telegram.ext import ContextTypes
 from src.handlers.commands import recap_command, gif_command, _send_no_gameplay_message
 
 
-# Patch chat check globally for all tests
-pytestmark = pytest.mark.usefixtures("mock_chat_allowed")
-
-
-@pytest.fixture(autouse=True)
-def mock_chat_allowed():
-    """Auto-patch _check_chat_allowed for all tests in this module."""
-    with patch('src.handlers.commands._check_chat_allowed', return_value=True):
-        yield
-
-
 @pytest.fixture
 def mock_update():
     """Create a mock Telegram update."""

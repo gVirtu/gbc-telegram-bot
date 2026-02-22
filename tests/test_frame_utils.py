@@ -13,9 +13,7 @@ from src.utils.frame_utils import (
     create_empty_frame,
     frame_to_png,
     frames_equal,
-    get_frame_info,
     hash_frame,
-    should_update_frame,
     save_frames_as_mp4,
 )
 
@@ -195,28 +193,6 @@ class TestFramesEqual:
         assert frames_equal(frame1, frame2) is False
 
 
-class TestGetFrameInfo:
-    """Test frame info extraction."""
-    
-    def test_basic_info(self):
-        """Test basic frame info extraction."""
-        frame = np.zeros((144, 160, 3), dtype=np.uint8)
-        height, width, dtype = get_frame_info(frame)
-        
-        assert height == 144
-        assert width == 160
-        assert dtype == "uint8"
-    
-    def test_different_sizes(self):
-        """Test info extraction for different sizes."""
-        frame = np.zeros((200, 300, 3), dtype=np.uint16)
-        height, width, dtype = get_frame_info(frame)
-        
-        assert height == 200
-        assert width == 300
-        assert dtype == "uint16"
-
-
 class TestCreateEmptyFrame:
     """Test empty frame creation."""
     
@@ -249,89 +225,6 @@ class TestCreateEmptyFrame:
         # GameBoy Color resolution is 160x144
         assert frame.shape[1] == 160  # Width
         assert frame.shape[0] == 144  # Height
-
-
-class TestShouldUpdateFrame:
-    """Test frame update decision logic."""
-    
-    def test_first_frame_always_updates(self):
-        """Test that first frame (no last_hash) always updates."""
-        frame = create_empty_frame()
-        
-        should_update, current_hash = should_update_frame(frame, None)
-        
-        assert should_update is True
-        assert len(current_hash) == 64
-    
-    def test_same_frame_no_update(self):
-        """Test that identical frame doesn't need update."""
-        frame = create_empty_frame()
-        
-        # First call - should update
-        should_update, last_hash = should_update_frame(frame, None)
-        assert should_update is True
-        
-        # Second call with same frame - should not update
-        should_update, current_hash = should_update_frame(frame, last_hash)
-        assert should_update is False
-        assert current_hash == last_hash
-    
-    def test_different_frame_needs_update(self):
-        """Test that different frame needs update."""
-        frame1 = create_empty_frame(color=(255, 0, 0))  # Red
-        frame2 = create_empty_frame(color=(0, 255, 0))  # Green
-        
-        # First frame
-        should_update, last_hash = should_update_frame(frame1, None)
-        assert should_update is True
-        
-        # Different frame
-        should_update, current_hash = should_update_frame(frame2, last_hash)
-        assert should_update is True
-        assert current_hash != last_hash
-    
-    def test_returns_current_hash(self):
-        """Test that function returns hash for storage."""
-        frame = create_empty_frame()
-        
-        _, current_hash = should_update_frame(frame, None)
-        
-        # Hash should match direct hashing
-        assert current_hash == hash_frame(frame)
-
-
-class TestIntegration:
-    """Integration tests for frame processing pipeline."""
-    
-    def test_optimization_saves_bandwidth(self):
-        """Test that frame deduplication would save bandwidth."""
-        # Simulate 10 identical frames
-        frame = create_empty_frame()
-        last_hash = None
-        updates_needed = 0
-        
-        for _ in range(10):
-            should_update, last_hash = should_update_frame(frame, last_hash)
-            if should_update:
-                updates_needed += 1
-        
-        # Only first frame should need update
-        assert updates_needed == 1
-    
-    def test_changing_frames_need_updates(self):
-        """Test that sequence of different frames all need updates."""
-        last_hash = None
-        updates_needed = 0
-        
-        for i in range(5):
-            # Create slightly different frames
-            frame = create_empty_frame(color=(i * 50, 0, 0))
-            should_update, last_hash = should_update_frame(frame, last_hash)
-            if should_update:
-                updates_needed += 1
-        
-        # All 5 frames are different, all need updates
-        assert updates_needed == 5
 
 
 class TestSaveFramesAsMp4:

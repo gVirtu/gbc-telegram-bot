@@ -25,7 +25,6 @@ from src.keyboard import (
 from src.models.game_state import ChatGameState, GameButton, GameSession
 from src.models.input_queue import InputQueue, QueueItem
 from src.utils.frame_utils import (  # noqa: F401 (needed for test patching)
-    should_update_frame,
     save_frames_as_mp4,
     generate_tbc_frames,
 )

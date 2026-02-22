@@ -105,23 +105,6 @@ def frames_equal(frame1: np.ndarray, frame2: np.ndarray) -> bool:
     return np.array_equal(frame1, frame2)
 
 
-def get_frame_info(frame: np.ndarray) -> Tuple[int, int, str]:
-    """Get information about a frame.
-    
-    Args:
-        frame: NumPy array representing the frame
-        
-    Returns:
-        Tuple of (height, width, dtype)
-        
-    Example:
-        >>> frame = np.zeros((144, 160, 3), dtype=np.uint8)
-        >>> get_frame_info(frame)
-        (144, 160, 'uint8')
-    """
-    return frame.shape[0], frame.shape[1], str(frame.dtype)
-
-
 def create_empty_frame(
     width: int = 160,
     height: int = 144,
@@ -149,106 +132,6 @@ def create_empty_frame(
     frame = np.zeros((height, width, 3), dtype=np.uint8)
     frame[:, :] = color
     return frame
-
-
-def should_update_frame(
-    current_frame: np.ndarray,
-    last_hash: str | None,
-) -> Tuple[bool, str]:
-    """Determine if a frame should be sent based on hash comparison.
-    
-    This is the main optimization function to avoid sending duplicate frames.
-    
-    Args:
-        current_frame: The current frame buffer
-        last_hash: The hash of the last sent frame (None if no previous frame)
-        
-    Returns:
-        Tuple of (should_update, current_hash)
-        - should_update: True if frame has changed and should be sent
-        - current_hash: Hash of current frame (save this for next comparison)
-        
-    Example:
-        >>> frame1 = create_empty_frame(color=(255, 0, 0))
-        >>> should_update, hash1 = should_update_frame(frame1, None)
-        >>> should_update
-        True
-        >>> frame2 = create_empty_frame(color=(255, 0, 0))
-        >>> should_update, hash2 = should_update_frame(frame2, hash1)
-        >>> should_update
-        False
-        >>> hash1 == hash2
-        True
-    """
-    current_hash = hash_frame(current_frame)
-    
-    if last_hash is None:
-        # No previous frame, should update
-        return True, current_hash
-    
-    if current_hash == last_hash:
-        # Frame unchanged, skip update
-        return False, current_hash
-    
-    # Frame changed, should update
-    return True, current_hash
-
-
-def save_frames_as_gif(
-    frames: list[np.ndarray],
-    duration: int = 100,
-    last_frame_duration: int = 2000,
-    optimize: bool = True,
-) -> BytesIO:
-    """Save a sequence of frames as an animated GIF.
-    
-    DEPRECATED: Use save_frames_as_mp4 instead for better compression.
-    
-    Args:
-        frames: List of NumPy arrays (H, W, 3)
-        duration: Duration of each frame in milliseconds
-        last_frame_duration: Duration of the last frame in milliseconds
-        optimize: Whether to optimize GIF size
-        
-    Returns:
-        BytesIO object containing GIF data
-        
-    Example:
-        >>> frames = [create_empty_frame() for _ in range(5)]
-        >>> gif_buffer = save_frames_as_gif(frames)
-        >>> len(gif_buffer.getvalue()) > 0
-        True
-    """
-    if not frames:
-        raise ValueError("No frames provided")
-        
-    # Convert numpy frames to PIL Images
-    images = [
-        Image.fromarray(frame, mode="RGB").resize(
-            (frame.shape[1] * 2, frame.shape[0] * 2), Image.Resampling.NEAREST
-        )
-        for frame in frames
-    ]
-    
-    # Calculate durations
-    durations = [duration] * len(frames)
-    if frames:
-        durations[-1] = last_frame_duration
-        
-    buffer = BytesIO()
-    # Save as GIF
-    images[0].save(
-        buffer,
-        format="GIF",
-        save_all=True,
-        append_images=images[1:],
-        duration=durations,
-        loop=0,
-        optimize=optimize,
-    )
-    buffer.seek(0)
-    
-    return buffer
 
 
 def save_frames_as_mp4(

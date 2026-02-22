@@ -376,9 +376,7 @@ class TestIntegration:
             mock_controller.get_frame_as_png = Mock(return_value=b"fake_png")
             mock_gcm.get_or_create_controller = AsyncMock(return_value=mock_controller)
 
-            # Mock should_update_frame to skip animation
-            with patch('src.handlers.input_handler.should_update_frame', return_value=(False, "hash123")), \
-                 patch('src.handlers.input_handler.settings') as mock_settings, \
+            with patch('src.handlers.input_handler.settings') as mock_settings, \
                  patch('asyncio.sleep', new_callable=AsyncMock):
 
                 # Set animation duration to 0 to avoid infinite loop

@@ -250,28 +250,6 @@ class TestStatePersistenceIntegration:
             assert handler._sessions[123456].state.chat_id == 123456
 
 
-class TestFrameOptimizationIntegration:
-    """Test frame optimization in complete flow."""
-    
-    def test_duplicate_frames_skipped(self):
-        """Test that duplicate frames are not sent."""
-        from src.utils.frame_utils import should_update_frame
-        import numpy as np
-        
-        # Create identical frames
-        frame1 = np.zeros((144, 160, 3), dtype=np.uint8)
-        frame2 = np.zeros((144, 160, 3), dtype=np.uint8)
-        
-        # First frame should update
-        should_update1, hash1 = should_update_frame(frame1, None)
-        assert should_update1 is True
-        
-        # Same frame should not update
-        should_update2, hash2 = should_update_frame(frame2, hash1)
-        assert should_update2 is False
-        assert hash1 == hash2
-
-
 class TestErrorHandlingIntegration:
     """Test error handling across components."""
     

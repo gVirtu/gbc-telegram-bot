@@ -69,21 +69,6 @@ def _cache_admin_status(chat_id: int, user_id: int, is_admin: bool) -> None:
     _admin_cache[(chat_id, user_id)] = (is_admin, time())
 
 
-def _check_chat_allowed(update: Update) -> bool:
-    """Check if the chat is allowed to use the bot.
-
-    Args:
-        update: Telegram Update object
-
-    Returns:
-        True if chat is allowed, False otherwise
-    """
-    chat_id = update.effective_chat.id
-    if not settings.allowed_chat_ids:
-        return True
-    return chat_id in settings.allowed_chat_ids
-
-
 async def check_admin_permission(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
@@ -192,12 +177,6 @@ async def start_game_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     Initializes a new game or restarts an existing one.
     Loads the initial save state and sends the first frame.
     """
-    if not _check_chat_allowed(update):
-        chat_id = update.effective_chat.id
-        error_msg = translation_manager.get("permissions.chat_not_allowed", chat_id)
-        await update.message.reply_text(error_msg)
-        return
-
     # Check admin permission for group chats
     is_allowed, error_msg = await check_admin_permission(update, context)
     if not is_allowed:
@@ -234,12 +213,6 @@ async def resume_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     Unlike /start_game, this does not restart the game.
     Auto-starts the game if not already active.
     """
-    if not _check_chat_allowed(update):
-        chat_id = update.effective_chat.id
-        error_msg = translation_manager.get("permissions.chat_not_allowed", chat_id)
-        await update.message.reply_text(error_msg)
-        return
-
     chat_id = update.effective_chat.id
 
     # Ensure game is active (auto-start if needed)
@@ -278,12 +251,6 @@ async def reboot_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     Stops the current game controller and starts a fresh one
     without loading any save state. Admin only.
     """
-    if not _check_chat_allowed(update):
-        chat_id = update.effective_chat.id
-        error_msg = translation_manager.get("permissions.chat_not_allowed", chat_id)
-        await update.message.reply_text(error_msg)
-        return
-
     # Check admin permission for group chats
     is_allowed, error_msg = await check_admin_permission(update, context)
     if not is_allowed:
@@ -350,12 +317,6 @@ async def save_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     If no slot specified, uses the next available slot.
     Auto-starts the game if not already active.
     """
-    if not _check_chat_allowed(update):
-        chat_id = update.effective_chat.id
-        error_msg = translation_manager.get("permissions.chat_not_allowed", chat_id)
-        await update.message.reply_text(error_msg)
-        return
-
     # Check admin permission for group chats
     is_allowed, error_msg = await check_admin_permission(update, context)
     if not is_allowed:
@@ -439,12 +400,6 @@ async def load_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     If no slot specified, shows available slots.
     Auto-starts the game if not already active.
     """
-    if not _check_chat_allowed(update):
-        chat_id = update.effective_chat.id
-        error_msg = translation_manager.get("permissions.chat_not_allowed", chat_id)
-        await update.message.reply_text(error_msg)
-        return
-
     # Check admin permission for group chats
     is_allowed, error_msg = await check_admin_permission(update, context)
     if not is_allowed:
@@ -567,12 +522,6 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     - Save slot information
     Auto-starts the game if not already active.
     """
-    if not _check_chat_allowed(update):
-        chat_id = update.effective_chat.id
-        error_msg = translation_manager.get("permissions.chat_not_allowed", chat_id)
-        await update.message.reply_text(error_msg)
-        return
-
     chat_id = update.effective_chat.id
 
     # Ensure game is active (auto-start if needed)
@@ -649,12 +598,6 @@ async def print_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     frames and without the input keyboard. Useful for capturing screenshots.
     Auto-starts the game if not already active.
     """
-    if not _check_chat_allowed(update):
-        chat_id = update.effective_chat.id
-        error_msg = translation_manager.get("permissions.chat_not_allowed", chat_id)
-        await update.message.reply_text(error_msg)
-        return
-
     chat_id = update.effective_chat.id
 
     # Ensure game is active (auto-start if needed)
@@ -704,12 +647,6 @@ async def gif_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     Resends the most recently sent animation as a new standalone message
     (no caption) in the chat. Any group member can use this command.
     """
-    if not _check_chat_allowed(update):
-        chat_id = update.effective_chat.id
-        error_msg = translation_manager.get("permissions.chat_not_allowed", chat_id)
-        await update.message.reply_text(error_msg)
-        return
-
     chat_id = update.effective_chat.id
 
     handler = get_input_handler(context.bot)
@@ -743,12 +680,6 @@ async def recap_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     Sends a daily timelapse video of all gameplay from the specified date.
     """
-    if not _check_chat_allowed(update):
-        chat_id = update.effective_chat.id
-        error_msg = translation_manager.get("permissions.chat_not_allowed", chat_id)
-        await update.message.reply_text(error_msg)
-        return
-
     chat_id = update.effective_chat.id
 
     # Parse date from args (default to today)
@@ -878,11 +809,6 @@ async def message_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     With TEXT, sets the custom message base text.
     Only admins can use this command.
     """
-    if not _check_chat_allowed(update):
-        chat_id = update.effective_chat.id
-        error_msg = translation_manager.get("permissions.chat_not_allowed", chat_id)
-        await update.message.reply_text(error_msg)
-        return
 
     # Check admin permission for group chats
     is_allowed, error_msg = await check_admin_permission(update, context)
@@ -931,11 +857,6 @@ async def language_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     Without code, shows current language and available options.
     With code, changes the language (admin only).
     """
-    if not _check_chat_allowed(update):
-        chat_id = update.effective_chat.id
-        error_msg = translation_manager.get("permissions.chat_not_allowed", chat_id)
-        await update.message.reply_text(error_msg)
-        return
 
     chat_id = update.effective_chat.id
 
@@ -1000,11 +921,6 @@ async def maintenance_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     can send input button commands.
     Usage: /maintenance on|off
     """
-    if not _check_chat_allowed(update):
-        chat_id = update.effective_chat.id
-        error_msg = translation_manager.get("permissions.chat_not_allowed", chat_id)
-        await update.message.reply_text(error_msg)
-        return
 
     # Check admin permission for group chats
     is_allowed, error_msg = await check_admin_permission(update, context)

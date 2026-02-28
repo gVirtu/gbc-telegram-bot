@@ -202,8 +202,14 @@ class TestGetButtonFromCallback:
 
     def test_valid_button_callbacks(self):
         assert get_button_from_callback("up") == GameButton.UP
+        assert get_button_from_callback("down") == GameButton.DOWN
+        assert get_button_from_callback("left") == GameButton.LEFT
+        assert get_button_from_callback("right") == GameButton.RIGHT
         assert get_button_from_callback("a") == GameButton.A
+        assert get_button_from_callback("b") == GameButton.B
         assert get_button_from_callback("start") == GameButton.START
+        assert get_button_from_callback("select") == GameButton.SELECT
+        assert get_button_from_callback("wait") == GameButton.WAIT
 
     def test_invalid_callback(self):
         assert get_button_from_callback("invalid") is None
@@ -216,8 +222,14 @@ class TestIsValidButtonCallback:
 
     def test_valid_callbacks(self):
         assert is_valid_button_callback("left") is True
+        assert is_valid_button_callback("down") is True
+        assert is_valid_button_callback("right") is True
+        assert is_valid_button_callback("up") is True
+        assert is_valid_button_callback("a") is True
         assert is_valid_button_callback("b") is True
+        assert is_valid_button_callback("start") is True
         assert is_valid_button_callback("select") is True
+        assert is_valid_button_callback("wait") is True
 
     def test_invalid_callbacks(self):
         assert is_valid_button_callback("modifier_run") is False

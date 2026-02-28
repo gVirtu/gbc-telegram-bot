@@ -24,6 +24,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy source code and assets
 COPY --chown=appuser:appgroup src/ ./src/
 COPY --chown=appuser:appgroup assets/ ./assets/
+COPY --chown=appuser:appgroup i18n/ ./i18n/
 
 # Create directories for volumes
 RUN mkdir -p /app/data /app/roms && \
@@ -44,6 +45,9 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PORT=8000
 ENV WEB_CONCURRENCY=1
+
+ENV DATA_DIR=/app/data
+ENV TBC_OVERLAY_PATH=/app/assets/to_be_continued.png
 
 # Run uvicorn with multiple workers
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]

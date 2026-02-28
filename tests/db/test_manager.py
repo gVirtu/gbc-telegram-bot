@@ -27,7 +27,7 @@ class TestChatConfigOperations:
             input_hold_frames=10,
             animation_duration=5,
             auto_save_enabled=True,
-            running_mode=False
+            modifier_states={}
         )
         
         db_manager.save_chat_config(config)

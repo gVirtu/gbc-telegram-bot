@@ -19,7 +19,7 @@ class TestMigrationScript:
         config_dir.mkdir(parents=True)
         
         # Create config JSON file
-        config = ChatConfig(chat_id=123, input_hold_frames=10, running_mode=True)
+        config = ChatConfig(chat_id=123, input_hold_frames=10, modifier_states={"run": True})
         config_file = config_dir / "123.json"
         with open(config_file, 'w') as f:
             json.dump(config.to_dict(), f)
@@ -35,7 +35,7 @@ class TestMigrationScript:
         loaded = db_manager.load_chat_config(123)
         assert loaded is not None
         assert loaded.input_hold_frames == 10
-        assert loaded.running_mode is True
+        assert loaded.modifier_states == {"run": True}
     
     def test_migrate_game_state(self, tmp_path):
         """Verify game state migration."""

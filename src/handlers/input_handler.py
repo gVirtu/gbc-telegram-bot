@@ -22,7 +22,7 @@ from src.keyboard import (
     get_button_from_callback,
     is_valid_button_callback,
 )
-from src.models.game_state import ChatGameState, GameButton, GameSession
+from src.models.game_state import ChatGameState, GameButton, GameSession, ModifierButtonSpec
 from src.models.input_queue import InputQueue, QueueItem
 from src.utils.frame_utils import (  # noqa: F401 (needed for test patching)
     save_frames_as_mp4,
@@ -140,6 +140,25 @@ class InputHandler:
         message_id = callback_query.message.message_id
         callback_data = callback_query.data
 
+        # Handle modifier button presses before GameButton validation
+        if callback_data.startswith("modifier_"):
+            session = self._get_session(chat_id)
+            if not session:
+                try:
+                    await callback_query.answer(translation_manager.get("game.no_active_game", chat_id))
+                except Exception as e:
+                    logger.error(f"Error processing modifier for chat {chat_id}: {e}")
+                return
+            if session.state.message_id != message_id:
+                try:
+                    await callback_query.answer(translation_manager.get("game.message_outdated", chat_id))
+                except Exception as e:
+                    logger.error(f"Error processing modifier for chat {chat_id}: {e}")
+                return
+            key = callback_data[len("modifier_"):]
+            await self._handle_modifier_button_press(callback_query, chat_id, message_id, key)
+            return
+
         if not is_valid_button_callback(callback_data):
             try:
                 await callback_query.answer("Invalid button")
@@ -172,11 +191,6 @@ class InputHandler:
             (f"@{callback_query.from_user.username}" if callback_query.from_user.username else "User")
         )
 
-        # Handle RUN button specially
-        if button == GameButton.RUN:
-            await self._handle_run_button_press(callback_query, session, chat_id, message_id)
-            return
-
         # Get or create queue
         queue = self._get_or_create_queue(chat_id)
         
@@ -208,28 +222,32 @@ class InputHandler:
             except Exception as e:
                 logger.error(f"Error answering callback for chat {chat_id}: {e}")
 
-    async def _handle_run_button_press(
-        self, callback_query, session, chat_id, message_id
+    async def _handle_modifier_button_press(
+        self, callback_query, chat_id: int, message_id: int, key: str
     ) -> None:
-        """Handle RUN button press to toggle running mode."""
-        # Toggle running mode
+        """Handle a modifier button press to toggle modifier state."""
         config = state_manager.get_or_create_chat_config(chat_id)
-        
-        config.running_mode = not config.running_mode
+        config.modifier_states[key] = not config.modifier_states.get(key, False)
         state_manager.save_chat_config(config)
-        
-        # Update keyboard with new emoji
+
+        controller = game_controller_manager.get_controller(chat_id)
+        modifier_specs = controller.get_modifier_specs() if controller else []
+
         await self._edit_message_keyboard(
-            chat_id, message_id, create_input_keyboard(running_mode=config.running_mode, chat_id=chat_id)
+            chat_id, message_id, create_input_keyboard(chat_config=config, modifier_specs=modifier_specs)
         )
 
-        # Answer callback
-        msg_key = "game.running_enabled" if config.running_mode else "game.running_disabled"
-        message = translation_manager.get(msg_key, chat_id)
+        spec = next((s for s in modifier_specs if s.key == key), None)
+        if spec:
+            is_active = config.modifier_states[key]
+            label_key = spec.active_label_key if is_active else spec.inactive_label_key
+            message = translation_manager.get(label_key, chat_id)
+        else:
+            message = ""
         try:
             await callback_query.answer(message, show_alert=False)
         except Exception as e:
-            logger.error(f"Error answering callback for chat {chat_id}: {e}")
+            logger.error(f"Error answering modifier callback for chat {chat_id}: {e}")
 
     async def _process_sequence(
         self, chat_id: int, buttons: list[GameButton], message_id: int
@@ -340,22 +358,19 @@ class InputHandler:
         # Record the input for user tracking
         self._record_user_input(session, item.user_id, item.user_name, buttons)
 
-        # Check running mode
         config = state_manager.get_or_create_chat_config(chat_id)
-        running_mode = config.running_mode if config else False
+        modifier_specs = controller.get_modifier_specs()
+        modifier_states = config.modifier_states if config else {}
 
-        input_keyboard = create_input_keyboard(running_mode=running_mode, chat_id=chat_id)
+        input_keyboard = create_input_keyboard(chat_config=config, modifier_specs=modifier_specs)
 
-        logger.info(f"Executing sequence of {len(buttons)} buttons for chat {chat_id} (running_mode={running_mode})")
+        logger.info(f"Executing sequence of {len(buttons)} buttons for chat {chat_id} (modifier_states={modifier_states})")
 
         # Animation capture settings - GameBoy runs at 60fps, capture at 10fps
         frames = []
         game_fps = 60
         capture_fps = 10
         capture_interval_frames = game_fps // capture_fps  # Capture every 6th frame
-
-        # Directional buttons that can use running mode
-        directional_buttons = (GameButton.UP, GameButton.DOWN, GameButton.LEFT, GameButton.RIGHT)
 
         # Capture current frame
         frames.append(controller.get_frame().copy())
@@ -366,13 +381,17 @@ class InputHandler:
             if button == GameButton.WAIT:
                 logger.debug(f"WAIT button in sequence for chat {chat_id}")
                 controller.tick(frames=settings.input_hold_frames)
-            elif running_mode and button in directional_buttons:
-                # Running mode: hold B throughout directional input
-                logger.debug(f"Executing {button.value} with B in running mode for chat {chat_id}")
-                controller.send_input_with_modifier(button, GameButton.B, frames=settings.input_hold_frames)
             else:
-                logger.debug(f"Executing {button.value} in sequence for chat {chat_id}")
-                controller.send_input(button, frames=settings.input_hold_frames)
+                applied = False
+                for spec in modifier_specs:
+                    if modifier_states.get(spec.key) and button in spec.applies_to:
+                        logger.debug(f"Executing {button.value} with {spec.modifier_button.value} modifier for chat {chat_id}")
+                        controller.send_input_with_modifier(button, spec.modifier_button, frames=settings.input_hold_frames)
+                        applied = True
+                        break
+                if not applied:
+                    logger.debug(f"Executing {button.value} in sequence for chat {chat_id}")
+                    controller.send_input(button, frames=settings.input_hold_frames)
 
             # Capture frame after button
             frames.append(controller.get_frame().copy())
@@ -584,10 +603,10 @@ class InputHandler:
         session = self._create_session(chat_id, 0)  # Will update message_id after sending
         
         config = state_manager.get_or_create_chat_config(chat_id)
-        running_mode = config.running_mode if config else False
+        modifier_specs = controller.get_modifier_specs()
 
         queue = self._get_or_create_queue(chat_id)
-        
+
         # Send initial message
 
         recent = session.state.recent_inputs if session else []
@@ -596,7 +615,7 @@ class InputHandler:
             chat_id=chat_id,
             photo=png_buffer,
             caption=create_game_message_text(recent_inputs=recent, queue_length=len(queue), base_text_override=base_text, chat_id=chat_id),
-            reply_markup=create_input_keyboard(running_mode=running_mode, chat_id=chat_id),
+            reply_markup=create_input_keyboard(chat_config=config, modifier_specs=modifier_specs),
             parse_mode="Markdown",
         )
         
@@ -627,8 +646,9 @@ class InputHandler:
             return None
         
         config = state_manager.get_or_create_chat_config(chat_id)
-        running_mode = config.running_mode if config else False
-        
+        controller_for_specs = game_controller_manager.get_controller(chat_id)
+        modifier_specs = controller_for_specs.get_modifier_specs() if controller_for_specs else []
+
         queue = self._get_or_create_queue(chat_id)
         
         # Get current frame
@@ -649,7 +669,7 @@ class InputHandler:
                 await self._edit_message_keyboard(
                     chat_id,
                     session.state.message_id,
-                    create_input_keyboard(running_mode=running_mode, chat_id=chat_id),
+                    create_input_keyboard(chat_config=config, modifier_specs=modifier_specs),
                 )
                 return session.state.message_id
             except TelegramError:
@@ -660,7 +680,7 @@ class InputHandler:
             chat_id=chat_id,
             photo=png_buffer,
             caption=caption,
-            reply_markup=create_input_keyboard(running_mode=running_mode, chat_id=chat_id) if not (session and session.state.input_in_progress) else None,
+            reply_markup=create_input_keyboard(chat_config=config, modifier_specs=modifier_specs) if not (session and session.state.input_in_progress) else None,
             parse_mode="Markdown",
         )
         
@@ -693,8 +713,9 @@ class InputHandler:
             return None
 
         config = state_manager.get_or_create_chat_config(chat_id)
-        running_mode = config.running_mode if config else False
-        
+        controller_for_specs = game_controller_manager.get_controller(chat_id)
+        modifier_specs = controller_for_specs.get_modifier_specs() if controller_for_specs else []
+
         # Get current frame
         png_buffer = controller.get_frame_as_png()
 
@@ -716,7 +737,7 @@ class InputHandler:
             chat_id=chat_id,
             photo=png_buffer,
             caption=create_game_message_text(recent_inputs=recent, queue_length=len(queue), base_text_override=base_text, chat_id=chat_id),
-            reply_markup=create_input_keyboard(running_mode=running_mode, chat_id=chat_id),
+            reply_markup=create_input_keyboard(chat_config=config, modifier_specs=modifier_specs),
             parse_mode="Markdown",
         )
 

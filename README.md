@@ -1,5 +1,7 @@
 # GBC Telegram Bot
 
+### 🌐 Try it live at https://t.me/playspokemon
+
 ![demo](https://github.com/user-attachments/assets/f5bcc560-0973-4f12-94f6-13954a99516d)
 
 Play GBC games collaboratively in Telegram chats, completely inline, without polluting chat history.

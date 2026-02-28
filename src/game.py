@@ -429,6 +429,7 @@ class GameController:
             self.pyboy = None
             self._initialized = False
             self._hook_module = None
+            self._modifier_module = None
     
     def __del__(self):
         """Destructor to ensure emulator is stopped."""

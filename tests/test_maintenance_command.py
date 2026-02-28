@@ -44,7 +44,7 @@ async def test_maintenance_command_shows_status_when_no_args(mock_update, mock_c
             
             mock_update.message.reply_text.assert_called_once()
             call_args = mock_update.message.reply_text.call_args[0][0]
-            assert 'desativado' in call_args
+            assert 'disabled' in call_args
 
 
 @pytest.mark.asyncio
@@ -102,4 +102,4 @@ async def test_maintenance_command_rejects_invalid_args(mock_update, mock_contex
         
         mock_update.message.reply_text.assert_called_once()
         call_args = mock_update.message.reply_text.call_args[0][0]
-        assert 'inválido' in call_args
+        assert 'Invalid argument' in call_args

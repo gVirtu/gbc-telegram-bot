@@ -80,7 +80,7 @@ class Settings(BaseSettings):
 
     # Internationalization
     default_language: str = Field(
-        default="pt-BR",
+        default="en-US",
         description="Default language code for bot messages (e.g., 'pt-BR', 'en-US')",
     )
 

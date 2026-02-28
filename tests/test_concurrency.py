@@ -107,7 +107,7 @@ class TestInputLocking:
             # Queue should be created
             assert chat_id in handler._input_queues, "Queue should be created"
             # Input should be acknowledged as processing
-            cq1.answer.assert_called_once_with("Processando: A")
+            cq1.answer.assert_called_once_with("Processing: A")
 
     @pytest.mark.asyncio
     async def test_queue_item_created_on_input(self, handler, session, chat_id):

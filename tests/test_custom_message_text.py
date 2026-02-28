@@ -16,17 +16,17 @@ class TestCustomMessageTextIntegration:
         """Test that create_game_message_text uses override when provided."""
         # Without override
         text_default = create_game_message_text()
-        assert "Sua vez!" in text_default
+        assert "Your turn!" in text_default
 
         # With override
         text_custom = create_game_message_text(base_text_override="Custom message!")
         assert "Custom message!" in text_custom
-        assert "Sua vez!" not in text_custom
+        assert "Your turn!" not in text_custom
 
     def test_create_game_message_text_with_queue_ignores_override(self):
         """Test that queue length overrides base text (override only used when queue is empty)."""
         text = create_game_message_text(queue_length=3, base_text_override="Custom!")
-        assert "3 inputs na fila" in text
+        assert "3 inputs in queue" in text
         assert "Custom!" not in text
 
     def test_chat_config_persistence(self):

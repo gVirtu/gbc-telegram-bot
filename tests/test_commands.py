@@ -102,7 +102,7 @@ class TestStartGameCommand:
 
                 # Should send error message
                 update.message.reply_text.assert_called_with(
-                    "❌ Não consegui iniciar o jogo. Por favor, tente novamente ou entre em contato com o administrador do bot."
+                    "❌ Failed to start the game. Please try again or contact the bot administrator."
                 )
 
 
@@ -188,7 +188,7 @@ class TestResumeCommand:
                     await resume_command(update, context)
 
                     update.message.reply_text.assert_called_with(
-                        "⏳ Um botão foi pressionado recentemente. Por favor aguarde..."
+                        "⏳ A button was recently pressed. Please wait..."
                     )
 
 
@@ -276,7 +276,7 @@ class TestSaveCommand:
                 await save_command(update, context)
 
                 update.message.reply_text.assert_called_with(
-                    "❌ Slot inválido. Use 0-4."
+                    "❌ Invalid slot. Use 0-4."
                 )
 
     @pytest.mark.asyncio
@@ -367,7 +367,7 @@ class TestLoadCommand:
                     await load_command(update, context)
 
                     update.message.reply_text.assert_called_with(
-                        "⏳ Um botão foi pressionado recentemente. Antes de carregar, por favor aguarde."
+                        "⏳ A button was recently pressed. Before loading, please wait."
                     )
 
     @pytest.mark.asyncio
@@ -394,7 +394,7 @@ class TestLoadCommand:
                         await load_command(update, context)
 
                         update.message.reply_text.assert_called_with(
-                            "Nenhum slot de salvamento encontrado. Use /save [slot] para criar um."
+                            "No save slots found. Use /save [slot] to create one."
                         )
 
     @pytest.mark.asyncio
@@ -424,7 +424,7 @@ class TestLoadCommand:
 
                         mock_controller.load_state.assert_called_once_with(b"save_data")
                         update.message.reply_text.assert_called_with(
-                            "📂 Carregado jogo do slot 0!"
+                            "📂 Loaded game from slot 0!"
                         )
 
 
@@ -471,7 +471,7 @@ class TestLoadBackupCommand:
                         mock_backup_mgr.load_backup.assert_called_once_with(123456, "20260215")
                         mock_controller.load_state.assert_called_once_with(b"backup_bytes")
                         update.message.reply_text.assert_called_with(
-                            "✅ Backup de 20260215 carregado com sucesso."
+                            "✅ Backup from 20260215 loaded successfully."
                         )
 
     @pytest.mark.asyncio
@@ -480,14 +480,14 @@ class TestLoadBackupCommand:
         update.effective_chat.type = "supergroup"
         context.args = ["backup", "20260215"]
 
-        with patch("src.handlers.commands.check_admin_permission", return_value=(False, "🔒 Apenas administradores do grupo podem usar este comando.")):
+        with patch("src.handlers.commands.check_admin_permission", return_value=(False, "🔒 Only group administrators can use this command.")):
             with patch("src.handlers.commands.settings") as mock_settings:
                 mock_settings.allowed_chat_ids = []
 
                 await load_command(update, context)
 
                 update.message.reply_text.assert_called_with(
-                    "🔒 Apenas administradores do grupo podem usar este comando."
+                    "🔒 Only group administrators can use this command."
                 )
 
     @pytest.mark.asyncio
@@ -508,7 +508,7 @@ class TestLoadBackupCommand:
                     await load_command(update, context)
 
                     update.message.reply_text.assert_called_with(
-                        "Formato de data inválido. Use YYYYMMDD (ex: 20260215)"
+                        "Invalid date format. Use YYYYMMDD (e.g., 20260215)"
                     )
 
     @pytest.mark.asyncio
@@ -530,11 +530,12 @@ class TestLoadBackupCommand:
                     with patch("src.handlers.commands.settings") as mock_settings:
                         mock_settings.allowed_chat_ids = []
                         mock_settings.save_slots = 5
+                        mock_settings.default_language = "pt-BR"
 
                         await load_command(update, context)
 
                         update.message.reply_text.assert_called_with(
-                            "Backup 20260101 não encontrado. Disponíveis: 20260102, 20260103"
+                            "Backup 20260101 not found. Available: 20260102, 20260103"
                         )
 
     @pytest.mark.asyncio
@@ -554,7 +555,7 @@ class TestLoadBackupCommand:
 
                     await load_command(update, context)
 
-                    update.message.reply_text.assert_called_with("Uso: /load backup YYYYMMDD")
+                    update.message.reply_text.assert_called_with("Usage: /load backup YYYYMMDD")
 
 
 class TestStatusCommand:
@@ -598,7 +599,7 @@ class TestStatusCommand:
                         123456, auto_load=True
                     )
                         call_args = update.message.reply_text.call_args
-                        assert "Jogo ativo" in call_args[0][0]
+                        assert "Game active" in call_args[0][0]
 
     @pytest.mark.asyncio
     async def test_status_with_active_game(self, update, context):
@@ -623,7 +624,7 @@ class TestStatusCommand:
                         await status_command(update, context)
 
                         call_args = update.message.reply_text.call_args
-                        assert "Jogo ativo" in call_args[0][0]
+                        assert "Game active" in call_args[0][0]
 
 
 class TestHelpCommand:
@@ -667,7 +668,7 @@ class TestUnknownCommand:
         await unknown_command(update, context)
         
         update.message.reply_text.assert_called_with(
-            "❓ Comando desconhecido. Use /help para ver os comandos disponíveis."
+            "❓ Unknown command. Use /help to see available commands."
         )
 
 
@@ -789,7 +790,7 @@ class TestEnsureGameActive:
 
             assert success is False
             assert error is not None
-            assert "Não consegui iniciar o jogo" in error
+            assert "Failed to start the game" in error
 
 
 class TestPrintCommand:
@@ -861,11 +862,12 @@ class TestPrintCommand:
 
             with patch("src.handlers.commands.settings") as mock_settings:
                 mock_settings.allowed_chat_ids = []
+                mock_settings.default_language = "pt-BR"
 
                 await print_command(update, context)
 
                 update.message.reply_text.assert_called_with(
-                    "❌ Não consegui capturar a tela. Tente novamente."
+                    "❌ Failed to capture the screen. Try again."
                 )
 
 
@@ -944,7 +946,7 @@ class TestAdminPermissions:
         is_allowed, error_msg = await check_admin_permission(mock_update, mock_context)
 
         assert is_allowed is False
-        assert "administradores" in error_msg.lower()
+        assert "administrators" in error_msg.lower()
 
     @pytest.mark.asyncio
     async def test_admin_cache_functionality(self):
@@ -997,7 +999,7 @@ class TestAdminPermissions:
             # The last call should be the permission denial
             assert mock_update.message.reply_text.called
             last_call = mock_update.message.reply_text.call_args[0][0]
-            assert "administradores" in last_call.lower()
+            assert "administrators" in last_call.lower()
 
     @pytest.mark.asyncio
     async def test_save_allowed_for_admin(self):
@@ -1100,7 +1102,7 @@ class TestMessageCommand:
                 assert mock_config.message_base_text == "Vamos jogar!"
                 mock_state.save_chat_config.assert_called_once_with(mock_config)
                 update.message.reply_text.assert_called_with(
-                    '✅ Mensagem definida: "Vamos jogar!"'
+                    '✅ Message set: "Vamos jogar!"'
                 )
 
     @pytest.mark.asyncio
@@ -1122,7 +1124,7 @@ class TestMessageCommand:
                 assert mock_config.message_base_text is None
                 mock_state.save_chat_config.assert_called_once_with(mock_config)
                 update.message.reply_text.assert_called_with(
-                    '✅ Mensagem personalizada removida..'
+                    '✅ Custom message removed.'
                 )
 
     @pytest.mark.asyncio
@@ -1142,7 +1144,7 @@ class TestMessageCommand:
                 # Should not save, should show error
                 mock_state.save_chat_config.assert_not_called()
                 update.message.reply_text.assert_called_with(
-                    "❌ Texto muito longo. Use no máximo 240 caracteres."
+                    "❌ Text too long. Use at most 240 characters."
                 )
 
     @pytest.mark.asyncio
@@ -1155,7 +1157,7 @@ class TestMessageCommand:
         context.args = ["Hello"]
 
         with patch("src.handlers.commands.check_admin_permission") as mock_check:
-            mock_check.return_value = (False, "🔒 Apenas administradores do grupo podem usar este comando.")
+            mock_check.return_value = (False, "🔒 Only group administrators can use this command.")
 
             with patch("src.handlers.commands.settings") as mock_settings:
                 mock_settings.allowed_chat_ids = []
@@ -1163,7 +1165,7 @@ class TestMessageCommand:
                 await message_command(update, context)
 
                 update.message.reply_text.assert_called_with(
-                    "🔒 Apenas administradores do grupo podem usar este comando."
+                    "🔒 Only group administrators can use this command."
                 )
 
     @pytest.mark.asyncio
@@ -1218,7 +1220,7 @@ class TestRebootCommand:
                         mock_handler.resume_game.assert_called_once_with(123456)
                         # Should send success message
                         update.message.reply_text.assert_called_with(
-                            "🔄 Jogo reiniciado com sucesso."
+                            "🔄 Game rebooted successfully."
                         )
 
     @pytest.mark.asyncio
@@ -1240,7 +1242,7 @@ class TestRebootCommand:
                     await reboot_command(update, context)
 
                     update.message.reply_text.assert_called_with(
-                        "⏳ Um botão foi pressionado recentemente. Por favor aguarde..."
+                        "⏳ A button was recently pressed. Please wait..."
                     )
 
     @pytest.mark.asyncio
@@ -1253,7 +1255,7 @@ class TestRebootCommand:
         with patch("src.handlers.commands.check_admin_permission") as mock_check:
             mock_check.return_value = (
                 False,
-                "🔒 Apenas administradores do grupo podem usar este comando.",
+                "🔒 Only group administrators can use this command.",
             )
 
             with patch("src.handlers.commands.settings") as mock_settings:
@@ -1262,7 +1264,7 @@ class TestRebootCommand:
                 await reboot_command(update, context)
 
                 update.message.reply_text.assert_called_with(
-                    "🔒 Apenas administradores do grupo podem usar este comando."
+                    "🔒 Only group administrators can use this command."
                 )
 
     @pytest.mark.asyncio
@@ -1411,7 +1413,7 @@ class TestLanguageCommand:
         update.effective_user.id = 999
 
         with patch("src.handlers.commands.check_admin_permission") as mock_check:
-            mock_check.return_value = (False, "🔒 Apenas administradores do grupo podem usar este comando.")
+            mock_check.return_value = (False, "🔒 Only group administrators can use this command.")
 
             with patch("src.handlers.commands.settings") as mock_settings:
                 mock_settings.allowed_chat_ids = []
@@ -1420,7 +1422,7 @@ class TestLanguageCommand:
 
                 # Should reply with error
                 update.message.reply_text.assert_called_once_with(
-                    "🔒 Apenas administradores do grupo podem usar este comando."
+                    "🔒 Only group administrators can use this command."
                 )
 
     @pytest.mark.asyncio

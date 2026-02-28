@@ -157,16 +157,16 @@ class TestCreateGameMessageText:
 
     def test_basic_text(self):
         text = create_game_message_text()
-        assert "Sua vez" in text
+        assert "Your turn" in text
 
     def test_text_with_status(self):
-        text = create_game_message_text("Processando: A...")
-        assert "Processando: A..." in text
-        assert "Sua vez" in text
+        text = create_game_message_text("Processing: A...")
+        assert "Processing: A..." in text
+        assert "Your turn" in text
 
     def test_markdown_formatting(self):
         text = create_game_message_text("Status")
-        assert "Sua vez" in text
+        assert "Your turn" in text
         assert "_Status_" in text
 
 
@@ -242,7 +242,7 @@ class TestCreateHelpText:
 
     def test_contains_title(self):
         text = create_help_text(123456)
-        assert "Como jogar" in text
+        assert "How to play" in text
 
     def test_contains_commands(self):
         text = create_help_text(123456)

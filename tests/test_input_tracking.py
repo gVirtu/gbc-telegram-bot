@@ -234,15 +234,15 @@ class TestMessageDisplay:
         """Test message creation with no recent inputs (default behavior)."""
         text = create_game_message_text()
 
-        assert "Sua vez" in text
-        assert "Atividade recente" not in text
+        assert "Your turn" in text
+        assert "Recent Activity" not in text
 
     def test_create_message_with_empty_list(self):
         """Test message creation with empty recent_inputs list."""
         text = create_game_message_text(recent_inputs=[])
 
-        assert "Sua vez" in text
-        assert "Atividade recente" not in text
+        assert "Your turn" in text
+        assert "Recent Activity" not in text
 
     def test_create_message_with_one_input(self):
         """Test message creation with one recent input."""
@@ -257,7 +257,7 @@ class TestMessageDisplay:
 
         text = create_game_message_text(recent_inputs=recent)
 
-        assert "Atividade recente" in text
+        assert "Recent Activity" in text
         assert "Alice: 🅰️ A" in text
 
     def test_create_message_with_three_inputs(self):
@@ -285,10 +285,10 @@ class TestMessageDisplay:
 
         text = create_game_message_text(recent_inputs=recent)
 
-        assert "Atividade recente" in text
+        assert "Recent Activity" in text
         # Most recent should be shown first (reversed)
         lines = text.split("\n")
-        assert "Charlie: ⬆️ Cima" in lines[-3]
+        assert "Charlie: ⬆️ Up" in lines[-3]
         assert "Bob: 🅱️ B" in lines[-2]
         assert "Alice: 🅰️ A" in lines[-1]
 
@@ -303,19 +303,19 @@ class TestMessageDisplay:
             }
         ]
 
-        text = create_game_message_text(status="Jogo salvo!", recent_inputs=recent)
+        text = create_game_message_text(status="Game saved!", recent_inputs=recent)
 
-        assert "Atividade recente" in text
+        assert "Recent Activity" in text
         assert "Alice: START Start" in text
-        assert "_Jogo salvo!_" in text
+        assert "_Game saved!_" in text
 
     def test_button_emoji_and_display_name(self):
         """Test that all button types display correctly."""
         buttons_to_test = [
-            ("up", "⬆️", "Cima"),
-            ("down", "⬇️", "Baixo"),
-            ("left", "⬅️", "Esquerda"),
-            ("right", "➡️", "Direita"),
+            ("up", "⬆️", "Up"),
+            ("down", "⬇️", "Down"),
+            ("left", "⬅️", "Left"),
+            ("right", "➡️", "Right"),
             ("a", "🅰️", "A"),
             ("b", "🅱️", "B"),
             ("start", "START", "Start"),
@@ -424,7 +424,7 @@ class TestIntegration:
         text = create_game_message_text(recent_inputs=session.state.recent_inputs)
         lines = text.split("\n")
 
-        assert "Charlie: ⬆️ Cima" in lines[-3]
+        assert "Charlie: ⬆️ Up" in lines[-3]
         assert "Bob: 🅱️ B" in lines[-2]
         assert "Alice: 🅰️ A" in lines[-1]
 

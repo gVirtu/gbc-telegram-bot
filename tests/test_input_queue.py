@@ -168,7 +168,7 @@ class TestInputQueue:
         """Test queue status message generation."""
         queue = InputQueue(max_size=5)
         
-        assert queue.get_queue_status(123) == "Fila vazia"
+        assert queue.get_queue_status(123) == "Queue empty"
         
         queue.add_input(123, "Alice", GameButton.A)
         queue.add_input(123, "Alice", GameButton.B)
@@ -177,5 +177,5 @@ class TestInputQueue:
         status = queue.get_queue_status(123)
         assert "Alice" in status
         assert "Bob" in status
-        assert "2 botões" in status
-        assert "1 botão" in status
+        assert "2 buttons" in status
+        assert "1 button" in status

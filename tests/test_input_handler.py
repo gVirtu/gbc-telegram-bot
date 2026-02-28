@@ -110,7 +110,7 @@ class TestButtonPressHandling:
             # Queue-based system should add to queue, not reject
             mock_callback_query.answer.assert_called_once()
             call_args = mock_callback_query.answer.call_args[0][0]
-            assert "Adicionado à fila" in call_args or "Adicionado à sua sequência" in call_args
+            assert "Added to queue" in call_args or "Added to your sequence" in call_args
     
     @pytest.mark.asyncio
     async def test_outdated_message(self, handler, mock_callback_query):
@@ -129,7 +129,7 @@ class TestButtonPressHandling:
             # Should reject with outdated message
             mock_callback_query.answer.assert_called_once()
             call_args = mock_callback_query.answer.call_args[0][0]
-            assert "desatualizada" in call_args
+            assert "outdated" in call_args
     
     @pytest.mark.asyncio
     async def test_successful_button_press(self, handler, mock_callback_query):
@@ -145,7 +145,7 @@ class TestButtonPressHandling:
                 await handler.handle_button_press(mock_callback_query)
                 
                 # Should acknowledge with button name
-                mock_callback_query.answer.assert_called_once_with("Processando: A")
+                mock_callback_query.answer.assert_called_once_with("Processing: A")
                 
                 # Should create a task for queue processing
                 mock_create_task.assert_called_once()

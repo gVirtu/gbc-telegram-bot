@@ -618,3 +618,109 @@ class TestWaitButtonProcessing:
             mock_controller.send_input.assert_called_once()
             # Tick is also called during animation phase
             assert mock_controller.tick.call_count > 0
+
+
+class TestModifierButtonHandling:
+    """Test modifier button press handling."""
+
+    @pytest.fixture
+    def mock_bot(self):
+        bot = MagicMock()
+        bot.edit_message_reply_markup = AsyncMock()
+        return bot
+
+    @pytest.fixture
+    def handler(self, mock_bot):
+        return InputHandler(mock_bot)
+
+    def _make_callback_query(self, chat_id=123456, message_id=100, callback_data="modifier_run"):
+        cq = MagicMock()
+        cq.message.chat.id = chat_id
+        cq.message.message_id = message_id
+        cq.data = callback_data
+        cq.from_user.id = 1
+        cq.from_user.first_name = "Alice"
+        cq.answer = AsyncMock()
+        return cq
+
+    @pytest.mark.asyncio
+    async def test_modifier_callback_no_session_returns_no_active_game(self, handler):
+        """Test modifier callback with no session answers no_active_game."""
+        cq = self._make_callback_query()
+
+        with patch("src.handlers.input_handler.state_manager") as mock_sm, \
+             patch("src.handlers.input_handler.translation_manager") as mock_tm:
+            mock_sm.load_game_state.return_value = None
+            mock_tm.get.return_value = "No active game"
+
+            await handler.handle_button_press(cq)
+
+            cq.answer.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_modifier_callback_stale_message_id_returns_outdated(self, handler):
+        """Test modifier callback with stale message_id answers message_outdated."""
+        cq = self._make_callback_query(message_id=999)
+
+        state = ChatGameState(chat_id=123456, message_id=100)
+        session = GameSession(chat_id=123456, state=state)
+        handler._sessions[123456] = session
+
+        with patch("src.handlers.input_handler.translation_manager") as mock_tm:
+            mock_tm.get.return_value = "Outdated"
+            await handler.handle_button_press(cq)
+            cq.answer.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_modifier_callback_toggles_modifier_state(self, handler):
+        """Test modifier callback toggles the modifier state in config."""
+        cq = self._make_callback_query()
+
+        state = ChatGameState(chat_id=123456, message_id=100)
+        session = GameSession(chat_id=123456, state=state)
+        handler._sessions[123456] = session
+
+        from src.models.game_state import ChatConfig
+        config = ChatConfig(chat_id=123456, modifier_states={"run": False})
+
+        with patch("src.handlers.input_handler.state_manager") as mock_sm, \
+             patch("src.handlers.input_handler.game_controller_manager") as mock_gcm, \
+             patch("src.handlers.input_handler.translation_manager") as mock_tm:
+            mock_sm.get_or_create_chat_config.return_value = config
+            mock_controller = MagicMock()
+            mock_controller.get_modifier_specs.return_value = []
+            mock_gcm.get_controller.return_value = mock_controller
+            mock_tm.get.return_value = ""
+            handler.bot.edit_message_reply_markup = AsyncMock()
+
+            await handler.handle_button_press(cq)
+
+            # State should have been toggled to True
+            assert config.modifier_states["run"] is True
+            mock_sm.save_chat_config.assert_called_once_with(config)
+
+    @pytest.mark.asyncio
+    async def test_modifier_callback_toggles_back_when_active(self, handler):
+        """Test modifier callback toggles from True back to False."""
+        cq = self._make_callback_query()
+
+        state = ChatGameState(chat_id=123456, message_id=100)
+        session = GameSession(chat_id=123456, state=state)
+        handler._sessions[123456] = session
+
+        from src.models.game_state import ChatConfig
+        config = ChatConfig(chat_id=123456, modifier_states={"run": True})
+
+        with patch("src.handlers.input_handler.state_manager") as mock_sm, \
+             patch("src.handlers.input_handler.game_controller_manager") as mock_gcm, \
+             patch("src.handlers.input_handler.translation_manager") as mock_tm:
+            mock_sm.get_or_create_chat_config.return_value = config
+            mock_controller = MagicMock()
+            mock_controller.get_modifier_specs.return_value = []
+            mock_gcm.get_controller.return_value = mock_controller
+            mock_tm.get.return_value = ""
+            handler.bot.edit_message_reply_markup = AsyncMock()
+
+            await handler.handle_button_press(cq)
+
+            assert config.modifier_states["run"] is False

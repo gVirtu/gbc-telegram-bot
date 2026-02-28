@@ -646,11 +646,10 @@ class InputHandler:
             return None
         
         config = state_manager.get_or_create_chat_config(chat_id)
-        controller_for_specs = game_controller_manager.get_controller(chat_id)
-        modifier_specs = controller_for_specs.get_modifier_specs() if controller_for_specs else []
+        modifier_specs = controller.get_modifier_specs()
 
         queue = self._get_or_create_queue(chat_id)
-        
+
         # Get current frame
         png_buffer = controller.get_frame_as_png()
         recent = session.state.recent_inputs if session else []
@@ -713,8 +712,7 @@ class InputHandler:
             return None
 
         config = state_manager.get_or_create_chat_config(chat_id)
-        controller_for_specs = game_controller_manager.get_controller(chat_id)
-        modifier_specs = controller_for_specs.get_modifier_specs() if controller_for_specs else []
+        modifier_specs = controller.get_modifier_specs()
 
         # Get current frame
         png_buffer = controller.get_frame_as_png()

@@ -121,6 +121,36 @@ class TestCreateInputKeyboard:
         assert keyboard is not None
         assert len(keyboard.inline_keyboard) == 3
 
+    def test_empty_modifier_specs_has_three_rows(self):
+        """Test that an empty modifier_specs list produces no modifier row."""
+        keyboard = create_input_keyboard(modifier_specs=[])
+        assert len(keyboard.inline_keyboard) == 3
+
+    def test_multiple_modifier_specs_produce_multi_button_row(self):
+        """Test that multiple modifier specs each get a button in the modifier row."""
+        spec1 = ModifierButtonSpec(
+            key="run",
+            modifier_button=GameButton.B,
+            applies_to=[GameButton.UP],
+            active_label_key="keyboard.buttons.running",
+            inactive_label_key="keyboard.buttons.walking",
+        )
+        spec2 = ModifierButtonSpec(
+            key="turbo",
+            modifier_button=GameButton.A,
+            applies_to=[GameButton.DOWN],
+            active_label_key="keyboard.buttons.running",
+            inactive_label_key="keyboard.buttons.walking",
+        )
+        config = ChatConfig(chat_id=0, modifier_states={})
+        keyboard = create_input_keyboard(chat_config=config, modifier_specs=[spec1, spec2])
+        assert len(keyboard.inline_keyboard) == 4
+        modifier_row = keyboard.inline_keyboard[3]
+        assert len(modifier_row) == 2
+        callbacks = [btn.callback_data for btn in modifier_row]
+        assert "modifier_run" in callbacks
+        assert "modifier_turbo" in callbacks
+
 
 class TestCreateGameMessageText:
     """Test game message text creation."""

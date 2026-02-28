@@ -52,6 +52,28 @@ class GameButton(str, Enum):
 
 
 @dataclass
+class ModifierButtonSpec:
+    """Spec for a game-specific modifier button.
+
+    A modifier button is displayed in the keyboard and, when active,
+    causes a modifier button to be held alongside specified inputs.
+
+    Attributes:
+        key: Unique identifier used in modifier_states map (e.g. "run")
+        modifier_button: Button held during input (e.g. GameButton.B)
+        applies_to: Inputs that get the modifier (e.g. directional buttons)
+        active_label_key: i18n key for label when modifier is ON
+        inactive_label_key: i18n key for label when modifier is OFF
+    """
+
+    key: str
+    modifier_button: GameButton
+    applies_to: list[GameButton]
+    active_label_key: str
+    inactive_label_key: str
+
+
+@dataclass
 class ChatGameState:
     """Represents the current game state for a chat.
 

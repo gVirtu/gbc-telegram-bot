@@ -14,6 +14,7 @@ from src.models.game_state import (
     ChatGameState,
     GameButton,
     GameSession,
+    ModifierButtonSpec,
     SaveSlotInfo,
 )
 
@@ -359,7 +360,7 @@ class TestButtonLayout:
 
         # Check fourth row (RUN only)
         assert GameButton.RUN in BUTTON_LAYOUT[3]
-    
+
     def test_all_buttons_in_layout(self):
         """Test all active buttons are included in layout."""
         all_buttons = set()
@@ -370,3 +371,34 @@ class TestButtonLayout:
         expected_buttons = set(GameButton) - {GameButton.SEQUENCE, GameButton.ENVIAR}
         assert all_buttons == expected_buttons
         assert len(all_buttons) == 10  # 10 active buttons (excluding SEQUENCE and ENVIAR)
+
+
+class TestModifierButtonSpec:
+    """Test ModifierButtonSpec dataclass."""
+
+    def test_basic_creation(self):
+        """Test creation with all required fields."""
+        spec = ModifierButtonSpec(
+            key="run",
+            modifier_button=GameButton.B,
+            applies_to=[GameButton.UP, GameButton.DOWN, GameButton.LEFT, GameButton.RIGHT],
+            active_label_key="keyboard.buttons.running",
+            inactive_label_key="keyboard.buttons.walking",
+        )
+        assert spec.key == "run"
+        assert spec.modifier_button == GameButton.B
+        assert GameButton.UP in spec.applies_to
+        assert spec.active_label_key == "keyboard.buttons.running"
+        assert spec.inactive_label_key == "keyboard.buttons.walking"
+
+    def test_applies_to_is_list(self):
+        """Test applies_to stores a list of GameButtons."""
+        spec = ModifierButtonSpec(
+            key="test",
+            modifier_button=GameButton.A,
+            applies_to=[GameButton.UP],
+            active_label_key="a",
+            inactive_label_key="b",
+        )
+        assert isinstance(spec.applies_to, list)
+        assert spec.applies_to[0] == GameButton.UP

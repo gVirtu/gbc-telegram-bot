@@ -689,7 +689,7 @@ class TestModifierButtonHandling:
             mock_sm.get_or_create_chat_config.return_value = config
             mock_controller = MagicMock()
             mock_controller.get_modifier_specs.return_value = []
-            mock_gcm.get_controller.return_value = mock_controller
+            mock_gcm.get_or_create_controller = AsyncMock(return_value=mock_controller)
             mock_tm.get.return_value = ""
             handler.bot.edit_message_reply_markup = AsyncMock()
 
@@ -717,7 +717,7 @@ class TestModifierButtonHandling:
             mock_sm.get_or_create_chat_config.return_value = config
             mock_controller = MagicMock()
             mock_controller.get_modifier_specs.return_value = []
-            mock_gcm.get_controller.return_value = mock_controller
+            mock_gcm.get_or_create_controller = AsyncMock(return_value=mock_controller)
             mock_tm.get.return_value = ""
             handler.bot.edit_message_reply_markup = AsyncMock()
 

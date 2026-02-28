@@ -230,9 +230,9 @@ class InputHandler:
         config.modifier_states[key] = not config.modifier_states.get(key, False)
         state_manager.save_chat_config(config)
 
-        controller = game_controller_manager.get_controller(chat_id)
+        controller = await game_controller_manager.get_or_create_controller(chat_id)
         modifier_specs = controller.get_modifier_specs() if controller else []
-
+        
         await self._edit_message_keyboard(
             chat_id, message_id, create_input_keyboard(chat_config=config, modifier_specs=modifier_specs)
         )
@@ -785,7 +785,7 @@ class InputHandler:
 
 
 # Singleton instance
-_input_handler: Optional[InputHandler] = None
+_input_handler: Optional[InputHandler] = None 
 
 
 def get_input_handler(bot: Bot) -> InputHandler:

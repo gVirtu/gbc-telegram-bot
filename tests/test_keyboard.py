@@ -230,9 +230,9 @@ class TestIsValidButtonCallback:
         assert is_valid_button_callback("start") is True
         assert is_valid_button_callback("select") is True
         assert is_valid_button_callback("wait") is True
+        assert is_valid_button_callback("modifier_run") is True
 
     def test_invalid_callbacks(self):
-        assert is_valid_button_callback("modifier_run") is False
         assert is_valid_button_callback("load") is False
         assert is_valid_button_callback("") is False
 

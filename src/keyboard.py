@@ -194,7 +194,7 @@ def is_valid_button_callback(callback_data: str) -> bool:
         >>> is_valid_button_callback("invalid")
         False
     """
-    return get_button_from_callback(callback_data) is not None
+    return get_button_from_callback(callback_data) is not None or callback_data.startswith("modifier_")
 
 
 # Button descriptions for help text

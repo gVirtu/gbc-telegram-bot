@@ -15,7 +15,7 @@ from pyboy import PyBoy
 from pyboy.utils import WindowEvent
 
 from src.config import settings
-from src.models.game_state import GameButton
+from src.models.game_state import GameButton, ModifierButtonSpec
 from src.utils.state_manager import state_manager
 from src.utils.frame_utils import frame_to_png
 
@@ -68,6 +68,7 @@ class GameController:
         self.sym_path = sym_path or settings.sym_path
         self.pyboy: Optional[PyBoy] = None
         self._initialized = False
+        self._modifier_module: Optional[ModuleType] = None
     
     async def initialize(self) -> None:
         """Initialize the PyBoy emulator.
@@ -119,6 +120,7 @@ class GameController:
             self._initialized = True
             # Load game-specific hooks based on cartridge title
             self._hook_module = self._load_hook_module(self.pyboy.cartridge_title)
+            self._modifier_module = self._load_modifier_module(self.pyboy.cartridge_title)
             logger.info(f"Game '{self.pyboy.cartridge_title}' initialized successfully for chat {self.chat_id}")
             
         except Exception as e:
@@ -156,7 +158,40 @@ class GameController:
         except ImportError:
             logger.debug(f"No hook module found for: {cartridge_title}")
             return None
-    
+
+    def _load_modifier_module(self, cartridge_title: str) -> Optional[ModuleType]:
+        """Dynamically load modifier button module for a cartridge.
+
+        Args:
+            cartridge_title: PyBoy cartridge title (e.g., "PKPCRYSTAL")
+
+        Returns:
+            Module if found, None otherwise
+        """
+        if not cartridge_title:
+            return None
+
+        module_name = f"src.game_modifier_buttons.{cartridge_title.lower()}"
+
+        try:
+            import importlib
+            module = importlib.import_module(module_name)
+            logger.debug(f"Loaded modifier module: {module_name}")
+            return module
+        except ImportError:
+            logger.debug(f"No modifier module found for: {cartridge_title}")
+            return None
+
+    def get_modifier_specs(self) -> list[ModifierButtonSpec]:
+        """Get the modifier button specs for the loaded game.
+
+        Returns:
+            List of ModifierButtonSpec for this game, or empty list if none
+        """
+        if self._modifier_module and hasattr(self._modifier_module, "MODIFIER_BUTTONS"):
+            return self._modifier_module.MODIFIER_BUTTONS
+        return []
+
     def get_frame(self) -> np.ndarray:
         """Get the current screen frame as a numpy array.
         

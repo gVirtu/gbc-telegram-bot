@@ -195,3 +195,98 @@ class TestIntegration:
 
             assert controller._hook_module is None
             assert controller.begin_hooks() == {}
+
+
+class TestModifierModuleLoading:
+    """Test loading of game modifier button modules."""
+
+    def test_load_modifier_module_exists(self):
+        """Test loading an existing modifier module."""
+        from src.game import GameController
+        controller = GameController(123456)
+        module = controller._load_modifier_module("PKPCRYSTAL")
+        assert module is not None
+        assert hasattr(module, "MODIFIER_BUTTONS")
+
+    def test_load_modifier_module_not_found(self):
+        """Test loading a non-existent modifier module returns None."""
+        from src.game import GameController
+        controller = GameController(123456)
+        module = controller._load_modifier_module("NONEXISTENT_GAME")
+        assert module is None
+
+    def test_load_modifier_module_lowercase_conversion(self):
+        """Test that cartridge title is converted to lowercase."""
+        from src.game import GameController
+        controller = GameController(123456)
+        module = controller._load_modifier_module("PKPCRYSTAL")
+        assert module is not None
+        assert module.__name__ == "src.game_modifier_buttons.pkpcrystal"
+
+    def test_get_modifier_specs_with_module(self):
+        """Test get_modifier_specs returns specs when module loaded."""
+        from src.game import GameController
+        from src.models.game_state import ModifierButtonSpec
+        controller = GameController(123456)
+        controller._modifier_module = controller._load_modifier_module("PKPCRYSTAL")
+        specs = controller.get_modifier_specs()
+        assert len(specs) > 0
+        assert all(isinstance(s, ModifierButtonSpec) for s in specs)
+
+    def test_get_modifier_specs_no_module(self):
+        """Test get_modifier_specs returns empty list when no module."""
+        from src.game import GameController
+        controller = GameController(123456)
+        controller._modifier_module = None
+        specs = controller.get_modifier_specs()
+        assert specs == []
+
+    @pytest.mark.asyncio
+    async def test_modifier_module_loaded_during_init(self, tmp_path):
+        """Test that modifier module is loaded during GameController initialization."""
+        from src.game import GameController
+        from unittest.mock import patch, MagicMock, PropertyMock
+        import numpy as np
+
+        rom_path = tmp_path / "test.gbc"
+        rom_path.write_bytes(b"rom data")
+        controller = GameController(123456, rom_path=rom_path)
+
+        with patch("src.game.PyBoy") as mock_pyboy_class:
+            mock_instance = MagicMock()
+            mock_instance.cartridge_title = "PKPCRYSTAL"
+            mock_frame = np.zeros((144, 160, 3), dtype=np.uint8)
+            mock_screen = MagicMock()
+            type(mock_screen).ndarray = PropertyMock(return_value=mock_frame)
+            mock_instance.screen = mock_screen
+            mock_pyboy_class.return_value = mock_instance
+
+            await controller.initialize()
+
+            assert controller._modifier_module is not None
+            assert controller._modifier_module.__name__ == "src.game_modifier_buttons.pkpcrystal"
+
+    @pytest.mark.asyncio
+    async def test_modifier_module_none_for_unknown_game(self, tmp_path):
+        """Test that modifier module is None for unknown games."""
+        from src.game import GameController
+        from unittest.mock import patch, MagicMock, PropertyMock
+        import numpy as np
+
+        rom_path = tmp_path / "test.gbc"
+        rom_path.write_bytes(b"rom data")
+        controller = GameController(123456, rom_path=rom_path)
+
+        with patch("src.game.PyBoy") as mock_pyboy_class:
+            mock_instance = MagicMock()
+            mock_instance.cartridge_title = "UNKNOWN_GAME"
+            mock_frame = np.zeros((144, 160, 3), dtype=np.uint8)
+            mock_screen = MagicMock()
+            type(mock_screen).ndarray = PropertyMock(return_value=mock_frame)
+            mock_instance.screen = mock_screen
+            mock_pyboy_class.return_value = mock_instance
+
+            await controller.initialize()
+
+            assert controller._modifier_module is None
+            assert controller.get_modifier_specs() == []

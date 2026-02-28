@@ -18,7 +18,9 @@ def upgrade(conn: sqlite3.Connection) -> None:
         SET modifier_states = '{"run": true}'
         WHERE running_mode = 1;
     """)
-    conn.execute("ALTER TABLE chat_configs DROP COLUMN running_mode;")
+    columns = [row[1] for row in conn.execute("PRAGMA table_info(chat_configs);").fetchall()]
+    if "running_mode" in columns:
+        conn.execute("ALTER TABLE chat_configs DROP COLUMN running_mode;")
 
 
 def downgrade(conn: sqlite3.Connection) -> None:

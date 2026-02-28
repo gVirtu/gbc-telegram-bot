@@ -112,7 +112,7 @@ class DatabaseManager:
             input_hold_frames=row['input_hold_frames'],
             animation_duration=row['animation_duration'],
             auto_save_enabled=bool(row['auto_save_enabled']),
-            modifier_states=json.loads(row['modifier_states']) if 'modifier_states' in row.keys() and row['modifier_states'] else {},
+            modifier_states=json.loads(row['modifier_states']) if row['modifier_states'] is not None else {},
             message_base_text=row['message_base_text'] if 'message_base_text' in row.keys() else None,
             maintenance_mode=bool(row['maintenance_mode']) if 'maintenance_mode' in row.keys() else False,
             language=row['language'] if 'language' in row.keys() else None,

@@ -108,7 +108,7 @@ class GameController:
                 str(self.rom_path),
                 window="null",
                 sound_emulated=False,
-                symbols=str(self.sym_path),
+                symbols=str(self.sym_path) if self.sym_path else None,
                 ram_file=ram_file,
                 rtc_file=rtc_file
             )

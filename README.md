@@ -6,6 +6,7 @@ Play GBC games collaboratively in Telegram chats, completely inline, without pol
 
 - Gameplay footage sent as GIFs after input, in a single message
 - Save/Load State
+- Autosave after each input, autoloading last save on bot restart
 - Input queueing for concurrent requests
 - Daily backups of save states
 - On-demand timelapse generation (per day)
@@ -76,19 +77,49 @@ docker exec gbc-telegram-bot python -c 'from src.main import setup_webhook; setu
 
 4. Send `/start_game` to the bot in a Telegram chat.
 
-## Setup
+## Commands
+
+| Command                 | Description                                                                               | Admin only? |
+| ----------------------- | ----------------------------------------------------------------------------------------- | ----------- |
+| `/start_game`           | Starts the game in the current chat                                                       | Yes         |
+| `/resume`               | Sends a new message with the current game state                                           | No          |
+| `/reboot`               | Restarts the current game.                                                                | Yes         |
+| `/print`                | Sends a screen capture of the current game frame                                          | No          |
+| `/gif`                  | Sends the last gameplay animation in the current chat (does not persist between restarts) | No          |
+| `/save N`               | Saves in slot N                                                                           | Yes         |
+| `/load N`               | Loads from slot N                                                                         | Yes         |
+| `/load backup YYYYMMDD` | Loads a backup from the given date                                                        | Yes         |
+| `/status`               | Shows the current game status                                                             | No          |
+| `/help`                 | Shows a help message                                                                      | No          |
+| `/m`                    | Sets the message text that will be displayed below the game state in the chat             | Yes         |
+| `/recap YYYYMMDD`       | Sends a timelapse of the specified day                                                    | No          |
+| `/language LANGUAGE`    | Changes the language of the bot (LANGUAGE can be `pt-BR` or `en-US`)                      | Yes         |
+| `/maintenance on/off`   | Toggles maintenance mode (only admins can send input)                                     | Yes         |
+
+## Development Setup
 
 ### 1. Install Dependencies
 
-Using Poetry:
+First, install [ffmpeg](https://ffmpeg.org/download.html) and make sure it is in your PATH:
 
 ```bash
-poetry install
+# Debian/Ubuntu
+sudo apt-get update && sudo apt-get install -y ffmpeg
+
+# Fedora
+sudo dnf install ffmpeg
+
+# Arch Linux
+sudo pacman -S ffmpeg
 ```
 
-Or via traditional venv:
+Then, install Python dependencies.
 
 ```bash
+# Using Poetry
+poetry install
+
+# OR via traditional venv
 python -m venv venv
 source venv/bin/activate
 pip install .
@@ -98,22 +129,41 @@ pip install .
 
 ```bash
 cp .env.example .env
-# Edit .env with your Telegram bot token and webhook settings
 ```
+
+**⚠️ Remember to edit `.env` with your Telegram bot token and webhook URL and secret.**
 
 ### 3. Add ROM File
 
 Place your GBC ROM file at `./roms/game.gbc`
 
-### 4. Run the Bot
+### 4. Set up webhook
 
 ```bash
-poetry run python -m src.main
+# Using Poetry
+poetry run python -c 'from src.main import setup_webhook; setup_webhook()'
+
+# OR via traditional venv
+python -c 'from src.main import setup_webhook; setup_webhook()'
 ```
 
-Or with active venv:
+### 5. Run tests
 
 ```bash
+# Using Poetry
+poetry run pytest tests
+
+# OR via traditional venv
+python -m pytest tests
+```
+
+### 6. Run the Bot
+
+```bash
+# Using Poetry
+poetry run python -m src.main
+
+# OR via traditional venv
 python -m src.main
 ```
 
@@ -133,6 +183,8 @@ python -m src.main
 | `ANIMATION_DURATION`         | No       | 5                            | Maximum duration of animation phase after input presses, in seconds |
 | `TBC_OVERLAY_PATH`           | No       | ./assets/to_be_continued.png | Path to "To Be Continued" overlay image                             |
 | `TBC_DURATION_FRAMES`        | No       | 10                           | Number of frames for the "To Be Continued" end sequence             |
+| `TIMELAPSE_FRAME_SKIP`       | No       | 20                           | Number of frames to skip between each frame in the timelapse        |
+| `TIMELAPSE_BACKOFF_DELAYS`   | No       | 1,2,4                        | Backoff delays for timelapse generation retries in seconds          |
 | `SAVE_SLOTS`                 | No       | 5                            | Number of save slots available                                      |
 | `BACKUP_HOUR`                | No       | 0                            | Hour of the day (0-23) to perform save backups                      |
 | `BACKUP_MINUTE`              | No       | 0                            | Minute of the hour (0-59) to perform save backups                   |

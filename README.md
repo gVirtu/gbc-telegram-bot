@@ -1,13 +1,80 @@
 # GBC Telegram Bot
 
-A Telegram bot that allows group chats to collaboratively play GBC games through voting on inputs.
+Play GBC games collaboratively in Telegram chats, completely inline, without polluting chat history.
 
 ## Features
 
-- Group-based collaborative gameplay
-- Real-time GameBoy emulation using [PyBoy](https://github.com/Baekalfen/PyBoy)
-- Webhook-based Telegram bot architecture
+- Gameplay footage sent as GIFs after input, in a single message
+- Save/Load State
+- Input queueing for concurrent requests
+- Daily backups of save states
+- On-demand timelapse generation (per day)
+- Admin-only commands for group chats
+- Game-specific modifier buttons (held buttons during input)
+- Game-specific hooks for custom behavior (early animation termination / prevent dangerous actions)
+- Chat allowlist
+- Multi-language (currently supported: `pt-BR`, `en-US`)
+- Configurable rate limiting
+
+## Architecture
+
+- Webhook-based Telegram bot
+- GameBoy emulation powered by [PyBoy](https://github.com/Baekalfen/PyBoy)
 - SQLite-based state persistence
+- Gameplay footage encoded with [FFmpeg](https://ffmpeg.org/)
+
+## Quick start
+
+1. Set environment variables:
+
+```bash
+# Obtain a bot token with @BotFather
+export TELEGRAM_BOT_TOKEN={YOUR TELEGRAM BOT TOKEN HERE}
+
+# Define a webhook URL
+#   - If hosting locally, consider using a tool like ngrok
+#   - If hosting on a server, this is your server's domain
+export WEBHOOK_URL={YOUR WEBHOOK URL HERE}
+
+# Define a webhook secret
+#   Example: `python -c "import secrets; print(secrets.token_urlsafe(32))"`
+export WEBHOOK_SECRET={YOUR SECRET HERE}
+
+# Volumes
+#   Should point to directories on the host machine
+export ROM_VOLUME_DIR={DIRECTORY WHERE ROM IS LOCATED}
+export DATA_VOLUME_DIR={DIRECTORY WHERE SAVE DATA WILL BE STORED}
+
+# Define the ROM file that will be played. (keep the /app/roms/ prefix)
+export ROM_PATH=/app/roms/{YOUR ROM FILENAME HERE}
+
+# Optionally, define a list of Telegram chat IDs that are allowed to use the bot.
+export ALLOWED_CHAT_IDS={OPTIONAL: YOUR TELEGRAM CHAT ID HERE}
+```
+
+2. Run with docker:
+
+```bash
+docker run -d \
+  --name gbc-telegram-bot \
+  -e TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN} \
+  -e WEBHOOK_URL=${WEBHOOK_URL} \
+  -e WEBHOOK_SECRET=${WEBHOOK_SECRET}\
+  -e ROM_PATH=${ROM_PATH} \
+  -e ALLOWED_CHAT_IDS=${ALLOWED_CHAT_IDS} \
+  -v ${ROM_VOLUME_DIR}:/app/roms \
+  -v ${DATA_VOLUME_DIR}:/app/data \
+  -p 8000:8000 \
+  gvirtu/pyboy-telegram-bot:latest
+```
+
+3. Set webhook for the bot:
+
+```bash
+docker exec gbc-telegram-bot python -c 'from src.main import setup_webhook; setup_webhook()'
+```
+
+4. Send `/start_game` to the bot in a Telegram chat.
 
 ## Setup
 

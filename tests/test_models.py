@@ -358,8 +358,7 @@ class TestButtonLayout:
         assert GameButton.A in BUTTON_LAYOUT[2]
         assert GameButton.B in BUTTON_LAYOUT[2]
 
-        # Check fourth row (RUN only)
-        assert GameButton.RUN in BUTTON_LAYOUT[3]
+        assert len(BUTTON_LAYOUT) == 3
 
     def test_all_buttons_in_layout(self):
         """Test all active buttons are included in layout."""
@@ -367,10 +366,10 @@ class TestButtonLayout:
         for row in BUTTON_LAYOUT:
             all_buttons.update(row)
 
-        # SEQUENCE and ENVIAR are deprecated and not in layout
+        # SEQUENCE, ENVIAR, and RUN are not in layout
         expected_buttons = set(GameButton) - {GameButton.SEQUENCE, GameButton.ENVIAR}
         assert all_buttons == expected_buttons
-        assert len(all_buttons) == 10  # 10 active buttons (excluding SEQUENCE and ENVIAR)
+        assert len(all_buttons) == 9  # 9 active buttons
 
 
 class TestModifierButtonSpec:

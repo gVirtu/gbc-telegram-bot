@@ -29,8 +29,7 @@ class GameButton(str, Enum):
     WAIT = "wait"
     SEQUENCE = "sequence"
     ENVIAR = "enviar"
-    RUN = "run"
-    
+
     @property
     def emoji(self) -> str:
         """Get the emoji representation of the button."""
@@ -46,7 +45,6 @@ class GameButton(str, Enum):
             GameButton.WAIT: "👁️",
             GameButton.SEQUENCE: "🔢 SEQUÊNCIA",
             GameButton.ENVIAR: "✅",
-            GameButton.RUN: "🏃",
         }
         return emoji_map[self]
 
@@ -156,7 +154,7 @@ class ChatConfig:
         input_hold_frames: Custom button hold duration
         animation_duration: Custom animation phase duration
         auto_save_enabled: Whether auto-save is enabled
-        running_mode: Whether running mode is enabled (holds B during directional inputs)
+        modifier_states: Map of modifier key to active state (e.g. {"run": True})
         message_base_text: Custom base text for game messages (default: "Sua vez!")
         maintenance_mode: Whether maintenance mode is enabled (only admins can send inputs)
         language: Language code for this chat (e.g., "pt-BR", "en-US"), None for default
@@ -168,7 +166,7 @@ class ChatConfig:
     input_hold_frames: Optional[int] = None
     animation_duration: Optional[int] = None
     auto_save_enabled: bool = True
-    running_mode: bool = False
+    modifier_states: dict[str, bool] = field(default_factory=dict)
     message_base_text: Optional[str] = None
     maintenance_mode: bool = False
     language: Optional[str] = None
@@ -182,7 +180,7 @@ class ChatConfig:
             "input_hold_frames": self.input_hold_frames,
             "animation_duration": self.animation_duration,
             "auto_save_enabled": self.auto_save_enabled,
-            "running_mode": self.running_mode,
+            "modifier_states": self.modifier_states,
             "message_base_text": self.message_base_text,
             "maintenance_mode": self.maintenance_mode,
             "language": self.language,
@@ -198,7 +196,7 @@ class ChatConfig:
             input_hold_frames=data.get("input_hold_frames"),
             animation_duration=data.get("animation_duration"),
             auto_save_enabled=data.get("auto_save_enabled", True),
-            running_mode=data.get("running_mode", False),
+            modifier_states=data.get("modifier_states", {}),
             message_base_text=data.get("message_base_text"),
             maintenance_mode=data.get("maintenance_mode", False),
             language=data.get("language"),
@@ -345,5 +343,4 @@ BUTTON_LAYOUT = [
     [GameButton.SELECT, GameButton.UP, GameButton.START],
     [GameButton.LEFT, GameButton.DOWN, GameButton.RIGHT],
     [GameButton.WAIT, GameButton.A, GameButton.B],
-    [GameButton.RUN],
 ]

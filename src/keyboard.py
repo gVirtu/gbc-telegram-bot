@@ -7,17 +7,23 @@ for the game controls using python-telegram-bot.
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 from src.i18n import translation_manager
-from src.models.game_state import BUTTON_LAYOUT, GameButton
+from src.models.game_state import BUTTON_LAYOUT, ChatConfig, GameButton, ModifierButtonSpec
 
 
-def create_input_keyboard(running_mode: bool = False, chat_id: int = 0) -> InlineKeyboardMarkup:
+def create_input_keyboard(
+    chat_config: "ChatConfig | None" = None,
+    modifier_specs: "list[ModifierButtonSpec] | None" = None,
+) -> InlineKeyboardMarkup:
     """Create the inline keyboard for game input.
 
-    Creates a 3x3-style layout with D-pad, A/B buttons, and Start/Select.
+    Creates a 3-row base layout (D-pad, A/B, Start/Select) plus an optional
+    modifier button row derived from the loaded game's modifier specs.
 
     Args:
-        running_mode: Whether running mode is enabled (affects RUN button emoji)
-        chat_id: Telegram chat ID for translation (default 0 uses pt-BR)
+        chat_config: Chat configuration providing chat_id and modifier_states.
+            If None, uses chat_id=0 and empty modifier_states.
+        modifier_specs: Game-specific modifier button specs. If provided and
+            non-empty, appends one row of modifier toggle buttons.
 
     Returns:
         InlineKeyboardMarkup with game control buttons
@@ -27,29 +33,28 @@ def create_input_keyboard(running_mode: bool = False, chat_id: int = 0) -> Inlin
         >>> isinstance(keyboard, InlineKeyboardMarkup)
         True
     """
+    chat_id = chat_config.chat_id if chat_config else 0
+    modifier_states = chat_config.modifier_states if chat_config else {}
+
     keyboard = []
 
     for row in BUTTON_LAYOUT:
-        keyboard_row = []
-        for button in row:
-            # Special handling for RUN button based on running_mode
-            if button == GameButton.RUN:
-                emoji_key = "keyboard.buttons.running" if running_mode else "keyboard.buttons.walking"
-                emoji = translation_manager.get(emoji_key, chat_id)
-                keyboard_row.append(
-                    InlineKeyboardButton(
-                        emoji,
-                        callback_data=button.value,
-                    )
-                )
-            else:
-                keyboard_row.append(
-                    InlineKeyboardButton(
-                        button.emoji,
-                        callback_data=button.value,
-                    )
-                )
+        keyboard_row = [
+            InlineKeyboardButton(button.emoji, callback_data=button.value)
+            for button in row
+        ]
         keyboard.append(keyboard_row)
+
+    if modifier_specs:
+        modifier_row = []
+        for spec in modifier_specs:
+            is_active = modifier_states.get(spec.key, False)
+            label_key = spec.active_label_key if is_active else spec.inactive_label_key
+            label = translation_manager.get(label_key, chat_id)
+            modifier_row.append(
+                InlineKeyboardButton(label, callback_data=f"modifier_{spec.key}")
+            )
+        keyboard.append(modifier_row)
 
     return InlineKeyboardMarkup(keyboard)
 

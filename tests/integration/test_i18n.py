@@ -174,16 +174,20 @@ class TestI18nEndToEnd:
         """Test that keyboard button labels change based on language."""
         from src.keyboard import create_input_keyboard
         from src.i18n.translation_manager import translation_manager as tm_instance
+        from src.models.game_state import ChatConfig
+        from src.game_modifier_buttons.pkpcrystal import MODIFIER_BUTTONS
 
         # Create keyboard for pt-BR chat
         with patch.object(tm_instance, '_resolve_language') as mock_resolve:
             mock_resolve.return_value = "pt-BR"
-            keyboard_pt = create_input_keyboard(running_mode=True, chat_id=111)
+            config_pt = ChatConfig(chat_id=111, modifier_states={"run": True})
+            keyboard_pt = create_input_keyboard(chat_config=config_pt, modifier_specs=MODIFIER_BUTTONS)
 
         # Create keyboard for en-US chat
         with patch.object(tm_instance, '_resolve_language') as mock_resolve:
             mock_resolve.return_value = "en-US"
-            keyboard_en = create_input_keyboard(running_mode=True, chat_id=222)
+            config_en = ChatConfig(chat_id=222, modifier_states={"run": True})
+            keyboard_en = create_input_keyboard(chat_config=config_en, modifier_specs=MODIFIER_BUTTONS)
 
         # Keyboards should have the same structure but different text
         assert len(keyboard_pt.inline_keyboard) == len(keyboard_en.inline_keyboard)

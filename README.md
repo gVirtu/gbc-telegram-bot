@@ -4,7 +4,9 @@
 
 ![demo](https://github.com/user-attachments/assets/f5bcc560-0973-4f12-94f6-13954a99516d)
 
-Play GBC games collaboratively in Telegram chats, completely inline, without polluting chat history.
+Play GBC games collaboratively in Telegram chats, completely inline, without cluttering chat history.
+
+Inspired by the [Twitch Plays Pokémon](https://en.wikipedia.org/wiki/Twitch_Plays_Pok%C3%A9mon) project.
 
 ## Features
 
@@ -24,7 +26,7 @@ Play GBC games collaboratively in Telegram chats, completely inline, without pol
 ## Architecture
 
 - Webhook-based Telegram bot
-- GameBoy emulation powered by [PyBoy](https://github.com/Baekalfen/PyBoy)
+- GB / GBC emulation powered by [PyBoy](https://github.com/Baekalfen/PyBoy)
 - SQLite-based state persistence
 - Gameplay footage encoded with [FFmpeg](https://ffmpeg.org/)
 

@@ -288,7 +288,7 @@ class TestGameControllerIntegration:
     @pytest.mark.asyncio
     async def test_full_lifecycle(self, mock_rom_path):
         """Test full controller lifecycle."""
-        controller = GameController(123456, rom_path=mock_rom_path)
+        controller = GameController(123456, rom_path=mock_rom_path, sym_path=None)
         
         with patch("src.game.PyBoy") as mock_pyboy_class:
             # Setup mock

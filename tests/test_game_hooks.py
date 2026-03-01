@@ -154,7 +154,7 @@ class TestIntegration:
         rom_path = tmp_path / "test.gbc"
         rom_path.write_bytes(b"rom data")
 
-        controller = GameController(123456, rom_path=rom_path)
+        controller = GameController(123456, rom_path=rom_path, sym_path=None)
 
         with patch("src.game.PyBoy") as mock_pyboy_class:
             mock_instance = MagicMock()
@@ -180,7 +180,7 @@ class TestIntegration:
         rom_path = tmp_path / "test.gbc"
         rom_path.write_bytes(b"rom data")
 
-        controller = GameController(123456, rom_path=rom_path)
+        controller = GameController(123456, rom_path=rom_path, sym_path=None)
 
         with patch("src.game.PyBoy") as mock_pyboy_class:
             mock_instance = MagicMock()
@@ -250,7 +250,7 @@ class TestModifierModuleLoading:
 
         rom_path = tmp_path / "test.gbc"
         rom_path.write_bytes(b"rom data")
-        controller = GameController(123456, rom_path=rom_path)
+        controller = GameController(123456, rom_path=rom_path, sym_path=None)
 
         with patch("src.game.PyBoy") as mock_pyboy_class:
             mock_instance = MagicMock()
@@ -275,7 +275,7 @@ class TestModifierModuleLoading:
 
         rom_path = tmp_path / "test.gbc"
         rom_path.write_bytes(b"rom data")
-        controller = GameController(123456, rom_path=rom_path)
+        controller = GameController(123456, rom_path=rom_path, sym_path=None)
 
         with patch("src.game.PyBoy") as mock_pyboy_class:
             mock_instance = MagicMock()

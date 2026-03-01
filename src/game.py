@@ -21,6 +21,8 @@ from src.utils.frame_utils import frame_to_png
 
 logger = logging.getLogger(__name__)
 
+_UNSET = object()
+
 # Map GameButton to PyBoy WindowEvent
 BUTTON_EVENTS = {
     GameButton.UP: (WindowEvent.PRESS_ARROW_UP, WindowEvent.RELEASE_ARROW_UP),
@@ -54,18 +56,18 @@ class GameController:
         self,
         chat_id: int,
         rom_path: Optional[Path] = None,
-        sym_path: Optional[Path] = None,
+        sym_path: Optional[Path] = _UNSET,
     ):
         """Initialize the game controller.
         
         Args:
             chat_id: Telegram chat ID for this game instance
             rom_path: Path to the ROM file (default: from settings)
-            sym_path: Path to the SYM file (default: from settings)
+            sym_path: Path to the SYM file (default: from settings, use None for no sym file)
         """
         self.chat_id = chat_id
         self.rom_path = rom_path or settings.rom_path
-        self.sym_path = sym_path or settings.sym_path
+        self.sym_path = sym_path if sym_path is not _UNSET else settings.sym_path
         self.pyboy: Optional[PyBoy] = None
         self._initialized = False
         self._modifier_module: Optional[ModuleType] = None

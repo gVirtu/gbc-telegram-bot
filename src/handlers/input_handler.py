@@ -202,14 +202,16 @@ class InputHandler:
         # Check if we should start processing
         if not self._is_processing(chat_id):
             try:
-                await adapter.answer_interaction(raw, translation_manager.get('game.input_processing', chat_id, input=translation_manager.get(f'keyboard.buttons.display_name.{button.value}', chat_id)))
+                if adapter.platform != "discord":
+                    await adapter.answer_interaction(raw, translation_manager.get('game.input_processing', chat_id, input=translation_manager.get(f'keyboard.buttons.display_name.{button.value}', chat_id)))
                 asyncio.create_task(self._process_queue_loop(chat_id, message_id, adapter))
             except Exception as e:
                 logger.error(f"Error starting queue processing for chat {chat_id}: {e}")
                 await self._send_error_message(chat_id, translation_manager.get('game.input_processing_error', chat_id), adapter)
         else:
             try:
-                await adapter.answer_interaction(raw, translation_manager.get(message_key, chat_id, **message_params))
+                if adapter.platform != "discord":
+                    await adapter.answer_interaction(raw, translation_manager.get(message_key, chat_id, **message_params))
             except Exception as e:
                 logger.error(f"Error answering callback for chat {chat_id}: {e}")
 
@@ -235,7 +237,8 @@ class InputHandler:
         else:
             message = ""
         try:
-            await adapter.answer_interaction(raw, message)
+            if adapter.platform != "discord":
+                await adapter.answer_interaction(raw, message)
         except Exception as e:
             logger.error(f"Error answering modifier callback for chat {chat_id}: {e}")
 

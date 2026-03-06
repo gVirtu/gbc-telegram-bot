@@ -23,6 +23,7 @@ from src.models.game_state import ChatGameState, GameButton, GameSession, Modifi
 from src.models.input_queue import InputQueue, QueueItem
 from src.utils.frame_utils import (  # noqa: F401 (needed for test patching)
     save_frames_as_mp4,
+    save_frames_as_avif,
     generate_tbc_frames,
 )
 from src.utils.state_manager import state_manager
@@ -413,13 +414,19 @@ class InputHandler:
         caption = create_game_message_text(recent_inputs=recent, queue_length=len(queue), base_text_override=base_text, chat_id=chat_id)
 
         if frames:
-            logger.info(f"Generating MP4 with {len(frames)} frames for chat {chat_id}")
+            anim_format = adapter.preferred_animation_format
+            logger.info(f"Generating {anim_format.upper()} with {len(frames)} frames for chat {chat_id}")
             try:
-                mp4_buffer = save_frames_as_mp4(frames, fps=capture_fps)
-                mp4_buffer.seek(0)
+                if anim_format == "avif":
+                    media_buffer = save_frames_as_avif(frames, fps=capture_fps)
+                    media_type = "avif"
+                else:
+                    media_buffer = save_frames_as_mp4(frames, fps=capture_fps)
+                    media_type = "animation"
+                media_buffer.seek(0)
 
                 file_id = await adapter.edit_game_message(
-                    chat_id, message_id, caption, input_keyboard, mp4_buffer, media_type="animation"
+                    chat_id, message_id, caption, input_keyboard, media_buffer, media_type=media_type
                 )
                 if file_id and session:
                     session.state.last_animation_file_id = file_id

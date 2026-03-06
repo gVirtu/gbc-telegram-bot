@@ -115,6 +115,10 @@ class DiscordAdapter(BotAdapter):
     def platform(self) -> str:
         return "discord"
 
+    @property
+    def preferred_animation_format(self) -> str:
+        return "avif"
+
     def _get_channel(self, chat_id: int) -> Optional[Any]:
         """Get a Discord channel by ID."""
         channel = self._bot.get_channel(chat_id)
@@ -171,7 +175,12 @@ class DiscordAdapter(BotAdapter):
         else:
             data = media_bytes
 
-        ext = "mp4" if media_type == "animation" else "png"
+        if media_type == "animation":
+            ext = "mp4"
+        elif media_type == "avif":
+            ext = "avif"
+        else:
+            ext = "png"
         filename = f"frame.{ext}"
         file = discord.File(io.BytesIO(data), filename=filename)
 

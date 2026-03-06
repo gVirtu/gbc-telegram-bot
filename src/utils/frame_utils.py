@@ -68,7 +68,7 @@ def frame_to_png(frame: np.ndarray, optimize: bool = True) -> BytesIO:
         )
     
     # Create PIL Image from numpy array
-    image = Image.fromarray(frame, mode="RGB").resize(
+    image = Image.fromarray(frame).resize(
             (frame.shape[1] * 2, frame.shape[0] * 2), Image.Resampling.NEAREST
         )
     
@@ -199,7 +199,7 @@ def save_frames_as_mp4(
         )
         
         for frame in frames:
-            img = Image.fromarray(frame, mode='RGB').resize(
+            img = Image.fromarray(frame).resize(
                 (w_scaled, h_scaled), Image.Resampling.NEAREST
             )
             process.stdin.write(np.array(img).tobytes())
@@ -223,6 +223,51 @@ def save_frames_as_mp4(
     finally:
         if os.path.exists(output_path):
             os.remove(output_path)
+
+
+def save_frames_as_avif(
+    frames: list[np.ndarray],
+    fps: int = 10,
+) -> BytesIO:
+    """Save frames as an animated AVIF using Pillow.
+
+    Scales 2x (same as save_frames_as_mp4) using nearest-neighbor resampling.
+
+    Args:
+        frames: List of NumPy arrays (H, W, 3) in RGB format
+        fps: Frames per second (converted to ms duration per frame)
+
+    Returns:
+        BytesIO object containing AVIF data, seeked to 0
+
+    Raises:
+        ValueError: If no frames provided
+    """
+    if not frames:
+        raise ValueError("No frames provided")
+
+    h, w = frames[0].shape[:2]
+    h_scaled, w_scaled = h * 2, w * 2
+    duration_ms = int(1000 / fps)
+
+    pil_frames = [
+        Image.fromarray(frame)
+        .resize((w_scaled, h_scaled), Image.Resampling.NEAREST)
+        for frame in frames
+    ]
+
+    buffer = BytesIO()
+    pil_frames[0].save(
+        buffer,
+        format="AVIF",
+        save_all=True,
+        append_images=pil_frames[1:],
+        duration=duration_ms,
+        loop=0,
+        optimize=False,
+    )
+    buffer.seek(0)
+    return buffer
 
 
 async def save_frames_as_mp4_optimized(
@@ -349,7 +394,7 @@ def generate_tbc_frames(
             x = int(start_x + (end_x - start_x) * progress)
             y = end_y
 
-            frame_image = Image.fromarray(base_frame, mode="RGB")
+            frame_image = Image.fromarray(base_frame)
             frame_image.paste(overlay, (x, y), overlay)
 
             frame = np.array(frame_image)

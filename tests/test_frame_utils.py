@@ -15,6 +15,7 @@ from src.utils.frame_utils import (
     frames_equal,
     hash_frame,
     save_frames_as_mp4,
+    save_frames_as_avif,
 )
 
 
@@ -336,3 +337,60 @@ class TestGenerateTbcFrames:
         monkeypatch.setattr(Path, 'exists', lambda self: False)
         result = generate_tbc_frames(base_frame, overlay_path=Path("/nonexistent.png"))
         assert result == []  # Should gracefully return empty list
+
+
+class TestSaveFramesAsGif:
+    """Test GIF encoding functionality."""
+
+    def test_gif_magic_bytes(self):
+        """Test that GIF output starts with GIF magic bytes."""
+        frames = [create_empty_frame(color=(i * 80, 0, 0)) for i in range(3)]
+        gif_buffer = save_frames_as_avif(frames, fps=10)
+        gif_buffer.seek(4)
+        header = gif_buffer.read(8)
+        # AVIF Sequence
+        assert header == b"ftypavis"
+
+    def test_gif_non_empty_output(self):
+        """Test that GIF output is non-empty."""
+        frames = [create_empty_frame() for _ in range(3)]
+        gif_buffer = save_frames_as_avif(frames, fps=10)
+        assert len(gif_buffer.getvalue()) > 0
+
+    def test_gif_empty_frames_raises(self):
+        """Test that empty frames raises ValueError."""
+        with pytest.raises(ValueError, match="No frames provided"):
+            save_frames_as_avif([])
+
+    def test_gif_buffer_seeked_to_zero(self):
+        """Test that returned buffer is seeked to start."""
+        frames = [create_empty_frame() for _ in range(2)]
+        gif_buffer = save_frames_as_avif(frames, fps=10)
+        assert gif_buffer.tell() == 0
+
+    def test_gif_black_pixels_not_transparent(self):
+        """Regression: black pixels must not render as transparent in multi-frame GIF.
+
+        Per-frame palette quantization maps black (0,0,0) to palette index 0,
+        which is also Pillow's default GIF transparency index. The global-palette
+        fix prevents this collision, so black pixels should stay black.
+        """
+        black = create_empty_frame(color=(0, 0, 0))
+        white = create_empty_frame(color=(255, 255, 255))
+        frames = [black, white, black]
+
+        gif_buffer = save_frames_as_avif(frames, fps=10)
+        gif_buffer.seek(0)
+        gif = Image.open(gif_buffer)
+
+        # Decode every frame and verify no black pixel became transparent/white
+        for frame_idx in range(3):
+            gif.seek(frame_idx)
+            rgba = gif.convert("RGBA")
+            pixels = np.array(rgba)
+            # Find pixels that were black in the source (frames 0 and 2)
+            if frame_idx % 2 == 0:
+                # Alpha must be fully opaque (255) for all pixels
+                assert np.all(pixels[:, :, 3] == 255), (
+                    f"Frame {frame_idx}: black pixels have unexpected transparency"
+                )

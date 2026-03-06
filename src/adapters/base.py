@@ -271,6 +271,11 @@ class BotAdapter(ABC):
         """Return the platform identifier string ('telegram' or 'discord')."""
         ...
 
+    @property
+    def preferred_animation_format(self) -> str:
+        """Animation format for edit_game_message. Override per platform."""
+        return "mp4"
+
 
 # --- Adapter registry ---
 

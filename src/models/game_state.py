@@ -47,6 +47,22 @@ class GameButton(str, Enum):
             GameButton.ENVIAR: "✅",
         }
         return emoji_map[self]
+    
+    @property
+    def emoji_alt(self) -> str:
+        """Get the emoji representation of the button."""
+        emoji_map = {
+            GameButton.UP: "⬆️",
+            GameButton.DOWN: "⬇️",
+            GameButton.LEFT: "⬅️",
+            GameButton.RIGHT: "➡️",
+            GameButton.A: "🅰️",
+            GameButton.B: "🅱️",
+            GameButton.START: "▶️",
+            GameButton.SELECT: "⏹️",
+            GameButton.WAIT: "👁️",
+        }
+        return emoji_map[self]
 
 
 @dataclass

@@ -44,7 +44,7 @@ class DiscordGameView:
         for row_idx, row in enumerate(BUTTON_LAYOUT):
             for button in row:
                 btn = discord.ui.Button(
-                    label=button.emoji,
+                    label=button.emoji_alt,
                     custom_id=button.value,
                     row=row_idx,
                     style=discord.ButtonStyle.secondary,
@@ -376,7 +376,7 @@ class DiscordAdapter(BotAdapter):
         if isinstance(raw, discord.Interaction):
             try:
                 if not raw.response.is_done():
-                    await raw.response.send_message(text, ephemeral=True) if text else await raw.response.defer(ephemeral=True)
+                    await raw.response.send_message(text, ephemeral=True, delete_after=3) if text else await raw.response.defer(ephemeral=True)
                 elif text:
                     await raw.followup.send(text, ephemeral=True)
             except Exception as e:

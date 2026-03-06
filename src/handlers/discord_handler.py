@@ -181,6 +181,11 @@ def create_discord_bot() -> Any:
 
         try:
             custom_id = interaction.data.get("custom_id", "")
+            
+            if is_valid_button_callback(custom_id):
+                # Minimize response time from button inputs
+                await interaction.response.defer()
+
             channel_id = interaction.channel_id
             message_id = interaction.message.id if interaction.message else None
             user = interaction.user
@@ -228,7 +233,6 @@ def create_discord_bot() -> Any:
                     )
                     return
 
-            await interaction.response.defer()
             await handler.handle_button_press(
                 callback_data=custom_id,
                 chat_id=channel_id,

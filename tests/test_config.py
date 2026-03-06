@@ -18,38 +18,73 @@ os.environ["PYTEST_CURRENT_TEST"] = "1"  # Skip env loading
 class TestRequiredSettings:
     """Test required settings validation."""
 
-    def test_telegram_bot_token_required(self):
-        """Test that telegram_bot_token is required."""
-        with pytest.raises(ValidationError) as exc_info:
-            Settings(
-                telegram_bot_token=None,
-                webhook_url="https://example.com",
-                webhook_secret="test_secret_1234567890",
-            )
-        assert "telegram_bot_token" in str(exc_info.value)
+    def test_both_tokens_none_raises_in_production(self, tmp_path):
+        """Test that having neither telegram nor discord token raises in production."""
+        rom_path = tmp_path / "game.gbc"
+        rom_path.write_bytes(b"dummy rom data")
+        with patch.dict(os.environ, {"PYTEST_CURRENT_TEST": ""}):
+            with pytest.raises(ValidationError) as exc_info:
+                Settings(
+                    telegram_bot_token=None,
+                    discord_bot_token=None,
+                    webhook_url="https://example.com",
+                    webhook_secret="test_secret_1234567890",
+                    rom_path=rom_path,
+                    data_dir=tmp_path / "data",
+                )
+            assert "TELEGRAM_BOT_TOKEN or DISCORD_BOT_TOKEN" in str(exc_info.value)
 
-    def test_webhook_url_required(self):
-        """Test that webhook_url is required."""
-        with pytest.raises(ValidationError) as exc_info:
-            Settings(
-                telegram_bot_token="test_token",
-                webhook_url=None,
-                webhook_secret="test_secret_1234567890",
-            )
-        assert "webhook_url" in str(exc_info.value)
+    def test_telegram_token_alone_accepted(self):
+        """Test that telegram_bot_token alone is accepted (discord optional)."""
+        settings = Settings(
+            telegram_bot_token="test_token",
+            webhook_url="https://example.com",
+            webhook_secret="test_secret_1234567890",
+        )
+        assert settings.telegram_bot_token is not None
+        assert settings.discord_bot_token is None
 
-    def test_webhook_secret_required(self):
-        """Test that webhook_secret is required."""
-        with pytest.raises(ValidationError) as exc_info:
-            Settings(
-                telegram_bot_token="test_token",
-                webhook_url="https://example.com",
-                webhook_secret=None,
+    def test_discord_token_alone_accepted(self):
+        """Test that discord_bot_token alone is accepted (telegram optional)."""
+        with patch.dict(os.environ, {"TELEGRAM_BOT_TOKEN": ""}, clear=False):
+            settings = Settings(
+                discord_bot_token="discord_token_here",
             )
-        assert "webhook_secret" in str(exc_info.value)
-    
+        assert settings.discord_bot_token is not None
+        assert settings.telegram_bot_token is None
+
+    def test_webhook_url_required_for_telegram_in_production(self, tmp_path):
+        """Test that webhook_url is required when Telegram token is set (production)."""
+        rom_path = tmp_path / "game.gbc"
+        rom_path.write_bytes(b"dummy rom data")
+        with patch.dict(os.environ, {"PYTEST_CURRENT_TEST": ""}):
+            with pytest.raises(ValidationError) as exc_info:
+                Settings(
+                    telegram_bot_token="test_token",
+                    webhook_url=None,
+                    webhook_secret="test_secret_1234567890",
+                    rom_path=rom_path,
+                    data_dir=tmp_path / "data",
+                )
+            assert "WEBHOOK_URL" in str(exc_info.value)
+
+    def test_webhook_secret_required_for_telegram_in_production(self, tmp_path):
+        """Test that webhook_secret is required when Telegram token is set (production)."""
+        rom_path = tmp_path / "game.gbc"
+        rom_path.write_bytes(b"dummy rom data")
+        with patch.dict(os.environ, {"PYTEST_CURRENT_TEST": ""}):
+            with pytest.raises(ValidationError) as exc_info:
+                Settings(
+                    telegram_bot_token="test_token",
+                    webhook_url="https://example.com",
+                    webhook_secret=None,
+                    rom_path=rom_path,
+                    data_dir=tmp_path / "data",
+                )
+            assert "WEBHOOK_SECRET" in str(exc_info.value)
+
     def test_webhook_secret_minimum_length(self):
-        """Test that webhook_secret must be at least 16 characters."""
+        """Test that webhook_secret must be at least 16 characters when provided."""
         with pytest.raises(ValidationError) as exc_info:
             Settings(
                 telegram_bot_token="test_token",

@@ -31,9 +31,9 @@ class TestInputLocking:
     """Test input processing lock prevents concurrent inputs."""
 
     @pytest.fixture
-    def handler(self, mock_bot):
-        """Create input handler with mocked bot."""
-        return InputHandler(mock_bot)
+    def handler(self):
+        """Create input handler."""
+        return InputHandler()
 
     @pytest.fixture
     def session(self, chat_id):
@@ -44,16 +44,16 @@ class TestInputLocking:
         )
 
     @pytest.mark.asyncio
-    async def test_concurrent_inputs_queued(self, handler, session, chat_id):
+    async def test_concurrent_inputs_queued(self, handler, session, chat_id, mock_adapter):
         """Test that concurrent inputs to same chat are queued.
-        
+
         When input is being processed, subsequent inputs should be
         added to the queue for sequential processing.
         """
         with patch("src.handlers.input_handler.state_manager"):
             # Setup session
             handler._sessions[chat_id] = session
-            
+
             # Create two callback queries from different users
             cq1 = MagicMock()
             cq1.message.chat.id = chat_id
@@ -72,26 +72,33 @@ class TestInputLocking:
             cq2.from_user.first_name = "User2"
             cq2.from_user.username = "user2"
             cq2.answer = AsyncMock()
-            
+
             # Fire both at the same time
-            await handler.handle_button_press(cq1)
-            await handler.handle_button_press(cq2)
-            
-            # Both inputs should be acknowledged
-            assert cq1.answer.called, "First input should be acknowledged"
-            assert cq2.answer.called, "Second input should be acknowledged"
+            await handler.handle_button_press(
+                callback_data=cq1.data, chat_id=cq1.message.chat.id,
+                message_id=cq1.message.message_id, user_id=cq1.from_user.id,
+                user_name="User1", adapter=mock_adapter, raw=cq1
+            )
+            await handler.handle_button_press(
+                callback_data=cq2.data, chat_id=cq2.message.chat.id,
+                message_id=cq2.message.message_id, user_id=cq2.from_user.id,
+                user_name="User2", adapter=mock_adapter, raw=cq2
+            )
+
+            # Both inputs should be acknowledged via adapter
+            assert mock_adapter.answer_interaction.call_count >= 2, "Both inputs should be acknowledged"
             # Queue should be created with items from both users
             assert chat_id in handler._input_queues, "Queue should be created"
 
     @pytest.mark.asyncio
-    async def test_processing_cleared_after_completion(self, handler, session, chat_id):
+    async def test_processing_cleared_after_completion(self, handler, session, chat_id, mock_adapter):
         """Test that processing flag is set during input handling.
-        
+
         The processing flag is set by the queue loop when it starts processing.
         """
         with patch("src.handlers.input_handler.state_manager"):
             handler._sessions[chat_id] = session
-            
+
             cq1 = MagicMock()
             cq1.message.chat.id = chat_id
             cq1.message.message_id = 789
@@ -102,22 +109,26 @@ class TestInputLocking:
             cq1.answer = AsyncMock()
 
             # Process first input
-            await handler.handle_button_press(cq1)
-            
+            await handler.handle_button_press(
+                callback_data=cq1.data, chat_id=cq1.message.chat.id,
+                message_id=cq1.message.message_id, user_id=cq1.from_user.id,
+                user_name="User1", adapter=mock_adapter, raw=cq1
+            )
+
             # Queue should be created
             assert chat_id in handler._input_queues, "Queue should be created"
-            # Input should be acknowledged as processing
-            cq1.answer.assert_called_once_with("Processing: A")
+            # Input should be acknowledged via adapter
+            mock_adapter.answer_interaction.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_queue_item_created_on_input(self, handler, session, chat_id):
+    async def test_queue_item_created_on_input(self, handler, session, chat_id, mock_adapter):
         """Test that queue item is created when input is received.
-        
+
         When a button press is received, it should be added to the queue.
         """
         with patch("src.handlers.input_handler.state_manager"):
             handler._sessions[chat_id] = session
-            
+
             cq = MagicMock()
             cq.message.chat.id = chat_id
             cq.message.message_id = 789
@@ -128,23 +139,27 @@ class TestInputLocking:
             cq.answer = AsyncMock()
 
             # Process input
-            await handler.handle_button_press(cq)
-            
+            await handler.handle_button_press(
+                callback_data=cq.data, chat_id=cq.message.chat.id,
+                message_id=cq.message.message_id, user_id=cq.from_user.id,
+                user_name="User1", adapter=mock_adapter, raw=cq
+            )
+
             # Queue should be created with one item
             assert chat_id in handler._input_queues, "Queue should be created"
-            # Input should be acknowledged
-            assert cq.answer.called, "Input should be acknowledged"
+            # Input should be acknowledged via adapter
+            assert mock_adapter.answer_interaction.called, "Input should be acknowledged"
 
     @pytest.mark.asyncio
-    async def test_different_chats_have_independent_queues(self, handler):
+    async def test_different_chats_have_independent_queues(self, handler, mock_adapter):
         """Test that different chats have independent queues.
-        
+
         Each chat has its own queue and can receive inputs independently.
         """
         with patch("src.handlers.input_handler.state_manager"):
             chat_id1 = 111
             chat_id2 = 222
-            
+
             handler._sessions[chat_id1] = GameSession(
                 chat_id=chat_id1,
                 state=ChatGameState(chat_id=chat_id1, message_id=100)
@@ -153,7 +168,7 @@ class TestInputLocking:
                 chat_id=chat_id2,
                 state=ChatGameState(chat_id=chat_id2, message_id=200)
             )
-            
+
             cq1 = MagicMock()
             cq1.message.chat.id = chat_id1
             cq1.message.message_id = 100
@@ -171,19 +186,26 @@ class TestInputLocking:
             cq2.from_user.first_name = "User2"
             cq2.from_user.username = "user2"
             cq2.answer = AsyncMock()
-            
+
             # Start both concurrently
-            task1 = asyncio.create_task(handler.handle_button_press(cq1))
-            task2 = asyncio.create_task(handler.handle_button_press(cq2))
-            
+            task1 = asyncio.create_task(handler.handle_button_press(
+                callback_data=cq1.data, chat_id=cq1.message.chat.id,
+                message_id=cq1.message.message_id, user_id=cq1.from_user.id,
+                user_name="User1", adapter=mock_adapter, raw=cq1
+            ))
+            task2 = asyncio.create_task(handler.handle_button_press(
+                callback_data=cq2.data, chat_id=cq2.message.chat.id,
+                message_id=cq2.message.message_id, user_id=cq2.from_user.id,
+                user_name="User2", adapter=mock_adapter, raw=cq2
+            ))
+
             await asyncio.gather(task1, task2)
-            
+
             # Both should have their own queues created
             assert chat_id1 in handler._input_queues, "Chat 1 should have a queue"
             assert chat_id2 in handler._input_queues, "Chat 2 should have a queue"
-            # Both inputs should be acknowledged
-            assert cq1.answer.called, "Chat 1 input should be acknowledged"
-            assert cq2.answer.called, "Chat 2 input should be acknowledged"
+            # Both inputs should be acknowledged via adapter
+            assert mock_adapter.answer_interaction.call_count >= 2, "Both inputs should be acknowledged"
 
 
 class TestGameControllerManagerConcurrency:

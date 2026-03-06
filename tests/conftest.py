@@ -186,3 +186,47 @@ def message_id():
 def user_id():
     """Standard test user ID."""
     return 456
+
+
+@pytest.fixture
+def mock_adapter():
+    """Create a mock BotAdapter for tests."""
+    adapter = MagicMock()
+    adapter.platform = "telegram"
+    adapter.send_game_message = AsyncMock(return_value=100)
+    adapter.edit_game_message = AsyncMock(return_value=None)
+    adapter.edit_game_keyboard = AsyncMock()
+    adapter.send_screenshot = AsyncMock()
+    adapter.send_text = AsyncMock()
+    adapter.send_video = AsyncMock(return_value=None)
+    adapter.send_animation = AsyncMock()
+    adapter.delete_message = AsyncMock()
+    adapter.build_game_keyboard = MagicMock(return_value=MagicMock())
+    adapter.build_save_slot_keyboard = MagicMock(return_value=MagicMock())
+    adapter.is_admin = AsyncMock(return_value=True)
+    adapter.answer_interaction = AsyncMock()
+    return adapter
+
+
+@pytest.fixture
+def mock_ctx(mock_adapter):
+    """Create a mock CommandContext for tests."""
+    from src.adapters.base import CommandContext
+    return CommandContext(
+        chat_id=123456,
+        user_id=456,
+        user_name="TestUser",
+        args=[],
+        adapter=mock_adapter,
+        raw=None,
+    )
+
+
+@pytest.fixture(autouse=True)
+def reset_input_handler():
+    """Reset InputHandler singleton before each test."""
+    import src.handlers.input_handler as ih_module
+    old_handler = ih_module._input_handler
+    ih_module._input_handler = None
+    yield
+    ih_module._input_handler = old_handler

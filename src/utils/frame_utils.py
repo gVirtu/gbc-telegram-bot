@@ -175,17 +175,19 @@ def save_frames_as_mp4(
     
     try:
         cmd = [
-            'ffmpeg', '-y',
+            'ffmpeg', '-y', 
+            '-an',
             '-f', 'rawvideo',
             '-pix_fmt', 'rgb24',
             '-s', f'{w_scaled}x{h_scaled}',
             '-framerate', str(fps),
             '-i', 'pipe:0',
             '-vcodec', 'libx264',
+            '-profile:v', 'baseline',
             '-pix_fmt', 'yuv420p',
             '-crf', str(crf),
             '-preset', preset,
-            '-movflags', 'faststart',
+            '-movflags', '+faststart+frag_keyframe+empty_moov',
             output_path,
         ]
         

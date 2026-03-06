@@ -192,7 +192,7 @@ class TestWebhookRoutes:
 
 class TestUpdateProcessing:
     """Test update processing logic."""
-    
+
     @pytest.fixture
     def handler(self):
         """Create handler with mocked dependencies."""
@@ -200,8 +200,15 @@ class TestUpdateProcessing:
         handler.telegram_app = MagicMock()
         handler.input_handler = MagicMock()
         handler.input_handler.handle_button_press = AsyncMock()
+        # Set up mock telegram adapter
+        mock_adapter = MagicMock()
+        mock_adapter.send_text = AsyncMock()
+        mock_adapter.is_admin = AsyncMock(return_value=True)
+        mock_adapter.answer_interaction = AsyncMock()
+        mock_adapter.build_game_keyboard = MagicMock(return_value=None)
+        handler._telegram_adapter = mock_adapter
         return handler
-    
+
     @pytest.mark.asyncio
     async def test_process_callback_query(self, handler):
         """Test processing callback query update."""
@@ -211,6 +218,10 @@ class TestUpdateProcessing:
         mock_update.callback_query.data = "a"
         mock_update.callback_query.message = MagicMock()
         mock_update.callback_query.message.chat.id = 123456
+        mock_update.callback_query.message.message_id = 789
+        mock_update.callback_query.from_user.id = 456
+        mock_update.callback_query.from_user.first_name = "TestUser"
+        mock_update.callback_query.from_user.username = None
         mock_update.message = None
 
         with patch("telegram.Update.de_json", return_value=mock_update):
@@ -222,7 +233,7 @@ class TestUpdateProcessing:
 
                 # Should call input handler for button press
                 handler.input_handler.handle_button_press.assert_called_once()
-    
+
     @pytest.mark.asyncio
     async def test_process_command(self, handler):
         """Test processing command message."""
@@ -231,7 +242,12 @@ class TestUpdateProcessing:
         mock_update.message = MagicMock()
         mock_update.message.text = "/help"
         mock_update.message.chat.id = 123456
-        mock_update.message.reply_text = AsyncMock()
+        mock_update.effective_chat = MagicMock()
+        mock_update.effective_chat.id = 123456
+        mock_update.effective_user = MagicMock()
+        mock_update.effective_user.id = 456
+        mock_update.effective_user.first_name = "TestUser"
+        mock_update.effective_user.username = None
 
         with patch("telegram.Update.de_json", return_value=mock_update):
             with patch("src.handlers.webhook.settings") as mock_settings:
@@ -240,8 +256,8 @@ class TestUpdateProcessing:
                 update_data = {"update_id": 123, "message": {"text": "/help"}}
                 await handler.process_update(update_data)
 
-                # Check that reply_text was called
-                mock_update.message.reply_text.assert_called_once()
+                # Commands now use adapter.send_text instead of reply_text
+                handler._telegram_adapter.send_text.assert_called_once()
     
     @pytest.mark.asyncio
     async def test_process_unknown_command(self, handler):
@@ -251,19 +267,21 @@ class TestUpdateProcessing:
         mock_update.message = MagicMock()
         mock_update.message.text = "/unknown_command"
         mock_update.message.chat.id = 123456
-        mock_update.message.bot = MagicMock()
+        mock_update.effective_chat = MagicMock()
+        mock_update.effective_chat.id = 123456
+        mock_update.effective_user = MagicMock()
+        mock_update.effective_user.id = 456
+        mock_update.effective_user.first_name = "TestUser"
+        mock_update.effective_user.username = None
 
         with patch("telegram.Update.de_json", return_value=mock_update):
             with patch("src.handlers.webhook.settings") as mock_settings:
                 mock_settings.allowed_chat_ids = []  # Allow all chats
-                with patch("src.handlers.commands.unknown_command") as mock_unknown:
-                    mock_unknown.return_value = AsyncMock()
+                update_data = {"update_id": 123, "message": {"text": "/unknown_command"}}
+                await handler.process_update(update_data)
+                # Unknown command calls adapter.send_text with the "unknown" translation
+                handler._telegram_adapter.send_text.assert_called_once()
 
-                    update_data = {"update_id": 123, "message": {"text": "/unknown_command"}}
-                    await handler.process_update(update_data)
-
-                    mock_unknown.assert_called_once()
-    
     @pytest.mark.asyncio
     async def test_process_refresh_callback(self, handler):
         """Test processing refresh callback."""
@@ -272,17 +290,24 @@ class TestUpdateProcessing:
         mock_update.callback_query.data = "refresh"
         mock_update.callback_query.message = MagicMock()
         mock_update.callback_query.message.chat.id = 123456
+        mock_update.callback_query.message.message_id = 789
+        mock_update.callback_query.from_user.id = 456
+        mock_update.callback_query.from_user.first_name = "TestUser"
+        mock_update.callback_query.from_user.username = None
+        mock_update.effective_chat = MagicMock()
+        mock_update.effective_chat.id = 123456
+        mock_update.effective_user = MagicMock()
+        mock_update.effective_user.id = 456
+        mock_update.effective_user.first_name = "TestUser"
+        mock_update.effective_user.username = None
         mock_update.message = None
 
         with patch("telegram.Update.de_json", return_value=mock_update):
             with patch("src.handlers.webhook.settings") as mock_settings:
                 mock_settings.allowed_chat_ids = []  # Allow all chats
-                with patch("src.handlers.commands.resume_command") as mock_refresh:
-                    mock_refresh.return_value = AsyncMock()
-
+                with patch("src.handlers.commands.resume_command", new=AsyncMock()) as mock_refresh:
                     update_data = {"update_id": 123, "callback_query": {"data": "refresh"}}
                     await handler.process_update(update_data)
-
                     mock_refresh.assert_called_once()
 
 

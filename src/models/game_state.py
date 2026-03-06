@@ -170,6 +170,7 @@ class ChatConfig:
     message_base_text: Optional[str] = None
     maintenance_mode: bool = False
     language: Optional[str] = None
+    platform: str = "telegram"
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
     
@@ -184,6 +185,7 @@ class ChatConfig:
             "message_base_text": self.message_base_text,
             "maintenance_mode": self.maintenance_mode,
             "language": self.language,
+            "platform": self.platform,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
@@ -200,6 +202,7 @@ class ChatConfig:
             message_base_text=data.get("message_base_text"),
             maintenance_mode=data.get("maintenance_mode", False),
             language=data.get("language"),
+            platform=data.get("platform", "telegram"),
             created_at=datetime.fromisoformat(data["created_at"]),
             updated_at=datetime.fromisoformat(data["updated_at"]),
         )

@@ -11,6 +11,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
+from typing import Optional
+
 from pydantic import Field, HttpUrl, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -35,17 +37,31 @@ class Settings(BaseSettings):
             extra="ignore",
         )
     
-    # Required settings
-    telegram_bot_token: SecretStr = Field(
-        ...,
+    # Platform tokens (at least one required)
+    telegram_bot_token: Optional[SecretStr] = Field(
+        default=None,
         description="Telegram bot token from @BotFather",
     )
-    webhook_url: HttpUrl = Field(
-        ...,
+    discord_bot_token: Optional[SecretStr] = Field(
+        default=None,
+        description="Discord bot token",
+    )
+
+    @field_validator("telegram_bot_token", "discord_bot_token", mode="before")
+    @classmethod
+    def empty_token_to_none(cls, v: object) -> object:
+        """Convert empty string tokens to None."""
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
+
+    # Telegram webhook settings (only required when Telegram is enabled)
+    webhook_url: Optional[HttpUrl] = Field(
+        default=None,
         description="Public URL for webhook endpoint (e.g., https://example.com)",
     )
-    webhook_secret: str = Field(
-        ...,
+    webhook_secret: Optional[str] = Field(
+        default=None,
         description="Secret token for webhook validation",
         min_length=16,
     )
@@ -227,12 +243,30 @@ class Settings(BaseSettings):
         return [int(x.strip()) for x in v.split(",") if x.strip()]
     
     @model_validator(mode="after")
-    def validate_rom_exists(self) -> "Settings":
-        """Validate that ROM file exists if not in testing mode."""
-        # Skip validation if we're in a test environment without ROM
+    def validate_settings(self) -> "Settings":
+        """Validate settings consistency."""
+        # Skip ROM validation in test environment
         if os.environ.get("PYTEST_CURRENT_TEST"):
             return self
-            
+
+        # At least one platform token must be set
+        if not self.telegram_bot_token and not self.discord_bot_token:
+            raise ValueError(
+                "At least one of TELEGRAM_BOT_TOKEN or DISCORD_BOT_TOKEN must be set."
+            )
+
+        # Telegram-specific requirements
+        if self.telegram_bot_token:
+            if not self.webhook_url:
+                raise ValueError(
+                    "WEBHOOK_URL is required when TELEGRAM_BOT_TOKEN is set."
+                )
+            if not self.webhook_secret:
+                raise ValueError(
+                    "WEBHOOK_SECRET is required when TELEGRAM_BOT_TOKEN is set."
+                )
+
+        # ROM file validation
         if not self.rom_path.exists():
             raise ValueError(
                 f"ROM file not found: {self.rom_path}. "
@@ -247,14 +281,16 @@ class Settings(BaseSettings):
         return self
     
     def get_webhook_hash(self) -> str:
+        if not self.webhook_secret:
+            raise ValueError("webhook_secret is not configured")
         return hashlib.sha256(self.webhook_secret.encode()).hexdigest()[:16]
-    
+
     def get_webhook_path(self) -> str:
         """Generate webhook path with hashed secret.
-        
+
         Returns:
             Webhook path in format /webhook/{hash}
-            
+
         Example:
             >>> settings.get_webhook_path()
             '/webhook/a1b2c3d4e5f67890'

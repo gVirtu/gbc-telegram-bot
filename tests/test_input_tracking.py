@@ -8,7 +8,7 @@ This module tests:
 
 import pytest
 from datetime import datetime
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import Mock, AsyncMock, MagicMock, patch
 
 from src.models.game_state import ChatGameState, GameButton, GameSession
 from src.keyboard import create_game_message_text
@@ -122,8 +122,7 @@ class TestInputRecording:
 
     def test_record_user_input_increments_count(self):
         """Test that recording input increments user count."""
-        mock_bot = Mock()
-        handler = InputHandler(mock_bot)
+        handler = InputHandler()
 
         state = ChatGameState(chat_id=123)
         session = GameSession(chat_id=123, state=state)
@@ -138,8 +137,7 @@ class TestInputRecording:
 
     def test_record_user_input_multiple_users(self):
         """Test recording inputs from multiple users."""
-        mock_bot = Mock()
-        handler = InputHandler(mock_bot)
+        handler = InputHandler()
 
         state = ChatGameState(chat_id=123)
         session = GameSession(chat_id=123, state=state)
@@ -153,8 +151,7 @@ class TestInputRecording:
 
     def test_record_user_input_adds_to_recent(self):
         """Test that recording input adds to recent_inputs."""
-        mock_bot = Mock()
-        handler = InputHandler(mock_bot)
+        handler = InputHandler()
 
         state = ChatGameState(chat_id=123)
         session = GameSession(chat_id=123, state=state)
@@ -169,8 +166,7 @@ class TestInputRecording:
 
     def test_record_user_input_fifo_behavior(self):
         """Test that recent_inputs maintains FIFO with max 3 entries."""
-        mock_bot = Mock()
-        handler = InputHandler(mock_bot)
+        handler = InputHandler()
 
         state = ChatGameState(chat_id=123)
         session = GameSession(chat_id=123, state=state)
@@ -190,8 +186,7 @@ class TestInputRecording:
 
     def test_user_name_extraction_first_name(self):
         """Test that first_name is used when available."""
-        mock_bot = Mock()
-        handler = InputHandler(mock_bot)
+        handler = InputHandler()
 
         state = ChatGameState(chat_id=123)
         session = GameSession(chat_id=123, state=state)
@@ -204,8 +199,7 @@ class TestInputRecording:
         """Test that @username is used when first_name is not available."""
         # This is tested implicitly by the calling code, but we can test
         # that the record method accepts any string
-        mock_bot = Mock()
-        handler = InputHandler(mock_bot)
+        handler = InputHandler()
 
         state = ChatGameState(chat_id=123)
         session = GameSession(chat_id=123, state=state)
@@ -216,8 +210,7 @@ class TestInputRecording:
 
     def test_user_name_extraction_user_fallback(self):
         """Test that 'User' fallback works."""
-        mock_bot = Mock()
-        handler = InputHandler(mock_bot)
+        handler = InputHandler()
 
         state = ChatGameState(chat_id=123)
         session = GameSession(chat_id=123, state=state)
@@ -353,13 +346,15 @@ class TestIntegration:
         callback_query.from_user.username = None
         callback_query.answer = AsyncMock()
 
-        # Create handler with mocked dependencies
-        mock_bot = Mock()
-        mock_bot.edit_message_reply_markup = AsyncMock()
-        mock_bot.edit_message_media = AsyncMock()
-        mock_bot.edit_message_caption = AsyncMock()
+        # Create mock adapter
+        mock_adapter = MagicMock()
+        mock_adapter.send_game_message = AsyncMock(return_value=100)
+        mock_adapter.edit_game_message = AsyncMock(return_value=None)
+        mock_adapter.edit_game_keyboard = AsyncMock()
+        mock_adapter.answer_interaction = AsyncMock()
 
-        handler = InputHandler(mock_bot)
+        # Create handler
+        handler = InputHandler()
 
         # Create session
         state = ChatGameState(chat_id=123, message_id=999)
@@ -386,8 +381,16 @@ class TestIntegration:
                 # Mock _process_queue_loop to run immediately (queue processing is async now)
                 with patch.object(handler, '_process_queue_loop', new_callable=AsyncMock) as mock_process:
                     # Handle button press
-                    await handler.handle_button_press(callback_query)
-                    
+                    await handler.handle_button_press(
+                        callback_data=callback_query.data,
+                        chat_id=callback_query.message.chat.id,
+                        message_id=callback_query.message.message_id,
+                        user_id=callback_query.from_user.id,
+                        user_name="Alice",
+                        adapter=mock_adapter,
+                        raw=callback_query,
+                    )
+
                     # Verify queue has the input
                     assert len(handler._input_queues[123]) == 1
                     assert handler._input_queues[123].items[0].user_id == 456
@@ -395,8 +398,7 @@ class TestIntegration:
     @pytest.mark.asyncio
     async def test_multiple_users_sequence(self):
         """Test input tracking with multiple users pressing buttons in sequence."""
-        mock_bot = Mock()
-        handler = InputHandler(mock_bot)
+        handler = InputHandler()
 
         state = ChatGameState(chat_id=123, message_id=999)
         session = GameSession(chat_id=123, state=state)
@@ -434,8 +436,7 @@ class TestEdgeCases:
 
     def test_empty_user_name(self):
         """Test handling of empty user name."""
-        mock_bot = Mock()
-        handler = InputHandler(mock_bot)
+        handler = InputHandler()
 
         state = ChatGameState(chat_id=123)
         session = GameSession(chat_id=123, state=state)
@@ -448,8 +449,7 @@ class TestEdgeCases:
 
     def test_very_long_user_name(self):
         """Test handling of very long user names."""
-        mock_bot = Mock()
-        handler = InputHandler(mock_bot)
+        handler = InputHandler()
 
         state = ChatGameState(chat_id=123)
         session = GameSession(chat_id=123, state=state)
@@ -461,8 +461,7 @@ class TestEdgeCases:
 
     def test_special_characters_in_name(self):
         """Test handling of special characters in user names."""
-        mock_bot = Mock()
-        handler = InputHandler(mock_bot)
+        handler = InputHandler()
 
         state = ChatGameState(chat_id=123)
         session = GameSession(chat_id=123, state=state)

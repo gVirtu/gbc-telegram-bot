@@ -120,18 +120,25 @@ class TestI18nEndToEnd:
     @pytest.mark.asyncio
     async def test_language_command_changes_language_and_invalidates_cache(self, db_manager):
         """Test /language command end-to-end."""
+        from src.adapters.base import CommandContext
+
         # Setup
         config = ChatConfig(chat_id=123, language="pt-BR")
         db_manager.save_chat_config(config)
 
-        # Create mock update and context
-        update = MagicMock()
-        update.effective_chat.id = 123
-        update.effective_chat.type = "private"
-        update.message.reply_text = AsyncMock()
+        # Create mock adapter and CommandContext
+        mock_adapter = MagicMock()
+        mock_adapter.send_text = AsyncMock()
+        mock_adapter.is_admin = AsyncMock(return_value=True)
 
-        context = MagicMock()
-        context.args = ["en-US"]
+        ctx = CommandContext(
+            chat_id=123,
+            user_id=456,
+            user_name="TestUser",
+            args=["en-US"],
+            adapter=mock_adapter,
+            raw=None,
+        )
 
         # Patch dependencies
         with patch('src.handlers.commands.state_manager', db_manager):
@@ -142,7 +149,7 @@ class TestI18nEndToEnd:
                     mock_tm.get.return_value = "✅ Language changed to en-US!"
 
                     # Execute command
-                    await language_command(update, context)
+                    await language_command(ctx)
 
                     # Verify config was updated
                     loaded = db_manager.load_chat_config(123)

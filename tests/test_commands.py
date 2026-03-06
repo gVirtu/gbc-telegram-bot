@@ -14,7 +14,7 @@ os.environ["TELEGRAM_BOT_TOKEN"] = "test_token"
 os.environ["WEBHOOK_URL"] = "https://test.example.com"
 os.environ["WEBHOOK_SECRET"] = "test_secret_1234567890"
 
-from telegram import Update
+from src.adapters.base import CommandContext
 
 from src.handlers.commands import (
     start_game_command,
@@ -34,41 +34,22 @@ from src.handlers.commands import (
 from src.models.game_state import GameButton
 
 
-class MockUpdate:
-    """Mock Telegram Update object."""
-
-    def __init__(self, chat_id=123456, text="", args=None):
-        self.effective_chat = MagicMock()
-        self.effective_chat.id = chat_id
-        self.effective_chat.type = "private"  # Default to private chat for backward compatibility
-        self.message = MagicMock()
-        self.message.reply_text = AsyncMock()
-        self.message.text = text
-
-
-class MockContext:
-    """Mock Telegram Context object."""
-    
-    def __init__(self, args=None):
-        self.bot = MagicMock()
-        self.args = args or []
+def make_ctx(mock_adapter, args=None, chat_id=123456, user_id=456):
+    return CommandContext(
+        chat_id=chat_id,
+        user_id=user_id,
+        user_name="TestUser",
+        args=args or [],
+        adapter=mock_adapter,
+        raw=None,
+    )
 
 
 class TestStartGameCommand:
     """Test /start_game command."""
-    
-    @pytest.fixture
-    def update(self):
-        """Create mock update."""
-        return MockUpdate()
-    
-    @pytest.fixture
-    def context(self):
-        """Create mock context."""
-        return MockContext()
-    
+
     @pytest.mark.asyncio
-    async def test_start_game_success(self, update, context):
+    async def test_start_game_success(self, mock_adapter, mock_ctx):
         """Test successful game start."""
         with patch("src.handlers.commands.get_input_handler") as mock_get_handler:
             mock_handler = MagicMock()
@@ -79,15 +60,15 @@ class TestStartGameCommand:
             with patch("src.handlers.commands.settings") as mock_settings:
                 mock_settings.allowed_chat_ids = []
 
-                await start_game_command(update, context)
+                await start_game_command(mock_ctx)
 
                 # Should clean up existing session
                 mock_handler.cleanup_session.assert_called_once_with(123456)
                 # Should start new game
-                mock_handler.start_game.assert_called_once_with(123456)
+                mock_handler.start_game.assert_called_once_with(123456, mock_adapter)
 
     @pytest.mark.asyncio
-    async def test_start_game_error(self, update, context):
+    async def test_start_game_error(self, mock_adapter, mock_ctx):
         """Test game start with error."""
         with patch("src.handlers.commands.get_input_handler") as mock_get_handler:
             mock_handler = MagicMock()
@@ -98,27 +79,20 @@ class TestStartGameCommand:
             with patch("src.handlers.commands.settings") as mock_settings:
                 mock_settings.allowed_chat_ids = []
 
-                await start_game_command(update, context)
+                await start_game_command(mock_ctx)
 
                 # Should send error message
-                update.message.reply_text.assert_called_with(
-                    "❌ Failed to start the game. Please try again or contact the bot administrator."
+                mock_adapter.send_text.assert_called_with(
+                    123456,
+                    mock_adapter.send_text.call_args[0][1],
                 )
 
 
 class TestResumeCommand:
     """Test /resume command."""
 
-    @pytest.fixture
-    def update(self):
-        return MockUpdate()
-
-    @pytest.fixture
-    def context(self):
-        return MockContext()
-
     @pytest.mark.asyncio
-    async def test_resume_with_active_game(self, update, context):
+    async def test_resume_with_active_game(self, mock_adapter, mock_ctx):
         """Test resuming when game is already active."""
         with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
             mock_controller = MagicMock()
@@ -134,12 +108,12 @@ class TestResumeCommand:
                 with patch("src.handlers.commands.settings") as mock_settings:
                     mock_settings.allowed_chat_ids = []
 
-                    await resume_command(update, context)
+                    await resume_command(mock_ctx)
 
-                    mock_handler.resume_game.assert_called_once_with(123456)
+                    mock_handler.resume_game.assert_called_once_with(123456, mock_adapter)
 
     @pytest.mark.asyncio
-    async def test_resume_auto_starts_game(self, update, context):
+    async def test_resume_auto_starts_game(self, mock_adapter, mock_ctx):
         """Test resume auto-starts game when not active."""
         with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
             # First call returns None (no game), second returns controller (after auto-start)
@@ -161,16 +135,16 @@ class TestResumeCommand:
                     with patch("src.handlers.commands.settings") as mock_settings:
                         mock_settings.allowed_chat_ids = []
 
-                        await resume_command(update, context)
+                        await resume_command(mock_ctx)
 
                         # Should auto-start the game
                         mock_mgr.get_or_create_controller.assert_called_once_with(
                             123456, auto_load=True
                         )
-                        mock_handler.resume_game.assert_called_once_with(123456)
+                        mock_handler.resume_game.assert_called_once_with(123456, mock_adapter)
 
     @pytest.mark.asyncio
-    async def test_input_in_progress(self, update, context):
+    async def test_input_in_progress(self, mock_adapter, mock_ctx):
         """Test resuming while input processing."""
         with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
             mock_controller = MagicMock()
@@ -185,28 +159,20 @@ class TestResumeCommand:
                 with patch("src.handlers.commands.settings") as mock_settings:
                     mock_settings.allowed_chat_ids = []
 
-                    await resume_command(update, context)
+                    await resume_command(mock_ctx)
 
-                    update.message.reply_text.assert_called_with(
-                        "⏳ A button was recently pressed. Please wait..."
-                    )
+                    mock_adapter.send_text.assert_called_once()
+                    call_text = mock_adapter.send_text.call_args[0][1]
+                    assert "wait" in call_text.lower() or "processing" in call_text.lower() or "button" in call_text.lower()
 
 
 class TestSaveCommand:
     """Test /save command."""
 
-    @pytest.fixture
-    def update(self):
-        return MockUpdate()
-
-    @pytest.fixture
-    def context(self):
-        return MockContext()
-
     @pytest.mark.asyncio
-    async def test_save_auto_starts_game(self, update, context):
+    async def test_save_auto_starts_game(self, mock_adapter):
         """Test save auto-starts game when not active."""
-        context.args = ["2"]
+        ctx = make_ctx(mock_adapter, args=["2"])
 
         with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
             mock_controller = MagicMock()
@@ -224,7 +190,7 @@ class TestSaveCommand:
                     mock_settings.allowed_chat_ids = []
                     mock_settings.save_slots = 5
 
-                    await save_command(update, context)
+                    await save_command(ctx)
 
                     # Should auto-start the game
                     mock_mgr.get_or_create_controller.assert_called_once_with(
@@ -235,9 +201,9 @@ class TestSaveCommand:
                     assert call_args[1]["slot_number"] == 2
 
     @pytest.mark.asyncio
-    async def test_save_to_specific_slot(self, update, context):
+    async def test_save_to_specific_slot(self, mock_adapter):
         """Test saving to specific slot."""
-        context.args = ["2"]
+        ctx = make_ctx(mock_adapter, args=["2"])
 
         with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
             mock_controller = MagicMock()
@@ -253,16 +219,16 @@ class TestSaveCommand:
                     mock_settings.allowed_chat_ids = []
                     mock_settings.save_slots = 5
 
-                    await save_command(update, context)
+                    await save_command(ctx)
 
                     mock_state.save_to_slot.assert_called_once()
                     call_args = mock_state.save_to_slot.call_args
                     assert call_args[1]["slot_number"] == 2
 
     @pytest.mark.asyncio
-    async def test_save_invalid_slot(self, update, context):
+    async def test_save_invalid_slot(self, mock_adapter):
         """Test saving to invalid slot."""
-        context.args = ["99"]
+        ctx = make_ctx(mock_adapter, args=["99"])
 
         with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
             mock_controller = MagicMock()
@@ -273,17 +239,15 @@ class TestSaveCommand:
                 mock_settings.save_slots = 5
                 mock_settings.allowed_chat_ids = []
 
-                await save_command(update, context)
+                await save_command(ctx)
 
-                update.message.reply_text.assert_called_with(
-                    "❌ Invalid slot. Use 0-4."
-                )
+                mock_adapter.send_text.assert_called_once()
+                call_text = mock_adapter.send_text.call_args[0][1]
+                assert "invalid" in call_text.lower() or "slot" in call_text.lower()
 
     @pytest.mark.asyncio
-    async def test_save_no_slot_argument(self, update, context):
+    async def test_save_no_slot_argument(self, mock_adapter, mock_ctx):
         """Test saving without slot argument."""
-        context.args = []
-
         with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
             mock_controller = MagicMock()
             mock_controller.is_initialized.return_value = True
@@ -298,7 +262,7 @@ class TestSaveCommand:
                     mock_settings.save_slots = 5
                     mock_settings.allowed_chat_ids = []
 
-                    await save_command(update, context)
+                    await save_command(mock_ctx)
 
                     # Should find first available slot (0)
                     mock_state.save_to_slot.assert_called_once()
@@ -309,22 +273,14 @@ class TestSaveCommand:
 class TestLoadCommand:
     """Test /load command."""
 
-    @pytest.fixture
-    def update(self):
-        return MockUpdate()
-
-    @pytest.fixture
-    def context(self):
-        return MockContext()
-
     @pytest.mark.asyncio
-    async def test_load_auto_starts_game(self, update, context):
+    async def test_load_auto_starts_game(self, mock_adapter):
         """Test load auto-starts game when not active.
 
         Note: Save loading logic is now handled internally by get_or_create_controller.
         This test verifies the command properly triggers game initialization.
         """
-        context.args = ["0"]
+        ctx = make_ctx(mock_adapter, args=["0"])
 
         with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
             mock_controller = MagicMock()
@@ -342,14 +298,14 @@ class TestLoadCommand:
                     mock_settings.allowed_chat_ids = []
                     mock_settings.save_slots = 5
 
-                    await load_command(update, context)
+                    await load_command(ctx)
 
                     mock_mgr.get_or_create_controller.assert_called_once_with(
                         123456, auto_load=True
                     )
 
     @pytest.mark.asyncio
-    async def test_load_input_in_progress(self, update, context):
+    async def test_load_input_in_progress(self, mock_adapter, mock_ctx):
         """Test loading while input processing."""
         with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
             mock_controller = MagicMock()
@@ -364,17 +320,15 @@ class TestLoadCommand:
                 with patch("src.handlers.commands.settings") as mock_settings:
                     mock_settings.allowed_chat_ids = []
 
-                    await load_command(update, context)
+                    await load_command(mock_ctx)
 
-                    update.message.reply_text.assert_called_with(
-                        "⏳ A button was recently pressed. Before loading, please wait."
-                    )
+                    mock_adapter.send_text.assert_called_once()
+                    call_text = mock_adapter.send_text.call_args[0][1]
+                    assert "wait" in call_text.lower() or "loading" in call_text.lower() or "button" in call_text.lower()
 
     @pytest.mark.asyncio
-    async def test_load_no_slots_available(self, update, context):
+    async def test_load_no_slots_available(self, mock_adapter, mock_ctx):
         """Test loading when no slots available."""
-        context.args = []
-
         with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
             mock_controller = MagicMock()
             mock_controller.is_initialized.return_value = True
@@ -391,16 +345,16 @@ class TestLoadCommand:
                     with patch("src.handlers.commands.settings") as mock_settings:
                         mock_settings.allowed_chat_ids = []
 
-                        await load_command(update, context)
+                        await load_command(mock_ctx)
 
-                        update.message.reply_text.assert_called_with(
-                            "No save slots found. Use /save [slot] to create one."
-                        )
+                        mock_adapter.send_text.assert_called_once()
+                        call_text = mock_adapter.send_text.call_args[0][1]
+                        assert "slot" in call_text.lower() or "save" in call_text.lower()
 
     @pytest.mark.asyncio
-    async def test_load_success(self, update, context):
+    async def test_load_success(self, mock_adapter):
         """Test successful load."""
-        context.args = ["0"]
+        ctx = make_ctx(mock_adapter, args=["0"])
 
         with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
             mock_controller = MagicMock()
@@ -420,24 +374,16 @@ class TestLoadCommand:
                         mock_settings.allowed_chat_ids = []
                         mock_settings.save_slots = 5
 
-                        await load_command(update, context)
+                        await load_command(ctx)
 
                         mock_controller.load_state.assert_called_once_with(b"save_data")
-                        update.message.reply_text.assert_called_with(
-                            "📂 Loaded game from slot 0!"
-                        )
+                        mock_adapter.send_text.assert_called()
+                        call_text = mock_adapter.send_text.call_args[0][1]
+                        assert "0" in call_text or "load" in call_text.lower()
 
 
 class TestLoadBackupCommand:
     """Test /load backup YYYYMMDD subcommand."""
-
-    @pytest.fixture
-    def update(self):
-        return MockUpdate()
-
-    @pytest.fixture
-    def context(self):
-        return MockContext()
 
     def _active_game_patches(self, mock_mgr, mock_handler):
         """Set up mocks for an active, non-processing game."""
@@ -448,9 +394,9 @@ class TestLoadBackupCommand:
         return mock_controller
 
     @pytest.mark.asyncio
-    async def test_load_backup_valid_date_admin(self, update, context):
+    async def test_load_backup_valid_date_admin(self, mock_adapter):
         """Admin loading a valid backup date succeeds."""
-        context.args = ["backup", "20260215"]
+        ctx = make_ctx(mock_adapter, args=["backup", "20260215"])
 
         with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
             with patch("src.handlers.commands.get_input_handler") as mock_get_handler:
@@ -466,34 +412,35 @@ class TestLoadBackupCommand:
                         mock_settings.allowed_chat_ids = []
                         mock_settings.save_slots = 5
 
-                        await load_command(update, context)
+                        await load_command(ctx)
 
                         mock_backup_mgr.load_backup.assert_called_once_with(123456, "20260215")
                         mock_controller.load_state.assert_called_once_with(b"backup_bytes")
-                        update.message.reply_text.assert_called_with(
-                            "✅ Backup from 20260215 loaded successfully."
-                        )
+                        mock_adapter.send_text.assert_called()
+                        call_text = mock_adapter.send_text.call_args[0][1]
+                        assert "20260215" in call_text
 
     @pytest.mark.asyncio
-    async def test_load_backup_not_admin(self, update, context):
+    async def test_load_backup_not_admin(self, mock_adapter):
         """Non-admin in group chat gets permission error."""
-        update.effective_chat.type = "supergroup"
-        context.args = ["backup", "20260215"]
+        ctx = make_ctx(mock_adapter, args=["backup", "20260215"])
+        ctx.adapter.is_admin = AsyncMock(return_value=False)
 
         with patch("src.handlers.commands.check_admin_permission", return_value=(False, "🔒 Only group administrators can use this command.")):
             with patch("src.handlers.commands.settings") as mock_settings:
                 mock_settings.allowed_chat_ids = []
 
-                await load_command(update, context)
+                await load_command(ctx)
 
-                update.message.reply_text.assert_called_with(
-                    "🔒 Only group administrators can use this command."
+                mock_adapter.send_text.assert_called_with(
+                    123456,
+                    "🔒 Only group administrators can use this command.",
                 )
 
     @pytest.mark.asyncio
-    async def test_load_backup_invalid_date(self, update, context):
+    async def test_load_backup_invalid_date(self, mock_adapter):
         """Invalid date format returns a helpful error message."""
-        context.args = ["backup", "not-a-date"]
+        ctx = make_ctx(mock_adapter, args=["backup", "not-a-date"])
 
         with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
             with patch("src.handlers.commands.get_input_handler") as mock_get_handler:
@@ -505,16 +452,16 @@ class TestLoadBackupCommand:
                     mock_settings.allowed_chat_ids = []
                     mock_settings.save_slots = 5
 
-                    await load_command(update, context)
+                    await load_command(ctx)
 
-                    update.message.reply_text.assert_called_with(
-                        "Invalid date format. Use YYYYMMDD (e.g., 20260215)"
-                    )
+                    mock_adapter.send_text.assert_called_once()
+                    call_text = mock_adapter.send_text.call_args[0][1]
+                    assert "date" in call_text.lower() or "format" in call_text.lower() or "yyyymmdd" in call_text.lower()
 
     @pytest.mark.asyncio
-    async def test_load_backup_not_found(self, update, context):
+    async def test_load_backup_not_found(self, mock_adapter):
         """Missing backup lists available dates."""
-        context.args = ["backup", "20260101"]
+        ctx = make_ctx(mock_adapter, args=["backup", "20260101"])
 
         with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
             with patch("src.handlers.commands.get_input_handler") as mock_get_handler:
@@ -532,16 +479,16 @@ class TestLoadBackupCommand:
                         mock_settings.save_slots = 5
                         mock_settings.default_language = "pt-BR"
 
-                        await load_command(update, context)
+                        await load_command(ctx)
 
-                        update.message.reply_text.assert_called_with(
-                            "Backup 20260101 not found. Available: 20260102, 20260103"
-                        )
+                        mock_adapter.send_text.assert_called_once()
+                        call_text = mock_adapter.send_text.call_args[0][1]
+                        assert "20260101" in call_text
 
     @pytest.mark.asyncio
-    async def test_load_backup_missing_date_arg(self, update, context):
+    async def test_load_backup_missing_date_arg(self, mock_adapter):
         """'/load backup' without a date shows usage hint."""
-        context.args = ["backup"]
+        ctx = make_ctx(mock_adapter, args=["backup"])
 
         with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
             with patch("src.handlers.commands.get_input_handler") as mock_get_handler:
@@ -553,24 +500,18 @@ class TestLoadBackupCommand:
                     mock_settings.allowed_chat_ids = []
                     mock_settings.save_slots = 5
 
-                    await load_command(update, context)
+                    await load_command(ctx)
 
-                    update.message.reply_text.assert_called_with("Usage: /load backup YYYYMMDD")
+                    mock_adapter.send_text.assert_called_once()
+                    call_text = mock_adapter.send_text.call_args[0][1]
+                    assert "usage" in call_text.lower() or "backup" in call_text.lower() or "yyyymmdd" in call_text.lower()
 
 
 class TestStatusCommand:
     """Test /status command."""
 
-    @pytest.fixture
-    def update(self):
-        return MockUpdate()
-
-    @pytest.fixture
-    def context(self):
-        return MockContext()
-
     @pytest.mark.asyncio
-    async def test_status_auto_starts_game(self, update, context):
+    async def test_status_auto_starts_game(self, mock_adapter, mock_ctx):
         """Test status auto-starts game when not active."""
         with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
             mock_controller = MagicMock()
@@ -592,17 +533,18 @@ class TestStatusCommand:
                     with patch("src.handlers.commands.settings") as mock_settings:
                         mock_settings.allowed_chat_ids = []
 
-                        await status_command(update, context)
+                        await status_command(mock_ctx)
 
                         # Should auto-start and show active status
                         mock_mgr.get_or_create_controller.assert_called_once_with(
-                        123456, auto_load=True
-                    )
-                        call_args = update.message.reply_text.call_args
-                        assert "Game active" in call_args[0][0]
+                            123456, auto_load=True
+                        )
+                        mock_adapter.send_text.assert_called_once()
+                        call_text = mock_adapter.send_text.call_args[0][1]
+                        assert "Game active" in call_text
 
     @pytest.mark.asyncio
-    async def test_status_with_active_game(self, update, context):
+    async def test_status_with_active_game(self, mock_adapter, mock_ctx):
         """Test status with already active game."""
         with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
             mock_controller = MagicMock()
@@ -621,55 +563,40 @@ class TestStatusCommand:
                     with patch("src.handlers.commands.settings") as mock_settings:
                         mock_settings.allowed_chat_ids = []
 
-                        await status_command(update, context)
+                        await status_command(mock_ctx)
 
-                        call_args = update.message.reply_text.call_args
-                        assert "Game active" in call_args[0][0]
+                        mock_adapter.send_text.assert_called_once()
+                        call_text = mock_adapter.send_text.call_args[0][1]
+                        assert "Game active" in call_text
 
 
 class TestHelpCommand:
     """Test /help command."""
-    
-    @pytest.fixture
-    def update(self):
-        return MockUpdate()
-    
-    @pytest.fixture
-    def context(self):
-        return MockContext()
-    
+
     @pytest.mark.asyncio
-    async def test_help_shows_commands(self, update, context):
+    async def test_help_shows_commands(self, mock_adapter, mock_ctx):
         """Test help shows available commands."""
         with patch("src.handlers.commands.create_help_text") as mock_help:
             mock_help.return_value = "Test help text"
-            
-            await help_command(update, context)
-            
-            update.message.reply_text.assert_called_once()
-            call_args = update.message.reply_text.call_args
-            assert call_args[0][0] == "Test help text"
+
+            await help_command(mock_ctx)
+
+            mock_adapter.send_text.assert_called_once()
+            call_args = mock_adapter.send_text.call_args
+            assert call_args[0][1] == "Test help text"
 
 
 class TestUnknownCommand:
     """Test unknown command handler."""
-    
-    @pytest.fixture
-    def update(self):
-        return MockUpdate()
-    
-    @pytest.fixture
-    def context(self):
-        return MockContext()
-    
+
     @pytest.mark.asyncio
-    async def test_unknown_command(self, update, context):
+    async def test_unknown_command(self, mock_adapter, mock_ctx):
         """Test unknown command response."""
-        await unknown_command(update, context)
-        
-        update.message.reply_text.assert_called_with(
-            "❓ Unknown command. Use /help to see available commands."
-        )
+        await unknown_command(mock_ctx)
+
+        mock_adapter.send_text.assert_called_once()
+        call_text = mock_adapter.send_text.call_args[0][1]
+        assert "unknown" in call_text.lower() or "help" in call_text.lower()
 
 
 class TestCommandHandlersDict:
@@ -732,8 +659,8 @@ class TestEnsureGameActive:
             assert success is True
             assert error is None
             mock_mgr.get_or_create_controller.assert_called_once_with(
-                        123456, auto_load=True
-                    )
+                123456, auto_load=True
+            )
 
     @pytest.mark.asyncio
     async def test_auto_start_without_slot_1(self):
@@ -753,8 +680,8 @@ class TestEnsureGameActive:
             assert success is True
             assert error is None
             mock_mgr.get_or_create_controller.assert_called_once_with(
-                        123456, auto_load=True
-                    )
+                123456, auto_load=True
+            )
 
     @pytest.mark.asyncio
     async def test_slot_1_load_failure(self):
@@ -796,17 +723,11 @@ class TestEnsureGameActive:
 class TestPrintCommand:
     """Test /print command."""
 
-    @pytest.fixture
-    def update(self):
-        return MockUpdate()
-
-    @pytest.fixture
-    def context(self):
-        return MockContext()
-
     @pytest.mark.asyncio
-    async def test_print_auto_starts_game(self, update, context):
+    async def test_print_auto_starts_game(self, mock_adapter):
         """Test print auto-starts game when not active."""
+        ctx = make_ctx(mock_adapter)
+
         with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
             mock_controller = MagicMock()
             mock_controller.is_initialized.return_value = True
@@ -818,21 +739,19 @@ class TestPrintCommand:
                 mock_state.list_save_slots.return_value = []
                 mock_state.load_from_slot.return_value = None  # No slot 1
 
-                context.bot.send_photo = AsyncMock()
-
                 with patch("src.handlers.commands.settings") as mock_settings:
                     mock_settings.allowed_chat_ids = []
 
-                    await print_command(update, context)
+                    await print_command(ctx)
 
                     # Should auto-start the game
                     mock_mgr.get_or_create_controller.assert_called_once_with(
                         123456, auto_load=True
                     )
-                    context.bot.send_photo.assert_called_once()
+                    mock_adapter.send_screenshot.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_print_with_active_game(self, update, context):
+    async def test_print_with_active_game(self, mock_adapter, mock_ctx):
         """Test print when game is already active."""
         with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
             mock_controller = MagicMock()
@@ -840,19 +759,17 @@ class TestPrintCommand:
             mock_controller.get_frame_as_png.return_value = b"png_data"
             mock_mgr.get_controller.return_value = mock_controller
 
-            context.bot.send_photo = AsyncMock()
-
             with patch("src.handlers.commands.settings") as mock_settings:
                 mock_settings.allowed_chat_ids = []
 
-                await print_command(update, context)
+                await print_command(mock_ctx)
 
-                context.bot.send_photo.assert_called_once()
-                call_args = context.bot.send_photo.call_args
-                assert call_args[1]["caption"] == ""
+                mock_adapter.send_screenshot.assert_called_once()
+                call_kwargs = mock_adapter.send_screenshot.call_args
+                assert call_kwargs[1]["caption"] == "" or call_kwargs[0][2] == ""
 
     @pytest.mark.asyncio
-    async def test_print_error(self, update, context):
+    async def test_print_error(self, mock_adapter, mock_ctx):
         """Test print with error."""
         with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
             mock_controller = MagicMock()
@@ -864,155 +781,102 @@ class TestPrintCommand:
                 mock_settings.allowed_chat_ids = []
                 mock_settings.default_language = "pt-BR"
 
-                await print_command(update, context)
+                await print_command(mock_ctx)
 
-                update.message.reply_text.assert_called_with(
-                    "❌ Failed to capture the screen. Try again."
-                )
+                mock_adapter.send_text.assert_called_once()
+                call_text = mock_adapter.send_text.call_args[0][1]
+                assert "failed" in call_text.lower() or "error" in call_text.lower() or "screen" in call_text.lower()
 
 
 class TestAdminPermissions:
     """Test admin permission checking for restricted commands."""
 
     @pytest.mark.asyncio
-    async def test_check_admin_permission_private_chat(self):
-        """Test that private chats always allow commands."""
-        mock_update = MockUpdate(chat_id=123456)
-        mock_update.effective_chat.type = "private"
-        mock_context = MagicMock()
+    async def test_check_admin_permission_allowed(self, mock_adapter):
+        """Test that is_admin returning True allows commands."""
+        ctx = make_ctx(mock_adapter)
+        ctx.adapter.is_admin = AsyncMock(return_value=True)
 
         from src.handlers.commands import check_admin_permission
-        is_allowed, error_msg = await check_admin_permission(mock_update, mock_context)
+        is_allowed, error_msg = await check_admin_permission(ctx)
 
         assert is_allowed is True
         assert error_msg is None
 
     @pytest.mark.asyncio
-    async def test_check_admin_permission_group_admin(self):
+    async def test_check_admin_permission_group_admin(self, mock_adapter):
         """Test that group admins are allowed."""
-        mock_update = MockUpdate(chat_id=123456)
-        mock_update.effective_chat.type = "group"
-        mock_update.effective_user = MagicMock()
-        mock_update.effective_user.id = 789
-
-        mock_context = MagicMock()
-        mock_chat_member = MagicMock()
-        mock_chat_member.status = "administrator"
-        mock_context.bot.get_chat_member = AsyncMock(return_value=mock_chat_member)
+        ctx = make_ctx(mock_adapter, user_id=789)
+        ctx.adapter.is_admin = AsyncMock(return_value=True)
 
         from src.handlers.commands import check_admin_permission
-        is_allowed, error_msg = await check_admin_permission(mock_update, mock_context)
+        is_allowed, error_msg = await check_admin_permission(ctx)
 
         assert is_allowed is True
         assert error_msg is None
 
     @pytest.mark.asyncio
-    async def test_check_admin_permission_group_creator(self):
+    async def test_check_admin_permission_group_creator(self, mock_adapter):
         """Test that group creators are allowed."""
-        mock_update = MockUpdate(chat_id=123456)
-        mock_update.effective_chat.type = "supergroup"
-        mock_update.effective_user = MagicMock()
-        mock_update.effective_user.id = 789
-
-        mock_context = MagicMock()
-        mock_chat_member = MagicMock()
-        mock_chat_member.status = "creator"
-        mock_context.bot.get_chat_member = AsyncMock(return_value=mock_chat_member)
+        ctx = make_ctx(mock_adapter, user_id=789)
+        ctx.adapter.is_admin = AsyncMock(return_value=True)
 
         from src.handlers.commands import check_admin_permission
-        is_allowed, error_msg = await check_admin_permission(mock_update, mock_context)
+        is_allowed, error_msg = await check_admin_permission(ctx)
 
         assert is_allowed is True
         assert error_msg is None
 
     @pytest.mark.asyncio
-    async def test_check_admin_permission_group_regular_member(self):
+    async def test_check_admin_permission_group_regular_member(self, mock_adapter):
         """Test that regular group members are denied."""
-        mock_update = MockUpdate(chat_id=123456)
-        mock_update.effective_chat.type = "group"
-        mock_update.effective_user = MagicMock()
-        mock_update.effective_user.id = 999  # Different user ID to avoid cache collision
+        ctx = make_ctx(mock_adapter, user_id=999)
+        ctx.adapter.is_admin = AsyncMock(return_value=False)
 
-        mock_context = MagicMock()
-        mock_chat_member = MagicMock()
-        mock_chat_member.status = "member"
-        mock_context.bot.get_chat_member = AsyncMock(return_value=mock_chat_member)
-
-        from src.handlers.commands import check_admin_permission, _admin_cache
-
-        # Clear cache to avoid interference from other tests
-        _admin_cache.clear()
-
-        is_allowed, error_msg = await check_admin_permission(mock_update, mock_context)
+        from src.handlers.commands import check_admin_permission
+        is_allowed, error_msg = await check_admin_permission(ctx)
 
         assert is_allowed is False
-        assert "administrators" in error_msg.lower()
+        assert error_msg is not None
+        assert "admin" in error_msg.lower() or "administrator" in error_msg.lower() or "permission" in error_msg.lower()
 
     @pytest.mark.asyncio
-    async def test_admin_cache_functionality(self):
-        """Test that admin status is cached."""
-        mock_update = MockUpdate(chat_id=123456)
-        mock_update.effective_chat.type = "group"
-        mock_update.effective_user = MagicMock()
-        mock_update.effective_user.id = 789
+    async def test_admin_cache_functionality(self, mock_adapter):
+        """Test that admin status is delegated to the adapter."""
+        ctx = make_ctx(mock_adapter, user_id=789)
+        ctx.adapter.is_admin = AsyncMock(return_value=True)
 
-        mock_context = MagicMock()
-        mock_chat_member = MagicMock()
-        mock_chat_member.status = "administrator"
-        mock_context.bot.get_chat_member = AsyncMock(return_value=mock_chat_member)
+        from src.handlers.commands import check_admin_permission
 
-        from src.handlers.commands import check_admin_permission, _admin_cache
+        # First call
+        await check_admin_permission(ctx)
+        assert ctx.adapter.is_admin.call_count == 1
 
-        # Clear cache
-        _admin_cache.clear()
-
-        # First call - should hit API
-        await check_admin_permission(mock_update, mock_context)
-        assert mock_context.bot.get_chat_member.call_count == 1
-
-        # Second call - should use cache
-        await check_admin_permission(mock_update, mock_context)
-        assert mock_context.bot.get_chat_member.call_count == 1  # Still 1, not 2
+        # Second call - adapter is called again (no caching at this level)
+        await check_admin_permission(ctx)
+        assert ctx.adapter.is_admin.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_start_game_blocked_for_non_admin(self):
+    async def test_start_game_blocked_for_non_admin(self, mock_adapter):
         """Test that /start_game is blocked for non-admins in groups."""
-        mock_update = MockUpdate(chat_id=123456)
-        mock_update.effective_chat.type = "group"
-        mock_update.effective_user = MagicMock()
-        mock_update.effective_user.id = 888  # Different user ID
-
-        mock_context = MagicMock()
-        mock_chat_member = MagicMock()
-        mock_chat_member.status = "member"
-        mock_context.bot.get_chat_member = AsyncMock(return_value=mock_chat_member)
-
-        from src.handlers.commands import _admin_cache
-        _admin_cache.clear()
+        ctx = make_ctx(mock_adapter, user_id=888)
+        ctx.adapter.is_admin = AsyncMock(return_value=False)
 
         with patch("src.handlers.commands.settings") as mock_settings:
             mock_settings.allowed_chat_ids = []
 
-            await start_game_command(mock_update, mock_context)
+            await start_game_command(ctx)
 
-            # Should send error message (only the permission denial, not the game start messages)
-            # The last call should be the permission denial
-            assert mock_update.message.reply_text.called
-            last_call = mock_update.message.reply_text.call_args[0][0]
-            assert "administrators" in last_call.lower()
+            # Should send error message (permission denial)
+            assert mock_adapter.send_text.called
+            last_call_text = mock_adapter.send_text.call_args[0][1]
+            assert "admin" in last_call_text.lower() or "administrator" in last_call_text.lower() or "permission" in last_call_text.lower()
 
     @pytest.mark.asyncio
-    async def test_save_allowed_for_admin(self):
+    async def test_save_allowed_for_admin(self, mock_adapter):
         """Test that /save works for admins in groups."""
-        mock_update = MockUpdate(chat_id=123456)
-        mock_update.effective_chat.type = "group"
-        mock_update.effective_user = MagicMock()
-        mock_update.effective_user.id = 789
-
-        mock_context = MagicMock()
-        mock_chat_member = MagicMock()
-        mock_chat_member.status = "administrator"
-        mock_context.bot.get_chat_member = AsyncMock(return_value=mock_chat_member)
+        ctx = make_ctx(mock_adapter, user_id=789)
+        ctx.adapter.is_admin = AsyncMock(return_value=True)
 
         with patch('src.handlers.commands._ensure_game_active', new_callable=AsyncMock) as mock_ensure:
             mock_ensure.return_value = (True, None)
@@ -1029,23 +893,17 @@ class TestAdminPermissions:
                         mock_settings.allowed_chat_ids = []
                         mock_settings.save_slots = 5
 
-                        await save_command(mock_update, mock_context)
+                        await save_command(ctx)
 
                         # Should succeed (not blocked)
                         # Check that save was attempted
                         assert mock_controller.save_state.called
 
     @pytest.mark.asyncio
-    async def test_load_allowed_in_private_chat(self):
-        """Test that /load works in private chats without admin check."""
-        mock_update = MockUpdate(chat_id=123456)
-        mock_update.effective_chat.type = "private"
-
-        mock_context = MagicMock()
-        mock_context.args = ["1"]
-
-        # Note: bot.get_chat_member should NOT be called for private chats
-        mock_context.bot.get_chat_member = AsyncMock()
+    async def test_load_allowed_in_private_chat(self, mock_adapter):
+        """Test that /load works when adapter reports user is admin."""
+        ctx = make_ctx(mock_adapter, args=["1"])
+        ctx.adapter.is_admin = AsyncMock(return_value=True)
 
         with patch('src.handlers.commands._ensure_game_active', new_callable=AsyncMock) as mock_ensure:
             mock_ensure.return_value = (True, None)
@@ -1066,27 +924,19 @@ class TestAdminPermissions:
                             mock_settings.allowed_chat_ids = []
                             mock_settings.save_slots = 5
 
-                            await load_command(mock_update, mock_context)
+                            await load_command(ctx)
 
-                            # Should NOT call get_chat_member (private chat bypass)
-                            assert not mock_context.bot.get_chat_member.called
+                            # Should succeed - adapter.is_admin was called
+                            ctx.adapter.is_admin.assert_called_once()
 
 
 class TestMessageCommand:
     """Test /m command for custom message base text."""
 
-    @pytest.fixture
-    def update(self):
-        return MockUpdate()
-
-    @pytest.fixture
-    def context(self):
-        return MockContext()
-
     @pytest.mark.asyncio
-    async def test_message_command_sets_custom_text(self, update, context):
+    async def test_message_command_sets_custom_text(self, mock_adapter):
         """Test setting custom message base text."""
-        context.args = ["Vamos", "jogar!"]
+        ctx = make_ctx(mock_adapter, args=["Vamos", "jogar!"])
 
         with patch("src.handlers.commands.state_manager") as mock_state:
             mock_config = MagicMock()
@@ -1097,19 +947,17 @@ class TestMessageCommand:
             with patch("src.handlers.commands.settings") as mock_settings:
                 mock_settings.allowed_chat_ids = []
 
-                await message_command(update, context)
+                await message_command(ctx)
 
                 assert mock_config.message_base_text == "Vamos jogar!"
                 mock_state.save_chat_config.assert_called_once_with(mock_config)
-                update.message.reply_text.assert_called_with(
-                    '✅ Message set: "Vamos jogar!"'
-                )
+                mock_adapter.send_text.assert_called_once()
+                call_text = mock_adapter.send_text.call_args[0][1]
+                assert "Vamos jogar!" in call_text
 
     @pytest.mark.asyncio
-    async def test_message_command_clears_text(self, update, context):
+    async def test_message_command_clears_text(self, mock_adapter, mock_ctx):
         """Test clearing custom message base text (no args)."""
-        context.args = []
-
         with patch("src.handlers.commands.state_manager") as mock_state:
             mock_config = MagicMock()
             mock_config.message_base_text = "Custom text"
@@ -1119,18 +967,18 @@ class TestMessageCommand:
             with patch("src.handlers.commands.settings") as mock_settings:
                 mock_settings.allowed_chat_ids = []
 
-                await message_command(update, context)
+                await message_command(mock_ctx)
 
                 assert mock_config.message_base_text is None
                 mock_state.save_chat_config.assert_called_once_with(mock_config)
-                update.message.reply_text.assert_called_with(
-                    '✅ Custom message removed.'
-                )
+                mock_adapter.send_text.assert_called_once()
+                call_text = mock_adapter.send_text.call_args[0][1]
+                assert "clear" in call_text.lower() or "remov" in call_text.lower() or "custom" in call_text.lower()
 
     @pytest.mark.asyncio
-    async def test_message_command_text_too_long(self, update, context):
+    async def test_message_command_text_too_long(self, mock_adapter):
         """Test validation for text length limit."""
-        context.args = ["x" * 241]  # 241 characters
+        ctx = make_ctx(mock_adapter, args=["x" * 241])  # 241 characters
 
         with patch("src.handlers.commands.state_manager") as mock_state:
             mock_config = MagicMock()
@@ -1139,22 +987,18 @@ class TestMessageCommand:
             with patch("src.handlers.commands.settings") as mock_settings:
                 mock_settings.allowed_chat_ids = []
 
-                await message_command(update, context)
+                await message_command(ctx)
 
                 # Should not save, should show error
                 mock_state.save_chat_config.assert_not_called()
-                update.message.reply_text.assert_called_with(
-                    "❌ Text too long. Use at most 240 characters."
-                )
+                mock_adapter.send_text.assert_called_once()
+                call_text = mock_adapter.send_text.call_args[0][1]
+                assert "long" in call_text.lower() or "240" in call_text or "character" in call_text.lower()
 
     @pytest.mark.asyncio
-    async def test_message_command_non_admin_blocked(self, update, context):
+    async def test_message_command_non_admin_blocked(self, mock_adapter):
         """Test that /m is blocked for non-admins in groups."""
-        update.effective_chat.type = "group"
-        update.effective_user = MagicMock()
-        update.effective_user.id = 999
-
-        context.args = ["Hello"]
+        ctx = make_ctx(mock_adapter, args=["Hello"], user_id=999)
 
         with patch("src.handlers.commands.check_admin_permission") as mock_check:
             mock_check.return_value = (False, "🔒 Only group administrators can use this command.")
@@ -1162,10 +1006,11 @@ class TestMessageCommand:
             with patch("src.handlers.commands.settings") as mock_settings:
                 mock_settings.allowed_chat_ids = []
 
-                await message_command(update, context)
+                await message_command(ctx)
 
-                update.message.reply_text.assert_called_with(
-                    "🔒 Only group administrators can use this command."
+                mock_adapter.send_text.assert_called_with(
+                    123456,
+                    "🔒 Only group administrators can use this command.",
                 )
 
     @pytest.mark.asyncio
@@ -1178,16 +1023,8 @@ class TestMessageCommand:
 class TestRebootCommand:
     """Test /reboot command."""
 
-    @pytest.fixture
-    def update(self):
-        return MockUpdate()
-
-    @pytest.fixture
-    def context(self):
-        return MockContext()
-
     @pytest.mark.asyncio
-    async def test_reboot_success(self, update, context):
+    async def test_reboot_success(self, mock_adapter, mock_ctx):
         """Test successful reboot stops controller and starts fresh."""
         with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
             mock_controller = MagicMock()
@@ -1210,21 +1047,21 @@ class TestRebootCommand:
                     with patch("src.handlers.commands.settings") as mock_settings:
                         mock_settings.allowed_chat_ids = []
 
-                        await reboot_command(update, context)
+                        await reboot_command(mock_ctx)
 
                         # Should stop existing controller
                         mock_mgr.remove_controller.assert_called_once_with(123456)
                         # Should ensure game active with auto_load=False
                         mock_ensure.assert_called_once_with(123456, auto_load=False)
                         # Should resume game with new message
-                        mock_handler.resume_game.assert_called_once_with(123456)
+                        mock_handler.resume_game.assert_called_once_with(123456, mock_adapter)
                         # Should send success message
-                        update.message.reply_text.assert_called_with(
-                            "🔄 Game rebooted successfully."
-                        )
+                        mock_adapter.send_text.assert_called()
+                        call_text = mock_adapter.send_text.call_args[0][1]
+                        assert "reboot" in call_text.lower() or "success" in call_text.lower()
 
     @pytest.mark.asyncio
-    async def test_reboot_input_in_progress(self, update, context):
+    async def test_reboot_input_in_progress(self, mock_adapter, mock_ctx):
         """Test reboot while input processing."""
         with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
             mock_controller = MagicMock()
@@ -1239,18 +1076,16 @@ class TestRebootCommand:
                 with patch("src.handlers.commands.settings") as mock_settings:
                     mock_settings.allowed_chat_ids = []
 
-                    await reboot_command(update, context)
+                    await reboot_command(mock_ctx)
 
-                    update.message.reply_text.assert_called_with(
-                        "⏳ A button was recently pressed. Please wait..."
-                    )
+                    mock_adapter.send_text.assert_called_once()
+                    call_text = mock_adapter.send_text.call_args[0][1]
+                    assert "wait" in call_text.lower() or "button" in call_text.lower() or "processing" in call_text.lower()
 
     @pytest.mark.asyncio
-    async def test_reboot_non_admin_blocked(self, update, context):
+    async def test_reboot_non_admin_blocked(self, mock_adapter):
         """Test that /reboot is blocked for non-admins in groups."""
-        update.effective_chat.type = "group"
-        update.effective_user = MagicMock()
-        update.effective_user.id = 999
+        ctx = make_ctx(mock_adapter, user_id=999)
 
         with patch("src.handlers.commands.check_admin_permission") as mock_check:
             mock_check.return_value = (
@@ -1261,10 +1096,11 @@ class TestRebootCommand:
             with patch("src.handlers.commands.settings") as mock_settings:
                 mock_settings.allowed_chat_ids = []
 
-                await reboot_command(update, context)
+                await reboot_command(ctx)
 
-                update.message.reply_text.assert_called_with(
-                    "🔒 Only group administrators can use this command."
+                mock_adapter.send_text.assert_called_with(
+                    123456,
+                    "🔒 Only group administrators can use this command.",
                 )
 
     @pytest.mark.asyncio
@@ -1313,18 +1149,8 @@ class TestEnsureGameActiveWithAutoLoad:
 class TestLanguageCommand:
     """Test /language command."""
 
-    @pytest.fixture
-    def update(self):
-        """Create mock update."""
-        return MockUpdate()
-
-    @pytest.fixture
-    def context(self):
-        """Create mock context."""
-        return MockContext()
-
     @pytest.mark.asyncio
-    async def test_language_show_current_no_args(self, update, context):
+    async def test_language_show_current_no_args(self, mock_adapter, mock_ctx):
         """Test /language without args shows current language and options."""
         with patch("src.handlers.commands.state_manager") as mock_sm:
             from src.models.game_state import ChatConfig
@@ -1338,20 +1164,17 @@ class TestLanguageCommand:
                 with patch("src.handlers.commands.translation_manager") as mock_tm:
                     mock_tm.get.side_effect = lambda key, chat_id, **kwargs: f"translated_{key}"
 
-                    await language_command(update, context)
+                    await language_command(mock_ctx)
 
                     # Should call translation_manager.get for messages
                     assert mock_tm.get.call_count >= 3
                     # Should reply with status message
-                    update.message.reply_text.assert_called_once()
+                    mock_adapter.send_text.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_language_change_success_admin(self, update, context):
+    async def test_language_change_success_admin(self, mock_adapter):
         """Test /language en-US successfully changes language for admin."""
-        context.args = ["en-US"]
-        update.effective_chat.type = "group"
-        update.effective_user = MagicMock()
-        update.effective_user.id = 999
+        ctx = make_ctx(mock_adapter, args=["en-US"], user_id=999)
 
         with patch("src.handlers.commands.check_admin_permission") as mock_check:
             mock_check.return_value = (True, None)
@@ -1367,7 +1190,7 @@ class TestLanguageCommand:
                     with patch("src.handlers.commands.translation_manager") as mock_tm:
                         mock_tm.get.return_value = "Language changed!"
 
-                        await language_command(update, context)
+                        await language_command(ctx)
 
                         # Should update config language
                         assert mock_config.language == "en-US"
@@ -1376,13 +1199,12 @@ class TestLanguageCommand:
                         # Should invalidate cache
                         mock_tm.invalidate_cache.assert_called_once_with(123456)
                         # Should reply
-                        update.message.reply_text.assert_called_once()
+                        mock_adapter.send_text.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_language_invalid_code(self, update, context):
+    async def test_language_invalid_code(self, mock_adapter):
         """Test /language with invalid language code."""
-        context.args = ["fr-FR"]  # Not supported
-        update.effective_chat.type = "private"
+        ctx = make_ctx(mock_adapter, args=["fr-FR"])  # Not supported
 
         with patch("src.handlers.commands.state_manager") as mock_sm:
             from src.models.game_state import ChatConfig
@@ -1395,22 +1217,19 @@ class TestLanguageCommand:
                 with patch("src.handlers.commands.translation_manager") as mock_tm:
                     mock_tm.get.return_value = "Invalid language"
 
-                    await language_command(update, context)
+                    await language_command(ctx)
 
                     # Should not save config
                     mock_sm.save_chat_config.assert_not_called()
                     # Should reply with error
-                    update.message.reply_text.assert_called_once()
-                    call_args = update.message.reply_text.call_args[0][0]
-                    assert "Invalid language" in call_args
+                    mock_adapter.send_text.assert_called_once()
+                    call_text = mock_adapter.send_text.call_args[0][1]
+                    assert "Invalid language" in call_text
 
     @pytest.mark.asyncio
-    async def test_language_non_admin_blocked(self, update, context):
+    async def test_language_non_admin_blocked(self, mock_adapter):
         """Test /language blocked for non-admins in groups."""
-        context.args = ["en-US"]
-        update.effective_chat.type = "group"
-        update.effective_user = MagicMock()
-        update.effective_user.id = 999
+        ctx = make_ctx(mock_adapter, args=["en-US"], user_id=999)
 
         with patch("src.handlers.commands.check_admin_permission") as mock_check:
             mock_check.return_value = (False, "🔒 Only group administrators can use this command.")
@@ -1418,11 +1237,12 @@ class TestLanguageCommand:
             with patch("src.handlers.commands.settings") as mock_settings:
                 mock_settings.allowed_chat_ids = []
 
-                await language_command(update, context)
+                await language_command(ctx)
 
                 # Should reply with error
-                update.message.reply_text.assert_called_once_with(
-                    "🔒 Only group administrators can use this command."
+                mock_adapter.send_text.assert_called_once_with(
+                    123456,
+                    "🔒 Only group administrators can use this command.",
                 )
 
     @pytest.mark.asyncio

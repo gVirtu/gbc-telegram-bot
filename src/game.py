@@ -19,6 +19,8 @@ from src.models.game_state import GameButton, ModifierButtonSpec
 from src.utils.state_manager import state_manager
 from src.utils.frame_utils import frame_to_png
 
+import traceback
+
 logger = logging.getLogger(__name__)
 
 _UNSET = object()
@@ -104,6 +106,13 @@ class GameController:
             rtc_file = None
             if (save_dir / "game.rtc").exists():
                 rtc_file = open(save_dir / "game.rtc", "r+b")
+                
+            print({
+                "rom_path": self.rom_path,
+                "sym_path": self.sym_path,
+                "ram_file": ram_file,
+                "rtc_file": rtc_file
+            })
             
             # Initialize PyBoy with no window (headless)
             self.pyboy = PyBoy(
@@ -127,6 +136,7 @@ class GameController:
             
         except Exception as e:
             logger.error(f"Failed to initialize PyBoy for chat {self.chat_id}: {e}")
+            traceback.print_exc()
             self.pyboy = None
             raise RuntimeError(f"Failed to initialize emulator: {e}") from e
     

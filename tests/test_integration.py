@@ -229,12 +229,12 @@ class TestStatePersistenceIntegration:
         with patch("src.utils.state_manager.state_manager") as mock_state_mgr:
             mock_state_mgr.load_game_state = MagicMock(return_value=None)
             mock_state_mgr.save_game_state = MagicMock()
-            
+
             from src.handlers.input_handler import InputHandler
             from src.models.game_state import ChatGameState, GameSession
-            
+
             # Create handler and session
-            handler = InputHandler(MagicMock())
+            handler = InputHandler()
             session = GameSession(
                 chat_id=123456,
                 state=ChatGameState(chat_id=123456, message_id=100)
@@ -275,19 +275,19 @@ class TestErrorHandlingIntegration:
     
     @pytest.mark.asyncio
     async def test_telegram_api_error_handling(self):
-        """Test graceful handling of Telegram API errors."""
-        from telegram.error import TelegramError
+        """Test graceful handling of API errors."""
         from src.handlers.input_handler import InputHandler
-        
-        handler = InputHandler(MagicMock())
-        
-        # Mock bot that raises error
-        handler.bot.edit_message_media = AsyncMock(
-            side_effect=TelegramError("Message not found")
+
+        handler = InputHandler()
+
+        # Mock adapter that raises error
+        mock_adapter = MagicMock()
+        mock_adapter.edit_game_message = AsyncMock(
+            side_effect=Exception("Message not found")
         )
-        
+
         # Should not raise
-        await handler._edit_message_media(123456, 789, BytesIO(b"png"), "caption")
+        await handler._edit_message_media(123456, 789, BytesIO(b"png"), "caption", mock_adapter)
 
 
 class TestConfigurationIntegration:
@@ -326,8 +326,8 @@ class TestConcurrentAccess:
     async def test_input_locking(self):
         """Test that input is locked during processing."""
         from src.handlers.input_handler import InputHandler
-        
-        handler = InputHandler(MagicMock())
+
+        handler = InputHandler()
         
         # Mark as processing
         handler._processing.add(123456)

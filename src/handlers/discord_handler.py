@@ -228,6 +228,7 @@ def create_discord_bot() -> Any:
                     )
                     return
 
+            await interaction.response.defer()
             await handler.handle_button_press(
                 callback_data=custom_id,
                 chat_id=channel_id,

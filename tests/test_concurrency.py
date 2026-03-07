@@ -87,8 +87,8 @@ class TestInputLocking:
 
             # Both inputs should be acknowledged via adapter
             assert mock_adapter.answer_interaction.call_count >= 2, "Both inputs should be acknowledged"
-            # Queue should be created with items from both users
-            assert chat_id in handler._input_queues, "Queue should be created"
+            # Buffer should be created with items from both users
+            assert chat_id in handler._pending_buffers, "Buffer should be created"
 
     @pytest.mark.asyncio
     async def test_processing_cleared_after_completion(self, handler, session, chat_id, mock_adapter):
@@ -115,8 +115,8 @@ class TestInputLocking:
                 user_name="User1", adapter=mock_adapter, raw=cq1
             )
 
-            # Queue should be created
-            assert chat_id in handler._input_queues, "Queue should be created"
+            # Buffer should be created
+            assert chat_id in handler._pending_buffers, "Buffer should be created"
             # Input should be acknowledged via adapter
             mock_adapter.answer_interaction.assert_called_once()
 
@@ -145,8 +145,8 @@ class TestInputLocking:
                 user_name="User1", adapter=mock_adapter, raw=cq
             )
 
-            # Queue should be created with one item
-            assert chat_id in handler._input_queues, "Queue should be created"
+            # Buffer should be created with one item
+            assert chat_id in handler._pending_buffers, "Buffer should be created"
             # Input should be acknowledged via adapter
             assert mock_adapter.answer_interaction.called, "Input should be acknowledged"
 
@@ -201,9 +201,9 @@ class TestInputLocking:
 
             await asyncio.gather(task1, task2)
 
-            # Both should have their own queues created
-            assert chat_id1 in handler._input_queues, "Chat 1 should have a queue"
-            assert chat_id2 in handler._input_queues, "Chat 2 should have a queue"
+            # Both should have their own buffers created
+            assert chat_id1 in handler._pending_buffers, "Chat 1 should have a buffer"
+            assert chat_id2 in handler._pending_buffers, "Chat 2 should have a buffer"
             # Both inputs should be acknowledged via adapter
             assert mock_adapter.answer_interaction.call_count >= 2, "Both inputs should be acknowledged"
 

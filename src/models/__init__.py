@@ -6,7 +6,7 @@ from src.models.game_state import (
     GameSession,
     SaveSlotInfo,
 )
-from src.models.input_queue import InputQueue, QueueItem
+from src.models.input_queue import BufferedInput, PendingBuffer
 
 __all__ = [
     "BUTTON_LAYOUT",
@@ -15,6 +15,6 @@ __all__ = [
     "GameButton",
     "GameSession",
     "SaveSlotInfo",
-    "InputQueue",
-    "QueueItem",
+    "BufferedInput",
+    "PendingBuffer",
 ]

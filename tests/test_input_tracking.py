@@ -11,6 +11,7 @@ from datetime import datetime
 from unittest.mock import Mock, AsyncMock, MagicMock, patch
 
 from src.models.game_state import ChatGameState, GameButton, GameSession
+from src.models.input_queue import BufferedInput
 from src.keyboard import create_game_message_text
 from src.handlers.input_handler import InputHandler
 
@@ -125,99 +126,90 @@ class TestInputRecording:
         handler = InputHandler()
 
         state = ChatGameState(chat_id=123)
-        session = GameSession(chat_id=123, state=state)
 
-        handler._record_user_input(session, 456, "Alice", [GameButton.A])
+        handler._aggregate_to_recent_inputs(state, [BufferedInput(456, "Alice", GameButton.A)])
 
-        assert session.state.user_input_counts["456"] == 1
+        assert state.user_input_counts["456"] == 1
 
-        handler._record_user_input(session, 456, "Alice", [GameButton.B])
+        handler._aggregate_to_recent_inputs(state, [BufferedInput(456, "Alice", GameButton.B)])
 
-        assert session.state.user_input_counts["456"] == 2
+        assert state.user_input_counts["456"] == 2
 
     def test_record_user_input_multiple_users(self):
         """Test recording inputs from multiple users."""
         handler = InputHandler()
 
         state = ChatGameState(chat_id=123)
-        session = GameSession(chat_id=123, state=state)
 
-        handler._record_user_input(session, 456, "Alice", [GameButton.A])
-        handler._record_user_input(session, 789, "Bob", [GameButton.B])
-        handler._record_user_input(session, 456, "Alice", [GameButton.UP])
+        handler._aggregate_to_recent_inputs(state, [BufferedInput(456, "Alice", GameButton.A)])
+        handler._aggregate_to_recent_inputs(state, [BufferedInput(789, "Bob", GameButton.B)])
+        handler._aggregate_to_recent_inputs(state, [BufferedInput(456, "Alice", GameButton.UP)])
 
-        assert session.state.user_input_counts["456"] == 2
-        assert session.state.user_input_counts["789"] == 1
+        assert state.user_input_counts["456"] == 2
+        assert state.user_input_counts["789"] == 1
 
     def test_record_user_input_adds_to_recent(self):
         """Test that recording input adds to recent_inputs."""
         handler = InputHandler()
 
         state = ChatGameState(chat_id=123)
-        session = GameSession(chat_id=123, state=state)
 
-        handler._record_user_input(session, 456, "Alice", [GameButton.A])
+        handler._aggregate_to_recent_inputs(state, [BufferedInput(456, "Alice", GameButton.A)])
 
-        assert len(session.state.recent_inputs) == 1
-        assert session.state.recent_inputs[0]["user_id"] == 456
-        assert session.state.recent_inputs[0]["user_name"] == "Alice"
-        assert session.state.recent_inputs[0]["buttons"] == ["a"]
-        assert "timestamp" in session.state.recent_inputs[0]
+        assert len(state.recent_inputs) == 1
+        assert state.recent_inputs[0]["user_id"] == 456
+        assert state.recent_inputs[0]["user_name"] == "Alice"
+        assert state.recent_inputs[0]["buttons"] == ["a"]
+        assert "timestamp" in state.recent_inputs[0]
 
     def test_record_user_input_fifo_behavior(self):
         """Test that recent_inputs maintains FIFO with max 3 entries."""
         handler = InputHandler()
 
         state = ChatGameState(chat_id=123)
-        session = GameSession(chat_id=123, state=state)
 
         # Add 5 inputs
-        handler._record_user_input(session, 1, "User1", [GameButton.A])
-        handler._record_user_input(session, 2, "User2", [GameButton.B])
-        handler._record_user_input(session, 3, "User3", [GameButton.UP])
-        handler._record_user_input(session, 4, "User4", [GameButton.DOWN])
-        handler._record_user_input(session, 5, "User5", [GameButton.START])
+        handler._aggregate_to_recent_inputs(state, [BufferedInput(1, "User1", GameButton.A)])
+        handler._aggregate_to_recent_inputs(state, [BufferedInput(2, "User2", GameButton.B)])
+        handler._aggregate_to_recent_inputs(state, [BufferedInput(3, "User3", GameButton.UP)])
+        handler._aggregate_to_recent_inputs(state, [BufferedInput(4, "User4", GameButton.DOWN)])
+        handler._aggregate_to_recent_inputs(state, [BufferedInput(5, "User5", GameButton.START)])
 
         # Should only keep last 3
-        assert len(session.state.recent_inputs) == 3
-        assert session.state.recent_inputs[0]["user_id"] == 3
-        assert session.state.recent_inputs[1]["user_id"] == 4
-        assert session.state.recent_inputs[2]["user_id"] == 5
+        assert len(state.recent_inputs) == 3
+        assert state.recent_inputs[0]["user_id"] == 3
+        assert state.recent_inputs[1]["user_id"] == 4
+        assert state.recent_inputs[2]["user_id"] == 5
 
     def test_user_name_extraction_first_name(self):
         """Test that first_name is used when available."""
         handler = InputHandler()
 
         state = ChatGameState(chat_id=123)
-        session = GameSession(chat_id=123, state=state)
 
-        handler._record_user_input(session, 456, "Alice", [GameButton.A])
+        handler._aggregate_to_recent_inputs(state, [BufferedInput(456, "Alice", GameButton.A)])
 
-        assert session.state.recent_inputs[0]["user_name"] == "Alice"
+        assert state.recent_inputs[0]["user_name"] == "Alice"
 
     def test_user_name_extraction_username_fallback(self):
         """Test that @username is used when first_name is not available."""
-        # This is tested implicitly by the calling code, but we can test
-        # that the record method accepts any string
         handler = InputHandler()
 
         state = ChatGameState(chat_id=123)
-        session = GameSession(chat_id=123, state=state)
 
-        handler._record_user_input(session, 456, "@alice_user", [GameButton.A])
+        handler._aggregate_to_recent_inputs(state, [BufferedInput(456, "@alice_user", GameButton.A)])
 
-        assert session.state.recent_inputs[0]["user_name"] == "@alice_user"
+        assert state.recent_inputs[0]["user_name"] == "@alice_user"
 
     def test_user_name_extraction_user_fallback(self):
         """Test that 'User' fallback works."""
         handler = InputHandler()
 
         state = ChatGameState(chat_id=123)
-        session = GameSession(chat_id=123, state=state)
 
-        handler._record_user_input(session, 456, "User", [GameButton.A])
+        handler._aggregate_to_recent_inputs(state, [BufferedInput(456, "User", GameButton.A)])
 
-        assert session.state.recent_inputs[0]["user_name"] == "User"
+        assert state.recent_inputs[0]["user_name"] == "User"
 
 
 class TestMessageDisplay:
@@ -377,6 +369,10 @@ class TestIntegration:
                 # Set animation duration to 0 to avoid infinite loop
                 mock_settings.animation_duration = 0
                 mock_settings.max_queue_size = 10
+                mock_settings.maximum_inputs_per_animation = 8
+                mock_settings.max_sequence_length = 6
+                mock_settings.input_buffer_seconds = 1.5
+                mock_settings.min_update_interval_seconds = 5.0
 
                 # Mock _process_queue_loop to run immediately (queue processing is async now)
                 with patch.object(handler, '_process_queue_loop', new_callable=AsyncMock) as mock_process:
@@ -391,9 +387,9 @@ class TestIntegration:
                         raw=callback_query,
                     )
 
-                    # Verify queue has the input
-                    assert len(handler._input_queues[123]) == 1
-                    assert handler._input_queues[123].items[0].user_id == 456
+                    # Verify buffer has the input
+                    assert handler._pending_buffers[123].total_buttons() == 1
+                    assert handler._pending_buffers[123].items[0].user_id == 456
 
     @pytest.mark.asyncio
     async def test_multiple_users_sequence(self):
@@ -411,8 +407,8 @@ class TestIntegration:
             (101, "Charlie", [GameButton.UP]),
         ]
 
-        for user_id, user_name, button in users:
-            handler._record_user_input(session, user_id, user_name, button)
+        for user_id, user_name, buttons in users:
+            handler._aggregate_to_recent_inputs(session.state, [BufferedInput(user_id, user_name, b) for b in buttons])
 
         # Verify counts
         assert session.state.user_input_counts["456"] == 1
@@ -439,37 +435,34 @@ class TestEdgeCases:
         handler = InputHandler()
 
         state = ChatGameState(chat_id=123)
-        session = GameSession(chat_id=123, state=state)
 
-        handler._record_user_input(session, 456, "", [GameButton.A])
+        handler._aggregate_to_recent_inputs(state, [BufferedInput(456, "", GameButton.A)])
 
         # Should still record the input
-        assert len(session.state.recent_inputs) == 1
-        assert session.state.recent_inputs[0]["user_name"] == ""
+        assert len(state.recent_inputs) == 1
+        assert state.recent_inputs[0]["user_name"] == ""
 
     def test_very_long_user_name(self):
         """Test handling of very long user names."""
         handler = InputHandler()
 
         state = ChatGameState(chat_id=123)
-        session = GameSession(chat_id=123, state=state)
 
         long_name = "A" * 100
-        handler._record_user_input(session, 456, long_name, [GameButton.A])
+        handler._aggregate_to_recent_inputs(state, [BufferedInput(456, long_name, GameButton.A)])
 
-        assert session.state.recent_inputs[0]["user_name"] == long_name
+        assert state.recent_inputs[0]["user_name"] == long_name
 
     def test_special_characters_in_name(self):
         """Test handling of special characters in user names."""
         handler = InputHandler()
 
         state = ChatGameState(chat_id=123)
-        session = GameSession(chat_id=123, state=state)
 
         special_name = "Alice 😀 *Test* _User_"
-        handler._record_user_input(session, 456, special_name, [GameButton.A])
+        handler._aggregate_to_recent_inputs(state, [BufferedInput(456, special_name, GameButton.A)])
 
-        assert session.state.recent_inputs[0]["user_name"] == special_name
+        assert state.recent_inputs[0]["user_name"] == special_name
 
     def test_message_length_with_max_inputs(self):
         """Test that message with max inputs doesn't exceed reasonable length."""

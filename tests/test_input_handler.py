@@ -1,6 +1,6 @@
 """Tests for input handler.
 
-This module tests the first-vote-wins logic, state transitions,
+This module tests the buffered input queue system, state transitions,
 and input processing flow.
 """
 
@@ -24,6 +24,7 @@ from src.handlers.input_handler import (
     get_input_handler,
 )
 from src.models.game_state import ChatGameState, GameButton, GameSession
+from src.models.input_queue import BufferedInput, PendingBuffer
 
 
 class TestInputHandlerInitialization:
@@ -35,11 +36,12 @@ class TestInputHandlerInitialization:
 
         assert handler._sessions == {}
         assert handler._processing == set()
+        assert handler._pending_buffers == {}
+        assert handler._buffer_tasks == {}
+        assert handler._drain_events == {}
 
     def test_processing_set_isolated(self):
         """Test that processing set is isolated per handler instance."""
-        from src.handlers.input_handler import InputHandler
-
         handler1 = InputHandler()
         handler2 = InputHandler()
 
@@ -50,16 +52,14 @@ class TestInputHandlerInitialization:
 
 
 class TestButtonPressHandling:
-    """Test button press handling with first-vote-wins logic."""
+    """Test button press handling with buffered queue."""
 
     @pytest.fixture
     def handler(self):
-        """Create handler."""
         return InputHandler()
 
     @pytest.fixture
     def mock_callback_query(self):
-        """Create a mock callback query."""
         cq = MagicMock()
         cq.message.chat.id = 123456
         cq.message.message_id = 789
@@ -73,8 +73,6 @@ class TestButtonPressHandling:
     @pytest.mark.asyncio
     async def test_invalid_callback(self, handler, mock_callback_query, mock_adapter):
         """Test button press with invalid callback data."""
-        mock_callback_query.data = "invalid"
-
         await handler.handle_button_press(
             callback_data="invalid",
             chat_id=mock_callback_query.message.chat.id,
@@ -89,13 +87,10 @@ class TestButtonPressHandling:
 
     @pytest.mark.asyncio
     async def test_input_already_in_progress(self, handler, mock_callback_query, mock_adapter):
-        """Test button press while input already processing adds to queue."""
+        """Test button press while processing adds to buffer and answers with queue message."""
         with patch("src.handlers.input_handler.state_manager") as mock_state:
             mock_state.save_game_state.return_value = None
-            # Add to processing set
             handler._processing.add(123456)
-
-            # Create a session
             handler._sessions[123456] = GameSession(
                 chat_id=123456,
                 state=ChatGameState(chat_id=123456, message_id=789)
@@ -111,7 +106,6 @@ class TestButtonPressHandling:
                 raw=mock_callback_query,
             )
 
-            # Queue-based system should add to queue via adapter.answer_interaction
             mock_adapter.answer_interaction.assert_called_once()
             call_args = mock_adapter.answer_interaction.call_args[0][1]
             assert "Added to queue" in call_args or "Added to your sequence" in call_args
@@ -119,8 +113,7 @@ class TestButtonPressHandling:
     @pytest.mark.asyncio
     async def test_outdated_message(self, handler, mock_callback_query, mock_adapter):
         """Test button press on outdated message is rejected."""
-        with patch("src.handlers.input_handler.state_manager") as mock_state:
-            # Create session with different message ID
+        with patch("src.handlers.input_handler.state_manager"):
             handler._sessions[123456] = GameSession(
                 chat_id=123456,
                 state=ChatGameState(chat_id=123456, message_id=999)
@@ -136,18 +129,16 @@ class TestButtonPressHandling:
                 raw=mock_callback_query,
             )
 
-            # Should reject with outdated message via adapter
             mock_adapter.answer_interaction.assert_called_once()
             call_args = mock_adapter.answer_interaction.call_args[0][1]
             assert "outdated" in call_args
 
     @pytest.mark.asyncio
     async def test_successful_button_press(self, handler, mock_callback_query, mock_adapter):
-        """Test successful button press creates queue task."""
+        """Test successful button press starts buffer timer and processing loop."""
         with patch("src.handlers.input_handler.state_manager") as mock_state:
             mock_state.save_game_state.return_value = None
             with patch("src.handlers.input_handler.asyncio.create_task") as mock_create_task:
-                # Create session
                 handler._sessions[123456] = GameSession(
                     chat_id=123456,
                     state=ChatGameState(chat_id=123456, message_id=789)
@@ -163,15 +154,54 @@ class TestButtonPressHandling:
                     raw=mock_callback_query,
                 )
 
-                # Should acknowledge via adapter.answer_interaction
                 mock_adapter.answer_interaction.assert_called_once()
+                # create_task called: once for timer, once for process loop
+                assert mock_create_task.call_count >= 1
 
-                # Should create a task for queue processing
-                mock_create_task.assert_called_once()
+                # Buffer was populated
+                assert 123456 in handler._pending_buffers
+                assert not handler._pending_buffers[123456].is_empty()
 
-                # Verify queue was populated
-                assert 123456 in handler._input_queues
-                assert not handler._input_queues[123456].is_empty()
+    @pytest.mark.asyncio
+    async def test_max_sequence_triggers_drain_immediately(self, handler, mock_adapter):
+        """Test that reaching max_sequence_length fires drain event immediately."""
+        with patch("src.handlers.input_handler.state_manager") as mock_state:
+            mock_state.save_game_state.return_value = None
+            with patch("src.handlers.input_handler.asyncio.create_task"):
+                with patch("src.handlers.input_handler.settings") as mock_settings:
+                    mock_settings.max_sequence_length = 2
+                    mock_settings.maximum_inputs_per_animation = 8
+                    mock_settings.input_buffer_seconds = 1.5
+                    mock_settings.max_queue_size = 50
+                    mock_settings.input_hold_frames = 10
+                    mock_settings.animation_duration = 1
+                    mock_settings.sequence_delay_seconds = 0.1
+                    mock_settings.tbc_overlay_path = MagicMock()
+                    mock_settings.tbc_duration_frames = 0
+                    mock_settings.timelapse_frame_skip = 1
+
+                    handler._sessions[123456] = GameSession(
+                        chat_id=123456,
+                        state=ChatGameState(chat_id=123456, message_id=789)
+                    )
+                    handler._pending_buffers[123456] = PendingBuffer(max_size=50)
+                    # Pre-fill to max_sequence_length - 1
+                    handler._pending_buffers[123456].add(1, "Alice", GameButton.A)
+
+                    # This press should trigger drain immediately
+                    await handler.handle_button_press(
+                        callback_data="b",
+                        chat_id=123456,
+                        message_id=789,
+                        user_id=1,
+                        user_name="Alice",
+                        adapter=mock_adapter,
+                        raw=MagicMock(),
+                    )
+
+                    drain_event = handler._drain_events.get(123456)
+                    assert drain_event is not None
+                    assert drain_event.is_set()
 
 
 class TestStartGame:
@@ -179,14 +209,13 @@ class TestStartGame:
 
     @pytest.fixture
     def handler(self):
-        """Create handler."""
         return InputHandler()
 
     @pytest.mark.asyncio
     async def test_start_game_creates_session(self, handler, mock_adapter):
         """Test starting game creates session."""
         with patch("src.handlers.input_handler.game_controller_manager") as mock_mgr:
-            with patch("src.handlers.input_handler.state_manager") as mock_state:
+            with patch("src.handlers.input_handler.state_manager"):
                 mock_controller = MagicMock()
                 mock_controller.is_initialized.return_value = True
                 mock_controller.get_frame.return_value = MagicMock()
@@ -203,7 +232,7 @@ class TestStartGame:
     async def test_start_game_sends_photo(self, handler, mock_adapter):
         """Test starting game sends a game message via the adapter."""
         with patch("src.handlers.input_handler.game_controller_manager") as mock_mgr:
-            with patch("src.handlers.input_handler.state_manager") as mock_state:
+            with patch("src.handlers.input_handler.state_manager"):
                 mock_controller = MagicMock()
                 mock_controller.is_initialized.return_value = True
                 mock_controller.get_frame.return_value = MagicMock()
@@ -220,13 +249,12 @@ class TestShowCurrentFrame:
 
     @pytest.fixture
     def handler(self):
-        """Create handler."""
         return InputHandler()
 
     @pytest.mark.asyncio
     async def test_show_frame_no_game(self, handler, mock_adapter):
         """Test showing frame with no active game."""
-        with patch("src.handlers.input_handler.state_manager") as mock_state:
+        with patch("src.handlers.input_handler.state_manager"):
             with patch("src.handlers.input_handler.game_controller_manager") as mock_mgr:
                 mock_mgr.get_controller.return_value = None
 
@@ -237,7 +265,6 @@ class TestShowCurrentFrame:
     @pytest.mark.asyncio
     async def test_show_frame_edits_existing(self, handler, mock_adapter):
         """Test showing frame edits existing message via the adapter."""
-        # Create session with existing message
         handler._sessions[123456] = GameSession(
             chat_id=123456,
             state=ChatGameState(chat_id=123456, message_id=100)
@@ -261,18 +288,16 @@ class TestInputProcessing:
 
     @pytest.fixture
     def handler(self):
-        """Create handler."""
         return InputHandler()
-    
+
     @pytest.fixture
     def mock_controller(self):
-        """Create mock game controller."""
         controller = MagicMock()
         controller.send_input.return_value = MagicMock()
         controller.get_frame_as_png.return_value = BytesIO(b"png")
         controller.begin_hooks.return_value = {}
         return controller
-    
+
     @pytest.mark.asyncio
     async def test_process_sequence_executes_button(self, handler, mock_adapter, mock_controller):
         """Test input processing executes button press."""
@@ -290,10 +315,78 @@ class TestInputProcessing:
 
                         await handler._process_sequence(123456, [GameButton.B], 789, mock_adapter)
 
-                        # Check that send_input was called with correct button
                         mock_controller.send_input.assert_called_once()
                         call_args = mock_controller.send_input.call_args
-                        assert call_args[0][0] == GameButton.B  # First positional arg should be the button
+                        assert call_args[0][0] == GameButton.B
+
+
+class TestAggregateToRecentInputs:
+    """Test _aggregate_to_recent_inputs."""
+
+    @pytest.fixture
+    def handler(self):
+        return InputHandler()
+
+    def test_single_user_single_button(self, handler):
+        state = ChatGameState(chat_id=1)
+        batch = [BufferedInput(user_id=1, user_name="Alice", button=GameButton.A)]
+        handler._aggregate_to_recent_inputs(state, batch)
+        assert len(state.recent_inputs) == 1
+        assert state.recent_inputs[0]["user_id"] == 1
+        assert state.recent_inputs[0]["buttons"] == ["a"]
+
+    def test_consecutive_same_user_collapsed(self, handler):
+        state = ChatGameState(chat_id=1)
+        batch = [
+            BufferedInput(user_id=1, user_name="Alice", button=GameButton.UP),
+            BufferedInput(user_id=1, user_name="Alice", button=GameButton.DOWN),
+        ]
+        handler._aggregate_to_recent_inputs(state, batch)
+        assert len(state.recent_inputs) == 1
+        assert state.recent_inputs[0]["buttons"] == ["up", "down"]
+
+    def test_different_users_separate_entries(self, handler):
+        state = ChatGameState(chat_id=1)
+        batch = [
+            BufferedInput(user_id=1, user_name="Alice", button=GameButton.A),
+            BufferedInput(user_id=2, user_name="Bob", button=GameButton.B),
+        ]
+        handler._aggregate_to_recent_inputs(state, batch)
+        assert len(state.recent_inputs) == 2
+        assert state.recent_inputs[0]["user_id"] == 1
+        assert state.recent_inputs[1]["user_id"] == 2
+
+    def test_alternating_users(self, handler):
+        state = ChatGameState(chat_id=1)
+        batch = [
+            BufferedInput(user_id=1, user_name="Alice", button=GameButton.A),
+            BufferedInput(user_id=2, user_name="Bob", button=GameButton.B),
+            BufferedInput(user_id=1, user_name="Alice", button=GameButton.UP),
+        ]
+        handler._aggregate_to_recent_inputs(state, batch)
+        assert len(state.recent_inputs) == 3
+
+    def test_capped_at_three_entries(self, handler):
+        state = ChatGameState(chat_id=1)
+        # 4 different users → should keep only last 3
+        for i in range(4):
+            batch = [BufferedInput(user_id=i, user_name=f"User{i}", button=GameButton.A)]
+            handler._aggregate_to_recent_inputs(state, batch)
+        assert len(state.recent_inputs) == 3
+
+    def test_user_input_counts_updated(self, handler):
+        state = ChatGameState(chat_id=1)
+        batch = [
+            BufferedInput(user_id=1, user_name="Alice", button=GameButton.A),
+            BufferedInput(user_id=1, user_name="Alice", button=GameButton.B),
+        ]
+        handler._aggregate_to_recent_inputs(state, batch)
+        assert state.user_input_counts["1"] == 2
+
+    def test_empty_batch_no_change(self, handler):
+        state = ChatGameState(chat_id=1)
+        handler._aggregate_to_recent_inputs(state, [])
+        assert state.recent_inputs == []
 
 
 class TestSessionManagement:
@@ -301,63 +394,51 @@ class TestSessionManagement:
 
     @pytest.fixture
     def handler(self):
-        """Create handler."""
         return InputHandler()
-    
+
     def test_is_input_in_progress(self, handler):
-        """Test checking if input is in progress."""
         assert handler.is_input_in_progress(123456) is False
-        
         handler._processing.add(123456)
-        
         assert handler.is_input_in_progress(123456) is True
-    
+
     def test_cleanup_session(self, handler):
-        """Test cleaning up session."""
-        # Create session
         handler._sessions[123456] = GameSession(
             chat_id=123456,
             state=ChatGameState(chat_id=123456)
         )
-        
+        handler._pending_buffers[123456] = PendingBuffer()
+
         with patch("src.handlers.input_handler.game_controller_manager") as mock_mgr:
             result = handler.cleanup_session(123456)
-            
+
             assert result is True
             assert 123456 not in handler._sessions
+            assert 123456 not in handler._pending_buffers
             mock_mgr.remove_controller.assert_called_once_with(123456)
-    
+
     def test_cleanup_nonexistent_session(self, handler):
-        """Test cleaning up nonexistent session."""
         result = handler.cleanup_session(999999)
-        
         assert result is False
 
 
 class TestSingleton:
     """Test singleton pattern."""
-    
+
     @pytest.fixture
     def reset_singleton(self):
-        """Reset singleton before each test."""
-        # Reset the module-level singleton
         import src.handlers.input_handler as ih
         original = ih._input_handler
         ih._input_handler = None
         yield
         ih._input_handler = original
-    
-    def test_get_input_handler_creates_new(self, reset_singleton):
-        """Test getting handler creates new instance."""
-        handler = get_input_handler()
 
+    def test_get_input_handler_creates_new(self, reset_singleton):
+        handler = get_input_handler()
         assert handler is not None
 
     def test_get_input_handler_returns_same(self, reset_singleton):
-        """Test getting handler returns same instance."""
         handler1 = get_input_handler()
         handler2 = get_input_handler()
-
         assert handler1 is handler2
 
 
@@ -366,21 +447,16 @@ class TestErrorHandling:
 
     @pytest.fixture
     def handler(self):
-        """Create handler."""
         return InputHandler()
 
     @pytest.mark.asyncio
     async def test_send_error_message(self, handler, mock_adapter):
-        """Test sending error message."""
         await handler._send_error_message(123456, "Test error", mock_adapter)
-
         mock_adapter.send_text.assert_called_once_with(123456, "❌ Test error")
 
     @pytest.mark.asyncio
-    async def test_send_error_message_handles_telegram_error(self, handler, mock_adapter):
-        """Test error handling when sending error fails."""
+    async def test_send_error_message_handles_exception(self, handler, mock_adapter):
         mock_adapter.send_text.side_effect = Exception("Network error")
-
         # Should not raise
         await handler._send_error_message(123456, "Test error", mock_adapter)
 
@@ -390,16 +466,12 @@ class TestEditOperations:
 
     @pytest.fixture
     def handler(self):
-        """Create handler."""
         return InputHandler()
 
     @pytest.mark.asyncio
     async def test_edit_keyboard(self, handler, mock_adapter):
-        """Test editing message keyboard via adapter."""
         keyboard = MagicMock()
-
         await handler._edit_message_keyboard(123456, 789, keyboard, mock_adapter)
-
         mock_adapter.edit_game_keyboard.assert_called_once_with(
             chat_id=123456,
             message_id=789,
@@ -408,29 +480,20 @@ class TestEditOperations:
 
     @pytest.mark.asyncio
     async def test_edit_keyboard_handles_error(self, handler, mock_adapter):
-        """Test editing keyboard handles errors gracefully."""
         mock_adapter.edit_game_keyboard.side_effect = Exception("Error")
-
-        # Should not raise
         await handler._edit_message_keyboard(123456, 789, MagicMock(), mock_adapter)
 
     @pytest.mark.asyncio
     async def test_edit_media(self, tmp_path, handler, mock_adapter):
-        """Test editing message media via adapter."""
         with patch("src.handlers.input_handler.settings") as mock_settings:
             mock_settings.get_chat_save_dir.return_value = tmp_path / "saves" / "123456"
             photo_buffer = BytesIO(b"png")
-
             await handler._edit_message_media(123456, 789, photo_buffer, "caption", mock_adapter)
-
             mock_adapter.edit_game_message.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_edit_media_handles_error(self, handler, mock_adapter):
-        """Test editing media handles errors gracefully."""
         mock_adapter.edit_game_message.side_effect = Exception("Error")
-
-        # Should not raise
         await handler._edit_message_media(123456, 789, BytesIO(b"png"), "caption", mock_adapter)
 
 
@@ -439,45 +502,33 @@ class TestSessionLoading:
 
     @pytest.fixture
     def handler(self):
-        """Create handler."""
         return InputHandler()
-    
+
     def test_get_session_loads_from_state(self, handler):
-        """Test getting session loads from state manager."""
         with patch("src.handlers.input_handler.state_manager") as mock_state:
             mock_state.load_game_state.return_value = ChatGameState(
                 chat_id=123456,
                 message_id=100
             )
-            
             session = handler._get_session(123456)
-            
             assert session is not None
             assert session.chat_id == 123456
             assert session.state.message_id == 100
-    
+
     def test_get_session_returns_none_when_no_state(self, handler):
-        """Test getting session returns None when no saved state."""
         with patch("src.handlers.input_handler.state_manager") as mock_state:
             mock_state.load_game_state.return_value = None
-            
             session = handler._get_session(123456)
-            
             assert session is None
-    
+
     def test_get_session_caches_in_memory(self, handler):
-        """Test getting session caches it in memory."""
         with patch("src.handlers.input_handler.state_manager") as mock_state:
             mock_state.load_game_state.return_value = ChatGameState(
                 chat_id=123456,
                 message_id=100
             )
-            
-            # First call
             session1 = handler._get_session(123456)
-            # Second call should use cached version
             session2 = handler._get_session(123456)
-
             assert session1 is session2
             mock_state.load_game_state.assert_called_once()
 
@@ -500,7 +551,6 @@ class TestWaitButtonProcessing:
 
     @pytest.mark.asyncio
     async def test_wait_button_skips_send_input(self, handler, mock_adapter, mock_controller):
-        """Test WAIT button doesn't call send_input."""
         with patch("src.handlers.input_handler.game_controller_manager") as mock_mgr:
             with patch("src.handlers.input_handler.state_manager") as mock_sm:
                 with patch("src.handlers.input_handler.save_frames_as_mp4") as mock_save:
@@ -513,7 +563,6 @@ class TestWaitButtonProcessing:
                         mock_save.return_value = BytesIO(b"fake_mp4")
                         mock_tbc.return_value = []
 
-                        from src.models.game_state import ChatGameState, GameSession
                         handler._sessions[123456] = GameSession(
                             chat_id=123456,
                             state=ChatGameState(chat_id=123456, message_id=789)
@@ -521,24 +570,24 @@ class TestWaitButtonProcessing:
 
                         await handler._process_sequence(123456, [GameButton.WAIT], 789, mock_adapter)
 
-                        # WAIT should NOT call send_input
                         mock_controller.send_input.assert_not_called()
-                        # WAIT should call tick multiple times (for button execution + animation)
                         assert mock_controller.tick.call_count > 1
 
     @pytest.mark.asyncio
     async def test_wait_button_ticks_emulator(self, handler, mock_adapter, mock_controller):
-        """Test WAIT button ticks the emulator."""
         with patch("src.handlers.input_handler.game_controller_manager") as mock_mgr:
             with patch("src.handlers.input_handler.state_manager") as mock_sm:
                 with patch("src.handlers.input_handler.settings") as mock_settings:
                     with patch("src.handlers.input_handler.save_frames_as_mp4") as mock_save:
                         with patch("src.handlers.input_handler.generate_tbc_frames") as mock_tbc:
                             mock_settings.input_hold_frames = 30
-                            mock_settings.animation_duration = 1  # Short duration for testing
+                            mock_settings.animation_duration = 1
                             mock_settings.sequence_delay_seconds = 0
                             mock_settings.tbc_duration_frames = 0
                             mock_settings.max_queue_size = 10
+                            mock_settings.maximum_inputs_per_animation = 8
+                            mock_settings.tbc_overlay_path = MagicMock()
+                            mock_settings.timelapse_frame_skip = 1
                             mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
                             mock_sm.get_or_create_chat_config.return_value = MagicMock(
                                 modifier_states={}, auto_save_enabled=False
@@ -547,7 +596,6 @@ class TestWaitButtonProcessing:
                             mock_save.return_value = BytesIO(b"fake_mp4")
                             mock_tbc.return_value = []
 
-                            from src.models.game_state import ChatGameState, GameSession
                             handler._sessions[123456] = GameSession(
                                 chat_id=123456,
                                 state=ChatGameState(chat_id=123456, message_id=789)
@@ -555,16 +603,13 @@ class TestWaitButtonProcessing:
 
                             await handler._process_sequence(123456, [GameButton.WAIT], 789, mock_adapter)
 
-                            # First call should be for button execution with input_hold_frames
                             from unittest.mock import call
                             assert mock_controller.tick.call_args_list[0] == call(frames=30)
-                            # Subsequent calls are for animation with 1 frame each
                             for tick_call in mock_controller.tick.call_args_list[1:]:
                                 assert tick_call == call(1)
 
     @pytest.mark.asyncio
     async def test_wait_button_runs_animation(self, handler, mock_adapter, mock_controller):
-        """Test WAIT button still runs animation phase."""
         with patch("src.handlers.input_handler.game_controller_manager") as mock_mgr:
             with patch("src.handlers.input_handler.state_manager") as mock_sm:
                 with patch("src.handlers.input_handler.save_frames_as_mp4") as mock_save:
@@ -577,7 +622,6 @@ class TestWaitButtonProcessing:
                         mock_save.return_value = BytesIO(b"fake_mp4")
                         mock_tbc.return_value = []
 
-                        from src.models.game_state import ChatGameState, GameSession
                         handler._sessions[123456] = GameSession(
                             chat_id=123456,
                             state=ChatGameState(chat_id=123456, message_id=789)
@@ -585,12 +629,10 @@ class TestWaitButtonProcessing:
 
                         await handler._process_sequence(123456, [GameButton.WAIT], 789, mock_adapter)
 
-                        # Animation phase should have run - adapter.edit_game_message called
                         mock_adapter.edit_game_message.assert_called()
 
     @pytest.mark.asyncio
     async def test_normal_button_still_calls_send_input(self, handler, mock_adapter, mock_controller):
-        """Test non-WAIT buttons still call send_input."""
         with patch("src.handlers.input_handler.game_controller_manager") as mock_mgr:
             with patch("src.handlers.input_handler.state_manager") as mock_sm:
                 with patch("src.handlers.input_handler.save_frames_as_mp4") as mock_save:
@@ -603,7 +645,6 @@ class TestWaitButtonProcessing:
                         mock_save.return_value = BytesIO(b"fake_mp4")
                         mock_tbc.return_value = []
 
-                        from src.models.game_state import ChatGameState, GameSession
                         handler._sessions[123456] = GameSession(
                             chat_id=123456,
                             state=ChatGameState(chat_id=123456, message_id=789)
@@ -611,9 +652,7 @@ class TestWaitButtonProcessing:
 
                         await handler._process_sequence(123456, [GameButton.A], 789, mock_adapter)
 
-                        # Normal buttons should call send_input
                         mock_controller.send_input.assert_called_once()
-                        # Tick is also called during animation phase
                         assert mock_controller.tick.call_count > 0
 
 
@@ -636,7 +675,6 @@ class TestModifierButtonHandling:
 
     @pytest.mark.asyncio
     async def test_modifier_callback_no_session_returns_no_active_game(self, handler, mock_adapter):
-        """Test modifier callback with no session answers no_active_game."""
         cq = self._make_callback_query()
 
         with patch("src.handlers.input_handler.state_manager") as mock_sm, \
@@ -658,7 +696,6 @@ class TestModifierButtonHandling:
 
     @pytest.mark.asyncio
     async def test_modifier_callback_stale_message_id_returns_outdated(self, handler, mock_adapter):
-        """Test modifier callback with stale message_id answers message_outdated."""
         cq = self._make_callback_query(message_id=999)
 
         state = ChatGameState(chat_id=123456, message_id=100)
@@ -680,7 +717,6 @@ class TestModifierButtonHandling:
 
     @pytest.mark.asyncio
     async def test_modifier_callback_toggles_modifier_state(self, handler, mock_adapter):
-        """Test modifier callback toggles the modifier state in config."""
         cq = self._make_callback_query()
 
         state = ChatGameState(chat_id=123456, message_id=100)
@@ -709,13 +745,11 @@ class TestModifierButtonHandling:
                 raw=cq,
             )
 
-            # State should have been toggled to True
             assert config.modifier_states["run"] is True
             mock_sm.save_chat_config.assert_called_once_with(config)
 
     @pytest.mark.asyncio
     async def test_modifier_callback_toggles_back_when_active(self, handler, mock_adapter):
-        """Test modifier callback toggles from True back to False."""
         cq = self._make_callback_query()
 
         state = ChatGameState(chat_id=123456, message_id=100)

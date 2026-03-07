@@ -25,7 +25,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from src.db import DatabaseManager
 from src.models.game_state import ChatGameState, ChatConfig, SaveSlotInfo, GameButton
-from src.models.input_queue import InputQueue
 
 logging.basicConfig(
     level=logging.INFO,
@@ -106,10 +105,6 @@ def migrate_game_states(data_dir: Path, db_manager: DatabaseManager, dry_run: bo
                 created_at=datetime.fromisoformat(data.get('created_at', datetime.utcnow().isoformat())),
                 updated_at=datetime.fromisoformat(data.get('updated_at', datetime.utcnow().isoformat()))
             )
-            
-            # Handle input queue if present (note: queue items have user_id as int in new schema)
-            if data.get('input_queue'):
-                state.input_queue = InputQueue.from_dict(data['input_queue'])
             
             if not dry_run:
                 db_manager.save_game_state(state)

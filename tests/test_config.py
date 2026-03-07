@@ -498,3 +498,50 @@ def test_max_queue_size_validation():
             webhook_secret="test_secret_1234567890",
             max_queue_size=100,  # Above maximum
         )
+
+
+class TestBufferedQueueSettings:
+    """Test the three new buffered-input-queue config settings."""
+
+    @pytest.fixture
+    def base_kwargs(self):
+        return dict(
+            telegram_bot_token="test_token",
+            webhook_url="https://test.example.com",
+            webhook_secret="test_secret_1234567890",
+        )
+
+    def test_defaults(self, base_kwargs):
+        """input_buffer_seconds, maximum_inputs_per_animation, and min_update_interval_seconds have correct defaults."""
+        s = Settings(**base_kwargs)
+        assert s.input_buffer_seconds == 1.5
+        assert s.maximum_inputs_per_animation == 8
+        assert s.min_update_interval_seconds == 5.0
+
+    def test_env_override(self, monkeypatch, base_kwargs):
+        """Settings can be overridden via environment variables."""
+        monkeypatch.setenv("INPUT_BUFFER_SECONDS", "3.0")
+        monkeypatch.setenv("MAXIMUM_INPUTS_PER_ANIMATION", "16")
+        monkeypatch.setenv("MIN_UPDATE_INTERVAL_SECONDS", "10.0")
+
+        s = Settings(**base_kwargs)
+        assert s.input_buffer_seconds == 3.0
+        assert s.maximum_inputs_per_animation == 16
+        assert s.min_update_interval_seconds == 10.0
+
+    def test_validation_bounds(self, base_kwargs):
+        """Out-of-range values are rejected."""
+        with pytest.raises(ValidationError):
+            Settings(**base_kwargs, input_buffer_seconds=0.0)  # below 0.1
+        with pytest.raises(ValidationError):
+            Settings(**base_kwargs, input_buffer_seconds=11.0)  # above 10.0
+
+        with pytest.raises(ValidationError):
+            Settings(**base_kwargs, maximum_inputs_per_animation=0)  # below 1
+        with pytest.raises(ValidationError):
+            Settings(**base_kwargs, maximum_inputs_per_animation=51)  # above 50
+
+        with pytest.raises(ValidationError):
+            Settings(**base_kwargs, min_update_interval_seconds=0.5)  # below 1.0
+        with pytest.raises(ValidationError):
+            Settings(**base_kwargs, min_update_interval_seconds=61.0)  # above 60.0

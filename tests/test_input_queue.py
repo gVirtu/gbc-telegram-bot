@@ -1,181 +1,116 @@
-"""Tests for input queue data structures."""
+"""Tests for buffered input queue data structures."""
 
 import pytest
 from datetime import datetime
 
-from src.models.input_queue import QueueItem, InputQueue
+from src.models.input_queue import BufferedInput, PendingBuffer
 from src.models.game_state import GameButton
 
 
-class TestQueueItem:
-    """Test QueueItem dataclass."""
-    
-    def test_queue_item_creation(self):
-        """Test creating a QueueItem."""
-        item = QueueItem(
-            user_id=123,
-            user_name="TestUser",
-            buttons=[GameButton.A, GameButton.B],
-        )
-        
-        assert item.user_id == 123
-        assert item.user_name == "TestUser"
-        assert len(item.buttons) == 2
-        assert item.buttons[0] == GameButton.A
-        assert item.buttons[1] == GameButton.B
-    
-    def test_queue_item_add_button(self):
-        """Test adding buttons to QueueItem."""
-        item = QueueItem(user_id=123, user_name="TestUser")
-        
-        assert item.is_empty()
-        
-        item.add_button(GameButton.UP)
-        assert len(item) == 1
-        assert not item.is_empty()
-        
-        item.add_button(GameButton.DOWN)
-        assert len(item) == 2
-    
-    def test_queue_item_serialization(self):
-        """Test QueueItem to/from dict."""
-        item = QueueItem(
-            user_id=123,
-            user_name="TestUser",
-            buttons=[GameButton.A, GameButton.B],
-        )
-        
-        data = item.to_dict()
-        restored = QueueItem.from_dict(data)
-        
-        assert restored.user_id == item.user_id
-        assert restored.user_name == item.user_name
-        assert len(restored.buttons) == len(item.buttons)
-        assert restored.buttons[0] == GameButton.A
-        assert restored.buttons[1] == GameButton.B
+class TestBufferedInput:
+    """Test BufferedInput dataclass."""
+
+    def test_buffered_input_creation(self):
+        bi = BufferedInput(user_id=123, user_name="Alice", button=GameButton.A)
+        assert bi.user_id == 123
+        assert bi.user_name == "Alice"
+        assert bi.button == GameButton.A
+        assert isinstance(bi.received_at, datetime)
+
+    def test_buffered_input_serialization(self):
+        bi = BufferedInput(user_id=42, user_name="Bob", button=GameButton.UP)
+        d = bi.to_dict()
+        restored = BufferedInput.from_dict(d)
+
+        assert restored.user_id == bi.user_id
+        assert restored.user_name == bi.user_name
+        assert restored.button == bi.button
+        assert restored.received_at.isoformat() == bi.received_at.isoformat()
 
 
-class TestInputQueue:
-    """Test InputQueue class."""
-    
-    def test_queue_creation(self):
-        """Test creating an empty queue."""
-        queue = InputQueue(max_size=5)
-        
-        assert queue.is_empty()
-        assert len(queue) == 0
-        assert not queue.is_full()
-        assert queue.peek() is None
-        assert queue.pop() is None
-    
-    def test_queue_add_single_user(self):
-        """Test adding inputs from single user batches them."""
-        queue = InputQueue(max_size=5)
-        
-        # First input creates new item
-        success, msg = queue.add_input(123, "Alice", GameButton.A)
+class TestPendingBuffer:
+    """Test PendingBuffer class."""
+
+    def test_empty_buffer(self):
+        buf = PendingBuffer(max_size=10)
+        assert buf.is_empty()
+        assert not buf.is_full()
+        assert buf.total_buttons() == 0
+
+    def test_add_success(self):
+        buf = PendingBuffer(max_size=5)
+        success, (key, params) = buf.add(1, "Alice", GameButton.A)
         assert success
-        assert len(queue) == 1
-        
-        # Second input from same user extends existing item
-        success, msg = queue.add_input(123, "Alice", GameButton.B)
-        assert success
-        assert len(queue) == 1  # Still one item
-        assert len(queue.items[0].buttons) == 2
-    
-    def test_queue_add_different_users(self):
-        """Test adding inputs from different users creates separate items."""
-        queue = InputQueue(max_size=5)
-        
-        queue.add_input(123, "Alice", GameButton.A)
-        queue.add_input(456, "Bob", GameButton.B)
-        
-        assert len(queue) == 2
-        assert queue.items[0].user_id == 123
-        assert queue.items[1].user_id == 456
-    
-    def test_queue_full_rejection(self):
-        """Test queue rejects new users when full."""
-        queue = InputQueue(max_size=2)
-        
-        queue.add_input(123, "Alice", GameButton.A)
-        queue.add_input(456, "Bob", GameButton.B)
-        
-        assert queue.is_full()
-        
-        # New user should be rejected
-        success, (msg, params) = queue.add_input(789, "Charlie", GameButton.UP)
+        assert buf.total_buttons() == 1
+        assert not buf.is_empty()
+
+    def test_add_full_rejection(self):
+        buf = PendingBuffer(max_size=2)
+        buf.add(1, "Alice", GameButton.A)
+        buf.add(2, "Bob", GameButton.B)
+        assert buf.is_full()
+
+        success, (key, _) = buf.add(3, "Charlie", GameButton.UP)
         assert not success
-        assert msg == "queue.error_queue_full"
-    
-    def test_queue_full_extend_allowed(self):
-        """Test same user can extend even when queue is full."""
-        queue = InputQueue(max_size=2)
-        
-        queue.add_input(123, "Alice", GameButton.A)
-        queue.add_input(456, "Bob", GameButton.B)
-        
-        assert queue.is_full()
-        
-        # Same user (Bob) can still extend their item
-        success, msg = queue.add_input(456, "Bob", GameButton.DOWN)
-        assert success
-        assert len(queue) == 2  # Still 2 items
-        assert len(queue.items[1].buttons) == 2
-    
-    def test_queue_pop_order(self):
-        """Test queue pops items in FIFO order."""
-        queue = InputQueue(max_size=5)
-        
-        queue.add_input(123, "Alice", GameButton.A)
-        queue.add_input(456, "Bob", GameButton.B)
-        
-        item = queue.pop()
-        assert item.user_id == 123
-        assert len(queue) == 1
-        
-        item = queue.pop()
-        assert item.user_id == 456
-        assert queue.is_empty()
-    
-    def test_queue_peek_doesnt_remove(self):
-        """Test peek doesn't remove item."""
-        queue = InputQueue(max_size=5)
-        queue.add_input(123, "Alice", GameButton.A)
-        
-        item1 = queue.peek()
-        item2 = queue.peek()
-        
-        assert item1 is item2
-        assert len(queue) == 1
-    
-    def test_queue_serialization(self):
-        """Test InputQueue to/from dict."""
-        queue = InputQueue(max_size=5)
-        queue.add_input(123, "Alice", GameButton.A)
-        queue.add_input(123, "Alice", GameButton.B)  # Same user = extend
-        queue.add_input(456, "Bob", GameButton.UP)
-        
-        data = queue.to_dict()
-        restored = InputQueue.from_dict(data)
-        
-        assert restored.max_size == queue.max_size
-        assert len(restored) == len(queue)
-        assert len(restored.items[0].buttons) == 2  # Alice's 2 buttons
-        assert len(restored.items[1].buttons) == 1  # Bob's 1 button
-    
-    def test_queue_status_message(self):
-        """Test queue status message generation."""
-        queue = InputQueue(max_size=5)
-        
-        assert queue.get_queue_status(123) == "Queue empty"
-        
-        queue.add_input(123, "Alice", GameButton.A)
-        queue.add_input(123, "Alice", GameButton.B)
-        queue.add_input(456, "Bob", GameButton.UP)
-        
-        status = queue.get_queue_status(123)
-        assert "Alice" in status
-        assert "Bob" in status
-        assert "2 buttons" in status
-        assert "1 button" in status
+        assert key == "queue.error_queue_full"
+        assert buf.total_buttons() == 2
+
+    def test_add_multiple_inputs_same_user(self):
+        """Each button press creates its own BufferedInput slot (no mutable-back grouping)."""
+        buf = PendingBuffer(max_size=10)
+        buf.add(1, "Alice", GameButton.A)
+        buf.add(1, "Alice", GameButton.B)
+        assert buf.total_buttons() == 2
+        assert buf.items[0].button == GameButton.A
+        assert buf.items[1].button == GameButton.B
+
+    def test_add_different_users_fifo(self):
+        buf = PendingBuffer(max_size=10)
+        buf.add(1, "Alice", GameButton.A)
+        buf.add(2, "Bob", GameButton.B)
+        buf.add(1, "Alice", GameButton.UP)
+        assert buf.total_buttons() == 3
+        assert buf.items[0].user_id == 1
+        assert buf.items[1].user_id == 2
+        assert buf.items[2].user_id == 1
+
+    def test_pop_batch_fifo(self):
+        buf = PendingBuffer(max_size=10)
+        buf.add(1, "Alice", GameButton.A)
+        buf.add(2, "Bob", GameButton.B)
+        buf.add(1, "Alice", GameButton.UP)
+
+        batch = buf.pop_batch(2)
+        assert len(batch) == 2
+        assert batch[0].button == GameButton.A
+        assert batch[1].button == GameButton.B
+        assert buf.total_buttons() == 1
+
+    def test_pop_batch_partial(self):
+        """pop_batch returns fewer items than requested if buffer is smaller."""
+        buf = PendingBuffer(max_size=10)
+        buf.add(1, "Alice", GameButton.A)
+
+        batch = buf.pop_batch(5)
+        assert len(batch) == 1
+        assert buf.is_empty()
+
+    def test_pop_batch_empty(self):
+        buf = PendingBuffer(max_size=10)
+        batch = buf.pop_batch(3)
+        assert batch == []
+
+    def test_is_full(self):
+        buf = PendingBuffer(max_size=3)
+        buf.add(1, "A", GameButton.A)
+        buf.add(2, "B", GameButton.B)
+        assert not buf.is_full()
+        buf.add(3, "C", GameButton.UP)
+        assert buf.is_full()
+
+    def test_total_buttons_after_pop(self):
+        buf = PendingBuffer(max_size=10)
+        for i in range(5):
+            buf.add(i, f"User{i}", GameButton.A)
+        buf.pop_batch(3)
+        assert buf.total_buttons() == 2

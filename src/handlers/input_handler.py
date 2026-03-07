@@ -1,13 +1,14 @@
 """Input handler for managing game interactions.
 
-This module handles button presses, input processing, and game flow
-including the first-vote-wins logic and animation phases.
+This module handles button presses, input processing, and game flow using a
+time-based buffer: inputs are collected for input_buffer_seconds (or until
+maximum_inputs_per_animation buttons accumulate), then drained as a single
+multi-user batch animation.
 """
 
 import asyncio
 import logging
-import time
-from typing import Optional, TYPE_CHECKING
+from typing import Optional
 from datetime import datetime
 
 from src.adapters.base import BotAdapter
@@ -20,7 +21,7 @@ from src.keyboard import (
     is_valid_button_callback,
 )
 from src.models.game_state import ChatGameState, GameButton, GameSession, ModifierButtonSpec
-from src.models.input_queue import InputQueue, QueueItem
+from src.models.input_queue import BufferedInput, PendingBuffer
 from src.utils.frame_utils import (  # noqa: F401 (needed for test patching)
     save_frames_as_mp4,
     save_frames_as_avif,
@@ -37,20 +38,24 @@ class InputHandlerError(Exception):
 
 
 class InputHandler:
-    """Handles game input processing with queue-based system.
+    """Handles game input processing with buffered queue system.
 
-    This class manages the game flow:
-    1. Receiving button presses and queueing them
-    2. Processing queue items sequentially with estimated timing
-    3. Updating platform messages with new frames via adapters
-    4. Managing game state transitions (IDLE/PROCESSING)
+    Inputs are collected in a PendingBuffer per chat. A debounce timer fires
+    after input_buffer_seconds of inactivity (or immediately when the buffer
+    hits maximum_inputs_per_animation), signalling the processing loop to drain
+    and animate a batch. A minimum gap of min_update_interval_seconds is
+    enforced between message edits to avoid Telegram rate limits.
     """
 
     def __init__(self):
         """Initialize the input handler."""
         self._sessions: dict[int, GameSession] = {}
-        self._processing: set[int] = set()  # Chats currently processing
-        self._input_queues: dict[int, InputQueue] = {}  # Chat ID -> InputQueue
+        self._processing: set[int] = set()
+        self._pending_buffers: dict[int, PendingBuffer] = {}
+        self._buffer_tasks: dict[int, asyncio.Task] = {}
+        self._drain_events: dict[int, asyncio.Event] = {}
+
+    # ==================== Session helpers ====================
 
     def _get_session(self, chat_id: int) -> Optional[GameSession]:
         """Get or create a game session for a chat."""
@@ -58,7 +63,6 @@ class InputHandler:
             state = state_manager.load_game_state(chat_id)
             if state:
                 self._sessions[chat_id] = GameSession(chat_id=chat_id, state=state)
-
         return self._sessions.get(chat_id)
 
     def _create_session(self, chat_id: int, message_id: int) -> GameSession:
@@ -66,20 +70,31 @@ class InputHandler:
         state = ChatGameState(chat_id=chat_id, message_id=message_id)
         session = GameSession(chat_id=chat_id, state=state)
         self._sessions[chat_id] = session
-
         state_manager.save_game_state(state)
-
         return session
 
-    def _get_or_create_queue(self, chat_id: int) -> InputQueue:
-        """Get or create input queue for a chat."""
-        if chat_id not in self._input_queues:
-            session = self._get_session(chat_id)
-            if session and session.state.input_queue:
-                self._input_queues[chat_id] = session.state.input_queue
-            else:
-                self._input_queues[chat_id] = InputQueue(max_size=settings.max_queue_size)
-        return self._input_queues[chat_id]
+    # ==================== Buffer helpers ====================
+
+    def _get_or_create_buffer(self, chat_id: int) -> PendingBuffer:
+        """Get or create the pending buffer for a chat."""
+        if chat_id not in self._pending_buffers:
+            self._pending_buffers[chat_id] = PendingBuffer(max_size=settings.max_queue_size)
+        return self._pending_buffers[chat_id]
+
+    def _get_or_create_drain_event(self, chat_id: int) -> asyncio.Event:
+        """Get or create the drain event for a chat."""
+        if chat_id not in self._drain_events:
+            self._drain_events[chat_id] = asyncio.Event()
+        return self._drain_events[chat_id]
+
+    async def _run_buffer_timer(self, chat_id: int) -> None:
+        """Sleep for input_buffer_seconds then signal the drain event."""
+        await asyncio.sleep(settings.input_buffer_seconds)
+        event = self._drain_events.get(chat_id)
+        if event is not None:
+            event.set()
+
+    # ==================== Misc helpers ====================
 
     def _calculate_processing_time(self, buttons: list[GameButton]) -> float:
         """Calculate estimated time to process a button sequence."""
@@ -104,18 +119,13 @@ class InputHandler:
         return chat_id in self._processing
 
     def _get_adapter_for_chat(self, chat_id: int) -> Optional[BotAdapter]:
-        """Look up the platform adapter for a given chat.
-
-        Args:
-            chat_id: The chat ID to look up
-
-        Returns:
-            BotAdapter for the chat's platform, or None if not found
-        """
+        """Look up the platform adapter for a given chat."""
         from src.adapters.base import get_adapter
         config = state_manager.load_chat_config(chat_id)
         platform = config.platform if config else "telegram"
         return get_adapter(platform)
+
+    # ==================== Button press entry point ====================
 
     async def handle_button_press(
         self,
@@ -127,7 +137,7 @@ class InputHandler:
         adapter: BotAdapter,
         raw: object = None,
     ) -> None:
-        """Handle a button press with queue-based processing.
+        """Handle a button press with buffered processing.
 
         Args:
             callback_data: The callback data string (button value)
@@ -183,11 +193,9 @@ class InputHandler:
                 logger.error(f"Error processing input for chat {chat_id}: {e}")
             return
 
-        # Get or create queue
-        queue = self._get_or_create_queue(chat_id)
-
-        # Add input to queue
-        success, (message_key, message_params) = queue.add_input(user_id, user_name, button)
+        # Add input to buffer
+        buffer = self._get_or_create_buffer(chat_id)
+        success, (message_key, message_params) = buffer.add(user_id, user_name, button)
 
         if not success:
             try:
@@ -196,15 +204,31 @@ class InputHandler:
                 logger.error(f"Error answering callback for chat {chat_id}: {e}")
             return
 
-        # Save queue to session state
-        session.state.input_queue = queue
-        state_manager.save_game_state(session.state)
+        # Signal drain or reset debounce timer
+        drain_event = self._get_or_create_drain_event(chat_id)
+        if buffer.total_buttons() >= settings.max_sequence_length:
+            drain_event.set()
+        else:
+            # Cancel existing timer and start a fresh one
+            existing_task = self._buffer_tasks.get(chat_id)
+            if existing_task and not existing_task.done():
+                existing_task.cancel()
+            self._buffer_tasks[chat_id] = asyncio.create_task(
+                self._run_buffer_timer(chat_id)
+            )
 
-        # Check if we should start processing
+        # Start processing loop if not already running
         if not self._is_processing(chat_id):
             try:
                 if adapter.platform != "discord":
-                    await adapter.answer_interaction(raw, translation_manager.get('game.input_processing', chat_id, input=translation_manager.get(f'keyboard.buttons.display_name.{button.value}', chat_id)))
+                    await adapter.answer_interaction(
+                        raw,
+                        translation_manager.get(
+                            'game.input_processing',
+                            chat_id,
+                            input=translation_manager.get(f'keyboard.buttons.display_name.{button.value}', chat_id)
+                        )
+                    )
                 asyncio.create_task(self._process_queue_loop(chat_id, message_id, adapter))
             except Exception as e:
                 logger.error(f"Error starting queue processing for chat {chat_id}: {e}")
@@ -243,43 +267,10 @@ class InputHandler:
         except Exception as e:
             logger.error(f"Error answering modifier callback for chat {chat_id}: {e}")
 
-    async def _process_sequence(
-        self, chat_id: int, buttons: list[GameButton], message_id: int, adapter: BotAdapter
-    ) -> None:
-        """Process a sequence of buttons (backward compatibility alias)."""
-        item = QueueItem(
-            user_id=0,
-            user_name="System",
-            buttons=buttons,
-        )
-        await self._process_queue_item(chat_id, message_id, item, adapter)
-
-    def _record_user_input(
-        self,
-        session: GameSession,
-        user_id: int,
-        user_name: str,
-        buttons: list[GameButton],
-    ) -> None:
-        """Record user input (single button or sequence)."""
-        session.state.user_input_counts[str(user_id)] = (
-            session.state.user_input_counts.get(str(user_id), 0) + len(buttons)
-        )
-
-        input_record = {
-            "user_id": user_id,
-            "user_name": user_name,
-            "buttons": [b.value for b in buttons],
-            "timestamp": datetime.utcnow().isoformat(),
-        }
-
-        session.state.recent_inputs.append(input_record)
-
-        if len(session.state.recent_inputs) > 3:
-            session.state.recent_inputs = session.state.recent_inputs[-3:]
+    # ==================== Processing loop ====================
 
     async def _process_queue_loop(self, chat_id: int, message_id: int, adapter: BotAdapter) -> None:
-        """Process queue items until empty."""
+        """Process buffered inputs until the buffer is empty."""
         self._processing.add(chat_id)
         session = self._get_session(chat_id)
 
@@ -289,29 +280,32 @@ class InputHandler:
 
         try:
             while True:
-                queue = self._get_or_create_queue(chat_id)
-
-                if queue.is_empty():
+                buffer = self._get_or_create_buffer(chat_id)
+                if buffer.is_empty():
                     break
 
-                item = queue.pop()
-                if item is None:
+                drain_event = self._get_or_create_drain_event(chat_id)
+                await drain_event.wait()
+                drain_event.clear()
+
+                buffer = self._get_or_create_buffer(chat_id)
+                if buffer.is_empty():
                     break
 
-                session.state.input_queue = queue
-                wait_time = self._calculate_processing_time(item.buttons)
+                batch = buffer.pop_batch(settings.maximum_inputs_per_animation)
 
                 try:
-                    result = await self._process_queue_item(chat_id, message_id, item, adapter)
-                    if result["animation_duration"]:
-                        wait_time = result["animation_duration"]
+                    result = await self._process_batch(chat_id, message_id, batch, adapter)
                 except Exception as e:
-                    logger.error(f"Error processing queue item for chat {chat_id}: {e}")
+                    logger.error(f"Error processing batch for chat {chat_id}: {e}")
+                    result = {"animation_duration": None}
 
+                self._aggregate_to_recent_inputs(session.state, batch)
                 state_manager.save_game_state(session.state)
 
-                if wait_time > 0:
-                    await asyncio.sleep(wait_time)
+                animation_duration = result.get("animation_duration") or 0
+                wait_time = max(animation_duration, settings.min_update_interval_seconds)
+                await asyncio.sleep(wait_time)
 
         finally:
             self._processing.discard(chat_id)
@@ -321,19 +315,19 @@ class InputHandler:
 
             logger.info(f"Queue processing completed for chat {chat_id}")
 
-    async def _process_queue_item(
-        self, chat_id: int, message_id: int, item: QueueItem, adapter: BotAdapter
+    # ==================== Batch processing ====================
+
+    async def _process_batch(
+        self, chat_id: int, message_id: int, batch: list[BufferedInput], adapter: BotAdapter
     ) -> dict:
-        """Process a single queue item."""
-        queue = self._get_or_create_queue(chat_id)
+        """Process a batch of buffered inputs as a single animation."""
         controller = await game_controller_manager.get_or_create_controller(chat_id)
         checkpoint = controller.save_state()
         session = self._get_session(chat_id)
-        buttons = item.buttons
+
+        buttons = [bi.button for bi in batch]
 
         hook_context = controller.begin_hooks()
-
-        self._record_user_input(session, item.user_id, item.user_name, buttons)
 
         config = state_manager.get_or_create_chat_config(chat_id)
         modifier_specs = controller.get_modifier_specs()
@@ -341,7 +335,7 @@ class InputHandler:
 
         input_keyboard = adapter.build_game_keyboard(chat_config=config, modifier_specs=modifier_specs)
 
-        logger.info(f"Executing sequence of {len(buttons)} buttons for chat {chat_id} (modifier_states={modifier_states})")
+        logger.info(f"Executing batch of {len(buttons)} buttons for chat {chat_id} (modifier_states={modifier_states})")
 
         # Animation capture settings - GameBoy runs at 60fps, capture at 10fps
         frames = []
@@ -353,7 +347,7 @@ class InputHandler:
 
         for i, button in enumerate(buttons):
             if button == GameButton.WAIT:
-                logger.debug(f"WAIT button in sequence for chat {chat_id}")
+                logger.debug(f"WAIT button in batch for chat {chat_id}")
                 controller.tick(frames=settings.input_hold_frames)
             else:
                 applied = False
@@ -364,7 +358,7 @@ class InputHandler:
                         applied = True
                         break
                 if not applied:
-                    logger.debug(f"Executing {button.value} in sequence for chat {chat_id}")
+                    logger.debug(f"Executing {button.value} in batch for chat {chat_id}")
                     controller.send_input(button, frames=settings.input_hold_frames)
 
             frames.append(controller.get_frame().copy())
@@ -410,8 +404,14 @@ class InputHandler:
         frames.extend(tbc_frames)
 
         recent = session.state.recent_inputs if session else []
+        pending_count = self._get_or_create_buffer(chat_id).total_buttons()
         base_text = self._get_message_base_text(chat_id)
-        caption = create_game_message_text(recent_inputs=recent, queue_length=len(queue), base_text_override=base_text, chat_id=chat_id)
+        caption = create_game_message_text(
+            recent_inputs=recent,
+            queue_length=pending_count,
+            base_text_override=base_text,
+            chat_id=chat_id,
+        )
 
         if frames:
             anim_format = adapter.preferred_animation_format
@@ -446,7 +446,7 @@ class InputHandler:
                             logger.warning(f"Failed to enqueue timelapse for chat {chat_id}: {e}")
 
             except Exception as e:
-                logger.error(f"Failed to generate MP4 for chat {chat_id}: {e}")
+                logger.error(f"Failed to generate animation for chat {chat_id}: {e}")
                 try:
                     png_buffer = controller.get_frame_as_png()
                     await adapter.edit_game_message(chat_id, message_id, caption, input_keyboard, png_buffer, media_type="photo")
@@ -470,8 +470,57 @@ class InputHandler:
             except Exception as e:
                 logger.warning(f"Failed to auto-save for chat {chat_id}: {e}")
 
-        logger.info(f"Completed queue item processing for chat {chat_id}")
+        logger.info(f"Completed batch processing for chat {chat_id}")
         return {"animation_duration": animation_duration_seconds}
+
+    # ==================== Recent inputs aggregation ====================
+
+    def _aggregate_to_recent_inputs(self, state: ChatGameState, batch: list[BufferedInput]) -> None:
+        """Aggregate a batch of BufferedInputs into state.recent_inputs.
+
+        Consecutive inputs from the same user are collapsed into one entry.
+        Keeps the last 3 entries (FIFO).
+
+        Args:
+            state: The ChatGameState to update
+            batch: The batch of BufferedInputs that were just processed
+        """
+        if not batch:
+            return
+
+        groups: list[dict] = []
+        for bi in batch:
+            if groups and groups[-1]["user_id"] == bi.user_id:
+                groups[-1]["buttons"].append(bi.button.value)
+            else:
+                groups.append({
+                    "user_id": bi.user_id,
+                    "user_name": bi.user_name,
+                    "buttons": [bi.button.value],
+                    "timestamp": datetime.utcnow().isoformat(),
+                })
+            # Also update per-user input counts
+            state.user_input_counts[str(bi.user_id)] = (
+                state.user_input_counts.get(str(bi.user_id), 0) + 1
+            )
+
+        state.recent_inputs.extend(groups)
+        if len(state.recent_inputs) > 3:
+            state.recent_inputs = state.recent_inputs[-3:]
+
+    # ==================== Backward-compat: _process_sequence ====================
+
+    async def _process_sequence(
+        self, chat_id: int, buttons: list[GameButton], message_id: int, adapter: BotAdapter
+    ) -> None:
+        """Process a sequence of buttons (backward compatibility alias)."""
+        batch = [
+            BufferedInput(user_id=0, user_name="System", button=b)
+            for b in buttons
+        ]
+        await self._process_batch(chat_id, message_id, batch, adapter)
+
+    # ==================== Edit helpers ====================
 
     async def _edit_message_keyboard(
         self, chat_id: int, message_id: int, keyboard, adapter: BotAdapter
@@ -500,16 +549,10 @@ class InputHandler:
         except Exception as e:
             logger.error(f"Failed to send error message to chat {chat_id}: {e}")
 
+    # ==================== Game lifecycle ====================
+
     async def start_game(self, chat_id: int, adapter: BotAdapter) -> int:
-        """Start a new game for a chat.
-
-        Args:
-            chat_id: Platform chat ID
-            adapter: Platform adapter for sending messages
-
-        Returns:
-            Message ID of the sent game message
-        """
+        """Start a new game for a chat."""
         controller = await game_controller_manager.get_or_create_controller(chat_id)
         png_buffer = controller.get_frame_as_png()
 
@@ -518,11 +561,11 @@ class InputHandler:
         config = state_manager.get_or_create_chat_config(chat_id)
         modifier_specs = controller.get_modifier_specs()
 
-        queue = self._get_or_create_queue(chat_id)
+        buffer = self._get_or_create_buffer(chat_id)
 
         recent = session.state.recent_inputs if session else []
         base_text = self._get_message_base_text(chat_id)
-        text = create_game_message_text(recent_inputs=recent, queue_length=len(queue), base_text_override=base_text, chat_id=chat_id)
+        text = create_game_message_text(recent_inputs=recent, queue_length=buffer.total_buttons(), base_text_override=base_text, chat_id=chat_id)
         keyboard = adapter.build_game_keyboard(chat_config=config, modifier_specs=modifier_specs)
 
         message_id = await adapter.send_game_message(chat_id, text, keyboard, png_buffer)
@@ -535,15 +578,7 @@ class InputHandler:
         return message_id
 
     async def show_current_frame(self, chat_id: int, adapter: BotAdapter) -> Optional[int]:
-        """Show the current game frame.
-
-        Args:
-            chat_id: Platform chat ID
-            adapter: Platform adapter for sending messages
-
-        Returns:
-            Message ID if successful, None otherwise
-        """
+        """Show the current game frame."""
         session = self._get_session(chat_id)
         controller = game_controller_manager.get_controller(chat_id)
 
@@ -553,12 +588,12 @@ class InputHandler:
         config = state_manager.get_or_create_chat_config(chat_id)
         modifier_specs = controller.get_modifier_specs()
 
-        queue = self._get_or_create_queue(chat_id)
+        buffer = self._get_or_create_buffer(chat_id)
 
         png_buffer = controller.get_frame_as_png()
         recent = session.state.recent_inputs if session else []
         base_text = self._get_message_base_text(chat_id)
-        caption = create_game_message_text(recent_inputs=recent, queue_length=len(queue), base_text_override=base_text, chat_id=chat_id)
+        caption = create_game_message_text(recent_inputs=recent, queue_length=buffer.total_buttons(), base_text_override=base_text, chat_id=chat_id)
         keyboard = adapter.build_game_keyboard(chat_config=config, modifier_specs=modifier_specs)
 
         if session and session.state.message_id and not session.state.input_in_progress:
@@ -590,18 +625,10 @@ class InputHandler:
         return message_id
 
     async def resume_game(self, chat_id: int, adapter: BotAdapter) -> Optional[int]:
-        """Resume the game by sending a new message with keyboard.
-
-        Args:
-            chat_id: Platform chat ID
-            adapter: Platform adapter for sending messages
-
-        Returns:
-            Message ID of the new game message, or None if failed
-        """
+        """Resume the game by sending a new message with keyboard."""
         session = self._get_session(chat_id)
         controller = game_controller_manager.get_controller(chat_id)
-        queue = self._get_or_create_queue(chat_id)
+        buffer = self._get_or_create_buffer(chat_id)
 
         if not controller or not controller.is_initialized():
             return None
@@ -620,7 +647,7 @@ class InputHandler:
 
         recent = session.state.recent_inputs if session else []
         base_text = self._get_message_base_text(chat_id)
-        text = create_game_message_text(recent_inputs=recent, queue_length=len(queue), base_text_override=base_text, chat_id=chat_id)
+        text = create_game_message_text(recent_inputs=recent, queue_length=buffer.total_buttons(), base_text_override=base_text, chat_id=chat_id)
         keyboard = adapter.build_game_keyboard(chat_config=config, modifier_specs=modifier_specs)
 
         message_id = await adapter.send_game_message(chat_id, text, keyboard, png_buffer)
@@ -644,7 +671,9 @@ class InputHandler:
         if chat_id in self._sessions:
             del self._sessions[chat_id]
             self._processing.discard(chat_id)
-            self._input_queues.pop(chat_id, None)
+            self._pending_buffers.pop(chat_id, None)
+            self._buffer_tasks.pop(chat_id, None)
+            self._drain_events.pop(chat_id, None)
 
             game_controller_manager.remove_controller(chat_id)
 
@@ -659,11 +688,7 @@ _input_handler: Optional[InputHandler] = None
 
 
 def get_input_handler() -> InputHandler:
-    """Get or create the singleton InputHandler instance.
-
-    Returns:
-        InputHandler instance
-    """
+    """Get or create the singleton InputHandler instance."""
     global _input_handler
     if _input_handler is None:
         _input_handler = InputHandler()

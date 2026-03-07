@@ -157,21 +157,6 @@ class TestChatGameState:
         
         assert game_state.updated_at > old_updated
     
-    def test_chat_game_state_with_input_queue(self):
-        """Test ChatGameState with input queue."""
-        from src.models.input_queue import InputQueue
-        
-        state = ChatGameState(chat_id=123456)
-        state.input_queue = InputQueue(max_size=5)
-        state.input_queue.add_input(123, "Alice", GameButton.A)
-        
-        data = state.to_dict()
-        restored = ChatGameState.from_dict(data)
-        
-        assert restored.input_queue is not None
-        assert len(restored.input_queue) == 1
-        assert restored.input_queue.items[0].user_id == 123
-
 
 class TestChatConfig:
     """Test ChatConfig dataclass."""

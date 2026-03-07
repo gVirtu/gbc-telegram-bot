@@ -175,6 +175,26 @@ class Settings(BaseSettings):
         le=50,
     )
 
+    # Buffered input queue settings
+    input_buffer_seconds: float = Field(
+        default=1.5,
+        description="How long to wait after last input before draining the buffer",
+        ge=0.1,
+        le=10.0,
+    )
+    maximum_inputs_per_animation: int = Field(
+        default=8,
+        description="Maximum number of buffered inputs drained per animation round",
+        ge=1,
+        le=50,
+    )
+    min_update_interval_seconds: float = Field(
+        default=5.0,
+        description="Minimum seconds between message edits to avoid rate limits",
+        ge=1.0,
+        le=60.0,
+    )
+
     # Rate limiter settings
     rate_limit_per_chat: int = Field(
         default=1,

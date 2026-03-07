@@ -74,97 +74,79 @@ def create_discord_bot() -> Any:
             raw=interaction,
         )
 
+    async def _run_command(
+        interaction: discord.Interaction, handler_key: str, args: list[str]
+    ) -> None:
+        """Defer ephemerally, run command handler, then delete the deferred response."""
+        await interaction.response.defer(ephemeral=True)
+        ctx = _build_ctx(interaction, args)
+        try:
+            await COMMAND_HANDLERS[handler_key](ctx)
+        finally:
+            try:
+                await interaction.delete_original_response()
+            except Exception:
+                pass
+
     # --- Slash Commands ---
 
     @bot.tree.command(name="start_game", description="Start or restart the game")
     async def slash_start_game(interaction: discord.Interaction):
-        await interaction.response.defer()
-        ctx = _build_ctx(interaction, [])
-        await COMMAND_HANDLERS["start_game"](ctx)
+        await _run_command(interaction, "start_game", [])
 
     @bot.tree.command(name="resume", description="Resume the game with a fresh message")
     async def slash_resume(interaction: discord.Interaction):
-        await interaction.response.defer()
-        ctx = _build_ctx(interaction, [])
-        await COMMAND_HANDLERS["resume"](ctx)
+        await _run_command(interaction, "resume", [])
 
     @bot.tree.command(name="reboot", description="Reboot the game from initial state (admin only)")
     async def slash_reboot(interaction: discord.Interaction):
-        await interaction.response.defer()
-        ctx = _build_ctx(interaction, [])
-        await COMMAND_HANDLERS["reboot"](ctx)
+        await _run_command(interaction, "reboot", [])
 
     @bot.tree.command(name="save", description="Save the current game state")
     @app_commands.describe(slot="Save slot number (optional)")
     async def slash_save(interaction: discord.Interaction, slot: int = None):
-        await interaction.response.defer()
-        args = [str(slot)] if slot is not None else []
-        ctx = _build_ctx(interaction, args)
-        await COMMAND_HANDLERS["save"](ctx)
+        await _run_command(interaction, "save", [str(slot)] if slot is not None else [])
 
     @bot.tree.command(name="load", description="Load a game state from a slot")
     @app_commands.describe(slot="Save slot number or 'backup YYYYMMDD'")
     async def slash_load(interaction: discord.Interaction, slot: str = None):
-        await interaction.response.defer()
-        args = slot.split() if slot else []
-        ctx = _build_ctx(interaction, args)
-        await COMMAND_HANDLERS["load"](ctx)
+        await _run_command(interaction, "load", slot.split() if slot else [])
 
     @bot.tree.command(name="status", description="Show current game status")
     async def slash_status(interaction: discord.Interaction):
-        await interaction.response.defer()
-        ctx = _build_ctx(interaction, [])
-        await COMMAND_HANDLERS["status"](ctx)
+        await _run_command(interaction, "status", [])
 
     @bot.tree.command(name="print", description="Send the current game frame as a screenshot")
     async def slash_print(interaction: discord.Interaction):
-        await interaction.response.defer()
-        ctx = _build_ctx(interaction, [])
-        await COMMAND_HANDLERS["print"](ctx)
+        await _run_command(interaction, "print", [])
 
     @bot.tree.command(name="help", description="Show help information")
     async def slash_help(interaction: discord.Interaction):
-        await interaction.response.defer()
-        ctx = _build_ctx(interaction, [])
-        await COMMAND_HANDLERS["help"](ctx)
+        await _run_command(interaction, "help", [])
 
     @bot.tree.command(name="gif", description="Resend the last animation")
     async def slash_gif(interaction: discord.Interaction):
-        await interaction.response.defer()
-        ctx = _build_ctx(interaction, [])
-        await COMMAND_HANDLERS["gif"](ctx)
+        await _run_command(interaction, "gif", [])
 
     @bot.tree.command(name="recap", description="Show today's gameplay timelapse")
     @app_commands.describe(date="Date in YYYYMMDD format (optional, defaults to today)")
     async def slash_recap(interaction: discord.Interaction, date: str = None):
-        await interaction.response.defer()
-        args = [date] if date else []
-        ctx = _build_ctx(interaction, args)
-        await COMMAND_HANDLERS["recap"](ctx)
+        await _run_command(interaction, "recap", [date] if date else [])
 
     @bot.tree.command(name="maintenance", description="Toggle maintenance mode (admin only)")
     @app_commands.describe(mode="on or off")
     async def slash_maintenance(interaction: discord.Interaction, mode: str = None):
-        await interaction.response.defer()
-        args = [mode] if mode else []
-        ctx = _build_ctx(interaction, args)
-        await COMMAND_HANDLERS["maintenance"](ctx)
+        await _run_command(interaction, "maintenance", [mode] if mode else [])
 
     @bot.tree.command(name="m", description="Set or clear custom message text (admin only)")
     @app_commands.describe(text="Custom text (leave empty to clear)")
     async def slash_message(interaction: discord.Interaction, text: str = None):
-        await interaction.response.defer()
-        args = text.split() if text else []
-        ctx = _build_ctx(interaction, args)
-        await COMMAND_HANDLERS["m"](ctx)
+        await _run_command(interaction, "m", text.split() if text else [])
 
     @bot.tree.command(name="language", description="Change bot language")
     @app_commands.describe(code="Language code (e.g. en-US, pt-BR)")
     async def slash_language(interaction: discord.Interaction, code: str = None):
-        await interaction.response.defer()
-        args = [code] if code else []
-        ctx = _build_ctx(interaction, args)
-        await COMMAND_HANDLERS["language"](ctx)
+        await _run_command(interaction, "language", [code] if code else [])
 
     # --- Component Interactions (Button Presses) ---
 

@@ -6,6 +6,7 @@ Provides game-specific hooks for:
 """
 
 import logging
+from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
@@ -38,29 +39,41 @@ def begin_hooks(pyboy) -> dict:
             "MenuJoypadLoop.loop": 0,
             "PokeGear.loop": 0,
             "_total": 0
+        },
+        "autoPressA": {
+            "JoyWaitAorB": 0,
+            "ButtonSound.input_wait_loop": 0,
+            "WaitPressAorB_BlinkCursor": 0,
+            "_total": 0
         }
     }
+    
+    # Aggregate all actions linked to what categories they are in
+    hook_counters = defaultdict(list)
+    
+    for counter_category in context.keys():
+        for action in context[counter_category].keys():
+            if action.startswith("_"):
+                continue
+            hook_counters[action].append(counter_category)
 
-    def increment_context_counter(ctx, path):
+    def increment_context_counter(ctx, path: list[str]):
         target = ctx
         for key in path[:-1]:
             target = target[key]
         target[path[-1]] += 1
         target["_total"] += 1
         return None
+    
+    def increment_context_counters(ctx, categories: list, action: str):
+        for category in categories:
+            increment_context_counter(ctx, [category, action])
 
-    def make_hook(category, action):
-        return lambda ctx: increment_context_counter(ctx, [category, action])
+    def make_hook(categories: list, action: str):
+        return lambda ctx: increment_context_counters(ctx, categories, action)
 
-    for action in context["dangerousActions"].keys():
-        if action.startswith("_"):
-            continue
-        pyboy.hook_register(None, action, make_hook("dangerousActions", action), context)
-
-    for action in context["inputWaitCalls"].keys():
-        if action.startswith("_"):
-            continue
-        pyboy.hook_register(None, action, make_hook("inputWaitCalls", action), context)
+    for action in hook_counters.keys():
+        pyboy.hook_register(None, action, make_hook(hook_counters[action], action), context)
 
     return context
 
@@ -72,12 +85,13 @@ def end_hooks(pyboy, context: dict) -> None:
         pyboy: PyBoy emulator instance
         context: Context dict from begin_hooks
     """
-    for action in context["dangerousActions"].keys():
-        if action.startswith("_"):
-            continue
-        pyboy.hook_deregister(None, action)
 
-    for action in context["inputWaitCalls"].keys():
+    actions = set()
+    for counter_category in context.keys():
+        for action in context[counter_category].keys():
+            actions.add(action)
+            
+    for action in actions:
         if action.startswith("_"):
             continue
         pyboy.hook_deregister(None, action)

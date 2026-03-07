@@ -125,6 +125,28 @@ class InputHandler:
         platform = config.platform if config else "telegram"
         return get_adapter(platform)
 
+    def _tick_and_capture_animation_frames(
+        self,
+        controller,
+        animation_frames: int,
+        hook_context: dict,
+        game_fps: int,
+        capture_interval_frames: int,
+        frames: list,
+    ) -> None:
+        """Tick the game controller and capture animation frames."""
+        wait_call_threshold = hook_context.get("inputWaitCalls", {}).get("_total", 0) + game_fps
+
+        for frame_num in range(animation_frames):
+            controller.tick(1)
+            if hook_context.get("inputWaitCalls", {}).get("_total", 0) > wait_call_threshold:
+                input_wait_calls = hook_context.get("inputWaitCalls", {})
+                relevant_wait_calls = {k: v for k, v in input_wait_calls.items() if v > 0}
+                logger.info(f"Input wait loop detected, finishing animation early ({relevant_wait_calls})")
+                break
+            if frame_num % capture_interval_frames == 0:
+                frames.append(controller.get_frame().copy())
+
     # ==================== Button press entry point ====================
 
     async def handle_button_press(
@@ -295,12 +317,12 @@ class InputHandler:
                 batch = buffer.pop_batch(settings.maximum_inputs_per_animation)
 
                 try:
+                    self._aggregate_to_recent_inputs(session.state, batch)
                     result = await self._process_batch(chat_id, message_id, batch, adapter)
                 except Exception as e:
                     logger.error(f"Error processing batch for chat {chat_id}: {e}")
                     result = {"animation_duration": None}
 
-                self._aggregate_to_recent_inputs(session.state, batch)
                 state_manager.save_game_state(session.state)
 
                 animation_duration = result.get("animation_duration") or 0
@@ -340,7 +362,7 @@ class InputHandler:
         # Animation capture settings - GameBoy runs at 60fps, capture at 10fps
         frames = []
         game_fps = 60
-        capture_fps = 10
+        capture_fps = 15
         capture_interval_frames = game_fps // capture_fps
 
         frames.append(controller.get_frame().copy())
@@ -372,15 +394,34 @@ class InputHandler:
 
         # Continue animating after last button press
         animation_frames = int(settings.animation_duration * game_fps)
-        wait_call_threshold = hook_context.get("inputWaitCalls", {}).get("_total", 0) + game_fps
+        auto_press_call_threshold = hook_context.get("autoPressA", {}).get("_total", 0) + game_fps
 
-        for frame_num in range(animation_frames):
-            controller.tick(1)
-            if hook_context.get("inputWaitCalls", {}).get("_total", 0) > wait_call_threshold:
-                logger.info("Input wait loop detected, finishing animation early")
-                break
-            if frame_num % capture_interval_frames == 0:
-                frames.append(controller.get_frame().copy())
+        self._tick_and_capture_animation_frames(
+            controller,
+            animation_frames,
+            hook_context,
+            game_fps,
+            capture_interval_frames,
+            frames
+        )
+        
+        # Auto press A and capture more frames ahead (e.g.: during NPC dialogue)
+        while hook_context.get("autoPressA", {}).get("_total", 0) >= auto_press_call_threshold:
+            logger.info("Auto-pressing A...")
+
+            controller.send_input(GameButton.A, frames=settings.input_hold_frames)
+            frames.append(controller.get_frame().copy())
+
+            auto_press_call_threshold = hook_context.get("autoPressA", {}).get("_total", 0) + game_fps
+
+            self._tick_and_capture_animation_frames(
+                controller,
+                animation_frames,
+                hook_context,
+                game_fps,
+                capture_interval_frames,
+                frames
+            )
 
         logger.info(f"Animation completed for chat {chat_id} in {animation_frames} frames")
 
@@ -431,19 +472,19 @@ class InputHandler:
                 if file_id and session:
                     session.state.last_animation_file_id = file_id
 
-                    # Enqueue timelapse encoding (non-blocking)
-                    from src.tasks.timelapse_encoder import timelapse_queue
-                    from datetime import datetime
+                # Enqueue timelapse encoding (non-blocking)
+                from src.tasks.timelapse_encoder import timelapse_queue
+                from datetime import datetime
 
-                    if timelapse_queue is not None:
-                        try:
-                            frames_without_tbc = frames[:-settings.tbc_duration_frames] if len(frames) > settings.tbc_duration_frames else frames
-                            skipped_frames = frames_without_tbc[::settings.timelapse_frame_skip]
-                            timestamp = datetime.now().isoformat()
-                            await timelapse_queue.enqueue(chat_id, skipped_frames, timestamp)
-                            logger.debug(f"Enqueued {len(skipped_frames)} frames for timelapse encoding (chat {chat_id})")
-                        except Exception as e:
-                            logger.warning(f"Failed to enqueue timelapse for chat {chat_id}: {e}")
+                if timelapse_queue is not None:
+                    try:
+                        frames_without_tbc = frames[:-settings.tbc_duration_frames] if len(frames) > settings.tbc_duration_frames else frames
+                        skipped_frames = frames_without_tbc[::settings.timelapse_frame_skip]
+                        timestamp = datetime.now().isoformat()
+                        await timelapse_queue.enqueue(chat_id, skipped_frames, timestamp)
+                        logger.debug(f"Enqueued {len(skipped_frames)} frames for timelapse encoding (chat {chat_id})")
+                    except Exception as e:
+                        logger.warning(f"Failed to enqueue timelapse for chat {chat_id}: {e}")
 
             except Exception as e:
                 logger.error(f"Failed to generate animation for chat {chat_id}: {e}")

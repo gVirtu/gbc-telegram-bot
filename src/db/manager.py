@@ -62,8 +62,8 @@ class DatabaseManager:
         """
         sql = """
         INSERT INTO chat_configs
-            (chat_id, input_hold_frames, animation_duration, auto_save_enabled, modifier_states, message_base_text, maintenance_mode, language, mirrors_chat_id, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (chat_id, input_hold_frames, animation_duration, auto_save_enabled, modifier_states, message_base_text, maintenance_mode, language, platform, mirrors_chat_id, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(chat_id) DO UPDATE SET
             input_hold_frames = excluded.input_hold_frames,
             animation_duration = excluded.animation_duration,
@@ -72,6 +72,7 @@ class DatabaseManager:
             message_base_text = excluded.message_base_text,
             maintenance_mode = excluded.maintenance_mode,
             language = excluded.language,
+            platform = excluded.platform,
             mirrors_chat_id = excluded.mirrors_chat_id,
             updated_at = excluded.updated_at;
         """
@@ -85,6 +86,7 @@ class DatabaseManager:
             config.message_base_text,
             1 if config.maintenance_mode else 0,
             config.language,
+            config.platform,
             config.mirrors_chat_id,
             config.created_at.isoformat() if config.created_at else datetime.utcnow().isoformat(),
             datetime.utcnow().isoformat()
@@ -117,6 +119,7 @@ class DatabaseManager:
             message_base_text=row['message_base_text'] if 'message_base_text' in row.keys() else None,
             maintenance_mode=bool(row['maintenance_mode']) if 'maintenance_mode' in row.keys() else False,
             language=row['language'] if 'language' in row.keys() else None,
+            platform=row['platform'] if 'platform' in row.keys() else 'telegram',
             mirrors_chat_id=row['mirrors_chat_id'] if 'mirrors_chat_id' in row.keys() else None,
             created_at=datetime.fromisoformat(row['created_at']),
             updated_at=datetime.fromisoformat(row['updated_at'])

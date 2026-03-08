@@ -80,7 +80,22 @@
       "invalid": "❌ Idioma inválido. Use: {languages}",
       "admin_only": "❌ Apenas administradores podem mudar o idioma."
     },
-    "unknown": "❓ Comando desconhecido. Use /help para ver os comandos disponíveis."
+    "error_mirror_only_leader": "Este comando só pode ser usado a partir do chat líder.",
+    "unknown": "❓ Comando desconhecido. Use /help para ver os comandos disponíveis.",
+    "mirror": {
+      "admin_required": "❌ Apenas admins podem configurar espelhamento.",
+      "usage": "Uso: `/mirror <chat_id>` para espelhar, `/mirror unset` para remover, `/mirror status` para ver status.",
+      "set_success": "✅ Este chat agora espelha o chat {leader_id}.",
+      "unset_success": "✅ Espelhamento removido. Este chat agora é independente.",
+      "status_independent": "Este chat é independente (sem espelhamento configurado).",
+      "status_as_mirror": "Este chat espelha o chat {leader_id}.",
+      "status_as_leader": "Este chat é líder. Espelhos: {mirrors}.",
+      "error_leader_not_found": "❌ Chat líder {leader_id} não encontrado.",
+      "error_target_is_self": "❌ Um chat não pode espelhar a si mesmo.",
+      "error_target_is_mirror": "❌ O chat alvo já é um espelho de outro chat.",
+      "error_current_has_mirrors": "❌ Este chat já tem espelhos. Remova-os antes de configurar espelhamento.",
+      "error_invalid_id": "❌ ID de chat inválido."
+    }
   },
   "permissions": {
     "chat_not_allowed": "❌ Este bot não está autorizado para este chat.",

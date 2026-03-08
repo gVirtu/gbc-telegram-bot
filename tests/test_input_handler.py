@@ -610,26 +610,31 @@ class TestWaitButtonProcessing:
 
     @pytest.mark.asyncio
     async def test_wait_button_runs_animation(self, handler, mock_adapter, mock_controller):
-        with patch("src.handlers.input_handler.game_controller_manager") as mock_mgr:
-            with patch("src.handlers.input_handler.state_manager") as mock_sm:
-                with patch("src.handlers.input_handler.save_frames_as_mp4") as mock_save:
-                    with patch("src.handlers.input_handler.generate_tbc_frames") as mock_tbc:
-                        mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
-                        mock_sm.get_or_create_chat_config.return_value = MagicMock(
-                            modifier_states={}, auto_save_enabled=False
-                        )
-                        mock_controller.get_modifier_specs.return_value = []
-                        mock_save.return_value = BytesIO(b"fake_mp4")
-                        mock_tbc.return_value = []
+        with (
+            patch("src.handlers.input_handler.game_controller_manager") as mock_mgr,
+            patch("src.handlers.input_handler.state_manager") as mock_sm,
+            patch("src.handlers.input_handler.save_frames_as_mp4") as mock_save,
+            patch("src.handlers.input_handler.generate_tbc_frames") as mock_tbc,
+            patch("src.handlers.input_handler.broadcast_game_update") as mock_bcast
+        ):
+            mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
+            mock_sm.get_or_create_chat_config.return_value = MagicMock(
+                modifier_states={}, auto_save_enabled=False
+            )
+            mock_controller.get_modifier_specs.return_value = []
+            mock_save.return_value = BytesIO(b"fake_mp4")
+            mock_tbc.return_value = []
 
-                        handler._sessions[123456] = GameSession(
-                            chat_id=123456,
-                            state=ChatGameState(chat_id=123456, message_id=789)
-                        )
+            handler._sessions[123456] = GameSession(
+                chat_id=123456,
+                state=ChatGameState(chat_id=123456, message_id=789)
+            )
 
-                        await handler._process_sequence(123456, [GameButton.WAIT], 789, mock_adapter)
+            await handler._process_sequence(123456, [GameButton.WAIT], 789, mock_adapter)
 
-                        mock_adapter.edit_game_message.assert_called()
+            mock_bcast.assert_called_once()
+            call_args = mock_bcast.call_args
+            assert call_args.args[0] == 123456
 
     @pytest.mark.asyncio
     async def test_normal_button_still_calls_send_input(self, handler, mock_adapter, mock_controller):

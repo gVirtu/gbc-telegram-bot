@@ -17,6 +17,7 @@ from src.game import game_controller_manager
 from src.handlers.input_handler import get_input_handler
 from src.i18n import translation_manager, SUPPORTED_LANGUAGES
 from src.keyboard import create_help_text
+from src.utils.mirror_utils import broadcast_text, get_leader_chat_id
 from src.utils.state_manager import state_manager
 
 logger = logging.getLogger(__name__)
@@ -97,6 +98,11 @@ async def start_game_command(ctx: CommandContext) -> None:
         return
 
     chat_id = ctx.chat_id
+    leader_id = get_leader_chat_id(chat_id)
+
+    if leader_id != chat_id:
+        await ctx.adapter.send_text(chat_id, translation_manager.get("commands.error_mirror_only_leader", chat_id))
+        return
 
     starting_msg = translation_manager.get("commands.start_game.starting", chat_id)
     await ctx.adapter.send_text(chat_id, starting_msg)
@@ -125,8 +131,9 @@ async def resume_command(ctx: CommandContext) -> None:
     and sending a new game message with the current frame.
     """
     chat_id = ctx.chat_id
+    leader_id = get_leader_chat_id(chat_id)
 
-    success, error_msg = await _ensure_game_active(chat_id)
+    success, error_msg = await _ensure_game_active(leader_id)
     if not success:
         await ctx.adapter.send_text(chat_id, f"❌ {error_msg}")
         return
@@ -134,21 +141,21 @@ async def resume_command(ctx: CommandContext) -> None:
     try:
         handler = get_input_handler()
 
-        if handler.is_input_in_progress(chat_id):
+        if handler.is_input_in_progress(leader_id):
             wait_msg = translation_manager.get("commands.resume.processing_wait", chat_id)
             await ctx.adapter.send_text(chat_id, wait_msg)
             return
 
-        message_id = await handler.resume_game(chat_id, ctx.adapter)
+        message_id = await handler.resume_game(leader_id, ctx.adapter)
 
         if message_id:
-            logger.info(f"Resumed game for chat {chat_id}")
+            logger.info(f"Resumed game for chat {leader_id} (via {chat_id})")
         else:
             error_msg = translation_manager.get("commands.resume.error_manual", chat_id)
             await ctx.adapter.send_text(chat_id, error_msg)
 
     except Exception as e:
-        logger.error(f"Error resuming game for chat {chat_id}: {e}")
+        logger.error(f"Error resuming game for chat {leader_id} (via {chat_id}): {e}")
         error_msg = translation_manager.get("commands.resume.error", chat_id)
         await ctx.adapter.send_text(chat_id, error_msg)
 
@@ -165,6 +172,11 @@ async def reboot_command(ctx: CommandContext) -> None:
         return
 
     chat_id = ctx.chat_id
+    leader_id = get_leader_chat_id(chat_id)
+
+    if leader_id != chat_id:
+        await ctx.adapter.send_text(chat_id, translation_manager.get("commands.error_mirror_only_leader", chat_id))
+        return
 
     try:
         handler = get_input_handler()
@@ -222,6 +234,11 @@ async def save_command(ctx: CommandContext) -> None:
         return
 
     chat_id = ctx.chat_id
+    leader_id = get_leader_chat_id(chat_id)
+
+    if leader_id != chat_id:
+        await ctx.adapter.send_text(chat_id, translation_manager.get("commands.error_mirror_only_leader", chat_id))
+        return
 
     success, error_msg = await _ensure_game_active(chat_id)
     if not success:
@@ -273,7 +290,7 @@ async def save_command(ctx: CommandContext) -> None:
             chat_id,
             slot=slot_number
         )
-        await ctx.adapter.send_text(chat_id, success_msg)
+        await broadcast_text(chat_id, success_msg)
 
         logger.info(f"Saved game for chat {chat_id} to slot {slot_number}")
 
@@ -295,6 +312,11 @@ async def load_command(ctx: CommandContext) -> None:
         return
 
     chat_id = ctx.chat_id
+    leader_id = get_leader_chat_id(chat_id)
+
+    if leader_id != chat_id:
+        await ctx.adapter.send_text(chat_id, translation_manager.get("commands.error_mirror_only_leader", chat_id))
+        return
 
     success, error_msg = await _ensure_game_active(chat_id)
     if not success:
@@ -350,7 +372,7 @@ async def load_command(ctx: CommandContext) -> None:
             return
         controller.load_state(state_data)
         success_msg = translation_manager.get("commands.load.backup_success", chat_id, date=date_str)
-        await ctx.adapter.send_text(chat_id, success_msg)
+        await broadcast_text(chat_id, success_msg)
         return
 
     try:
@@ -381,7 +403,7 @@ async def load_command(ctx: CommandContext) -> None:
         await handler.show_current_frame(chat_id, ctx.adapter)
 
         success_msg = translation_manager.get("commands.load.success", chat_id, slot=slot_number)
-        await ctx.adapter.send_text(chat_id, success_msg)
+        await broadcast_text(chat_id, success_msg)
 
         logger.info(f"Loaded game for chat {chat_id} from slot {slot_number}")
 
@@ -394,8 +416,9 @@ async def load_command(ctx: CommandContext) -> None:
 async def status_command(ctx: CommandContext) -> None:
     """Handle /status command."""
     chat_id = ctx.chat_id
+    leader_id = get_leader_chat_id(chat_id)
 
-    success, error_msg = await _ensure_game_active(chat_id)
+    success, error_msg = await _ensure_game_active(leader_id)
     if not success:
         await ctx.adapter.send_text(chat_id, f"❌ {error_msg}")
         return
@@ -407,14 +430,14 @@ async def status_command(ctx: CommandContext) -> None:
     lines.append(game_active_msg)
 
     handler = get_input_handler()
-    if handler.is_input_in_progress(chat_id):
+    if handler.is_input_in_progress(leader_id):
         in_progress_msg = translation_manager.get("commands.status.input_in_progress", chat_id)
         lines.append(in_progress_msg)
     else:
         waiting_msg = translation_manager.get("commands.status.waiting_input", chat_id)
         lines.append(waiting_msg)
 
-    session = handler._get_session(chat_id)
+    session = handler._get_session(leader_id)
     if session and session.state.user_input_counts:
         total_count = sum(session.state.user_input_counts.values())
         total_msg = translation_manager.get("commands.status.total_inputs", chat_id, count=total_count)
@@ -428,7 +451,7 @@ async def status_command(ctx: CommandContext) -> None:
         )
         lines.append(last_input_msg)
 
-    slots = state_manager.list_save_slots(chat_id, max_slots=settings.save_slots)
+    slots = state_manager.list_save_slots(leader_id, max_slots=settings.save_slots)
     if slots:
         slots_msg = translation_manager.get(
             "commands.status.slots_used",
@@ -456,22 +479,23 @@ async def status_command(ctx: CommandContext) -> None:
 async def print_command(ctx: CommandContext) -> None:
     """Handle /print command.
 
-    Sends the current game frame as a new media message.
+    Sends the current game frame as a new media message (current chat only).
     """
     chat_id = ctx.chat_id
+    leader_id = get_leader_chat_id(chat_id)
 
-    success, error_msg = await _ensure_game_active(chat_id)
+    success, error_msg = await _ensure_game_active(leader_id)
     if not success:
         await ctx.adapter.send_text(chat_id, f"❌ {error_msg}")
         return
 
     try:
-        controller = game_controller_manager.get_controller(chat_id)
+        controller = game_controller_manager.get_controller(leader_id)
         png_buffer = controller.get_frame_as_png()
 
         await ctx.adapter.send_screenshot(chat_id, png_buffer, caption="")
 
-        logger.info(f"Sent print frame for chat {chat_id}")
+        logger.info(f"Sent print frame for chat {chat_id} (leader {leader_id})")
 
     except Exception as e:
         logger.error(f"Error printing frame for chat {chat_id}: {e}")
@@ -491,12 +515,13 @@ async def help_command(ctx: CommandContext) -> None:
 async def gif_command(ctx: CommandContext) -> None:
     """Handle /gif command.
 
-    Resends the most recently sent animation as a new standalone message.
+    Resends the most recently sent animation as a new standalone message (current chat only).
     """
     chat_id = ctx.chat_id
+    leader_id = get_leader_chat_id(chat_id)
 
     handler = get_input_handler()
-    session = handler._get_session(chat_id)
+    session = handler._get_session(leader_id)
 
     if not session or not session.state.last_animation_file_id:
         no_anim_msg = translation_manager.get("commands.recap.no_animation", chat_id)
@@ -510,7 +535,7 @@ async def gif_command(ctx: CommandContext) -> None:
             caption="",
         )
 
-        logger.info(f"Sent last animation for chat {chat_id} via /gif command")
+        logger.info(f"Sent last animation for chat {chat_id} via /gif command (leader {leader_id})")
 
     except Exception as e:
         logger.error(f"Error sending animation for chat {chat_id}: {e}")
@@ -521,10 +546,11 @@ async def gif_command(ctx: CommandContext) -> None:
 async def recap_command(ctx: CommandContext) -> None:
     """Handle /recap command with optional date.
 
-    /recap - Show today's timelapse
+    /recap - Show today's timelapse (current chat only; uses leader's recap files)
     /recap YYYYMMDD - Show timelapse for specific date
     """
     chat_id = ctx.chat_id
+    leader_id = get_leader_chat_id(chat_id)
 
     if ctx.args:
         date_str = ctx.args[0]
@@ -543,18 +569,18 @@ async def recap_command(ctx: CommandContext) -> None:
     else:
         date_str = datetime.now().strftime("%Y%m%d")
 
-    recap_record = await state_manager.get_recap_file(chat_id, date_str)
+    recap_record = await state_manager.get_recap_file(leader_id, date_str)
 
     if recap_record is None:
-        await _send_no_gameplay_message(ctx, date_str)
+        await _send_no_gameplay_message(ctx, date_str, leader_id=leader_id)
         return
 
     from pathlib import Path
 
-    video_path = settings.data_dir / "recaps" / str(chat_id) / f"{date_str}.mp4"
+    video_path = settings.data_dir / "recaps" / str(leader_id) / f"{date_str}.mp4"
 
     if not video_path.exists():
-        await _send_no_gameplay_message(ctx, date_str)
+        await _send_no_gameplay_message(ctx, date_str, leader_id=leader_id)
         return
 
     try:
@@ -581,8 +607,8 @@ async def recap_command(ctx: CommandContext) -> None:
             )
 
             if new_file_id:
-                await state_manager.update_recap_file_id(chat_id, date_str, new_file_id)
-                logger.info(f"Uploaded and cached recap for chat {chat_id}, date {date_str}")
+                await state_manager.update_recap_file_id(leader_id, date_str, new_file_id)
+                logger.info(f"Uploaded and cached recap for chat {chat_id} (leader {leader_id}), date {date_str}")
 
     except Exception as e:
         logger.error(f"Error sending recap for chat {chat_id}, date {date_str}: {e}")
@@ -593,12 +619,15 @@ async def recap_command(ctx: CommandContext) -> None:
 async def _send_no_gameplay_message(
     ctx: CommandContext,
     date: str,
+    leader_id: int | None = None,
 ) -> None:
     """Send a message when no gameplay exists for a date."""
     chat_id = ctx.chat_id
+    if leader_id is None:
+        leader_id = get_leader_chat_id(chat_id)
 
-    date_before = await state_manager.get_nearest_recap_date(chat_id, date, "before")
-    date_after = await state_manager.get_nearest_recap_date(chat_id, date, "after")
+    date_before = await state_manager.get_nearest_recap_date(leader_id, date, "before")
+    date_after = await state_manager.get_nearest_recap_date(leader_id, date, "after")
 
     suggestions = []
     if date_before:
@@ -615,6 +644,97 @@ async def _send_no_gameplay_message(
         full_msg = no_gameplay_msg
 
     await ctx.adapter.send_text(chat_id, full_msg)
+
+
+async def mirror_command(ctx: CommandContext) -> None:
+    """Handle /mirror command.
+
+    Configures chat mirroring. Usage:
+      /mirror <leader_chat_id>  — set this chat to mirror the leader
+      /mirror unset             — remove mirroring, become independent
+      /mirror status            — show current mirror configuration
+    """
+    chat_id = ctx.chat_id
+
+    if not ctx.args:
+        usage_msg = translation_manager.get("commands.mirror.usage", chat_id)
+        await ctx.adapter.send_text(chat_id, usage_msg)
+        return
+
+    arg = ctx.args[0].lower()
+
+    if arg == "status":
+        config = state_manager.load_chat_config(chat_id)
+        if config and config.mirrors_chat_id is not None:
+            msg = translation_manager.get(
+                "commands.mirror.status_as_mirror", chat_id, leader_id=config.mirrors_chat_id
+            )
+        else:
+            mirror_ids = state_manager.get_mirror_chat_ids(chat_id)
+            if mirror_ids:
+                msg = translation_manager.get(
+                    "commands.mirror.status_as_leader", chat_id, mirrors=", ".join(str(m) for m in mirror_ids)
+                )
+            else:
+                msg = translation_manager.get("commands.mirror.status_independent", chat_id)
+        await ctx.adapter.send_text(chat_id, msg)
+        return
+
+    # Admin required for set/unset
+    is_allowed, error_msg = await check_admin_permission(ctx)
+    if not is_allowed:
+        await ctx.adapter.send_text(chat_id, translation_manager.get("commands.mirror.admin_required", chat_id))
+        return
+
+    if arg == "unset":
+        config = state_manager.get_or_create_chat_config(chat_id)
+        config.mirrors_chat_id = None
+        state_manager.save_chat_config(config)
+        msg = translation_manager.get("commands.mirror.unset_success", chat_id)
+        await ctx.adapter.send_text(chat_id, msg)
+        logger.info(f"Removed mirroring for chat {chat_id}")
+        return
+
+    # Set mirror target
+    try:
+        leader_id = int(ctx.args[0])
+    except ValueError:
+        msg = translation_manager.get("commands.mirror.error_invalid_id", chat_id)
+        await ctx.adapter.send_text(chat_id, msg)
+        return
+
+    if leader_id == chat_id:
+        msg = translation_manager.get("commands.mirror.error_target_is_self", chat_id)
+        await ctx.adapter.send_text(chat_id, msg)
+        return
+
+    # Validate: leader must exist
+    leader_config = state_manager.load_chat_config(leader_id)
+    if leader_config is None:
+        msg = translation_manager.get("commands.mirror.error_leader_not_found", chat_id, leader_id=leader_id)
+        await ctx.adapter.send_text(chat_id, msg)
+        return
+
+    # Validate: leader must not itself be a mirror
+    if leader_config.mirrors_chat_id is not None:
+        msg = translation_manager.get("commands.mirror.error_target_is_mirror", chat_id)
+        await ctx.adapter.send_text(chat_id, msg)
+        return
+
+    # Validate: current chat must have no mirrors pointing to it
+    current_mirrors = state_manager.get_mirror_chat_ids(chat_id)
+    if current_mirrors:
+        msg = translation_manager.get("commands.mirror.error_current_has_mirrors", chat_id)
+        await ctx.adapter.send_text(chat_id, msg)
+        return
+
+    config = state_manager.get_or_create_chat_config(chat_id)
+    config.mirrors_chat_id = leader_id
+    state_manager.save_chat_config(config)
+
+    msg = translation_manager.get("commands.mirror.set_success", chat_id, leader_id=leader_id)
+    await ctx.adapter.send_text(chat_id, msg)
+    logger.info(f"Chat {chat_id} now mirrors chat {leader_id}")
 
 
 async def unknown_command(ctx: CommandContext) -> None:
@@ -635,6 +755,11 @@ async def message_command(ctx: CommandContext) -> None:
         return
 
     chat_id = ctx.chat_id
+    leader_id = get_leader_chat_id(chat_id)
+
+    if leader_id != chat_id:
+        await ctx.adapter.send_text(chat_id, translation_manager.get("commands.error_mirror_only_leader", chat_id))
+        return
 
     config = state_manager.get_or_create_chat_config(chat_id)
 
@@ -662,8 +787,12 @@ async def message_command(ctx: CommandContext) -> None:
 
 
 async def language_command(ctx: CommandContext) -> None:
-    """Handle /language command."""
+    """Handle /language command.
+
+    Language is stored on the leader config; response goes to the requesting chat.
+    """
     chat_id = ctx.chat_id
+    leader_id = get_leader_chat_id(chat_id)
 
     if not ctx.args:
         config = state_manager.get_or_create_chat_config(chat_id)
@@ -680,6 +809,10 @@ async def language_command(ctx: CommandContext) -> None:
     is_allowed, error_msg = await check_admin_permission(ctx)
     if not is_allowed:
         await ctx.adapter.send_text(chat_id, error_msg)
+        return
+
+    if leader_id != chat_id:
+        await ctx.adapter.send_text(chat_id, translation_manager.get("commands.error_mirror_only_leader", chat_id))
         return
 
     new_lang = ctx.args[0]
@@ -712,7 +845,7 @@ async def language_command(ctx: CommandContext) -> None:
 async def maintenance_command(ctx: CommandContext) -> None:
     """Handle /maintenance command.
 
-    Toggles maintenance mode for the chat.
+    Toggles maintenance mode for the leader chat and broadcasts to all mirrors.
     """
     is_allowed, error_msg = await check_admin_permission(ctx)
     if not is_allowed:
@@ -720,6 +853,7 @@ async def maintenance_command(ctx: CommandContext) -> None:
         return
 
     chat_id = ctx.chat_id
+    leader_id = get_leader_chat_id(chat_id)
 
     if not ctx.args:
         config = state_manager.get_or_create_chat_config(chat_id)
@@ -727,6 +861,10 @@ async def maintenance_command(ctx: CommandContext) -> None:
         status = translation_manager.get(status_key, chat_id)
         status_msg = translation_manager.get("commands.maintenance.status", chat_id, status=status)
         await ctx.adapter.send_text(chat_id, status_msg)
+        return
+
+    if leader_id != chat_id:
+        await ctx.adapter.send_text(chat_id, translation_manager.get("commands.error_mirror_only_leader", chat_id))
         return
 
     arg = ctx.args[0].lower()
@@ -746,7 +884,7 @@ async def maintenance_command(ctx: CommandContext) -> None:
     extra_msg = translation_manager.get(message_key, chat_id)
 
     changed_msg = translation_manager.get("commands.maintenance.changed", chat_id, status=status_text, message=extra_msg)
-    await ctx.adapter.send_text(chat_id, changed_msg)
+    await broadcast_text(chat_id, changed_msg)
 
     logger.info(f"Maintenance mode {arg} for chat {chat_id}")
 
@@ -766,4 +904,5 @@ COMMAND_HANDLERS = {
     "m": message_command,
     "language": language_command,
     "maintenance": maintenance_command,
+    "mirror": mirror_command,
 }

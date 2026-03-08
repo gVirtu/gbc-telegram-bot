@@ -148,6 +148,11 @@ def create_discord_bot() -> Any:
     async def slash_language(interaction: discord.Interaction, code: str = None):
         await _run_command(interaction, "language", [code] if code else [])
 
+    @bot.tree.command(name="mirror", description="Configure chat mirroring (admin only)")
+    @app_commands.describe(target="Leader chat ID, 'unset', or 'status'")
+    async def slash_mirror(interaction: discord.Interaction, target: str = None):
+        await _run_command(interaction, "mirror", [target] if target else [])
+
     # --- Component Interactions (Button Presses) ---
 
     @bot.listen("on_interaction")

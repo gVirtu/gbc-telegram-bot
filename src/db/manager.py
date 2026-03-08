@@ -62,8 +62,8 @@ class DatabaseManager:
         """
         sql = """
         INSERT INTO chat_configs
-            (chat_id, input_hold_frames, animation_duration, auto_save_enabled, modifier_states, message_base_text, maintenance_mode, language, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (chat_id, input_hold_frames, animation_duration, auto_save_enabled, modifier_states, message_base_text, maintenance_mode, language, mirrors_chat_id, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(chat_id) DO UPDATE SET
             input_hold_frames = excluded.input_hold_frames,
             animation_duration = excluded.animation_duration,
@@ -72,6 +72,7 @@ class DatabaseManager:
             message_base_text = excluded.message_base_text,
             maintenance_mode = excluded.maintenance_mode,
             language = excluded.language,
+            mirrors_chat_id = excluded.mirrors_chat_id,
             updated_at = excluded.updated_at;
         """
 
@@ -84,6 +85,7 @@ class DatabaseManager:
             config.message_base_text,
             1 if config.maintenance_mode else 0,
             config.language,
+            config.mirrors_chat_id,
             config.created_at.isoformat() if config.created_at else datetime.utcnow().isoformat(),
             datetime.utcnow().isoformat()
         ))
@@ -115,6 +117,7 @@ class DatabaseManager:
             message_base_text=row['message_base_text'] if 'message_base_text' in row.keys() else None,
             maintenance_mode=bool(row['maintenance_mode']) if 'maintenance_mode' in row.keys() else False,
             language=row['language'] if 'language' in row.keys() else None,
+            mirrors_chat_id=row['mirrors_chat_id'] if 'mirrors_chat_id' in row.keys() else None,
             created_at=datetime.fromisoformat(row['created_at']),
             updated_at=datetime.fromisoformat(row['updated_at'])
         )
@@ -124,10 +127,10 @@ class DatabaseManager:
     
     def get_or_create_chat_config(self, chat_id: int) -> ChatConfig:
         """Get existing config or create default.
-        
+
         Args:
             chat_id: The Telegram chat ID
-            
+
         Returns:
             Existing or new ChatConfig
         """
@@ -136,6 +139,19 @@ class DatabaseManager:
             config = ChatConfig(chat_id=chat_id)
             self.save_chat_config(config)
         return config
+
+    def get_mirror_chat_ids(self, leader_chat_id: int) -> list[int]:
+        """Get all chat IDs that mirror the given leader chat.
+
+        Args:
+            leader_chat_id: The leader chat ID
+
+        Returns:
+            List of chat IDs that have mirrors_chat_id = leader_chat_id
+        """
+        sql = "SELECT chat_id FROM chat_configs WHERE mirrors_chat_id = ?;"
+        cursor = self.connection.execute(sql, (leader_chat_id,))
+        return [row['chat_id'] for row in cursor.fetchall()]
     
     # ==================== Game State ====================
     

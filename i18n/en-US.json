@@ -80,7 +80,22 @@
       "invalid": "❌ Invalid language. Use: {languages}",
       "admin_only": "❌ Only administrators can change the language."
     },
-    "unknown": "❓ Unknown command. Use /help to see available commands."
+    "error_mirror_only_leader": "This command can only be used from the leader chat.",
+    "unknown": "❓ Unknown command. Use /help to see available commands.",
+    "mirror": {
+      "admin_required": "❌ Only admins can configure mirroring.",
+      "usage": "Usage: `/mirror <chat_id>` to mirror, `/mirror unset` to remove, `/mirror status` to view status.",
+      "set_success": "✅ This chat now mirrors chat {leader_id}.",
+      "unset_success": "✅ Mirroring removed. This chat is now independent.",
+      "status_independent": "This chat is independent (no mirroring configured).",
+      "status_as_mirror": "This chat mirrors chat {leader_id}.",
+      "status_as_leader": "This chat is a leader. Mirrors: {mirrors}.",
+      "error_leader_not_found": "❌ Leader chat {leader_id} not found.",
+      "error_target_is_self": "❌ A chat cannot mirror itself.",
+      "error_target_is_mirror": "❌ The target chat is already a mirror of another chat.",
+      "error_current_has_mirrors": "❌ This chat already has mirrors. Remove them before configuring mirroring.",
+      "error_invalid_id": "❌ Invalid chat ID."
+    }
   },
   "permissions": {
     "chat_not_allowed": "❌ This bot is not authorized for this chat.",

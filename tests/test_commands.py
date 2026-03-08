@@ -374,12 +374,13 @@ class TestLoadCommand:
                         mock_settings.allowed_chat_ids = []
                         mock_settings.save_slots = 5
 
-                        await load_command(ctx)
+                        with patch("src.handlers.commands.broadcast_text", new_callable=AsyncMock) as mock_bcast:
+                            await load_command(ctx)
 
-                        mock_controller.load_state.assert_called_once_with(b"save_data")
-                        mock_adapter.send_text.assert_called()
-                        call_text = mock_adapter.send_text.call_args[0][1]
-                        assert "0" in call_text or "load" in call_text.lower()
+                            mock_controller.load_state.assert_called_once_with(b"save_data")
+                            mock_bcast.assert_called_once()
+                            call_text = mock_bcast.call_args[0][1]
+                            assert "0" in call_text or "load" in call_text.lower()
 
 
 class TestLoadBackupCommand:
@@ -412,13 +413,14 @@ class TestLoadBackupCommand:
                         mock_settings.allowed_chat_ids = []
                         mock_settings.save_slots = 5
 
-                        await load_command(ctx)
+                        with patch("src.handlers.commands.broadcast_text", new_callable=AsyncMock) as mock_bcast:
+                            await load_command(ctx)
 
-                        mock_backup_mgr.load_backup.assert_called_once_with(123456, "20260215")
-                        mock_controller.load_state.assert_called_once_with(b"backup_bytes")
-                        mock_adapter.send_text.assert_called()
-                        call_text = mock_adapter.send_text.call_args[0][1]
-                        assert "20260215" in call_text
+                            mock_backup_mgr.load_backup.assert_called_once_with(123456, "20260215")
+                            mock_controller.load_state.assert_called_once_with(b"backup_bytes")
+                            mock_bcast.assert_called_once()
+                            call_text = mock_bcast.call_args[0][1]
+                            assert "20260215" in call_text
 
     @pytest.mark.asyncio
     async def test_load_backup_not_admin(self, mock_adapter):

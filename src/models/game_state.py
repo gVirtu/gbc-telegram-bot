@@ -179,6 +179,7 @@ class ChatConfig:
     maintenance_mode: bool = False
     language: Optional[str] = None
     platform: str = "telegram"
+    mirrors_chat_id: Optional[int] = None
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
     
@@ -194,6 +195,7 @@ class ChatConfig:
             "maintenance_mode": self.maintenance_mode,
             "language": self.language,
             "platform": self.platform,
+            "mirrors_chat_id": self.mirrors_chat_id,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
@@ -211,6 +213,7 @@ class ChatConfig:
             maintenance_mode=data.get("maintenance_mode", False),
             language=data.get("language"),
             platform=data.get("platform", "telegram"),
+            mirrors_chat_id=data.get("mirrors_chat_id"),
             created_at=datetime.fromisoformat(data["created_at"]),
             updated_at=datetime.fromisoformat(data["updated_at"]),
         )

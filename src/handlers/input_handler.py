@@ -27,6 +27,7 @@ from src.utils.frame_utils import (  # noqa: F401 (needed for test patching)
     save_frames_as_avif,
     generate_tbc_frames,
 )
+from src.utils.mirror_utils import broadcast_game_update, get_leader_chat_id
 from src.utils.state_manager import state_manager
 
 logger = logging.getLogger(__name__)
@@ -170,6 +171,9 @@ class InputHandler:
             adapter: Platform adapter for sending responses
             raw: Platform-specific event object (for answering interactions)
         """
+        # Resolve leader: buffer and processing are keyed to the leader chat
+        leader_id = get_leader_chat_id(chat_id)
+
         # Handle modifier button presses before GameButton validation
         if callback_data.startswith("modifier_"):
             session = self._get_session(chat_id)
@@ -186,7 +190,7 @@ class InputHandler:
                     logger.error(f"Error processing modifier for chat {chat_id}: {e}")
                 return
             key = callback_data[len("modifier_"):]
-            await self._handle_modifier_button_press(raw, chat_id, message_id, key, adapter)
+            await self._handle_modifier_button_press(raw, chat_id, message_id, key, adapter, leader_id=leader_id)
             return
 
         if not is_valid_button_callback(callback_data):
@@ -197,6 +201,7 @@ class InputHandler:
             return
 
         button = get_button_from_callback(callback_data)
+        # Session validation uses the originating chat (ensures user clicked current message)
         session = self._get_session(chat_id)
         if not session or button is None:
             try:
@@ -206,7 +211,7 @@ class InputHandler:
                 logger.error(f"Error processing input for chat {chat_id}: {e}")
             return
 
-        # Validate message is current
+        # Validate message is current (uses originating chat's message_id)
         if session.state.message_id != message_id:
             try:
                 error_msg = translation_manager.get("game.message_outdated", chat_id)
@@ -215,8 +220,8 @@ class InputHandler:
                 logger.error(f"Error processing input for chat {chat_id}: {e}")
             return
 
-        # Add input to buffer
-        buffer = self._get_or_create_buffer(chat_id)
+        # Add input to buffer keyed to leader
+        buffer = self._get_or_create_buffer(leader_id)
         success, (message_key, message_params) = buffer.add(user_id, user_name, button)
 
         if not success:
@@ -226,21 +231,21 @@ class InputHandler:
                 logger.error(f"Error answering callback for chat {chat_id}: {e}")
             return
 
-        # Signal drain or reset debounce timer
-        drain_event = self._get_or_create_drain_event(chat_id)
+        # Signal drain or reset debounce timer (keyed to leader)
+        drain_event = self._get_or_create_drain_event(leader_id)
         if buffer.total_buttons() >= settings.max_sequence_length:
             drain_event.set()
         else:
             # Cancel existing timer and start a fresh one
-            existing_task = self._buffer_tasks.get(chat_id)
+            existing_task = self._buffer_tasks.get(leader_id)
             if existing_task and not existing_task.done():
                 existing_task.cancel()
-            self._buffer_tasks[chat_id] = asyncio.create_task(
-                self._run_buffer_timer(chat_id)
+            self._buffer_tasks[leader_id] = asyncio.create_task(
+                self._run_buffer_timer(leader_id)
             )
 
-        # Start processing loop if not already running
-        if not self._is_processing(chat_id):
+        # Start processing loop if not already running (keyed to leader)
+        if not self._is_processing(leader_id):
             try:
                 if adapter.platform != "discord":
                     await adapter.answer_interaction(
@@ -251,7 +256,13 @@ class InputHandler:
                             input=translation_manager.get(f'keyboard.buttons.display_name.{button.value}', chat_id)
                         )
                     )
-                asyncio.create_task(self._process_queue_loop(chat_id, message_id, adapter))
+                leader_config = state_manager.get_or_create_chat_config(leader_id)
+                leader_adapter = self._get_adapter_for_chat(leader_id)
+                leader_session = self._get_session(leader_id)
+                leader_msg_id = leader_session.state.message_id if leader_session else message_id
+                asyncio.create_task(
+                    self._process_queue_loop(leader_id, leader_msg_id, leader_adapter or adapter)
+                )
             except Exception as e:
                 logger.error(f"Error starting queue processing for chat {chat_id}: {e}")
                 await self._send_error_message(chat_id, translation_manager.get('game.input_processing_error', chat_id), adapter)
@@ -263,14 +274,22 @@ class InputHandler:
                 logger.error(f"Error answering callback for chat {chat_id}: {e}")
 
     async def _handle_modifier_button_press(
-        self, raw: object, chat_id: int, message_id: int, key: str, adapter: BotAdapter
+        self, raw: object, chat_id: int, message_id: int, key: str, adapter: BotAdapter,
+        leader_id: int | None = None
     ) -> None:
-        """Handle a modifier button press to toggle modifier state."""
-        config = state_manager.get_or_create_chat_config(chat_id)
+        """Handle a modifier button press to toggle modifier state.
+
+        Modifier state is stored on the leader config; keyboard is updated on
+        the originating chat only (mirrors will see it on next broadcast).
+        """
+        if leader_id is None:
+            leader_id = get_leader_chat_id(chat_id)
+
+        config = state_manager.get_or_create_chat_config(leader_id)
         config.modifier_states[key] = not config.modifier_states.get(key, False)
         state_manager.save_chat_config(config)
 
-        controller = await game_controller_manager.get_or_create_controller(chat_id)
+        controller = await game_controller_manager.get_or_create_controller(leader_id)
         modifier_specs = controller.get_modifier_specs() if controller else []
 
         keyboard = adapter.build_game_keyboard(chat_config=config, modifier_specs=modifier_specs)
@@ -466,13 +485,15 @@ class InputHandler:
                     media_type = "animation"
                 media_buffer.seek(0)
 
-                file_id = await adapter.edit_game_message(
-                    chat_id, message_id, caption, input_keyboard, media_buffer, media_type=media_type
-                )
-                if file_id and session:
-                    session.state.last_animation_file_id = file_id
+                # Broadcast to chat and mirrors (chat_id is always the leader here)
+                try:
+                    await broadcast_game_update(
+                        chat_id, caption, media_buffer, media_type, modifier_specs
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to broadcast game update for chat {chat_id}: {e}")
 
-                # Enqueue timelapse encoding (non-blocking)
+                # Enqueue timelapse encoding for leader only (non-blocking)
                 from src.tasks.timelapse_encoder import timelapse_queue
                 from datetime import datetime
 

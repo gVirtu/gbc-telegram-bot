@@ -10,7 +10,9 @@ import logging
 import time
 from typing import Any, Optional, TYPE_CHECKING
 
-from telegram import Bot, InputMediaAnimation, InputMediaPhoto
+from io import BytesIO
+
+from telegram import Bot, InputFile, InputMediaAnimation, InputMediaPhoto
 from telegram.error import TelegramError
 
 from src.adapters.base import BotAdapter
@@ -220,6 +222,9 @@ class TelegramAdapter(BotAdapter):
         except Exception as e:
             logger.warning(f"Failed to check admin status for user {user_id} in chat {chat_id}: {e}")
             return False
+
+    async def update_chat_photo(self, chat_id: int, image_bytes: bytes) -> None:
+        await self._bot.set_chat_photo(chat_id, photo=InputFile(BytesIO(image_bytes)))
 
     async def answer_interaction(
         self,

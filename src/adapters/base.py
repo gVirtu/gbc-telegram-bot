@@ -271,6 +271,16 @@ class BotAdapter(ABC):
         """Return the platform identifier string ('telegram' or 'discord')."""
         ...
 
+    @abstractmethod
+    async def update_chat_photo(self, chat_id: int, image_bytes: bytes) -> None:
+        """Update the group/server avatar with the given PNG image bytes.
+
+        Args:
+            chat_id: Platform chat ID
+            image_bytes: PNG image bytes for the new avatar
+        """
+        ...
+
     @property
     def preferred_animation_format(self) -> str:
         """Animation format for edit_game_message. Override per platform."""

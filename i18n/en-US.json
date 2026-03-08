@@ -95,6 +95,13 @@
       "error_target_is_mirror": "❌ The target chat is already a mirror of another chat.",
       "error_current_has_mirrors": "❌ This chat already has mirrors. Remove them before configuring mirroring.",
       "error_invalid_id": "❌ Invalid chat ID."
+    },
+    "feature": {
+      "usage": "Usage: /feature <flag_name> <true|false>",
+      "unknown_flag": "Unknown feature flag. Available: {flags}",
+      "invalid_value": "Value must be 'true' or 'false'.",
+      "enabled": "Feature '{flag}' enabled.",
+      "disabled": "Feature '{flag}' disabled."
     }
   },
   "permissions": {
@@ -113,7 +120,8 @@
     "input_processing_error": "Error processing inputs! Try again later.",
     "default_message": "Your turn!",
     "queue_status": "{count} input{plural} in queue.",
-    "recent_activity": "📖 *Recent Activity*:"
+    "recent_activity": "📖 *Recent Activity*:",
+    "avatar_update_failed": "⚠️ Failed to update group avatar — make sure the bot has admin rights."
   },
   "keyboard": {
     "buttons": {

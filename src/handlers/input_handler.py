@@ -9,7 +9,7 @@ multi-user batch animation.
 import asyncio
 import logging
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from src.adapters.base import BotAdapter
 from src.config import settings
@@ -29,6 +29,15 @@ from src.utils.mirror_utils import broadcast_game_update, get_leader_chat_id
 from src.utils.state_manager import state_manager
 
 logger = logging.getLogger(__name__)
+
+AVATAR_UPDATE_INTERVAL = timedelta(hours=1)
+
+
+def _should_update_avatar(config) -> bool:
+    """Return True if the avatar cooldown has passed."""
+    if config.last_avatar_update_at is None:
+        return True
+    return datetime.utcnow() - config.last_avatar_update_at >= AVATAR_UPDATE_INTERVAL
 
 
 class InputHandlerError(Exception):
@@ -482,6 +491,12 @@ class InputHandler:
                 except Exception as e:
                     logger.warning(f"Failed to broadcast game update for chat {chat_id}: {e}")
 
+                # Fire-and-forget avatar update if feature flag is enabled
+                if config.feature_flags.get("update_group_avatar") and _should_update_avatar(config):
+                    asyncio.create_task(
+                        self._update_group_avatar(chat_id, controller, adapter, config)
+                    )
+
                 # Enqueue timelapse encoding for leader only (non-blocking)
                 from src.tasks.timelapse_encoder import timelapse_queue
                 from datetime import datetime
@@ -523,6 +538,21 @@ class InputHandler:
 
         logger.info(f"Completed batch processing for chat {chat_id}")
         return {"animation_duration": animation_duration_seconds}
+
+    async def _update_group_avatar(self, chat_id: int, controller, adapter: BotAdapter, config) -> None:
+        """Update the group avatar with the current game frame (fire-and-forget)."""
+        try:
+            png_bytes = controller.get_frame_as_png().getvalue()
+            await adapter.update_chat_photo(chat_id, png_bytes)
+            config.last_avatar_update_at = datetime.utcnow()
+            state_manager.save_chat_config(config)
+            logger.info(f"Updated group avatar for chat {chat_id}")
+        except Exception as e:
+            logger.error(f"Failed to update group avatar for {chat_id}: {e}")
+            try:
+                await adapter.send_text(chat_id, translation_manager.get("game.avatar_update_failed", chat_id))
+            except Exception:
+                pass
 
     # ==================== Recent inputs aggregation ====================
 

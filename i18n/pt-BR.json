@@ -95,6 +95,13 @@
       "error_target_is_mirror": "❌ O chat alvo já é um espelho de outro chat.",
       "error_current_has_mirrors": "❌ Este chat já tem espelhos. Remova-os antes de configurar espelhamento.",
       "error_invalid_id": "❌ ID de chat inválido."
+    },
+    "feature": {
+      "usage": "Uso: /feature <nome_da_flag> <true|false>",
+      "unknown_flag": "Flag desconhecida. Disponíveis: {flags}",
+      "invalid_value": "O valor deve ser 'true' ou 'false'.",
+      "enabled": "Feature '{flag}' ativada.",
+      "disabled": "Feature '{flag}' desativada."
     }
   },
   "permissions": {
@@ -113,7 +120,8 @@
     "input_processing_error": "Erro ao processar inputs! Tente de novo depois.",
     "default_message": "Sua vez!",
     "queue_status": "{count} input{plural} na fila.",
-    "recent_activity": "📖 *Atividade recente*:"
+    "recent_activity": "📖 *Atividade recente*:",
+    "avatar_update_failed": "⚠️ Falha ao atualizar o avatar do grupo — verifique se o bot tem permissões de administrador."
   },
   "keyboard": {
     "buttons": {

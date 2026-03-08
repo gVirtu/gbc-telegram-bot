@@ -62,8 +62,8 @@ class DatabaseManager:
         """
         sql = """
         INSERT INTO chat_configs
-            (chat_id, input_hold_frames, animation_duration, auto_save_enabled, modifier_states, message_base_text, maintenance_mode, language, platform, mirrors_chat_id, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (chat_id, input_hold_frames, animation_duration, auto_save_enabled, modifier_states, message_base_text, maintenance_mode, language, platform, mirrors_chat_id, feature_flags, last_avatar_update_at, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(chat_id) DO UPDATE SET
             input_hold_frames = excluded.input_hold_frames,
             animation_duration = excluded.animation_duration,
@@ -74,6 +74,8 @@ class DatabaseManager:
             language = excluded.language,
             platform = excluded.platform,
             mirrors_chat_id = excluded.mirrors_chat_id,
+            feature_flags = excluded.feature_flags,
+            last_avatar_update_at = excluded.last_avatar_update_at,
             updated_at = excluded.updated_at;
         """
 
@@ -88,6 +90,8 @@ class DatabaseManager:
             config.language,
             config.platform,
             config.mirrors_chat_id,
+            json.dumps(config.feature_flags),
+            config.last_avatar_update_at.isoformat() if config.last_avatar_update_at else None,
             config.created_at.isoformat() if config.created_at else datetime.utcnow().isoformat(),
             datetime.utcnow().isoformat()
         ))
@@ -121,6 +125,8 @@ class DatabaseManager:
             language=row['language'] if 'language' in row.keys() else None,
             platform=row['platform'] if 'platform' in row.keys() else 'telegram',
             mirrors_chat_id=row['mirrors_chat_id'] if 'mirrors_chat_id' in row.keys() else None,
+            feature_flags=json.loads(row['feature_flags']) if 'feature_flags' in row.keys() and row['feature_flags'] else {},
+            last_avatar_update_at=datetime.fromisoformat(row['last_avatar_update_at']) if 'last_avatar_update_at' in row.keys() and row['last_avatar_update_at'] else None,
             created_at=datetime.fromisoformat(row['created_at']),
             updated_at=datetime.fromisoformat(row['updated_at'])
         )

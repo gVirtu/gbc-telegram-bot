@@ -12,6 +12,9 @@ from enum import Enum
 from typing import Optional
 
 
+KNOWN_FEATURE_FLAGS: frozenset[str] = frozenset({"update_group_avatar"})
+
+
 class GameButton(str, Enum):
     """GameBoy buttons supported by the bot."""
 
@@ -180,6 +183,8 @@ class ChatConfig:
     language: Optional[str] = None
     platform: str = "telegram"
     mirrors_chat_id: Optional[int] = None
+    feature_flags: dict[str, bool] = field(default_factory=dict)
+    last_avatar_update_at: Optional[datetime] = None
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
     
@@ -196,6 +201,8 @@ class ChatConfig:
             "language": self.language,
             "platform": self.platform,
             "mirrors_chat_id": self.mirrors_chat_id,
+            "feature_flags": self.feature_flags,
+            "last_avatar_update_at": self.last_avatar_update_at.isoformat() if self.last_avatar_update_at else None,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
@@ -214,6 +221,8 @@ class ChatConfig:
             language=data.get("language"),
             platform=data.get("platform", "telegram"),
             mirrors_chat_id=data.get("mirrors_chat_id"),
+            feature_flags=data.get("feature_flags", {}),
+            last_avatar_update_at=datetime.fromisoformat(data["last_avatar_update_at"]) if data.get("last_avatar_update_at") else None,
             created_at=datetime.fromisoformat(data["created_at"]),
             updated_at=datetime.fromisoformat(data["updated_at"]),
         )

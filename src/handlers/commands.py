@@ -17,6 +17,7 @@ from src.game import game_controller_manager
 from src.handlers.input_handler import get_input_handler
 from src.i18n import translation_manager, SUPPORTED_LANGUAGES
 from src.keyboard import create_help_text
+from src.models.game_state import KNOWN_FEATURE_FLAGS
 from src.utils.mirror_utils import broadcast_text, get_leader_chat_id
 from src.utils.state_manager import state_manager
 
@@ -737,6 +738,45 @@ async def mirror_command(ctx: CommandContext) -> None:
     logger.info(f"Chat {chat_id} now mirrors chat {leader_id}")
 
 
+async def feature_command(ctx: CommandContext) -> None:
+    """Handle /feature command.
+
+    Toggles feature flags for the chat. Admin only.
+    Usage: /feature <flag_name> <true|false>
+    """
+    is_allowed, error_msg = await check_admin_permission(ctx)
+    if not is_allowed:
+        await ctx.adapter.send_text(ctx.chat_id, error_msg)
+        return
+
+    chat_id = ctx.chat_id
+
+    if len(ctx.args) != 2:
+        await ctx.adapter.send_text(chat_id, translation_manager.get("commands.feature.usage", chat_id))
+        return
+
+    flag_name, value_str = ctx.args[0], ctx.args[1].lower()
+
+    if flag_name not in KNOWN_FEATURE_FLAGS:
+        await ctx.adapter.send_text(
+            chat_id,
+            translation_manager.get("commands.feature.unknown_flag", chat_id, flags=", ".join(sorted(KNOWN_FEATURE_FLAGS)))
+        )
+        return
+
+    if value_str not in ("true", "false"):
+        await ctx.adapter.send_text(chat_id, translation_manager.get("commands.feature.invalid_value", chat_id))
+        return
+
+    config = state_manager.get_or_create_chat_config(chat_id)
+    config.feature_flags[flag_name] = value_str == "true"
+    state_manager.save_chat_config(config)
+
+    msg_key = "commands.feature.enabled" if config.feature_flags[flag_name] else "commands.feature.disabled"
+    await ctx.adapter.send_text(chat_id, translation_manager.get(msg_key, chat_id, flag=flag_name))
+    logger.info(f"Feature '{flag_name}' {'enabled' if config.feature_flags[flag_name] else 'disabled'} for chat {chat_id}")
+
+
 async def unknown_command(ctx: CommandContext) -> None:
     """Handle unknown commands."""
     chat_id = ctx.chat_id
@@ -905,4 +945,5 @@ COMMAND_HANDLERS = {
     "language": language_command,
     "maintenance": maintenance_command,
     "mirror": mirror_command,
+    "feature": feature_command,
 }

@@ -571,8 +571,18 @@ class TestProcessBatchEdgeCases:
         adapter = _make_adapter()
         controller = _mock_controller_for_batch()
 
-        # Set autoPressA._total to a high value initially so the while condition fires immediately
-        controller.begin_hooks.return_value = {"autoPressA": {"_total": 60}}
+        # Start with _total=0 so threshold=60. Patch _tick_and_capture_animation_frames
+        # to simulate the game advancing so _total reaches 60 (meeting the threshold).
+        initial_context = {"autoPressA": {"_total": 0}}
+        controller.begin_hooks.return_value = initial_context
+
+        call_count = [0]
+        def mutate_context(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                # First call: simulate autoPressA threshold being reached
+                initial_context["autoPressA"]["_total"] = 60
+            # Subsequent calls: _total stays at 60, threshold becomes 120, while exits
 
         with patch("src.handlers.input_handler.game_controller_manager") as mock_gcm, \
              patch("src.handlers.input_handler.state_manager") as mock_sm, \
@@ -585,8 +595,9 @@ class TestProcessBatchEdgeCases:
             )
             _base_settings_patch(mock_s)
 
-            batch = [BufferedInput(user_id=1, user_name="Alice", button=GameButton.A)]
-            result = await handler._process_batch(123456, 789, batch, adapter)
+            with patch.object(handler, "_tick_and_capture_animation_frames", side_effect=mutate_context):
+                batch = [BufferedInput(user_id=1, user_name="Alice", button=GameButton.A)]
+                result = await handler._process_batch(123456, 789, batch, adapter)
 
         # send_input called at least twice: once for batch button, once for auto-press A
         assert controller.send_input.call_count >= 2
@@ -703,30 +714,35 @@ class TestProcessBatchEdgeCases:
 
     @pytest.mark.asyncio
     async def test_animation_failure_falls_back_to_photo(self):
-        """Lines 499-503: outer exception during animation → fallback to static photo."""
+        """Lines 499-503: outer exception during animation → fallback to static photo.
+
+        The outer except is triggered when the dynamic import of timelapse_queue
+        fails (the module is in sys.modules but lacks the attribute).
+        """
         handler = _handler()
         handler._sessions[123456] = _session()
         adapter = _make_adapter()
         controller = _mock_controller_for_batch()
 
+        # A module mock with restricted spec so accessing timelapse_queue raises AttributeError,
+        # which Python converts to ImportError — triggering the outer except at line 499.
+        fake_timelapse_module = MagicMock(spec=["__name__", "__spec__", "__loader__", "__package__"])
+        fake_timelapse_module.__name__ = "src.tasks.timelapse_encoder"
+
         with patch("src.handlers.input_handler.game_controller_manager") as mock_gcm, \
              patch("src.handlers.input_handler.state_manager") as mock_sm, \
-             patch("src.handlers.input_handler.broadcast_game_update", new_callable=AsyncMock) as mock_bcast, \
+             patch("src.handlers.input_handler.broadcast_game_update", new_callable=AsyncMock), \
              patch("src.handlers.input_handler.generate_tbc_frames", return_value=[]), \
-             patch("src.handlers.input_handler.settings") as mock_s:
+             patch("src.handlers.input_handler.settings") as mock_s, \
+             patch.dict("sys.modules", {"src.tasks.timelapse_encoder": fake_timelapse_module}):
             mock_gcm.get_or_create_controller = AsyncMock(return_value=controller)
             mock_sm.get_or_create_chat_config.return_value = ChatConfig(
                 chat_id=123456, modifier_states={}, auto_save_enabled=False
             )
-            # Force the outer try to fail by making broadcast raise hard
-            mock_bcast.side_effect = Exception("broadcast hard fail")
-            # Also make timelapse_queue None to ensure we hit the outer except
             _base_settings_patch(mock_s)
-            mock_s.tbc_duration_frames = 0
 
-            with patch.dict("sys.modules", {"src.tasks.timelapse_encoder": MagicMock(timelapse_queue=None)}):
-                batch = [BufferedInput(user_id=1, user_name="Alice", button=GameButton.A)]
-                await handler._process_batch(123456, 789, batch, adapter)
+            batch = [BufferedInput(user_id=1, user_name="Alice", button=GameButton.A)]
+            await handler._process_batch(123456, 789, batch, adapter)
 
         # Fallback: edit_game_message called with photo
         adapter.edit_game_message.assert_awaited_once()
@@ -766,15 +782,22 @@ class TestTickAndCaptureAnimationFramesEarlyBreak:
     """Lines 142-145: early break when inputWaitCalls exceeds threshold."""
 
     def test_early_break_on_input_wait_loop(self):
-        """inputWaitCalls._total exceeds threshold → loop breaks early."""
+        """inputWaitCalls._total exceeds threshold → loop breaks early.
+
+        threshold = initial _total(0) + game_fps(60) = 60.
+        After first tick, simulate _total jumping to 61 > 60 → break fires.
+        """
         handler = _handler()
         controller = MagicMock()
 
         frames = []
-        # hook_context with inputWaitCalls._total already above the threshold
-        # threshold = initial _total (0) + game_fps (60) = 60
-        # But current _total = 61 > 60 → break immediately
-        hook_context = {"inputWaitCalls": {"_total": 61, "someCall": 61}}
+        hook_context = {"inputWaitCalls": {"_total": 0}}
+
+        # Simulate game advancing: first tick pushes _total past the threshold
+        def mutate_on_tick(n):
+            hook_context["inputWaitCalls"]["_total"] = 61  # > threshold of 60
+
+        controller.tick.side_effect = mutate_on_tick
 
         handler._tick_and_capture_animation_frames(
             controller=controller,
@@ -785,8 +808,8 @@ class TestTickAndCaptureAnimationFramesEarlyBreak:
             frames=frames,
         )
 
-        # Should have stopped well before 100 frames - only 1 tick (frame 0 triggers break)
-        assert controller.tick.call_count < 10
+        # Should have stopped after 1 tick (break on frame 0)
+        assert controller.tick.call_count == 1
 
     def test_no_early_break_when_below_threshold(self):
         """No early break when inputWaitCalls stays below threshold."""

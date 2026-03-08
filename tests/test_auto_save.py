@@ -20,12 +20,11 @@ async def test_auto_save_on_input(mock_adapter):
 
     with patch("src.handlers.input_handler.state_manager") as mock_state_mgr:
         with patch("src.handlers.input_handler.game_controller_manager") as mock_game_mgr:
-            with patch("src.handlers.input_handler.save_frames_as_mp4") as mock_save_frames:
+            with patch("src.handlers.input_handler.broadcast_game_update", new_callable=AsyncMock):
                 with patch("src.handlers.input_handler.generate_tbc_frames") as mock_tbc:
                     # Setup mocks
                     mock_state_mgr.get_or_create_chat_config.return_value = mock_config
                     mock_state_mgr.find_next_auto_save_slot.return_value = 2
-                    mock_save_frames.return_value = BytesIO(b"fake_mp4")
                     mock_tbc.return_value = []
 
                     mock_controller = MagicMock()
@@ -58,11 +57,10 @@ async def test_no_auto_save_when_disabled(mock_adapter):
 
     with patch("src.handlers.input_handler.state_manager") as mock_state_mgr:
         with patch("src.handlers.input_handler.game_controller_manager") as mock_game_mgr:
-            with patch("src.handlers.input_handler.save_frames_as_mp4") as mock_save_frames:
+            with patch("src.handlers.input_handler.broadcast_game_update", new_callable=AsyncMock):
                 with patch("src.handlers.input_handler.generate_tbc_frames") as mock_tbc:
                     # Setup mocks
                     mock_state_mgr.get_or_create_chat_config.return_value = mock_config
-                    mock_save_frames.return_value = BytesIO(b"fake_mp4")
                     mock_tbc.return_value = []
 
                     mock_controller = MagicMock()

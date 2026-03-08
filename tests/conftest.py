@@ -1,5 +1,6 @@
 """Shared pytest fixtures for all tests."""
 
+import asyncio
 import os
 import pytest
 from unittest.mock import MagicMock, AsyncMock
@@ -11,6 +12,25 @@ os.environ["PYTEST_CURRENT_TEST"] = "1"
 os.environ["TELEGRAM_BOT_TOKEN"] = "test_token"
 os.environ["WEBHOOK_URL"] = "https://test.example.com"
 os.environ["WEBHOOK_SECRET"] = "test_secret_1234567890"
+
+
+@pytest.fixture(autouse=True)
+async def cancel_pending_tasks():
+    """Cancel any asyncio Tasks left running after each async test.
+
+    Tests that call handle_button_press() without mocking asyncio.create_task
+    leave background Tasks (_run_buffer_timer, _process_queue_loop) pending
+    when the test ends.  On macOS the event loop uses a kqueue file descriptor;
+    if the GC finalises those orphaned Tasks after the loop has been closed the
+    OS may reuse the same FD number for the next test's kqueue, causing the
+    next test to fail with OSError: [Errno 9] Bad file descriptor.
+    """
+    yield
+    tasks = [t for t in asyncio.all_tasks() if not t.done() and t is not asyncio.current_task()]
+    for task in tasks:
+        task.cancel()
+    if tasks:
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 
 @pytest.fixture

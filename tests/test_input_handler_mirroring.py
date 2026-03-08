@@ -231,10 +231,7 @@ class TestProcessBatchMirrorBroadcast:
         with (
             patch("src.handlers.input_handler.game_controller_manager") as mock_gcm,
             patch("src.handlers.input_handler.state_manager") as mock_sm,
-            patch("src.handlers.input_handler.save_frames_as_mp4", return_value=fake_media_buffer),
-            patch("src.handlers.input_handler.save_frames_as_avif", return_value=fake_media_buffer),
             patch("src.handlers.input_handler.generate_tbc_frames", return_value=[]),
-            patch("src.handlers.input_handler.broadcast_game_update") as mock_bcast,
             patch("src.handlers.input_handler.create_game_message_text", return_value="caption"),
         ):
             mock_gcm.get_or_create_controller = AsyncMock(return_value=mock_controller)
@@ -271,8 +268,6 @@ class TestProcessBatchMirrorBroadcast:
         with (
             patch("src.handlers.input_handler.game_controller_manager") as mock_gcm,
             patch("src.handlers.input_handler.state_manager") as mock_sm,
-            patch("src.handlers.input_handler.save_frames_as_mp4", return_value=fake_media_buffer),
-            patch("src.handlers.input_handler.save_frames_as_avif", return_value=fake_media_buffer),
             patch("src.handlers.input_handler.generate_tbc_frames", return_value=[]),
             patch("src.handlers.input_handler.create_game_message_text", return_value="caption"),
         ):

@@ -14,6 +14,10 @@ from typing import Optional
 from src.adapters.base import get_adapter
 from src.game import game_controller_manager
 from src.utils.state_manager import state_manager
+from src.utils.frame_utils import (  # noqa: F401 (needed for test patching)
+    save_frames_as_mp4,
+    save_frames_as_avif
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +43,8 @@ def get_leader_chat_id(chat_id: int) -> int:
 async def broadcast_game_update(
     leader_chat_id: int,
     caption: str,
-    media_buffer: BytesIO,
-    media_type: str,
+    frames: list,
+    capture_fps: int,
     modifier_specs: list,
 ) -> None:
     """Send/edit game message in leader + all mirrors.
@@ -54,14 +58,18 @@ async def broadcast_game_update(
     Args:
         leader_chat_id: The leader chat ID (game state owner)
         caption: Message caption text
-        media_buffer: BytesIO containing animation/photo data (seekable)
-        media_type: "animation", "avif", or "photo"
+        frames: List of game frames
+        capture_fps: Capture FPS
         modifier_specs: List of ModifierButtonSpec for keyboard building
     """
     from src.models.game_state import ChatGameState
 
     mirror_ids = state_manager.get_mirror_chat_ids(leader_chat_id)
     all_targets = [leader_chat_id] + mirror_ids
+    media_buffers_per_type = {
+        "animation": None,
+        "avif": None
+    }
 
     for target_id in all_targets:
         config = state_manager.get_or_create_chat_config(target_id)
@@ -69,6 +77,18 @@ async def broadcast_game_update(
         if adapter is None:
             logger.warning(f"No adapter registered for platform '{config.platform}' (chat {target_id})")
             continue
+        
+        anim_format = adapter.preferred_animation_format
+        
+        if anim_format == "avif":
+            media_buffer = media_buffers_per_type["avif"] or save_frames_as_avif(frames, fps=capture_fps)
+            media_type = "avif"
+        else:
+            media_buffer = media_buffers_per_type["animation"] or save_frames_as_mp4(frames, fps=capture_fps)
+            media_type = "animation"
+        media_buffer.seek(0)
+
+        logger.info(f"Broadcasting game update to chat {target_id} on platform {config.platform}")
 
         state = state_manager.load_game_state(target_id)
         keyboard = adapter.build_game_keyboard(chat_config=config, modifier_specs=modifier_specs)

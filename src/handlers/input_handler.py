@@ -23,8 +23,6 @@ from src.keyboard import (
 from src.models.game_state import ChatGameState, GameButton, GameSession, ModifierButtonSpec
 from src.models.input_queue import BufferedInput, PendingBuffer
 from src.utils.frame_utils import (  # noqa: F401 (needed for test patching)
-    save_frames_as_mp4,
-    save_frames_as_avif,
     generate_tbc_frames,
 )
 from src.utils.mirror_utils import broadcast_game_update, get_leader_chat_id
@@ -474,21 +472,12 @@ class InputHandler:
         )
 
         if frames:
-            anim_format = adapter.preferred_animation_format
-            logger.info(f"Generating {anim_format.upper()} with {len(frames)} frames for chat {chat_id}")
+            logger.info(f"Generating animation with {len(frames)} frames for chat {chat_id}")
             try:
-                if anim_format == "avif":
-                    media_buffer = save_frames_as_avif(frames, fps=capture_fps)
-                    media_type = "avif"
-                else:
-                    media_buffer = save_frames_as_mp4(frames, fps=capture_fps)
-                    media_type = "animation"
-                media_buffer.seek(0)
-
                 # Broadcast to chat and mirrors (chat_id is always the leader here)
                 try:
                     await broadcast_game_update(
-                        chat_id, caption, media_buffer, media_type, modifier_specs
+                        chat_id, caption, frames, capture_fps, modifier_specs
                     )
                 except Exception as e:
                     logger.warning(f"Failed to broadcast game update for chat {chat_id}: {e}")
@@ -689,16 +678,17 @@ class InputHandler:
     async def resume_game(self, chat_id: int, adapter: BotAdapter) -> Optional[int]:
         """Resume the game by sending a new message with keyboard."""
         session = self._get_session(chat_id)
-        controller = game_controller_manager.get_controller(chat_id)
-        buffer = self._get_or_create_buffer(chat_id)
+        leader_id = get_leader_chat_id(chat_id)
+        leader_controller = game_controller_manager.get_controller(leader_id)
+        leader_buffer = self._get_or_create_buffer(leader_id)
 
-        if not controller or not controller.is_initialized():
+        if not leader_controller or not leader_controller.is_initialized():
             return None
 
-        config = state_manager.get_or_create_chat_config(chat_id)
-        modifier_specs = controller.get_modifier_specs()
+        leader_config = state_manager.get_or_create_chat_config(leader_id)
+        modifier_specs = leader_controller.get_modifier_specs()
 
-        png_buffer = controller.get_frame_as_png()
+        png_buffer = leader_controller.get_frame_as_png()
 
         # Remove keyboard from old message if it exists
         if session and session.state.message_id:
@@ -707,10 +697,11 @@ class InputHandler:
             except Exception:
                 pass
 
-        recent = session.state.recent_inputs if session else []
-        base_text = self._get_message_base_text(chat_id)
-        text = create_game_message_text(recent_inputs=recent, queue_length=buffer.total_buttons(), base_text_override=base_text, chat_id=chat_id)
-        keyboard = adapter.build_game_keyboard(chat_config=config, modifier_specs=modifier_specs)
+        leader_session = self._get_session(leader_id)
+        recent = leader_session.state.recent_inputs if leader_session else []
+        base_text = self._get_message_base_text(leader_id)
+        text = create_game_message_text(recent_inputs=recent, queue_length=leader_buffer.total_buttons(), base_text_override=base_text, chat_id=leader_id)
+        keyboard = adapter.build_game_keyboard(chat_config=leader_config, modifier_specs=modifier_specs)
 
         message_id = await adapter.send_game_message(chat_id, text, keyboard, png_buffer)
 

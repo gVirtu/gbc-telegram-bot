@@ -36,11 +36,12 @@ class TestRequiredSettings:
 
     def test_telegram_token_alone_accepted(self):
         """Test that telegram_bot_token alone is accepted (discord optional)."""
-        settings = Settings(
-            telegram_bot_token="test_token",
-            webhook_url="https://example.com",
-            webhook_secret="test_secret_1234567890",
-        )
+        with patch.dict(os.environ, {"DISCORD_BOT_TOKEN": ""}, clear=False):
+            settings = Settings(
+                telegram_bot_token="test_token",
+                webhook_url="https://example.com",
+                webhook_secret="test_secret_1234567890",
+            )
         assert settings.telegram_bot_token is not None
         assert settings.discord_bot_token is None
 

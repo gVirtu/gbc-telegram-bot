@@ -146,16 +146,16 @@ async def resume_command(ctx: CommandContext) -> None:
             await ctx.adapter.send_text(chat_id, wait_msg)
             return
 
-        message_id = await handler.resume_game(leader_id, ctx.adapter)
+        message_id = await handler.resume_game(chat_id, ctx.adapter)
 
         if message_id:
-            logger.info(f"Resumed game for chat {leader_id} (via {chat_id})")
+            logger.info(f"Resumed game for chat {chat_id} (leader: {leader_id})")
         else:
             error_msg = translation_manager.get("commands.resume.error_manual", chat_id)
             await ctx.adapter.send_text(chat_id, error_msg)
 
     except Exception as e:
-        logger.error(f"Error resuming game for chat {leader_id} (via {chat_id}): {e}")
+        logger.error(f"Error resuming game for chat {chat_id} (leader: {leader_id}): {e}")
         error_msg = translation_manager.get("commands.resume.error", chat_id)
         await ctx.adapter.send_text(chat_id, error_msg)
 

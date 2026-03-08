@@ -42,6 +42,7 @@ class TestGetLeaderChatId:
 def _make_mock_adapter(platform="telegram"):
     adapter = MagicMock()
     adapter.platform = platform
+    adapter.preferred_animation_format = "animation"
     adapter.edit_game_message = AsyncMock(return_value="file_id_xyz")
     adapter.send_game_message = AsyncMock(return_value=999)
     adapter.build_game_keyboard = MagicMock(return_value=MagicMock())
@@ -55,22 +56,23 @@ class TestBroadcastGameUpdate:
         mock_adapter = _make_mock_adapter()
         leader_state = ChatGameState(chat_id=leader_id, message_id=50)
         leader_config = ChatConfig(chat_id=leader_id, platform="telegram")
-        media_buffer = BytesIO(b"fake_video_data")
+        fake_buffer = BytesIO(b"fake_video_data")
 
         with (
             patch("src.utils.mirror_utils.state_manager") as mock_sm,
             patch("src.utils.mirror_utils.get_adapter", return_value=mock_adapter),
             patch("src.utils.mirror_utils.game_controller_manager"),
+            patch("src.utils.mirror_utils.save_frames_as_mp4", return_value=fake_buffer),
         ):
             mock_sm.get_mirror_chat_ids.return_value = []
             mock_sm.get_or_create_chat_config.return_value = leader_config
             mock_sm.load_game_state.return_value = leader_state
 
-            await broadcast_game_update(leader_id, "caption", media_buffer, "animation", [])
+            await broadcast_game_update(leader_id, "caption", [], 15, [])
 
         mock_adapter.edit_game_message.assert_called_once_with(
             leader_id, 50, "caption", mock_adapter.build_game_keyboard.return_value,
-            media_buffer, media_type="animation"
+            fake_buffer, media_type="animation"
         )
 
     async def test_broadcasts_to_leader_and_mirrors(self):
@@ -81,12 +83,13 @@ class TestBroadcastGameUpdate:
         mirror_state = ChatGameState(chat_id=mirror_id, message_id=60)
         leader_config = ChatConfig(chat_id=leader_id, platform="telegram")
         mirror_config = ChatConfig(chat_id=mirror_id, platform="telegram")
-        media_buffer = BytesIO(b"fake_video_data")
+        fake_buffer = BytesIO(b"fake_video_data")
 
         with (
             patch("src.utils.mirror_utils.state_manager") as mock_sm,
             patch("src.utils.mirror_utils.get_adapter", return_value=mock_adapter),
             patch("src.utils.mirror_utils.game_controller_manager"),
+            patch("src.utils.mirror_utils.save_frames_as_mp4", return_value=fake_buffer),
         ):
             mock_sm.get_mirror_chat_ids.return_value = [mirror_id]
             mock_sm.get_or_create_chat_config.side_effect = lambda cid: (
@@ -96,7 +99,7 @@ class TestBroadcastGameUpdate:
                 leader_state if cid == leader_id else mirror_state
             )
 
-            await broadcast_game_update(leader_id, "caption", media_buffer, "animation", [])
+            await broadcast_game_update(leader_id, "caption", [], 15, [])
 
         assert mock_adapter.edit_game_message.call_count == 2
         calls = {c.args[0] for c in mock_adapter.edit_game_message.call_args_list}
@@ -110,7 +113,7 @@ class TestBroadcastGameUpdate:
         leader_state = ChatGameState(chat_id=leader_id, message_id=50)
         leader_config = ChatConfig(chat_id=leader_id, platform="telegram")
         mirror_config = ChatConfig(chat_id=mirror_id, platform="telegram")
-        media_buffer = BytesIO(b"fake_video_data")
+        fake_buffer = BytesIO(b"fake_video_data")
 
         mock_controller = MagicMock()
         mock_controller.is_initialized.return_value = True
@@ -120,6 +123,7 @@ class TestBroadcastGameUpdate:
             patch("src.utils.mirror_utils.state_manager") as mock_sm,
             patch("src.utils.mirror_utils.get_adapter", return_value=mock_adapter),
             patch("src.utils.mirror_utils.game_controller_manager") as mock_gcm,
+            patch("src.utils.mirror_utils.save_frames_as_mp4", return_value=fake_buffer),
         ):
             mock_sm.get_mirror_chat_ids.return_value = [mirror_id]
             mock_sm.get_or_create_chat_config.side_effect = lambda cid: (
@@ -131,12 +135,12 @@ class TestBroadcastGameUpdate:
             )
             mock_gcm.get_controller.return_value = mock_controller
 
-            await broadcast_game_update(leader_id, "caption", media_buffer, "animation", [])
+            await broadcast_game_update(leader_id, "caption", [], 15, [])
 
         # Leader: edit, mirror: seed
         mock_adapter.edit_game_message.assert_called_once_with(
             leader_id, 50, "caption", mock_adapter.build_game_keyboard.return_value,
-            media_buffer, media_type="animation"
+            fake_buffer, media_type="animation"
         )
         mock_adapter.send_game_message.assert_called_once()
         assert mock_adapter.send_game_message.call_args.args[0] == mirror_id
@@ -165,18 +169,19 @@ class TestBroadcastGameUpdate:
         mock_adapter.edit_game_message = AsyncMock(return_value="new_file_id")
         leader_state = ChatGameState(chat_id=leader_id, message_id=50)
         leader_config = ChatConfig(chat_id=leader_id, platform="telegram")
-        media_buffer = BytesIO(b"fake_video_data")
+        fake_buffer = BytesIO(b"fake_video_data")
 
         with (
             patch("src.utils.mirror_utils.state_manager") as mock_sm,
             patch("src.utils.mirror_utils.get_adapter", return_value=mock_adapter),
             patch("src.utils.mirror_utils.game_controller_manager"),
+            patch("src.utils.mirror_utils.save_frames_as_mp4", return_value=fake_buffer),
         ):
             mock_sm.get_mirror_chat_ids.return_value = []
             mock_sm.get_or_create_chat_config.return_value = leader_config
             mock_sm.load_game_state.return_value = leader_state
 
-            await broadcast_game_update(leader_id, "caption", media_buffer, "animation", [])
+            await broadcast_game_update(leader_id, "caption", [], 15, [])
 
         mock_sm.save_game_state.assert_called_once()
         saved_state = mock_sm.save_game_state.call_args.args[0]

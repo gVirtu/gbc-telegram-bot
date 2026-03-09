@@ -63,6 +63,9 @@ class TestChatConfigFeatureFlags:
     def test_known_feature_flags_contains_update_group_avatar(self):
         assert "update_group_avatar" in KNOWN_FEATURE_FLAGS
 
+    def test_known_feature_flags_contains_media_only_mirror(self):
+        assert "media_only_mirror" in KNOWN_FEATURE_FLAGS
+
 
 # ======================================================
 # DB persistence tests

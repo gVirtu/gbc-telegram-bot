@@ -372,15 +372,13 @@ class DiscordAdapter(BotAdapter):
             return False
 
     async def update_chat_photo(self, chat_id: int, image_bytes: bytes) -> None:
-        import base64
         channel = self._get_channel(chat_id)
         if channel is None:
             raise ValueError(f"Discord channel {chat_id} not found")
         guild = getattr(channel, "guild", None)
         if guild is None:
             raise ValueError(f"Channel {chat_id} is not a guild channel")
-        icon_b64 = base64.b64encode(image_bytes).decode()
-        await guild.edit(icon=f"data:image/png;base64,{icon_b64}")
+        await guild.edit(icon=image_bytes)
 
     async def answer_interaction(
         self,

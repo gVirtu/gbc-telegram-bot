@@ -1252,3 +1252,24 @@ class TestLanguageCommand:
         """Test that 'language' is registered in COMMAND_HANDLERS."""
         assert "language" in COMMAND_HANDLERS
         assert COMMAND_HANDLERS["language"] == language_command
+
+
+@pytest.mark.asyncio
+async def test_resume_command_noop_for_media_only_mirror(mock_adapter):
+    """resume_command does nothing (no message) when called from a media-only mirror."""
+    from src.handlers.commands import resume_command
+    from src.adapters.base import CommandContext
+
+    ctx = CommandContext(
+        chat_id=20,
+        user_id=1,
+        user_name="User",
+        args=[],
+        adapter=mock_adapter,
+        raw=None,
+    )
+
+    with patch("src.handlers.commands.is_media_only_mirror", return_value=True):
+        await resume_command(ctx)
+
+    mock_adapter.send_text.assert_not_called()

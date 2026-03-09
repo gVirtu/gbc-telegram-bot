@@ -18,7 +18,7 @@ from src.handlers.input_handler import get_input_handler
 from src.i18n import translation_manager, SUPPORTED_LANGUAGES
 from src.keyboard import create_help_text
 from src.models.game_state import KNOWN_FEATURE_FLAGS
-from src.utils.mirror_utils import broadcast_text, get_leader_chat_id
+from src.utils.mirror_utils import broadcast_text, get_leader_chat_id, is_media_only_mirror
 from src.utils.state_manager import state_manager
 
 logger = logging.getLogger(__name__)
@@ -132,6 +132,10 @@ async def resume_command(ctx: CommandContext) -> None:
     and sending a new game message with the current frame.
     """
     chat_id = ctx.chat_id
+
+    if is_media_only_mirror(chat_id):
+        return
+
     leader_id = get_leader_chat_id(chat_id)
 
     success, error_msg = await _ensure_game_active(leader_id)

@@ -40,6 +40,27 @@ def get_leader_chat_id(chat_id: int) -> int:
     return chat_id
 
 
+def is_media_only_mirror(chat_id: int) -> bool:
+    """Return True if this chat is a mirror with media_only_mirror flag enabled.
+
+    A media-only mirror never receives game frame broadcasts, text broadcasts,
+    button inputs, or /resume. It may still use /print, /gif, /recap, /status.
+    Has no effect on leader chats.
+
+    Args:
+        chat_id: The chat ID to check
+
+    Returns:
+        True if the chat is a mirror with media_only_mirror feature flag set
+    """
+    config = state_manager.load_chat_config(chat_id)
+    if config is None:
+        return False
+    if config.mirrors_chat_id is None:
+        return False
+    return bool(config.feature_flags.get("media_only_mirror", False))
+
+
 async def broadcast_game_update(
     leader_chat_id: int,
     caption: str,

@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.models.game_state import ChatConfig, ChatGameState
-from src.utils.mirror_utils import broadcast_game_update, broadcast_text, get_leader_chat_id
+from src.utils.mirror_utils import broadcast_game_update, broadcast_text, get_leader_chat_id, is_media_only_mirror
 
 
 # ---------------------------------------------------------------------------
@@ -33,6 +33,47 @@ class TestGetLeaderChatId:
         with patch("src.utils.mirror_utils.state_manager") as mock_sm:
             mock_sm.load_chat_config.return_value = ChatConfig(chat_id=50, mirrors_chat_id=None)
             assert get_leader_chat_id(50) == 50
+
+
+# ---------------------------------------------------------------------------
+# is_media_only_mirror
+# ---------------------------------------------------------------------------
+
+class TestIsMediaOnlyMirror:
+    def _make_config(self, chat_id, mirrors_chat_id=None, flag_value=None):
+        flags = {}
+        if flag_value is not None:
+            flags["media_only_mirror"] = flag_value
+        return ChatConfig(chat_id=chat_id, mirrors_chat_id=mirrors_chat_id, feature_flags=flags)
+
+    def test_returns_false_for_leader_chat(self):
+        config = self._make_config(10, mirrors_chat_id=None, flag_value=True)
+        with patch("src.utils.mirror_utils.state_manager") as mock_sm:
+            mock_sm.load_chat_config.return_value = config
+            assert is_media_only_mirror(10) is False
+
+    def test_returns_false_for_mirror_without_flag(self):
+        config = self._make_config(20, mirrors_chat_id=10, flag_value=None)
+        with patch("src.utils.mirror_utils.state_manager") as mock_sm:
+            mock_sm.load_chat_config.return_value = config
+            assert is_media_only_mirror(20) is False
+
+    def test_returns_false_for_mirror_with_flag_disabled(self):
+        config = self._make_config(20, mirrors_chat_id=10, flag_value=False)
+        with patch("src.utils.mirror_utils.state_manager") as mock_sm:
+            mock_sm.load_chat_config.return_value = config
+            assert is_media_only_mirror(20) is False
+
+    def test_returns_true_for_mirror_with_flag_enabled(self):
+        config = self._make_config(20, mirrors_chat_id=10, flag_value=True)
+        with patch("src.utils.mirror_utils.state_manager") as mock_sm:
+            mock_sm.load_chat_config.return_value = config
+            assert is_media_only_mirror(20) is True
+
+    def test_returns_false_when_no_config(self):
+        with patch("src.utils.mirror_utils.state_manager") as mock_sm:
+            mock_sm.load_chat_config.return_value = None
+            assert is_media_only_mirror(99) is False
 
 
 # ---------------------------------------------------------------------------

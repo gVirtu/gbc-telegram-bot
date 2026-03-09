@@ -18,6 +18,7 @@ from src.utils.frame_utils import (  # noqa: F401 (needed for test patching)
     save_frames_as_mp4,
     save_frames_as_avif
 )
+from src.utils.media_cache import save_last_animation
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +128,8 @@ async def broadcast_game_update(
                 if file_id and state:
                     state.last_animation_file_id = file_id
                     state_manager.save_game_state(state)
+                if target_id == leader_chat_id:
+                    save_last_animation(leader_chat_id, media_buffer, media_type)
                 sent = True
             except Exception as e:
                 logger.error(f"Failed to broadcast game update to chat {target_id}: {e}")
@@ -139,6 +142,8 @@ async def broadcast_game_update(
                 new_state = state_manager.load_game_state(target_id) or ChatGameState(chat_id=target_id)
                 new_state.message_id = new_msg_id
                 state_manager.save_game_state(new_state)
+                if target_id == leader_chat_id:
+                    save_last_animation(leader_chat_id, media_buffer, media_type)
                 sent = True
             except Exception as e:
                 logger.error(f"Failed to seed initial game message to chat {target_id}: {e}")

@@ -153,6 +153,12 @@ def create_discord_bot() -> Any:
     async def slash_mirror(interaction: discord.Interaction, target: str = None):
         await _run_command(interaction, "mirror", [target] if target else [])
 
+    @bot.tree.command(name="feature", description="Toggle a feature flag (admin only)")
+    @app_commands.describe(flag="Feature flag name", value="true or false")
+    async def slash_feature(interaction: discord.Interaction, flag: str = None, value: str = None):
+        args = [a for a in [flag, value] if a is not None]
+        await _run_command(interaction, "feature", args)
+
     # --- Component Interactions (Button Presses) ---
 
     @bot.listen("on_interaction")

@@ -283,6 +283,7 @@ class TestBroadcastText:
             mock_sm.get_or_create_chat_config.side_effect = lambda cid: ChatConfig(
                 chat_id=cid, platform="telegram"
             )
+            mock_sm.load_chat_config.return_value = None
 
             await broadcast_text(leader_id, "hello")
 
@@ -321,3 +322,23 @@ class TestBroadcastText:
 
             # Should not raise
             await broadcast_text(leader_id, "hello")
+
+    async def test_skips_media_only_mirror_in_broadcast_text(self):
+        leader_id = 10
+        mirror_id = 20
+        mock_adapter = _make_mock_adapter()
+
+        with (
+            patch("src.utils.mirror_utils.state_manager") as mock_sm,
+            patch("src.utils.mirror_utils.get_adapter", return_value=mock_adapter),
+            patch("src.utils.mirror_utils.is_media_only_mirror", side_effect=lambda cid: cid == mirror_id),
+        ):
+            mock_sm.get_mirror_chat_ids.return_value = [mirror_id]
+            mock_sm.get_or_create_chat_config.side_effect = lambda cid: ChatConfig(
+                chat_id=cid, platform="telegram"
+            )
+
+            await broadcast_text(leader_id, "hello")
+
+        # Only leader receives the text
+        mock_adapter.send_text.assert_called_once_with(leader_id, "hello")

@@ -155,6 +155,9 @@ async def broadcast_text(leader_chat_id: int, text: str) -> None:
     all_targets = [leader_chat_id] + mirror_ids
 
     for target_id in all_targets:
+        if target_id != leader_chat_id and is_media_only_mirror(target_id):
+            logger.debug(f"Skipping media-only mirror {target_id} in broadcast_text")
+            continue
         config = state_manager.get_or_create_chat_config(target_id)
         adapter = get_adapter(config.platform)
         if adapter is None:

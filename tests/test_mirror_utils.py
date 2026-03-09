@@ -139,6 +139,7 @@ class TestBroadcastGameUpdate:
             mock_sm.load_game_state.side_effect = lambda cid: (
                 leader_state if cid == leader_id else mirror_state
             )
+            mock_sm.load_chat_config.return_value = None
 
             await broadcast_game_update(leader_id, "caption", [], 15, [])
 
@@ -174,6 +175,7 @@ class TestBroadcastGameUpdate:
             mock_sm.load_game_state.side_effect = lambda cid: (
                 leader_state if cid == leader_id else None
             )
+            mock_sm.load_chat_config.return_value = None
             mock_gcm.get_controller.return_value = mock_controller
 
             await broadcast_game_update(leader_id, "caption", [], 15, [])
@@ -203,6 +205,39 @@ class TestBroadcastGameUpdate:
 
             # Should not raise
             await broadcast_game_update(leader_id, "caption", media_buffer, "photo", [])
+
+    async def test_skips_media_only_mirror_in_broadcast_game_update(self):
+        leader_id = 10
+        mirror_id = 20
+        mock_adapter = _make_mock_adapter()
+        leader_state = ChatGameState(chat_id=leader_id, message_id=50)
+        leader_config = ChatConfig(chat_id=leader_id, platform="telegram")
+        mirror_config = ChatConfig(
+            chat_id=mirror_id,
+            platform="telegram",
+            mirrors_chat_id=leader_id,
+            feature_flags={"media_only_mirror": True},
+        )
+        fake_buffer = BytesIO(b"fake_video_data")
+
+        with (
+            patch("src.utils.mirror_utils.state_manager") as mock_sm,
+            patch("src.utils.mirror_utils.get_adapter", return_value=mock_adapter),
+            patch("src.utils.mirror_utils.game_controller_manager"),
+            patch("src.utils.mirror_utils.save_frames_as_mp4", return_value=fake_buffer),
+            patch("src.utils.mirror_utils.is_media_only_mirror", side_effect=lambda cid: cid == mirror_id),
+        ):
+            mock_sm.get_mirror_chat_ids.return_value = [mirror_id]
+            mock_sm.get_or_create_chat_config.side_effect = lambda cid: (
+                leader_config if cid == leader_id else mirror_config
+            )
+            mock_sm.load_game_state.return_value = leader_state
+
+            await broadcast_game_update(leader_id, "caption", [], 15, [])
+
+        # Only leader should receive the update
+        assert mock_adapter.edit_game_message.call_count == 1
+        assert mock_adapter.edit_game_message.call_args.args[0] == leader_id
 
     async def test_file_id_saved_on_edit(self):
         leader_id = 10

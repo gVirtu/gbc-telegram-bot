@@ -93,12 +93,15 @@ async def broadcast_game_update(
     }
 
     for target_id in all_targets:
+        if target_id != leader_chat_id and is_media_only_mirror(target_id):
+            logger.debug(f"Skipping media-only mirror {target_id} in broadcast_game_update")
+            continue
         config = state_manager.get_or_create_chat_config(target_id)
         adapter = get_adapter(config.platform)
         if adapter is None:
             logger.warning(f"No adapter registered for platform '{config.platform}' (chat {target_id})")
             continue
-        
+
         anim_format = adapter.preferred_animation_format
         
         if anim_format == "avif":

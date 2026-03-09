@@ -247,6 +247,34 @@ class TestProcessBatchMirrorBroadcast:
         call_args = mock_bcast.call_args
         assert call_args.args[0] == leader_id
 
+
+# ---------------------------------------------------------------------------
+# handle_button_press — media-only mirror no-op
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_handle_button_press_noop_for_media_only_mirror():
+    """handle_button_press silently ignores inputs from media-only mirror chats."""
+    from src.handlers.input_handler import InputHandler
+
+    handler = InputHandler()
+    mock_adapter = MagicMock()
+    mock_adapter.answer_interaction = AsyncMock()
+    mock_adapter.send_text = AsyncMock()
+
+    with patch("src.handlers.input_handler.is_media_only_mirror", return_value=True):
+        await handler.handle_button_press(
+            callback_data="a",
+            chat_id=20,
+            message_id=100,
+            user_id=1,
+            user_name="User",
+            adapter=mock_adapter,
+            raw=None,
+        )
+
+    mock_adapter.answer_interaction.assert_not_called()
+    mock_adapter.send_text.assert_not_called()
     async def test_no_broadcast_called_when_no_mirrors(self):
         """If no mirrors, broadcast_game_update is still called."""
         handler = _make_handler()

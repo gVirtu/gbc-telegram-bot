@@ -25,7 +25,7 @@ from src.models.input_queue import BufferedInput, PendingBuffer
 from src.utils.frame_utils import (  # noqa: F401 (needed for test patching)
     generate_tbc_frames,
 )
-from src.utils.mirror_utils import broadcast_game_update, get_leader_chat_id
+from src.utils.mirror_utils import broadcast_game_update, get_leader_chat_id, is_media_only_mirror
 from src.utils.state_manager import state_manager
 
 logger = logging.getLogger(__name__)
@@ -178,6 +178,9 @@ class InputHandler:
             adapter: Platform adapter for sending responses
             raw: Platform-specific event object (for answering interactions)
         """
+        if is_media_only_mirror(chat_id):
+            return
+
         # Resolve leader: buffer and processing are keyed to the leader chat
         leader_id = get_leader_chat_id(chat_id)
 

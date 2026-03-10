@@ -13,6 +13,7 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REGISTRY="${1:-docker.io/gvirtu}"
 SHOULD_PUSH="${2:-}"
 IMAGE_NAME="pyboy-telegram-bot"
+DEFAULT_TAG="${3:-latest}"
 
 # Extract version from pyproject.toml
 VERSION=$(grep '^version = ' "${PROJECT_ROOT}/pyproject.toml" | sed 's/version = "\([^"]*\)"/\1/')
@@ -33,6 +34,7 @@ echo "Building Docker Images"
 echo "=========================================="
 echo "Version: $VERSION"
 echo "Image: $FULL_IMAGE"
+echo "Tag: $DEFAULT_TAG"
 echo "Platforms: linux/amd64, linux/arm64"
 echo "=========================================="
 echo ""
@@ -53,7 +55,7 @@ if [ "$SHOULD_PUSH" = "push" ]; then
     # Build arguments for multi-arch push
     BUILD_ARGS=(
         --platform linux/amd64,linux/arm64
-        --tag "${FULL_IMAGE}:latest"
+        --tag "${FULL_IMAGE}:${DEFAULT_TAG}"
         --tag "${FULL_IMAGE}:${VERSION}"
         --tag "${FULL_IMAGE}:${MAJOR}.${MINOR}"
         --tag "${FULL_IMAGE}:${MAJOR}"
@@ -85,7 +87,7 @@ else
     
     # Build arguments for local single-platform build
     BUILD_ARGS=(
-        --tag "${FULL_IMAGE}:latest"
+        --tag "${FULL_IMAGE}:${DEFAULT_TAG}"
         --tag "${FULL_IMAGE}:${VERSION}"
         --load
     )
@@ -102,7 +104,7 @@ echo "Build Complete!"
 echo "=========================================="
 echo ""
 echo "Tags created:"
-echo "  - ${FULL_IMAGE}:latest"
+echo "  - ${FULL_IMAGE}:${DEFAULT_TAG}"
 echo "  - ${FULL_IMAGE}:${VERSION}"
 echo "  - ${FULL_IMAGE}:${MAJOR}.${MINOR}"
 echo "  - ${FULL_IMAGE}:${MAJOR}"

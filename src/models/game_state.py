@@ -185,9 +185,10 @@ class ChatConfig:
     mirrors_chat_id: Optional[int] = None
     feature_flags: dict[str, bool] = field(default_factory=dict)
     last_avatar_update_at: Optional[datetime] = None
+    latest_telegram_message_id: Optional[int] = None
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
-    
+
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
         return {
@@ -203,10 +204,11 @@ class ChatConfig:
             "mirrors_chat_id": self.mirrors_chat_id,
             "feature_flags": self.feature_flags,
             "last_avatar_update_at": self.last_avatar_update_at.isoformat() if self.last_avatar_update_at else None,
+            "latest_telegram_message_id": self.latest_telegram_message_id,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
-    
+
     @classmethod
     def from_dict(cls, data: dict) -> "ChatConfig":
         """Create instance from dictionary."""
@@ -223,6 +225,7 @@ class ChatConfig:
             mirrors_chat_id=data.get("mirrors_chat_id"),
             feature_flags=data.get("feature_flags", {}),
             last_avatar_update_at=datetime.fromisoformat(data["last_avatar_update_at"]) if data.get("last_avatar_update_at") else None,
+            latest_telegram_message_id=data.get("latest_telegram_message_id"),
             created_at=datetime.fromisoformat(data["created_at"]),
             updated_at=datetime.fromisoformat(data["updated_at"]),
         )

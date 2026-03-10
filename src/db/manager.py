@@ -62,8 +62,8 @@ class DatabaseManager:
         """
         sql = """
         INSERT INTO chat_configs
-            (chat_id, input_hold_frames, animation_duration, auto_save_enabled, modifier_states, message_base_text, maintenance_mode, language, platform, mirrors_chat_id, feature_flags, last_avatar_update_at, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (chat_id, input_hold_frames, animation_duration, auto_save_enabled, modifier_states, message_base_text, maintenance_mode, language, platform, mirrors_chat_id, feature_flags, last_avatar_update_at, latest_telegram_message_id, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(chat_id) DO UPDATE SET
             input_hold_frames = excluded.input_hold_frames,
             animation_duration = excluded.animation_duration,
@@ -76,6 +76,7 @@ class DatabaseManager:
             mirrors_chat_id = excluded.mirrors_chat_id,
             feature_flags = excluded.feature_flags,
             last_avatar_update_at = excluded.last_avatar_update_at,
+            latest_telegram_message_id = excluded.latest_telegram_message_id,
             updated_at = excluded.updated_at;
         """
 
@@ -92,6 +93,7 @@ class DatabaseManager:
             config.mirrors_chat_id,
             json.dumps(config.feature_flags),
             config.last_avatar_update_at.isoformat() if config.last_avatar_update_at else None,
+            config.latest_telegram_message_id,
             config.created_at.isoformat() if config.created_at else datetime.utcnow().isoformat(),
             datetime.utcnow().isoformat()
         ))
@@ -127,6 +129,7 @@ class DatabaseManager:
             mirrors_chat_id=row['mirrors_chat_id'] if 'mirrors_chat_id' in row.keys() else None,
             feature_flags=json.loads(row['feature_flags']) if 'feature_flags' in row.keys() and row['feature_flags'] else {},
             last_avatar_update_at=datetime.fromisoformat(row['last_avatar_update_at']) if 'last_avatar_update_at' in row.keys() and row['last_avatar_update_at'] else None,
+            latest_telegram_message_id=row['latest_telegram_message_id'] if 'latest_telegram_message_id' in row.keys() else None,
             created_at=datetime.fromisoformat(row['created_at']),
             updated_at=datetime.fromisoformat(row['updated_at'])
         )
@@ -161,7 +164,25 @@ class DatabaseManager:
         sql = "SELECT chat_id FROM chat_configs WHERE mirrors_chat_id = ?;"
         cursor = self.connection.execute(sql, (leader_chat_id,))
         return [row['chat_id'] for row in cursor.fetchall()]
-    
+
+    def update_latest_telegram_message_id(self, chat_id: int, message_id: int) -> None:
+        """Update latest_telegram_message_id if message_id is greater than current value.
+
+        Args:
+            chat_id: The Telegram chat ID
+            message_id: The message ID to record
+        """
+        self.connection.execute("""
+            INSERT INTO chat_configs (chat_id, latest_telegram_message_id)
+            VALUES (?, ?)
+            ON CONFLICT(chat_id) DO UPDATE SET
+                latest_telegram_message_id = MAX(
+                    COALESCE(latest_telegram_message_id, 0),
+                    excluded.latest_telegram_message_id
+                )
+        """, (chat_id, message_id))
+        self.connection.commit()
+
     # ==================== Game State ====================
     
     def save_game_state(self, state: ChatGameState) -> None:

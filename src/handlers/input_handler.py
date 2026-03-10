@@ -549,6 +549,11 @@ class InputHandler:
             await adapter.update_chat_photo(chat_id, png_bytes)
             config.last_avatar_update_at = datetime.utcnow()
             state_manager.save_chat_config(config)
+            fresh_config = state_manager.load_chat_config(chat_id)
+            await adapter.cleanup_after_avatar_update(
+                chat_id,
+                fresh_config.latest_telegram_message_id if fresh_config else None
+            )
             logger.info(f"Updated group avatar for chat {chat_id}")
         except Exception as e:
             logger.error(f"Failed to update group avatar for {chat_id}: {e}")

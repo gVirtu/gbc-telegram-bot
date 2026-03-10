@@ -168,6 +168,8 @@ class WebhookHandler:
             return
 
         text = message.text
+        chat_id = message.chat.id
+        state_manager.update_latest_telegram_message_id(chat_id, message.message_id)
 
         if text.startswith("/"):
             # Extract command name

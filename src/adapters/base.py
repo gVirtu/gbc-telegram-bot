@@ -281,6 +281,19 @@ class BotAdapter(ABC):
         """
         ...
 
+    async def cleanup_after_avatar_update(
+        self, chat_id: int, latest_message_id: Optional[int]
+    ) -> None:
+        """Clean up platform-generated system messages after an avatar update.
+
+        No-op by default. Override on platforms that generate system messages.
+
+        Args:
+            chat_id: Platform chat ID
+            latest_message_id: The highest message ID seen before the avatar update
+        """
+        pass
+
     @property
     def preferred_animation_format(self) -> str:
         """Animation format for edit_game_message. Override per platform."""

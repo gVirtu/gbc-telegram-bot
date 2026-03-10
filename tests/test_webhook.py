@@ -242,6 +242,7 @@ class TestUpdateProcessing:
         mock_update.message = MagicMock()
         mock_update.message.text = "/help"
         mock_update.message.chat.id = 123456
+        mock_update.message.message_id = 789
         mock_update.effective_chat = MagicMock()
         mock_update.effective_chat.id = 123456
         mock_update.effective_user = MagicMock()
@@ -267,6 +268,7 @@ class TestUpdateProcessing:
         mock_update.message = MagicMock()
         mock_update.message.text = "/unknown_command"
         mock_update.message.chat.id = 123456
+        mock_update.message.message_id = 790
         mock_update.effective_chat = MagicMock()
         mock_update.effective_chat.id = 123456
         mock_update.effective_user = MagicMock()
@@ -334,11 +336,73 @@ class TestSingleton:
         import src.handlers.webhook as wh
         original = wh._webhook_handler
         wh._webhook_handler = None
-        
+
         try:
             handler1 = get_webhook_handler()
             handler2 = get_webhook_handler()
-            
+
             assert handler1 is handler2
         finally:
             wh._webhook_handler = original
+
+
+class TestHandleMessageTracksMessageId:
+    """Test that _handle_message tracks message IDs and _handle_callback_query does not."""
+
+    @pytest.fixture
+    def handler(self):
+        h = WebhookHandler()
+        h.input_handler = MagicMock()
+        h.input_handler.handle_button_press = AsyncMock()
+        h._telegram_adapter = MagicMock()
+        return h
+
+    def _make_message_update(self, chat_id=123, message_id=999, text="/start"):
+        update = MagicMock()
+        update.callback_query = None
+        update.message = MagicMock()
+        update.message.chat.id = chat_id
+        update.message.message_id = message_id
+        update.message.text = text
+        update.effective_chat = MagicMock()
+        update.effective_chat.id = chat_id
+        update.effective_user = MagicMock()
+        update.effective_user.id = 1
+        update.effective_user.first_name = "User"
+        update.effective_user.username = "user"
+        return update
+
+    def _make_callback_update(self, chat_id=123, message_id=999):
+        update = MagicMock()
+        update.message = None
+        update.callback_query = MagicMock()
+        update.callback_query.data = "a"
+        update.callback_query.message = MagicMock()
+        update.callback_query.message.chat.id = chat_id
+        update.callback_query.message.message_id = message_id
+        update.callback_query.from_user = MagicMock()
+        update.callback_query.from_user.id = 1
+        update.callback_query.from_user.first_name = "User"
+        update.callback_query.from_user.username = "user"
+        return update
+
+    @pytest.mark.asyncio
+    async def test_handle_message_tracks_message_id(self, handler):
+        """_handle_message calls update_latest_telegram_message_id."""
+        update = self._make_message_update(chat_id=123, message_id=999, text="/unknown_cmd")
+        with patch("src.handlers.webhook.state_manager") as mock_sm:
+            mock_sm.get_or_create_chat_config = MagicMock(return_value=MagicMock(maintenance_mode=False))
+            with patch("src.handlers.webhook.COMMAND_HANDLERS", {}):
+                with patch("src.handlers.commands.unknown_command", new=AsyncMock()):
+                    await handler._handle_message(update)
+            mock_sm.update_latest_telegram_message_id.assert_called_once_with(123, 999)
+
+    @pytest.mark.asyncio
+    async def test_handle_callback_query_does_not_track_message_id(self, handler):
+        """_handle_callback_query does NOT call update_latest_telegram_message_id."""
+        update = self._make_callback_update(chat_id=123, message_id=999)
+        with patch("src.handlers.webhook.state_manager") as mock_sm:
+            mock_sm.get_or_create_chat_config = MagicMock(return_value=MagicMock(maintenance_mode=False))
+            with patch("src.handlers.webhook.is_valid_button_callback", return_value=True):
+                await handler._handle_callback_query(update)
+            mock_sm.update_latest_telegram_message_id.assert_not_called()

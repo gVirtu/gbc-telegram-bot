@@ -290,9 +290,9 @@ class DiscordAdapter(BotAdapter):
             return
 
         if hasattr(animation, "read"):
-            file = discord.File(animation, filename="animation.mp4")
+            file = discord.File(animation, filename="animation.avif")
         else:
-            file = discord.File(io.BytesIO(animation), filename="animation.mp4")
+            file = discord.File(io.BytesIO(animation), filename="animation.avif")
 
         await channel.send(content=caption or None, file=file)
 

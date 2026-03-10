@@ -160,6 +160,7 @@ class TelegramAdapter(BotAdapter):
         await self._bot.send_animation(
             chat_id=chat_id,
             animation=animation,
+            filename="animation.mp4",
             caption=caption,
         )
 

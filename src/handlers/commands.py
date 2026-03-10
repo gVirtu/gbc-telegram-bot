@@ -18,6 +18,7 @@ from src.handlers.input_handler import get_input_handler
 from src.i18n import translation_manager, SUPPORTED_LANGUAGES
 from src.keyboard import create_help_text
 from src.models.game_state import KNOWN_FEATURE_FLAGS
+from src.utils.media_cache import load_last_animation
 from src.utils.mirror_utils import broadcast_text, get_leader_chat_id, is_media_only_mirror
 from src.utils.state_manager import state_manager
 
@@ -521,6 +522,7 @@ async def gif_command(ctx: CommandContext) -> None:
     """Handle /gif command.
 
     Resends the most recently sent animation as a new standalone message (current chat only).
+    Falls back to local disk cache when no file_id is available or the cached ID has expired.
     """
     chat_id = ctx.chat_id
     leader_id = get_leader_chat_id(chat_id)
@@ -528,24 +530,36 @@ async def gif_command(ctx: CommandContext) -> None:
     handler = get_input_handler()
     session = handler._get_session(leader_id)
 
-    if not session or not session.state.last_animation_file_id:
+    if not session:
         no_anim_msg = translation_manager.get("commands.recap.no_animation", chat_id)
         await ctx.adapter.send_text(chat_id, no_anim_msg)
         return
 
-    try:
+    file_id = session.state.last_animation_file_id
+    if file_id is not None:
+        try:
+            await ctx.adapter.send_animation(
+                chat_id=chat_id,
+                animation=file_id,
+                caption="",
+            )
+            logger.info(f"Sent last animation for chat {chat_id} via /gif command (leader {leader_id})")
+            return
+        except Exception as e:
+            logger.warning(f"Failed to send cached file_id for chat {chat_id}, falling back to local cache: {e}")
+
+    cached_buffer = load_last_animation(leader_id, ctx.adapter.preferred_animation_format)
+    if cached_buffer is not None:
         await ctx.adapter.send_animation(
             chat_id=chat_id,
-            animation=session.state.last_animation_file_id,
+            animation=cached_buffer,
             caption="",
         )
+        logger.info(f"Sent local cached animation for chat {chat_id} via /gif command (leader {leader_id})")
+        return
 
-        logger.info(f"Sent last animation for chat {chat_id} via /gif command (leader {leader_id})")
-
-    except Exception as e:
-        logger.error(f"Error sending animation for chat {chat_id}: {e}")
-        error_msg = translation_manager.get("commands.recap.error", chat_id)
-        await ctx.adapter.send_text(chat_id, error_msg)
+    no_anim_msg = translation_manager.get("commands.recap.no_animation", chat_id)
+    await ctx.adapter.send_text(chat_id, no_anim_msg)
 
 
 async def recap_command(ctx: CommandContext) -> None:

@@ -275,14 +275,14 @@ files = [
 
 [[package]]
 name = "certifi"
-version = "2026.1.4"
+version = "2026.2.25"
 description = "Python package for providing Mozilla's CA Bundle."
 optional = false
 python-versions = ">=3.7"
 groups = ["main", "dev"]
 files = [
-    {file = "certifi-2026.1.4-py3-none-any.whl", hash = "sha256:9943707519e4add1115f44c2bc244f782c0249876bf51b6599fee1ffbedd685c"},
-    {file = "certifi-2026.1.4.tar.gz", hash = "sha256:ac726dd470482006e014ad384921ed6438c457018f4b3d204aea4281258b2120"},
+    {file = "certifi-2026.2.25-py3-none-any.whl", hash = "sha256:027692e4402ad994f1c42e52a4997a9763c646b73e4096e4d5d6db8af1d6f0fa"},
+    {file = "certifi-2026.2.25.tar.gz", hash = "sha256:e887ab5cee78ea814d3472169153c2d12cd43b14bd03329a39a9c6e2e80bfba7"},
 ]
 
 [[package]]
@@ -1250,39 +1250,8 @@ description = "Game Boy emulator written in Python"
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
-files = [
-    {file = "pyboy-2.7.0-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:6451e7ad2d1d3d9f8316f939b6b9963ede5d6a80fcd00ee5b9aef1497fe5ece6"},
-    {file = "pyboy-2.7.0-cp310-cp310-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:40e263743b78451f1baebb3a798a5d549c41f7fd1c9b0be1b04c4bcbedf53f98"},
-    {file = "pyboy-2.7.0-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:90bedf580f00e9def3484739ec32167d35184cdf09e9fe7f079564fd8dc0c657"},
-    {file = "pyboy-2.7.0-cp310-cp310-musllinux_1_2_aarch64.whl", hash = "sha256:ab713e4643c3bc7fa86767a8e775119bdfa251eef815b2480a481bfb58449863"},
-    {file = "pyboy-2.7.0-cp310-cp310-musllinux_1_2_x86_64.whl", hash = "sha256:0374fb0d767a8cc7f8f6468a230095dbc23ed12576cfad3e13f73e8df9c60227"},
-    {file = "pyboy-2.7.0-cp310-cp310-win_amd64.whl", hash = "sha256:a56d1950009eeb21bab7e13f64d5c2985fa302b2ada8c6d42db3dec8dceaf1b3"},
-    {file = "pyboy-2.7.0-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:20b1ab830cf355a635355556e8924273146e7f939e146c0394373d0625fd0686"},
-    {file = "pyboy-2.7.0-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:57c69e7532957ac5d266a0fd5df467f6c293e85ea9fd89b5c14e2b80f8e011a1"},
-    {file = "pyboy-2.7.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:82a097fc3bc5e9a0c95b73b3dc675c1d781a163068bbc83f03f823251a855cad"},
-    {file = "pyboy-2.7.0-cp311-cp311-musllinux_1_2_aarch64.whl", hash = "sha256:cf68cd3d41b2cb4939e2a68196f352fb7b4023c4c211d036a559128cf71d2316"},
-    {file = "pyboy-2.7.0-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:0cf68c993eb64eb5a16015812da518022d2e037bcdee48c9b00a766a50b8bc2a"},
-    {file = "pyboy-2.7.0-cp311-cp311-win_amd64.whl", hash = "sha256:d8d0740923461858ca2f48f69923c41cd068e42fc95be60f1760ac62013b70f2"},
-    {file = "pyboy-2.7.0-cp312-cp312-macosx_10_13_universal2.whl", hash = "sha256:11be1062563c565d53c63485bf9c37080a809cea9faf78330e73dbd452b72d63"},
-    {file = "pyboy-2.7.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:8eb63ee10e4c2028b1ca54aa893c6020a0f09282cb34bf8dae90be23693da2e4"},
-    {file = "pyboy-2.7.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:b5858a6bbcec32bb47a3e673a5cfefc1b0839cf9e27bbaed7c996656ff73c40f"},
-    {file = "pyboy-2.7.0-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:1ec35bbe7516b388427b27d47daae4476357b41016292c58506523c43ce8f92f"},
-    {file = "pyboy-2.7.0-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:3193781f0d2fcb2237171c5f90ee22a3dd9a19926626edb8b7f78509b2634357"},
-    {file = "pyboy-2.7.0-cp312-cp312-win_amd64.whl", hash = "sha256:dfdc0c07a60abe42728f14cf7b0ce3274397fd360568fb9ece01cb7e605b8660"},
-    {file = "pyboy-2.7.0-cp313-cp313-macosx_10_13_universal2.whl", hash = "sha256:3007adead654bd4b5624d7f324d0ae88d83b782bee149af71c92e94bda3bd9c0"},
-    {file = "pyboy-2.7.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:6a32facb77ca734328d08c00a13da2117084f76d28b077af5979ddb944104322"},
-    {file = "pyboy-2.7.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:fcf29ae998c27d63f3d6598bccfbab389ef41c4fa535b4ac15711ba9096cf239"},
-    {file = "pyboy-2.7.0-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:b117068aeb2641ca12025e6b16e6c22f8cda064d1641a12eee6851df053e8502"},
-    {file = "pyboy-2.7.0-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:b8da22db6094055f200955dd66c87541ddf94997fcea9af14464abef800d88d3"},
-    {file = "pyboy-2.7.0-cp313-cp313-win_amd64.whl", hash = "sha256:2417a6bee88b05f970131986a3199f912f9dee1b37aa1dd82ca9d0fdeae149d3"},
-    {file = "pyboy-2.7.0-cp314-cp314-macosx_10_15_universal2.whl", hash = "sha256:2001957ff1aee57ea5e9f5996d04fcb4dd1057f61359806a169bfeb2eca69c12"},
-    {file = "pyboy-2.7.0-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:4fdf189e40750ea7326d5194c0ec46baf3665207ed2fc9f158ee3ef05800d07a"},
-    {file = "pyboy-2.7.0-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:8af4b55ad8270b36b00e8d1f9d386eece7f723511872e37ef2dc1d4756d09df7"},
-    {file = "pyboy-2.7.0-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:b0bb6bba5cb0433eaef5ff484ee162847489fa1f0f1c28351a93177be2e5769f"},
-    {file = "pyboy-2.7.0-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:f1611f7e0c73b2a2972d1c83b718725ad595589853971df25e35ecfcefff9898"},
-    {file = "pyboy-2.7.0-cp314-cp314-win_amd64.whl", hash = "sha256:a3817d048407b4a12d596ba967ab1d971a14a51627c97da832ed4c6960a217bb"},
-    {file = "pyboy-2.7.0.tar.gz", hash = "sha256:b97db94c366f5e54af04f94641c6107454821543015716b7182df29684ad9180"},
-]
+files = []
+develop = false
 
 [package.dependencies]
 numpy = "*"
@@ -1291,6 +1260,12 @@ pysdl2-dll = "*"
 
 [package.extras]
 all = ["PyOpenAL", "glfw", "gym", "markdown", "pdoc3", "pyopengl"]
+
+[package.source]
+type = "git"
+url = "https://github.com/gVirtu/PyBoy"
+reference = "HEAD"
+resolved_reference = "12bd1015647dcbf819550b57f4c07e7fe25c7f60"
 
 [[package]]
 name = "pydantic"
@@ -1678,47 +1653,47 @@ files = [
 
 [[package]]
 name = "ruff"
-version = "0.15.0"
+version = "0.15.5"
 description = "An extremely fast Python linter and code formatter, written in Rust."
 optional = false
 python-versions = ">=3.7"
 groups = ["dev"]
 files = [
-    {file = "ruff-0.15.0-py3-none-linux_armv6l.whl", hash = "sha256:aac4ebaa612a82b23d45964586f24ae9bc23ca101919f5590bdb368d74ad5455"},
-    {file = "ruff-0.15.0-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:dcd4be7cc75cfbbca24a98d04d0b9b36a270d0833241f776b788d59f4142b14d"},
-    {file = "ruff-0.15.0-py3-none-macosx_11_0_arm64.whl", hash = "sha256:d747e3319b2bce179c7c1eaad3d884dc0a199b5f4d5187620530adf9105268ce"},
-    {file = "ruff-0.15.0-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:650bd9c56ae03102c51a5e4b554d74d825ff3abe4db22b90fd32d816c2e90621"},
-    {file = "ruff-0.15.0-py3-none-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:a6664b7eac559e3048223a2da77769c2f92b43a6dfd4720cef42654299a599c9"},
-    {file = "ruff-0.15.0-py3-none-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:6f811f97b0f092b35320d1556f3353bf238763420ade5d9e62ebd2b73f2ff179"},
-    {file = "ruff-0.15.0-py3-none-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:761ec0a66680fab6454236635a39abaf14198818c8cdf691e036f4bc0f406b2d"},
-    {file = "ruff-0.15.0-py3-none-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:940f11c2604d317e797b289f4f9f3fa5555ffe4fb574b55ed006c3d9b6f0eb78"},
-    {file = "ruff-0.15.0-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:bcbca3d40558789126da91d7ef9a7c87772ee107033db7191edefa34e2c7f1b4"},
-    {file = "ruff-0.15.0-py3-none-manylinux_2_31_riscv64.whl", hash = "sha256:9a121a96db1d75fa3eb39c4539e607f628920dd72ff1f7c5ee4f1b768ac62d6e"},
-    {file = "ruff-0.15.0-py3-none-musllinux_1_2_aarch64.whl", hash = "sha256:5298d518e493061f2eabd4abd067c7e4fb89e2f63291c94332e35631c07c3662"},
-    {file = "ruff-0.15.0-py3-none-musllinux_1_2_armv7l.whl", hash = "sha256:afb6e603d6375ff0d6b0cee563fa21ab570fd15e65c852cb24922cef25050cf1"},
-    {file = "ruff-0.15.0-py3-none-musllinux_1_2_i686.whl", hash = "sha256:77e515f6b15f828b94dc17d2b4ace334c9ddb7d9468c54b2f9ed2b9c1593ef16"},
-    {file = "ruff-0.15.0-py3-none-musllinux_1_2_x86_64.whl", hash = "sha256:6f6e80850a01eb13b3e42ee0ebdf6e4497151b48c35051aab51c101266d187a3"},
-    {file = "ruff-0.15.0-py3-none-win32.whl", hash = "sha256:238a717ef803e501b6d51e0bdd0d2c6e8513fe9eec14002445134d3907cd46c3"},
-    {file = "ruff-0.15.0-py3-none-win_amd64.whl", hash = "sha256:dd5e4d3301dc01de614da3cdffc33d4b1b96fb89e45721f1598e5532ccf78b18"},
-    {file = "ruff-0.15.0-py3-none-win_arm64.whl", hash = "sha256:c480d632cc0ca3f0727acac8b7d053542d9e114a462a145d0b00e7cd658c515a"},
-    {file = "ruff-0.15.0.tar.gz", hash = "sha256:6bdea47cdbea30d40f8f8d7d69c0854ba7c15420ec75a26f463290949d7f7e9a"},
+    {file = "ruff-0.15.5-py3-none-linux_armv6l.whl", hash = "sha256:4ae44c42281f42e3b06b988e442d344a5b9b72450ff3c892e30d11b29a96a57c"},
+    {file = "ruff-0.15.5-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:6edd3792d408ebcf61adabc01822da687579a1a023f297618ac27a5b51ef0080"},
+    {file = "ruff-0.15.5-py3-none-macosx_11_0_arm64.whl", hash = "sha256:89f463f7c8205a9f8dea9d658d59eff49db05f88f89cc3047fb1a02d9f344010"},
+    {file = "ruff-0.15.5-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:ba786a8295c6574c1116704cf0b9e6563de3432ac888d8f83685654fe528fd65"},
+    {file = "ruff-0.15.5-py3-none-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:fd4b801e57955fe9f02b31d20375ab3a5c4415f2e5105b79fb94cf2642c91440"},
+    {file = "ruff-0.15.5-py3-none-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:391f7c73388f3d8c11b794dbbc2959a5b5afe66642c142a6effa90b45f6f5204"},
+    {file = "ruff-0.15.5-py3-none-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:8dc18f30302e379fe1e998548b0f5e9f4dff907f52f73ad6da419ea9c19d66c8"},
+    {file = "ruff-0.15.5-py3-none-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:1cc6e7f90087e2d27f98dc34ed1b3ab7c8f0d273cc5431415454e22c0bd2a681"},
+    {file = "ruff-0.15.5-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:c1cb7169f53c1ddb06e71a9aebd7e98fc0fea936b39afb36d8e86d36ecc2636a"},
+    {file = "ruff-0.15.5-py3-none-manylinux_2_31_riscv64.whl", hash = "sha256:9b037924500a31ee17389b5c8c4d88874cc6ea8e42f12e9c61a3d754ff72f1ca"},
+    {file = "ruff-0.15.5-py3-none-musllinux_1_2_aarch64.whl", hash = "sha256:65bb414e5b4eadd95a8c1e4804f6772bbe8995889f203a01f77ddf2d790929dd"},
+    {file = "ruff-0.15.5-py3-none-musllinux_1_2_armv7l.whl", hash = "sha256:d20aa469ae3b57033519c559e9bc9cd9e782842e39be05b50e852c7c981fa01d"},
+    {file = "ruff-0.15.5-py3-none-musllinux_1_2_i686.whl", hash = "sha256:15388dd28c9161cdb8eda68993533acc870aa4e646a0a277aa166de9ad5a8752"},
+    {file = "ruff-0.15.5-py3-none-musllinux_1_2_x86_64.whl", hash = "sha256:b30da330cbd03bed0c21420b6b953158f60c74c54c5f4c1dabbdf3a57bf355d2"},
+    {file = "ruff-0.15.5-py3-none-win32.whl", hash = "sha256:732e5ee1f98ba5b3679029989a06ca39a950cced52143a0ea82a2102cb592b74"},
+    {file = "ruff-0.15.5-py3-none-win_amd64.whl", hash = "sha256:821d41c5fa9e19117616c35eaa3f4b75046ec76c65e7ae20a333e9a8696bc7fe"},
+    {file = "ruff-0.15.5-py3-none-win_arm64.whl", hash = "sha256:b498d1c60d2fe5c10c45ec3f698901065772730b411f164ae270bb6bfcc4740b"},
+    {file = "ruff-0.15.5.tar.gz", hash = "sha256:7c3601d3b6d76dce18c5c824fc8d06f4eef33d6df0c21ec7799510cde0f159a2"},
 ]
 
 [[package]]
 name = "setuptools"
-version = "81.0.0"
-description = "Easily download, build, install, upgrade, and uninstall Python packages"
+version = "82.0.1"
+description = "Most extensible Python build backend with support for C/C++ extension modules"
 optional = false
 python-versions = ">=3.9"
 groups = ["dev"]
 files = [
-    {file = "setuptools-81.0.0-py3-none-any.whl", hash = "sha256:fdd925d5c5d9f62e4b74b30d6dd7828ce236fd6ed998a08d81de62ce5a6310d6"},
-    {file = "setuptools-81.0.0.tar.gz", hash = "sha256:487b53915f52501f0a79ccfd0c02c165ffe06631443a886740b91af4b7a5845a"},
+    {file = "setuptools-82.0.1-py3-none-any.whl", hash = "sha256:a59e362652f08dcd477c78bb6e7bd9d80a7995bc73ce773050228a348ce2e5bb"},
+    {file = "setuptools-82.0.1.tar.gz", hash = "sha256:7d872682c5d01cfde07da7bccc7b65469d3dca203318515ada1de5eda35efbf9"},
 ]
 
 [package.extras]
 check = ["pytest-checkdocs (>=2.4)", "pytest-ruff (>=0.2.1) ; sys_platform != \"cygwin\"", "ruff (>=0.13.0) ; sys_platform != \"cygwin\""]
-core = ["importlib_metadata (>=6) ; python_version < \"3.10\"", "jaraco.functools (>=4)", "jaraco.text (>=3.7)", "more_itertools", "more_itertools (>=8.8)", "packaging (>=24.2)", "platformdirs (>=4.2.2)", "tomli (>=2.0.1) ; python_version < \"3.11\"", "wheel (>=0.43.0)"]
+core = ["importlib_metadata (>=6) ; python_version < \"3.10\"", "jaraco.functools (>=4)", "jaraco.text (>=3.7)", "more_itertools", "more_itertools (>=8.8)", "packaging (>=24.2)", "tomli (>=2.0.1) ; python_version < \"3.11\"", "wheel (>=0.43.0)"]
 cover = ["pytest-cov"]
 doc = ["furo", "jaraco.packaging (>=9.3)", "jaraco.tidelift (>=1.4)", "pygments-github-lexers (==0.0.5)", "pyproject-hooks (!=1.1)", "rst.linker (>=1.9)", "sphinx (>=3.5)", "sphinx-favicon", "sphinx-inline-tabs", "sphinx-lint", "sphinx-notfound-page (>=1,<2)", "sphinx-reredirects", "sphinxcontrib-towncrier", "towncrier (<24.7)"]
 enabler = ["pytest-enabler (>=2.2)"]
@@ -2210,4 +2185,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11"
-content-hash = "445c861f11fff865b9f062676bf92ddbeac4af66ca307a3e5edb1ac1df4b392e"
+content-hash = "0466778ee31165551c11ad90ec601996a476825c4d128182596de62d6e71b509"

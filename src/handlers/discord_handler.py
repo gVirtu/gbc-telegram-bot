@@ -191,6 +191,7 @@ def create_discord_bot() -> Any:
             channel_id = interaction.channel_id
 
             if not _is_chat_allowed(channel_id):
+                await interaction.response.send_message("Unauthorized.", ephemeral=True)
                 return
 
             if is_valid_button_callback(custom_id):

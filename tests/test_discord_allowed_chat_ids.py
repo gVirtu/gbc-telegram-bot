@@ -200,6 +200,9 @@ class TestButtonInteractionAllowedChatIds:
             await on_interaction(interaction)
 
         input_handler.handle_button_press.assert_not_awaited()
+        interaction.response.send_message.assert_awaited_once_with(
+            "Unauthorized.", ephemeral=True
+        )
 
     @pytest.mark.asyncio
     async def test_empty_allowlist_allows_all_buttons(self):

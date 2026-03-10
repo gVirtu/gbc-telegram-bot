@@ -121,7 +121,8 @@
     "default_message": "Sua vez!",
     "queue_status": "{count} input{plural} na fila.",
     "recent_activity": "📖 *Atividade recente*:",
-    "avatar_update_failed": "⚠️ Falha ao atualizar o avatar do grupo — verifique se o bot tem permissões de administrador."
+    "avatar_update_failed": "⚠️ Falha ao atualizar o avatar do grupo — verifique se o bot tem permissões de administrador.",
+    "avatar_updating": "Atualizando foto do grupo..."
   },
   "keyboard": {
     "buttons": {

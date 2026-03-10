@@ -121,7 +121,8 @@
     "default_message": "Your turn!",
     "queue_status": "{count} input{plural} in queue.",
     "recent_activity": "📖 *Recent Activity*:",
-    "avatar_update_failed": "⚠️ Failed to update group avatar — make sure the bot has admin rights."
+    "avatar_update_failed": "⚠️ Failed to update group avatar — make sure the bot has admin rights.",
+    "avatar_updating": "Updating group photo..."
   },
   "keyboard": {
     "buttons": {

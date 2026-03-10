@@ -16,6 +16,7 @@ from telegram import Bot, InputFile, InputMediaAnimation, InputMediaPhoto
 from telegram.error import TelegramError
 
 from src.adapters.base import BotAdapter
+from src.i18n import translation_manager
 from src.keyboard import (
     create_input_keyboard,
     create_save_slot_keyboard,
@@ -225,7 +226,24 @@ class TelegramAdapter(BotAdapter):
             return False
 
     async def update_chat_photo(self, chat_id: int, image_bytes: bytes) -> None:
+        sentinel_text = translation_manager.get("game.avatar_updating", chat_id)
+        sentinel = await self._bot.send_message(
+            chat_id=chat_id,
+            text=sentinel_text,
+            disable_notification=True,
+        )
+        reference_message_id = sentinel.message_id
+
         await self._bot.set_chat_photo(chat_id, photo=InputFile(BytesIO(image_bytes)))
+
+        for msg_id in (reference_message_id, reference_message_id + 1):
+            try:
+                await self._bot.delete_message(chat_id=chat_id, message_id=msg_id)
+            except TelegramError as e:
+                logger.warning(
+                    f"Failed to delete message {msg_id} in chat {chat_id} "
+                    f"after photo update: {e}"
+                )
 
     async def answer_interaction(
         self,

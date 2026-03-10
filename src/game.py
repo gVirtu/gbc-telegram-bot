@@ -107,13 +107,6 @@ class GameController:
             if (save_dir / "game.rtc").exists():
                 rtc_file = open(save_dir / "game.rtc", "r+b")
                 
-            print({
-                "rom_path": self.rom_path,
-                "sym_path": self.sym_path,
-                "ram_file": ram_file,
-                "rtc_file": rtc_file
-            })
-            
             # Initialize PyBoy with no window (headless)
             self.pyboy = PyBoy(
                 str(self.rom_path),

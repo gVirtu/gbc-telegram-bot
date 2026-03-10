@@ -223,7 +223,7 @@ class Settings(BaseSettings):
 
     allowed_chat_ids: str = Field(
         default="",
-        description="Comma-separated list of allowed Telegram chat IDs (empty = allow all)",
+        description="Comma-separated list of allowed chat/channel IDs for Telegram and Discord (empty = allow all)",
     )
     
     @field_validator("rom_path")

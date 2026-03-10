@@ -56,27 +56,121 @@ class TestGifCommand:
             )
 
     @pytest.mark.asyncio
-    async def test_gif_handles_expired_file_id(self, mock_adapter):
-        """Test /gif handles expired file_id gracefully."""
+    async def test_gif_falls_back_to_cache_when_no_file_id(self, mock_adapter):
+        """Test /gif loads from local cache when file_id is None."""
+        from io import BytesIO
         ctx = make_ctx(mock_adapter)
+        mock_adapter.preferred_animation_format = "animation"
+        cached_buf = BytesIO(b"cached_video_data")
 
         with patch('src.handlers.commands.get_input_handler') as mock_get_handler:
             mock_session = Mock()
-            mock_session.state.last_animation_file_id = "expired_file_id"
-
+            mock_session.state.last_animation_file_id = None
             mock_handler = Mock()
             mock_handler._get_session.return_value = mock_session
             mock_get_handler.return_value = mock_handler
 
-            # Simulate adapter error
-            mock_adapter.send_animation.side_effect = Exception("File expired")
-
-            with patch('src.handlers.commands.translation_manager') as mock_trans:
-                mock_trans.get.return_value = "Animation expired"
-
+            with patch('src.handlers.commands.load_last_animation', return_value=cached_buf) as mock_load:
                 await gif_command(ctx)
 
-                mock_adapter.send_text.assert_called_once_with(123, "Animation expired")
+                mock_load.assert_called_once_with(123, "animation")
+                mock_adapter.send_animation.assert_called_once_with(
+                    chat_id=123,
+                    animation=cached_buf,
+                    caption="",
+                )
+
+    @pytest.mark.asyncio
+    async def test_gif_falls_back_to_cache_on_expired_file_id(self, mock_adapter):
+        """Test /gif falls back to local cache when file_id send raises."""
+        from io import BytesIO
+        ctx = make_ctx(mock_adapter)
+        mock_adapter.preferred_animation_format = "animation"
+        cached_buf = BytesIO(b"cached_video_data")
+
+        with patch('src.handlers.commands.get_input_handler') as mock_get_handler:
+            mock_session = Mock()
+            mock_session.state.last_animation_file_id = "expired_file_id"
+            mock_handler = Mock()
+            mock_handler._get_session.return_value = mock_session
+            mock_get_handler.return_value = mock_handler
+
+            # First call (file_id) raises, second call (buffer) succeeds
+            mock_adapter.send_animation.side_effect = [Exception("File expired"), None]
+
+            with patch('src.handlers.commands.load_last_animation', return_value=cached_buf):
+                await gif_command(ctx)
+
+                assert mock_adapter.send_animation.call_count == 2
+                second_call = mock_adapter.send_animation.call_args_list[1]
+                assert second_call.kwargs["animation"] is cached_buf
+
+    @pytest.mark.asyncio
+    async def test_gif_error_when_no_file_id_and_no_cache(self, mock_adapter):
+        """Test /gif sends error message when file_id is None and cache is empty."""
+        ctx = make_ctx(mock_adapter)
+        mock_adapter.preferred_animation_format = "animation"
+
+        with patch('src.handlers.commands.get_input_handler') as mock_get_handler:
+            mock_session = Mock()
+            mock_session.state.last_animation_file_id = None
+            mock_handler = Mock()
+            mock_handler._get_session.return_value = mock_session
+            mock_get_handler.return_value = mock_handler
+
+            with patch('src.handlers.commands.load_last_animation', return_value=None):
+                with patch('src.handlers.commands.translation_manager') as mock_trans:
+                    mock_trans.get.return_value = "No animation found"
+
+                    await gif_command(ctx)
+
+                    mock_adapter.send_animation.assert_not_called()
+                    mock_adapter.send_text.assert_called_once_with(123, "No animation found")
+
+    @pytest.mark.asyncio
+    async def test_gif_error_when_expired_file_id_and_no_cache(self, mock_adapter):
+        """Test /gif sends error message when file_id expired and cache is empty."""
+        ctx = make_ctx(mock_adapter)
+        mock_adapter.preferred_animation_format = "animation"
+
+        with patch('src.handlers.commands.get_input_handler') as mock_get_handler:
+            mock_session = Mock()
+            mock_session.state.last_animation_file_id = "expired_file_id"
+            mock_handler = Mock()
+            mock_handler._get_session.return_value = mock_session
+            mock_get_handler.return_value = mock_handler
+
+            mock_adapter.send_animation.side_effect = Exception("File expired")
+
+            with patch('src.handlers.commands.load_last_animation', return_value=None):
+                with patch('src.handlers.commands.translation_manager') as mock_trans:
+                    mock_trans.get.return_value = "No animation found"
+
+                    await gif_command(ctx)
+
+                    mock_adapter.send_text.assert_called_once_with(123, "No animation found")
+
+    @pytest.mark.asyncio
+    async def test_gif_mirror_uses_leader_cache(self, mock_adapter):
+        """Test /gif for a mirror chat resolves to leader's cache."""
+        from io import BytesIO
+        ctx = make_ctx(mock_adapter, chat_id=200)
+        mock_adapter.preferred_animation_format = "animation"
+        cached_buf = BytesIO(b"leader_video_data")
+
+        with patch('src.handlers.commands.get_leader_chat_id', return_value=100) as mock_leader:
+            with patch('src.handlers.commands.get_input_handler') as mock_get_handler:
+                mock_session = Mock()
+                mock_session.state.last_animation_file_id = None
+                mock_handler = Mock()
+                mock_handler._get_session.return_value = mock_session
+                mock_get_handler.return_value = mock_handler
+
+                with patch('src.handlers.commands.load_last_animation', return_value=cached_buf) as mock_load:
+                    await gif_command(ctx)
+
+                    mock_leader.assert_called_once_with(200)
+                    mock_load.assert_called_once_with(100, "animation")
 
 
 class TestRecapCommand:

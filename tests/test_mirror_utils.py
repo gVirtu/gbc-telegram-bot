@@ -104,6 +104,7 @@ class TestBroadcastGameUpdate:
             patch("src.utils.mirror_utils.get_adapter", return_value=mock_adapter),
             patch("src.utils.mirror_utils.game_controller_manager"),
             patch("src.utils.mirror_utils.save_frames_as_mp4", return_value=fake_buffer),
+            patch("src.utils.mirror_utils.save_last_animation"),
         ):
             mock_sm.get_mirror_chat_ids.return_value = []
             mock_sm.get_or_create_chat_config.return_value = leader_config
@@ -131,6 +132,7 @@ class TestBroadcastGameUpdate:
             patch("src.utils.mirror_utils.get_adapter", return_value=mock_adapter),
             patch("src.utils.mirror_utils.game_controller_manager"),
             patch("src.utils.mirror_utils.save_frames_as_mp4", return_value=fake_buffer),
+            patch("src.utils.mirror_utils.save_last_animation"),
         ):
             mock_sm.get_mirror_chat_ids.return_value = [mirror_id]
             mock_sm.get_or_create_chat_config.side_effect = lambda cid: (
@@ -166,6 +168,7 @@ class TestBroadcastGameUpdate:
             patch("src.utils.mirror_utils.get_adapter", return_value=mock_adapter),
             patch("src.utils.mirror_utils.game_controller_manager") as mock_gcm,
             patch("src.utils.mirror_utils.save_frames_as_mp4", return_value=fake_buffer),
+            patch("src.utils.mirror_utils.save_last_animation"),
         ):
             mock_sm.get_mirror_chat_ids.return_value = [mirror_id]
             mock_sm.get_or_create_chat_config.side_effect = lambda cid: (
@@ -226,6 +229,7 @@ class TestBroadcastGameUpdate:
             patch("src.utils.mirror_utils.game_controller_manager"),
             patch("src.utils.mirror_utils.save_frames_as_mp4", return_value=fake_buffer),
             patch("src.utils.mirror_utils.is_media_only_mirror", side_effect=lambda cid: cid == mirror_id),
+            patch("src.utils.mirror_utils.save_last_animation"),
         ):
             mock_sm.get_mirror_chat_ids.return_value = [mirror_id]
             mock_sm.get_or_create_chat_config.side_effect = lambda cid: (
@@ -252,6 +256,7 @@ class TestBroadcastGameUpdate:
             patch("src.utils.mirror_utils.get_adapter", return_value=mock_adapter),
             patch("src.utils.mirror_utils.game_controller_manager"),
             patch("src.utils.mirror_utils.save_frames_as_mp4", return_value=fake_buffer),
+            patch("src.utils.mirror_utils.save_last_animation"),
         ):
             mock_sm.get_mirror_chat_ids.return_value = []
             mock_sm.get_or_create_chat_config.return_value = leader_config

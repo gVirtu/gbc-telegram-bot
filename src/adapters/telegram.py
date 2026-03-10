@@ -20,7 +20,6 @@ from src.keyboard import (
     create_input_keyboard,
     create_save_slot_keyboard,
 )
-from src.utils.state_manager import state_manager
 
 if TYPE_CHECKING:
     from src.models.game_state import ChatConfig, ModifierButtonSpec
@@ -56,7 +55,6 @@ class TelegramAdapter(BotAdapter):
             reply_markup=keyboard,
             parse_mode="Markdown",
         )
-        state_manager.update_latest_telegram_message_id(chat_id, message.message_id)
         return message.message_id
 
     async def edit_game_message(
@@ -118,12 +116,11 @@ class TelegramAdapter(BotAdapter):
         image_bytes: Any,
         caption: str = "",
     ) -> None:
-        message = await self._bot.send_photo(
+        await self._bot.send_photo(
             chat_id=chat_id,
             photo=image_bytes,
             caption=caption,
         )
-        state_manager.update_latest_telegram_message_id(chat_id, message.message_id)
 
     async def send_text(
         self,
@@ -137,8 +134,7 @@ class TelegramAdapter(BotAdapter):
             kwargs["reply_to_message_id"] = reply_to
         if parse_mode is not None:
             kwargs["parse_mode"] = parse_mode
-        message = await self._bot.send_message(**kwargs)
-        state_manager.update_latest_telegram_message_id(chat_id, message.message_id)
+        await self._bot.send_message(**kwargs)
 
     async def send_video(
         self,
@@ -151,7 +147,6 @@ class TelegramAdapter(BotAdapter):
             video=video,
             caption=caption,
         )
-        state_manager.update_latest_telegram_message_id(chat_id, message.message_id)
         if message.video:
             return message.video.file_id
         return None
@@ -162,13 +157,12 @@ class TelegramAdapter(BotAdapter):
         animation: Any,
         caption: str = "",
     ) -> None:
-        message = await self._bot.send_animation(
+        await self._bot.send_animation(
             chat_id=chat_id,
             animation=animation,
             filename="animation.mp4",
             caption=caption,
         )
-        state_manager.update_latest_telegram_message_id(chat_id, message.message_id)
 
     async def delete_message(
         self,
@@ -232,18 +226,6 @@ class TelegramAdapter(BotAdapter):
 
     async def update_chat_photo(self, chat_id: int, image_bytes: bytes) -> None:
         await self._bot.set_chat_photo(chat_id, photo=InputFile(BytesIO(image_bytes)))
-
-    async def cleanup_after_avatar_update(
-        self, chat_id: int, latest_message_id: Optional[int]
-    ) -> None:
-        if latest_message_id is None:
-            return
-        MAX_PROBES = 5
-        for i in range(1, MAX_PROBES + 1):
-            try:
-                await self._bot.delete_message(chat_id, latest_message_id + i)
-            except Exception:
-                break
 
     async def answer_interaction(
         self,

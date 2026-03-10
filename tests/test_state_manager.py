@@ -365,32 +365,3 @@ class TestErrorHandling:
         # Should have new values
         loaded = manager.load_game_state(123456)
         assert loaded.message_id == 200
-
-
-class TestUpdateLatestTelegramMessageId:
-    """Test update_latest_telegram_message_id method."""
-
-    @pytest.fixture
-    def manager(self, tmp_path):
-        return StateManager(data_dir=tmp_path)
-
-    def test_upsert_creates_row_when_not_exists(self, manager):
-        """update_latest_telegram_message_id creates chat_config row when none exists."""
-        manager.update_latest_telegram_message_id(chat_id=111, message_id=500)
-        config = manager.load_chat_config(111)
-        assert config is not None
-        assert config.latest_telegram_message_id == 500
-
-    def test_higher_id_overwrites_lower(self, manager):
-        """update_latest_telegram_message_id keeps the higher message_id."""
-        manager.update_latest_telegram_message_id(chat_id=111, message_id=100)
-        manager.update_latest_telegram_message_id(chat_id=111, message_id=200)
-        config = manager.load_chat_config(111)
-        assert config.latest_telegram_message_id == 200
-
-    def test_lower_id_does_not_overwrite_higher(self, manager):
-        """update_latest_telegram_message_id does not lower the stored value."""
-        manager.update_latest_telegram_message_id(chat_id=111, message_id=300)
-        manager.update_latest_telegram_message_id(chat_id=111, message_id=100)
-        config = manager.load_chat_config(111)
-        assert config.latest_telegram_message_id == 300

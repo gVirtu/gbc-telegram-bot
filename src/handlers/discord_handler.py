@@ -13,8 +13,21 @@ from src.handlers.commands import COMMAND_HANDLERS
 from src.handlers.input_handler import get_input_handler
 from src.keyboard import is_valid_button_callback
 from src.utils.state_manager import state_manager
+from src.config import settings
+
+try:
+    from src.adapters.discord import DiscordAdapter
+except ImportError:
+    DiscordAdapter = None  # type: ignore[assignment,misc]
 
 logger = logging.getLogger(__name__)
+
+
+def _is_chat_allowed(channel_id: int) -> bool:
+    """Return True if channel_id is in the allowed_chat_ids list, or if the list is empty."""
+    if not settings.allowed_chat_ids:
+        return True
+    return channel_id in settings.allowed_chat_ids
 
 
 def create_discord_bot() -> Any:
@@ -26,8 +39,6 @@ def create_discord_bot() -> Any:
     import discord
     from discord import app_commands
     from discord.ext import commands
-
-    from src.adapters.discord import DiscordAdapter
 
     intents = discord.Intents.default()
     intents.guilds = True
@@ -78,6 +89,9 @@ def create_discord_bot() -> Any:
         interaction: discord.Interaction, handler_key: str, args: list[str]
     ) -> None:
         """Defer ephemerally, run command handler, then delete the deferred response."""
+        if not _is_chat_allowed(interaction.channel_id):
+            await interaction.response.send_message("Unauthorized.", ephemeral=True)
+            return
         await interaction.response.defer(ephemeral=True)
         ctx = _build_ctx(interaction, args)
         try:
@@ -174,12 +188,14 @@ def create_discord_bot() -> Any:
 
         try:
             custom_id = interaction.data.get("custom_id", "")
-            
+            channel_id = interaction.channel_id
+
+            if not _is_chat_allowed(channel_id):
+                return
+
             if is_valid_button_callback(custom_id):
                 # Minimize response time from button inputs
                 await interaction.response.defer()
-
-            channel_id = interaction.channel_id
             message_id = interaction.message.id if interaction.message else None
             user = interaction.user
             user_id = user.id

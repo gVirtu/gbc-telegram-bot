@@ -181,7 +181,7 @@ class TestButtonInteractionAllowedChatIds:
 
     @pytest.mark.asyncio
     async def test_disallowed_channel_button_ignored(self):
-        """Button press from a disallowed channel: silently ignored, handler not called."""
+        """Button press from a disallowed channel: sends ephemeral Unauthorized, handler not called."""
         from src.handlers.discord_handler import create_discord_bot
 
         input_handler = MagicMock()

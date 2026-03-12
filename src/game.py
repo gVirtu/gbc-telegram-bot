@@ -73,6 +73,10 @@ class GameController:
         self.pyboy: Optional[PyBoy] = None
         self._initialized = False
         self._modifier_module: Optional[ModuleType] = None
+        self._capturing: bool = False
+        self._capture_interval: int = 1
+        self._capture_tick_count: int = 0
+        self._frame_buffer: list = []
     
     async def initialize(self) -> None:
         """Initialize the PyBoy emulator.
@@ -252,9 +256,13 @@ class GameController:
         
         for _ in range(frames):
             self.pyboy.tick()
-        
+            if self._capturing:
+                self._capture_tick_count += 1
+                if self._capture_tick_count % self._capture_interval == 0:
+                    self._frame_buffer.append(self.get_frame().copy())
+
         return self.get_frame()
-    
+
     def send_input(self, button: GameButton, frames: int) -> np.ndarray:
         """Press and hold a button for a number of frames.
         
@@ -285,17 +293,16 @@ class GameController:
         self.pyboy.send_input(press_event)
         
         # Hold for specified frames
-        for _ in range(frames):
-            self.pyboy.tick()
-        
+        self.tick(frames)
+
         # Release button
         self.pyboy.send_input(release_event)
-        
+
         # One more tick to process release
-        self.pyboy.tick()
-        
+        self.tick(1)
+
         return self.get_frame()
-    
+
     def send_input_with_modifier(
         self,
         button: GameButton,
@@ -341,18 +348,17 @@ class GameController:
         self.pyboy.send_input(button_press)
         
         # Hold both for specified frames
-        for _ in range(frames):
-            self.pyboy.tick()
-        
+        self.tick(frames)
+
         # Release primary button
         self.pyboy.send_input(button_release)
-        
+
         # Release modifier button
         self.pyboy.send_input(modifier_release)
-        
+
         # One more tick to process releases
-        self.pyboy.tick()
-        
+        self.tick(1)
+
         return self.get_frame()
     
     def save_state(self) -> bytes:
@@ -386,6 +392,36 @@ class GameController:
         
         logger.info(f"Loaded save state for chat {self.chat_id}")
     
+    def begin_capture(self, capture_interval_frames: int) -> None:
+        """Begin capturing frames at the given interval.
+
+        Args:
+            capture_interval_frames: Capture one frame every N ticks.
+        """
+        self._capturing = True
+        self._capture_interval = capture_interval_frames
+        self._capture_tick_count = 0
+        self._frame_buffer = [self.get_frame().copy()]
+
+    def end_capture(self) -> list:
+        """End frame capture and return the collected frames.
+
+        Advances the emulator to the next capture boundary (without capturing),
+        then drains and returns the buffer.
+
+        Returns:
+            List of captured frames (numpy arrays).
+        """
+        self._capturing = False
+        remainder = self._capture_tick_count % self._capture_interval
+        extra_ticks = (self._capture_interval - remainder) if remainder != 0 else self._capture_interval
+        for _ in range(extra_ticks):
+            self.pyboy.tick()
+        frames = list(self._frame_buffer)
+        self._frame_buffer = []
+        self._capture_tick_count = 0
+        return frames
+
     def begin_hooks(self) -> dict:
         """Begin hooks for the current game.
 

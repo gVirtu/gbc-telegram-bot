@@ -804,8 +804,6 @@ class TestTickAndCaptureAnimationFramesEarlyBreak:
             animation_frames=100,
             hook_context=hook_context,
             game_fps=60,
-            capture_interval_frames=4,
-            frames=frames,
         )
 
         # Should have stopped after 1 tick (break on frame 0)
@@ -816,7 +814,6 @@ class TestTickAndCaptureAnimationFramesEarlyBreak:
         handler = _handler()
         controller = MagicMock()
 
-        frames = []
         hook_context = {"inputWaitCalls": {"_total": 0}}
 
         handler._tick_and_capture_animation_frames(
@@ -824,8 +821,6 @@ class TestTickAndCaptureAnimationFramesEarlyBreak:
             animation_frames=5,
             hook_context=hook_context,
             game_fps=60,
-            capture_interval_frames=1,
-            frames=frames,
         )
 
         # All 5 frames should have been processed

@@ -513,3 +513,96 @@ class TestGameControllerManagerAutoLoad:
                     
                     # Should try to load save state (default behavior)
                     mock_state_mgr.list_save_slots.assert_called_once()
+
+
+class TestFrameCapture:
+    """Tests for the begin_capture/end_capture frame-sampling API."""
+
+    @pytest.fixture
+    def controller(self, tmp_path):
+        """GameController with mocked PyBoy returning a unique frame per tick."""
+        rom_path = tmp_path / "test.gbc"
+        rom_path.write_bytes(b"rom")
+
+        ctrl = GameController(123456, rom_path=rom_path)
+
+        mock_pyboy = MagicMock()
+        # Each call to screen.ndarray returns a fresh array with a unique fill value
+        call_count = [0]
+
+        def unique_frame(*args, **kwargs):
+            call_count[0] += 1
+            arr = np.full((144, 160, 3), call_count[0], dtype=np.uint8)
+            return arr
+
+        mock_screen = MagicMock()
+        type(mock_screen).ndarray = PropertyMock(side_effect=unique_frame)
+        mock_pyboy.screen = mock_screen
+
+        ctrl.pyboy = mock_pyboy
+        ctrl._initialized = True
+        return ctrl
+
+    def test_begin_capture_captures_t0(self, controller):
+        """begin_capture() captures t=0 frame immediately, before any ticks."""
+        controller.begin_capture(4)
+        assert len(controller._frame_buffer) == 1
+
+    def test_tick_captures_at_interval(self, controller):
+        """After begin_capture(4) + 8 ticks, buffer has 3 entries (t=0, t=4, t=8)."""
+        controller.begin_capture(4)
+        controller.tick(8)
+        assert len(controller._frame_buffer) == 3
+
+    def test_tick_no_capture_between_intervals(self, controller):
+        """After begin_capture(4) + 3 ticks, buffer still has only the t=0 entry."""
+        controller.begin_capture(4)
+        controller.tick(3)
+        assert len(controller._frame_buffer) == 1
+
+    def test_end_capture_alignment_full_interval(self, controller):
+        """After 4 ticks with interval=4, end_capture() runs 4 extra ticks to reach the boundary."""
+        controller.begin_capture(4)
+        controller.tick(4)
+        # tick_count == 4, remainder == 0 → extra_ticks == 4
+        tick_before = controller.pyboy.tick.call_count
+        controller.end_capture()
+        extra = controller.pyboy.tick.call_count - tick_before
+        assert extra == 4
+
+    def test_end_capture_alignment_partial(self, controller):
+        """After 6 ticks with interval=4, end_capture() runs 2 extra ticks (4 - 6%4 = 2)."""
+        controller.begin_capture(4)
+        controller.tick(6)
+        # tick_count == 6, remainder == 2 → extra_ticks == 2
+        tick_before = controller.pyboy.tick.call_count
+        controller.end_capture()
+        extra = controller.pyboy.tick.call_count - tick_before
+        assert extra == 2
+
+    def test_end_capture_returns_and_clears(self, controller):
+        """end_capture() returns the captured frames and clears the internal buffer."""
+        controller.begin_capture(4)
+        controller.tick(8)
+        assert len(controller._frame_buffer) == 3
+
+        returned = controller.end_capture()
+
+        assert len(returned) == 3
+        assert controller._frame_buffer == []
+        assert controller._capture_tick_count == 0
+
+    def test_send_input_ticks_counted(self, controller):
+        """Ticks inside send_input() are counted toward the capture interval."""
+        # begin_capture(4); send_input A for 10 hold frames → tick(10) + tick(1) = 11 ticks
+        # Expected frames: t=0 (begin_capture), t=4 (tick 4), t=8 (tick 8) → 3 entries
+        controller.begin_capture(4)
+        controller.send_input(GameButton.A, frames=10)
+        assert len(controller._frame_buffer) == 3
+
+    def test_send_input_with_modifier_ticks_counted(self, controller):
+        """Ticks inside send_input_with_modifier() are counted toward the capture interval."""
+        controller.begin_capture(4)
+        controller.send_input_with_modifier(GameButton.UP, GameButton.B, frames=10)
+        # same 11 ticks as send_input
+        assert len(controller._frame_buffer) == 3

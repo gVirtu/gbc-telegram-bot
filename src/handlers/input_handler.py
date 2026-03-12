@@ -139,21 +139,17 @@ class InputHandler:
         animation_frames: int,
         hook_context: dict,
         game_fps: int,
-        capture_interval_frames: int,
-        frames: list,
     ) -> None:
-        """Tick the game controller and capture animation frames."""
+        """Tick the game controller for animation frames (capture handled by controller)."""
         wait_call_threshold = hook_context.get("inputWaitCalls", {}).get("_total", 0) + game_fps
 
-        for frame_num in range(animation_frames):
+        for _frame_num in range(animation_frames):
             controller.tick(1)
             if hook_context.get("inputWaitCalls", {}).get("_total", 0) > wait_call_threshold:
                 input_wait_calls = hook_context.get("inputWaitCalls", {})
                 relevant_wait_calls = {k: v for k, v in input_wait_calls.items() if v > 0}
                 logger.info(f"Input wait loop detected, finishing animation early ({relevant_wait_calls})")
                 break
-            if frame_num % capture_interval_frames == 0:
-                frames.append(controller.get_frame().copy())
 
     # ==================== Button press entry point ====================
 
@@ -388,13 +384,11 @@ class InputHandler:
 
         logger.info(f"Executing batch of {len(buttons)} buttons for chat {chat_id} (modifier_states={modifier_states})")
 
-        # Animation capture settings - GameBoy runs at 60fps, capture at 10fps
-        frames = []
+        # Animation capture settings - GameBoy runs at 60fps, capture at 15fps
         game_fps = 60
         capture_fps = 15
         capture_interval_frames = game_fps // capture_fps
-
-        frames.append(controller.get_frame().copy())
+        controller.begin_capture(capture_interval_frames)
 
         for i, button in enumerate(buttons):
             if button == GameButton.WAIT:
@@ -412,14 +406,10 @@ class InputHandler:
                     logger.debug(f"Executing {button.value} in batch for chat {chat_id}")
                     controller.send_input(button, frames=settings.input_hold_frames)
 
-            frames.append(controller.get_frame().copy())
-
             if i < len(buttons) - 1:
                 delay_frames = int(settings.sequence_delay_seconds * game_fps)
-                for frame_num in range(delay_frames):
+                for _frame_num in range(delay_frames):
                     controller.tick(1)
-                    if frame_num % capture_interval_frames == 0:
-                        frames.append(controller.get_frame().copy())
 
         # Continue animating after last button press
         animation_frames = int(settings.animation_duration * game_fps)
@@ -430,16 +420,13 @@ class InputHandler:
             animation_frames,
             hook_context,
             game_fps,
-            capture_interval_frames,
-            frames
         )
-        
+
         # Auto press A and capture more frames ahead (e.g.: during NPC dialogue)
         while hook_context.get("autoPressA", {}).get("_total", 0) >= auto_press_call_threshold:
             logger.info("Auto-pressing A...")
 
             controller.send_input(GameButton.A, frames=settings.input_hold_frames)
-            frames.append(controller.get_frame().copy())
 
             auto_press_call_threshold = hook_context.get("autoPressA", {}).get("_total", 0) + game_fps
 
@@ -448,12 +435,11 @@ class InputHandler:
                 animation_frames,
                 hook_context,
                 game_fps,
-                capture_interval_frames,
-                frames
             )
 
         logger.info(f"Animation completed for chat {chat_id} in {animation_frames} frames")
 
+        frames = controller.end_capture()
         controller.end_hooks(hook_context)
 
         if hook_context.get("dangerousActions", {}).get("_total", 0) > 0:

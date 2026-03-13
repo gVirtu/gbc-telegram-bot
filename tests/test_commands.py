@@ -34,14 +34,14 @@ from src.handlers.commands import (
 from src.models.game_state import GameButton
 
 
-def make_ctx(mock_adapter, args=None, chat_id=123456, user_id=456):
+def make_ctx(mock_adapter, args=None, chat_id=123456, user_id=456, raw=None):
     return CommandContext(
         chat_id=chat_id,
         user_id=user_id,
         user_name="TestUser",
         args=args or [],
         adapter=mock_adapter,
-        raw=None,
+        raw=raw,
     )
 
 
@@ -955,7 +955,9 @@ class TestMessageCommand:
     @pytest.mark.asyncio
     async def test_message_command_sets_custom_text(self, mock_adapter):
         """Test setting custom message base text."""
-        ctx = make_ctx(mock_adapter, args=["Vamos", "jogar!"])
+        mock_update = MagicMock()
+        mock_update.message.text_markdown = "/m Vamos jogar!"
+        ctx = make_ctx(mock_adapter, args=["Vamos", "jogar!"], raw=mock_update)
 
         with patch("src.handlers.commands.state_manager") as mock_state:
             mock_config = MagicMock()
@@ -997,7 +999,9 @@ class TestMessageCommand:
     @pytest.mark.asyncio
     async def test_message_command_text_too_long(self, mock_adapter):
         """Test validation for text length limit."""
-        ctx = make_ctx(mock_adapter, args=["x" * 241])  # 241 characters
+        mock_update = MagicMock()
+        mock_update.message.text_markdown = "/m " + "x" * 241
+        ctx = make_ctx(mock_adapter, args=["x" * 241], raw=mock_update)
 
         with patch("src.handlers.commands.state_manager") as mock_state:
             mock_config = MagicMock()

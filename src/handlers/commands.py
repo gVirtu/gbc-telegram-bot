@@ -848,7 +848,8 @@ async def message_command(ctx: CommandContext) -> None:
         logger.info(f"Cleared custom message base text for chat {chat_id}")
         return
 
-    custom_text = " ".join(ctx.args)
+    raw_message = ctx.raw.message.text_markdown
+    custom_text = raw_message.split(maxsplit=1)[1]
 
     if len(custom_text) > 240:
         error_msg = translation_manager.get("commands.message.too_long", chat_id)

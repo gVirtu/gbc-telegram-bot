@@ -346,6 +346,115 @@ async def save_frames_as_mp4_optimized(
     logger.debug(f"Encoded {len(frames)} frames to {output_path}")
 
 
+async def save_frames_as_mp4_with_audio(
+    frames: list[np.ndarray],
+    audio_chunks: list[np.ndarray],
+    output_path: str,
+    fps: int = 15,
+    crf: int = 28,
+    preset: str = "medium",
+    sample_rate: int = 48000,
+) -> None:
+    """Save frames as MP4 with audio using FFmpeg.
+
+    Encodes video frames (via stdin pipe) and audio (from PCM file) into
+    a single MP4 with AAC audio track. Designed for realtime recap videos.
+
+    Args:
+        frames: List of NumPy arrays (H, W, 3) in RGB format
+        audio_chunks: List of int8 ndarrays with shape (N, 2) - stereo audio
+        output_path: Path where to save the MP4 file
+        fps: Frames per second for the output video
+        crf: Constant Rate Factor (quality, lower=better, 0-51)
+        preset: Encoding speed preset
+        sample_rate: Audio sample rate in Hz
+
+    Raises:
+        ValueError: If no frames provided
+        RuntimeError: If FFmpeg encoding fails
+    """
+    import asyncio
+
+    if not frames:
+        raise ValueError("No frames provided")
+
+    h, w = frames[0].shape[:2]
+    h_scaled, w_scaled = h * 2, w * 2
+
+    # Convert int8 stereo chunks to int16 PCM and write to temp file
+    tmp_pcm = None
+    try:
+        if audio_chunks:
+            # Concatenate all audio chunks and convert int8 -> int16
+            combined = np.concatenate(audio_chunks, axis=0)  # shape (N, 2)
+            pcm_int16 = combined.astype(np.int16) * 256
+            with tempfile.NamedTemporaryFile(suffix='.pcm', delete=False) as f:
+                tmp_pcm = f.name
+                f.write(pcm_int16.tobytes())
+
+        if tmp_pcm:
+            cmd = [
+                'ffmpeg', '-y',
+                '-f', 'rawvideo',
+                '-pix_fmt', 'rgb24',
+                '-s', f'{w_scaled}x{h_scaled}',
+                '-framerate', str(fps),
+                '-i', 'pipe:0',
+                '-f', 's16le',
+                '-ar', str(sample_rate),
+                '-ac', '2',
+                '-i', tmp_pcm,
+                '-c:v', 'libx264',
+                '-pix_fmt', 'yuv420p',
+                '-crf', str(crf),
+                '-preset', preset,
+                '-c:a', 'aac',
+                output_path,
+            ]
+        else:
+            cmd = [
+                'ffmpeg', '-y',
+                '-f', 'rawvideo',
+                '-pix_fmt', 'rgb24',
+                '-s', f'{w_scaled}x{h_scaled}',
+                '-framerate', str(fps),
+                '-i', 'pipe:0',
+                '-c:v', 'libx264',
+                '-pix_fmt', 'yuv420p',
+                '-crf', str(crf),
+                '-preset', preset,
+                '-an',
+                output_path,
+            ]
+
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        # Write frames to stdin
+        for frame in frames:
+            img = Image.fromarray(frame, mode='RGB').resize(
+                (w_scaled, h_scaled), Image.Resampling.NEAREST
+            )
+            process.stdin.write(np.array(img).tobytes())
+
+        process.stdin.close()
+        stdout, stderr = await process.communicate()
+
+        if process.returncode != 0:
+            logger.error(f"FFmpeg encoding failed: {stderr.decode()}")
+            raise RuntimeError(f"FFmpeg encoding failed with return code {process.returncode}")
+
+        logger.debug(f"Encoded {len(frames)} frames with audio to {output_path}")
+
+    finally:
+        if tmp_pcm and os.path.exists(tmp_pcm):
+            os.remove(tmp_pcm)
+
+
 def generate_tbc_frames(
     base_frame: np.ndarray,
     duration_frames: int = 20,

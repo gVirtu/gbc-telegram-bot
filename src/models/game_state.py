@@ -12,7 +12,7 @@ from enum import Enum
 from typing import Optional
 
 
-KNOWN_FEATURE_FLAGS: frozenset[str] = frozenset({"update_group_avatar", "media_only_mirror"})
+KNOWN_FEATURE_FLAGS: frozenset[str] = frozenset({"update_group_avatar", "media_only_mirror", "realtime_recaps"})
 
 
 class GameButton(str, Enum):

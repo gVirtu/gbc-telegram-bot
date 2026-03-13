@@ -66,6 +66,9 @@ class TestChatConfigFeatureFlags:
     def test_known_feature_flags_contains_media_only_mirror(self):
         assert "media_only_mirror" in KNOWN_FEATURE_FLAGS
 
+    def test_known_feature_flags_contains_realtime_recaps(self):
+        assert "realtime_recaps" in KNOWN_FEATURE_FLAGS
+
 
 # ======================================================
 # DB persistence tests

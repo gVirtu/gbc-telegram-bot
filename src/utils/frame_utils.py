@@ -387,7 +387,14 @@ async def save_frames_as_mp4_with_audio(
         if audio_chunks:
             # Concatenate all audio chunks and convert int8 -> int16
             combined = np.concatenate(audio_chunks, axis=0)  # shape (N, 2)
-            pcm_int16 = combined.astype(np.int16) * 256
+            # Scale to int16 range and add triangular PDF dither to reduce
+            # quantization noise from the 8-bit source (lower 8 bits are
+            # otherwise always zero, causing audible stepping artifacts).
+            scaled = combined.astype(np.int16) * 256
+            dither = (np.random.randint(0, 256, scaled.shape, dtype=np.int16)
+                      - np.random.randint(0, 256, scaled.shape, dtype=np.int16))
+            pcm_int16 = np.clip(scaled.astype(np.int32) + dither, -32768, 32767).astype(np.int16)
+
             with tempfile.NamedTemporaryFile(suffix='.pcm', delete=False) as f:
                 tmp_pcm = f.name
                 f.write(pcm_int16.tobytes())

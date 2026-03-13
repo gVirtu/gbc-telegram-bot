@@ -5,6 +5,7 @@ including frame capture, input injection, and save state management.
 """
 
 import logging
+import struct
 from io import BytesIO
 from pathlib import Path
 from typing import Optional
@@ -24,6 +25,34 @@ import traceback
 logger = logging.getLogger(__name__)
 
 _UNSET = object()
+
+# Binary pattern for MAX_CYCLES (2^31) as a little-endian IEEE-754 double.
+# Old PyBoy save states (created with sound_emulated=False) store
+# cycles_target=MAX_CYCLES and cycles_target_512Hz=MAX_CYCLES consecutively.
+# We detect this pair and replace cycles_target with cycles_per_sample so that
+# audio sampling resumes after loading an old save.
+_MAX_CYCLES_D = struct.pack("d", 1 << 31)          # 8 bytes
+_CYCLES_PER_SAMPLE_D = struct.pack("d", 70224 / 800)  # ≈87.78, 8 bytes
+# Pattern: (MAX_CYCLES, MAX_CYCLES) — only present in old sound_emulated=False saves
+_OLD_SOUND_PATTERN = _MAX_CYCLES_D + _MAX_CYCLES_D
+# Replacement: fix cycles_target; leave cycles_target_512Hz as MAX_CYCLES
+# (512 Hz timer won't fire, but audio samples will be produced correctly)
+_SOUND_PATCH = _CYCLES_PER_SAMPLE_D + _MAX_CYCLES_D
+
+
+def _patch_save_state_for_audio(data: bytes) -> bytes:
+    """Patch cycles_target in save states created with sound_emulated=False.
+
+    When sound was disabled, PyBoy stored cycles_target=MAX_CYCLES which
+    prevents audio sampling when the state is loaded with sound_emulated=True.
+    This replaces the first occurrence of the (cycles_target, cycles_target_512Hz)
+    double pair so audio works immediately after loading the state.
+    """
+    if _OLD_SOUND_PATTERN not in data:
+        return data
+    logger.debug("Patching save state: replacing MAX_CYCLES cycles_target for audio")
+    return data.replace(_OLD_SOUND_PATTERN, _SOUND_PATCH, 1)
+
 
 # Map GameButton to PyBoy WindowEvent
 BUTTON_EVENTS = {
@@ -77,6 +106,8 @@ class GameController:
         self._capture_interval: int = 1
         self._capture_tick_count: int = 0
         self._frame_buffer: list = []
+        self._audio_buffer: list = []
+        self._last_captured_audio: list = []
     
     async def initialize(self) -> None:
         """Initialize the PyBoy emulator.
@@ -115,7 +146,7 @@ class GameController:
             self.pyboy = PyBoy(
                 str(self.rom_path),
                 window="null",
-                sound_emulated=False,
+                sound_emulated=True,
                 symbols=str(self.sym_path) if self.sym_path else None,
                 ram_file=ram_file,
                 rtc_file=rtc_file
@@ -260,6 +291,7 @@ class GameController:
                 self._capture_tick_count += 1
                 if self._capture_tick_count % self._capture_interval == 0:
                     self._frame_buffer.append(self.get_frame().copy())
+                self._audio_buffer.append(self.pyboy.sound.ndarray.copy())
 
         return self.get_frame()
 
@@ -387,9 +419,9 @@ class GameController:
             raise RuntimeError("Emulator not initialized. Call initialize() first.")
         
         import io
-        buffer = io.BytesIO(state_data)
+        patched = _patch_save_state_for_audio(state_data)
+        buffer = io.BytesIO(patched)
         self.pyboy.load_state(buffer)
-        
         logger.info(f"Loaded save state for chat {self.chat_id}")
     
     def begin_capture(self, capture_interval_frames: int) -> None:
@@ -402,6 +434,7 @@ class GameController:
         self._capture_interval = capture_interval_frames
         self._capture_tick_count = 0
         self._frame_buffer = [self.get_frame().copy()]
+        self._audio_buffer = []
 
     def end_capture(self) -> list:
         """End frame capture and return the collected frames.
@@ -417,10 +450,16 @@ class GameController:
         extra_ticks = (self._capture_interval - remainder) if remainder != 0 else self._capture_interval
         for _ in range(extra_ticks):
             self.pyboy.tick()
+        self._last_captured_audio = list(self._audio_buffer)
+        self._audio_buffer = []
         frames = list(self._frame_buffer)
         self._frame_buffer = []
         self._capture_tick_count = 0
         return frames
+
+    def get_last_captured_audio(self) -> list:
+        """Return the audio chunks captured during the last capture window."""
+        return self._last_captured_audio
 
     def begin_hooks(self) -> dict:
         """Begin hooks for the current game.

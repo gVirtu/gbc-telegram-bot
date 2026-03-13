@@ -25,6 +25,7 @@ from src.models.input_queue import BufferedInput, PendingBuffer
 from src.utils.frame_utils import (  # noqa: F401 (needed for test patching)
     generate_tbc_frames,
 )
+from src.utils.media_cache import save_last_audio
 from src.utils.mirror_utils import broadcast_game_update, get_leader_chat_id, is_media_only_mirror
 from src.utils.state_manager import state_manager
 
@@ -440,6 +441,12 @@ class InputHandler:
         logger.info(f"Animation completed for chat {chat_id} in {animation_frames} frames")
 
         frames = controller.end_capture()
+        audio_chunks = controller.get_last_captured_audio()
+        if audio_chunks:
+            try:
+                save_last_audio(chat_id, audio_chunks)
+            except Exception as e:
+                logger.warning(f"Failed to save audio for chat {chat_id}: {e}")
         controller.end_hooks(hook_context)
 
         if hook_context.get("dangerousActions", {}).get("_total", 0) > 0:

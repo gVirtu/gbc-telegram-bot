@@ -606,3 +606,100 @@ class TestFrameCapture:
         controller.send_input_with_modifier(GameButton.UP, GameButton.B, frames=10)
         # same 11 ticks as send_input
         assert len(controller._frame_buffer) == 3
+
+
+class TestAudioCapture:
+    """Tests for audio capture via begin_capture/tick/end_capture."""
+
+    @pytest.fixture
+    def controller(self, tmp_path):
+        """GameController with mocked PyBoy that provides audio data each tick."""
+        rom_path = tmp_path / "test.gbc"
+        rom_path.write_bytes(b"rom")
+
+        ctrl = GameController(123456, rom_path=rom_path)
+
+        mock_pyboy = MagicMock()
+
+        # Frame mock (required for get_frame)
+        mock_frame = np.zeros((144, 160, 3), dtype=np.uint8)
+        mock_screen = MagicMock()
+        type(mock_screen).ndarray = PropertyMock(return_value=mock_frame)
+        mock_pyboy.screen = mock_screen
+
+        # Audio mock: each tick returns a fresh (800, 2) int8 array
+        tick_count = [0]
+
+        def audio_ndarray(*args, **kwargs):
+            tick_count[0] += 1
+            return np.full((800, 2), tick_count[0], dtype=np.int8)
+
+        mock_sound = MagicMock()
+        type(mock_sound).ndarray = PropertyMock(side_effect=audio_ndarray)
+        mock_pyboy.sound = mock_sound
+
+        ctrl.pyboy = mock_pyboy
+        ctrl._initialized = True
+        return ctrl
+
+    def test_no_audio_before_capture(self, controller):
+        """get_last_captured_audio() returns empty list before any capture."""
+        assert controller.get_last_captured_audio() == []
+
+    def test_audio_buffer_empty_before_ticks(self, controller):
+        """begin_capture resets audio buffer to empty (no audio at t=0)."""
+        controller.begin_capture(4)
+        assert controller._audio_buffer == []
+
+    def test_audio_chunks_collected_each_tick(self, controller):
+        """Each tick during capture appends one audio chunk."""
+        controller.begin_capture(4)
+        controller.tick(5)
+        assert len(controller._audio_buffer) == 5
+
+    def test_audio_chunks_are_copies(self, controller):
+        """Audio chunks are independent copies, not references to the same object."""
+        controller.begin_capture(1)
+        controller.tick(2)
+        chunks = controller._audio_buffer
+        assert chunks[0] is not chunks[1]
+
+    def test_end_capture_stores_audio(self, controller):
+        """end_capture() stores collected audio in _last_captured_audio."""
+        controller.begin_capture(4)
+        controller.tick(4)
+        controller.end_capture()
+
+        audio = controller.get_last_captured_audio()
+        assert len(audio) == 4
+
+    def test_end_capture_clears_audio_buffer(self, controller):
+        """end_capture() resets _audio_buffer to empty."""
+        controller.begin_capture(4)
+        controller.tick(4)
+        controller.end_capture()
+        assert controller._audio_buffer == []
+
+    def test_audio_not_collected_outside_capture(self, controller):
+        """Ticks outside a capture window do not fill _audio_buffer."""
+        controller.tick(10)
+        assert controller._audio_buffer == []
+
+    def test_audio_chunk_shape(self, controller):
+        """Each collected chunk has shape (800, 2) as returned by mock."""
+        controller.begin_capture(1)
+        controller.tick(3)
+        for chunk in controller._audio_buffer:
+            assert chunk.shape == (800, 2)
+            assert chunk.dtype == np.int8
+
+    def test_begin_capture_resets_previous_audio_buffer(self, controller):
+        """A second begin_capture() resets the audio buffer."""
+        controller.begin_capture(1)
+        controller.tick(5)
+        assert len(controller._audio_buffer) == 5
+
+        # Start a new capture — buffer should reset
+        controller._capturing = False  # simulate end of first capture
+        controller.begin_capture(1)
+        assert controller._audio_buffer == []

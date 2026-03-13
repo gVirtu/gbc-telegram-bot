@@ -165,6 +165,101 @@ class TestTimelapseEncoderRouting:
 
 
 # ---------------------------------------------------------------------------
+# Direct tests for _create_new_realtime_timelapse and _append_realtime_frames
+# ---------------------------------------------------------------------------
+
+
+class TestRealtimeTimelapseEncoding:
+    """Direct tests for the realtime timelapse encoding methods."""
+
+    @pytest.mark.asyncio
+    async def test_create_new_realtime_timelapse_creates_file(self, encoder, test_frames, test_audio_chunks, tmp_path):
+        """_create_new_realtime_timelapse should call save_frames_as_mp4_with_audio and atomically place the file."""
+        video_path = tmp_path / "20260312_rt.mp4"
+
+        async def fake_encode(frames, audio_chunks, path, fps=15, **kwargs):
+            Path(path).write_bytes(b"fake rt video")
+
+        with patch("src.tasks.timelapse_encoder.save_frames_as_mp4_with_audio", side_effect=fake_encode):
+            await encoder._create_new_realtime_timelapse(video_path, test_frames, test_audio_chunks, fps=15)
+
+        assert video_path.exists()
+        assert video_path.read_bytes() == b"fake rt video"
+
+    @pytest.mark.asyncio
+    async def test_create_new_realtime_timelapse_cleans_up_tmp_on_error(self, encoder, test_frames, test_audio_chunks, tmp_path):
+        """_create_new_realtime_timelapse should delete the .tmp.mp4 file if encoding fails."""
+        video_path = tmp_path / "20260312_rt.mp4"
+        tmp_path_expected = video_path.with_suffix(".tmp.mp4")
+
+        async def failing_encode(frames, audio_chunks, path, fps=15, **kwargs):
+            Path(path).write_bytes(b"partial")
+            raise RuntimeError("encode failed")
+
+        with patch("src.tasks.timelapse_encoder.save_frames_as_mp4_with_audio", side_effect=failing_encode):
+            with pytest.raises(RuntimeError):
+                await encoder._create_new_realtime_timelapse(video_path, test_frames, test_audio_chunks, fps=15)
+
+        assert not tmp_path_expected.exists()
+
+    @pytest.mark.asyncio
+    async def test_append_realtime_frames_concatenates(self, encoder, test_frames, test_audio_chunks, tmp_path):
+        """_append_realtime_frames should encode a segment and concat it to the existing video."""
+        video_path = tmp_path / "20260312_rt.mp4"
+        video_path.write_bytes(b"existing video")
+
+        async def fake_encode(frames, audio_chunks, path, fps=15, **kwargs):
+            Path(path).write_bytes(b"new segment")
+
+        mock_process = MagicMock()
+        mock_process.returncode = 0
+        mock_process.communicate = AsyncMock(return_value=(b"", b""))
+
+        async def fake_subprocess(*cmd, **kwargs):
+            # Simulate ffmpeg concat: write concatenated content to output path
+            output = cmd[-1]
+            Path(output).write_bytes(b"existing videonew segment")
+            return mock_process
+
+        with patch("src.tasks.timelapse_encoder.save_frames_as_mp4_with_audio", side_effect=fake_encode):
+            with patch("asyncio.create_subprocess_exec", side_effect=fake_subprocess):
+                await encoder._append_realtime_frames(video_path, test_frames, test_audio_chunks, fps=15)
+
+        assert video_path.exists()
+        assert video_path.read_bytes() == b"existing videonew segment"
+
+    @pytest.mark.asyncio
+    async def test_append_realtime_frames_cleans_up_temp_files(self, encoder, test_frames, test_audio_chunks, tmp_path):
+        """_append_realtime_frames should clean up segment and concat list files after completion."""
+        video_path = tmp_path / "20260312_rt.mp4"
+        video_path.write_bytes(b"existing video")
+
+        async def fake_encode(frames, audio_chunks, path, fps=15, **kwargs):
+            Path(path).write_bytes(b"new segment")
+
+        mock_process = MagicMock()
+        mock_process.returncode = 0
+        mock_process.communicate = AsyncMock(return_value=(b"", b""))
+
+        created_files = []
+
+        async def fake_subprocess(*cmd, **kwargs):
+            output = cmd[-1]
+            Path(output).write_bytes(b"concatenated")
+            return mock_process
+
+        with patch("src.tasks.timelapse_encoder.save_frames_as_mp4_with_audio", side_effect=fake_encode):
+            with patch("asyncio.create_subprocess_exec", side_effect=fake_subprocess):
+                await encoder._append_realtime_frames(video_path, test_frames, test_audio_chunks, fps=15)
+
+        # No segment or concat list temp files should remain
+        assert not any(tmp_path.glob("segment_rt_*.mp4"))
+        assert not any(tmp_path.glob("concat_rt_*.txt"))
+        assert not video_path.with_suffix(".tmp.mp4").exists()
+        assert video_path.exists()
+
+
+# ---------------------------------------------------------------------------
 # Tests for recap_command with realtime_recaps flag
 # ---------------------------------------------------------------------------
 

@@ -50,7 +50,7 @@ class TestTimelapseIntegration:
             mock_settings.timelapse_backoff_delays = []
 
             # Mock the actual FFmpeg encoding
-            async def mock_encode(frames, path):
+            async def mock_encode(frames, path, fps=10, **kwargs):
                 # Create a fake video file
                 Path(path).parent.mkdir(parents=True, exist_ok=True)
                 Path(path).write_bytes(b"fake video data" * 100)
@@ -83,7 +83,7 @@ class TestTimelapseIntegration:
 
         queue = TimelapseEncodingQueue(db_manager)
 
-        async def track_encoding(frames, path):
+        async def track_encoding(frames, path, fps=10, **kwargs):
             """Track the order of encoding."""
             # Extract timestamp from path
             processed_order.append(path)
@@ -120,7 +120,7 @@ class TestTimelapseIntegration:
 
         encode_call_count = [0]
 
-        async def mock_encode(frames, path):
+        async def mock_encode(frames, path, fps=10, **kwargs):
             encode_call_count[0] += 1
             Path(path).parent.mkdir(parents=True, exist_ok=True)
             # Create progressively larger files
@@ -159,7 +159,7 @@ class TestTimelapseIntegration:
 
         encoder = TimelapseEncoder(db_manager)
 
-        async def failing_encode(frames, path):
+        async def failing_encode(frames, path, fps=10, **kwargs):
             raise RuntimeError("FFmpeg failed")
 
         with patch('src.tasks.timelapse_encoder.settings') as mock_settings:
@@ -243,7 +243,7 @@ class TestTimelapseIntegration:
 
         queue = TimelapseEncodingQueue(db_manager)
 
-        async def track_order(frames, path):
+        async def track_order(frames, path, fps=10, **kwargs):
             processing_order.append(path)
             await asyncio.sleep(0.05)  # Simulate processing time
             Path(path).parent.mkdir(parents=True, exist_ok=True)
@@ -272,7 +272,7 @@ class TestTimelapseIntegration:
         """Test that different chats have isolated timelapse files."""
         queue = TimelapseEncodingQueue(db_manager)
 
-        async def mock_encode(frames, path):
+        async def mock_encode(frames, path, fps=10, **kwargs):
             Path(path).parent.mkdir(parents=True, exist_ok=True)
             Path(path).write_bytes(b"video" * len(frames))
 

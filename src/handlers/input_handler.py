@@ -500,10 +500,17 @@ class InputHandler:
                 if timelapse_queue is not None:
                     try:
                         frames_without_tbc = frames[:-settings.tbc_duration_frames] if len(frames) > settings.tbc_duration_frames else frames
-                        skipped_frames = frames_without_tbc[::settings.timelapse_frame_skip]
+                        if config.feature_flags.get("realtime_recaps"):
+                            timelapse_frames = frames_without_tbc  # all frames, no skip
+                            timelapse_audio = audio_chunks or None
+                            timelapse_fps = 15
+                        else:
+                            timelapse_frames = frames_without_tbc[::settings.timelapse_frame_skip]
+                            timelapse_audio = None
+                            timelapse_fps = 10
                         timestamp = datetime.now().isoformat()
-                        await timelapse_queue.enqueue(chat_id, skipped_frames, timestamp)
-                        logger.debug(f"Enqueued {len(skipped_frames)} frames for timelapse encoding (chat {chat_id})")
+                        await timelapse_queue.enqueue(chat_id, timelapse_frames, timestamp, audio_chunks=timelapse_audio, fps=timelapse_fps)
+                        logger.debug(f"Enqueued {len(timelapse_frames)} frames for timelapse encoding (chat {chat_id})")
                     except Exception as e:
                         logger.warning(f"Failed to enqueue timelapse for chat {chat_id}: {e}")
 

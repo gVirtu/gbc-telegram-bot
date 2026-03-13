@@ -94,7 +94,7 @@ class TestTimelapseEncoder:
         """Test creating a new timelapse video."""
         video_path = tmp_path / "test.mp4"
 
-        async def mock_save_func(frames, path):
+        async def mock_save_func(frames, path, fps=10):
             # Create the actual file that the code expects
             Path(path).write_bytes(b"fake video data")
 
@@ -126,7 +126,7 @@ class TestTimelapseEncoder:
 
                 await encoder.encode_job(job)
 
-                mock_encode.assert_called_once_with(123, test_frames, "2026-02-21T10:30:00")
+                mock_encode.assert_called_once_with(123, test_frames, "2026-02-21T10:30:00", audio_chunks=None, fps=10)
 
     @pytest.mark.asyncio
     async def test_encode_with_retry_success_first_attempt(self, encoder, test_frames, tmp_path):
@@ -189,7 +189,7 @@ class TestTimelapseEncoder:
         # This is a simplified test - real file locking is OS-dependent
         # We mainly verify the code path executes without errors
 
-        async def mock_save_func(frames, path):
+        async def mock_save_func(frames, path, fps=10):
             # Create the actual file that the code expects
             Path(path).write_bytes(b"fake video data")
 

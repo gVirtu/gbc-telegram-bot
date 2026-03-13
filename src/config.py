@@ -163,7 +163,7 @@ class Settings(BaseSettings):
         le=10,
     )
     sequence_delay_seconds: float = Field(
-        default=1.0,
+        default=0.1,
         description="Delay in seconds between button presses in a sequence",
         ge=0.1,
         le=5.0,

@@ -291,40 +291,99 @@ class DatabaseManager:
         return {str(row['user_id']): row['input_count'] for row in cursor.fetchall()}
     
     def _save_recent_inputs(self, chat_id: int, inputs: list) -> None:
-        """Save recent inputs to database."""
-        # Delete existing inputs
-        self.connection.execute(
-            "DELETE FROM recent_inputs WHERE chat_id = ?;",
-            (chat_id,)
-        )
-        
-        # Insert new inputs
-        for inp in inputs:
-            self.connection.execute(
-                """INSERT INTO recent_inputs 
-                    (chat_id, user_id, user_name, button, timestamp) 
-                   VALUES (?, ?, ?, ?, ?);""",
-                (chat_id, inp['user_id'], inp['user_name'], inp['buttons'][0] if inp['buttons'] else None, inp['timestamp'])
-            )
+        """No-op: recent_inputs is now an append-only log.
+
+        Rows are inserted individually via append_recent_input.
+        This method is kept for compatibility with save_game_state callers.
+        """
+        pass
     
     def _load_recent_inputs(self, chat_id: int) -> list:
-        """Load recent inputs from database."""
+        """Load recent inputs from database, reconstructing max-3 grouped view."""
         cursor = self.connection.execute(
-            """SELECT user_id, user_name, button, timestamp 
-               FROM recent_inputs WHERE chat_id = ? ORDER BY timestamp;""",
+            """SELECT user_id, user_name, button, timestamp
+               FROM recent_inputs WHERE chat_id = ? ORDER BY timestamp DESC
+               LIMIT 30;""",
             (chat_id,)
         )
-        
-        inputs = []
-        for row in cursor.fetchall():
-            inputs.append({
+        rows = list(cursor.fetchall())
+        rows.reverse()  # Oldest first
+
+        # Collapse consecutive same-user inputs into groups
+        groups = []
+        for row in rows:
+            if groups and groups[-1]['user_id'] == row['user_id']:
+                groups[-1]['buttons'].append(row['button'])
+            else:
+                groups.append({
+                    'user_id': row['user_id'],
+                    'user_name': row['user_name'],
+                    'buttons': [row['button']] if row['button'] else [],
+                    'timestamp': row['timestamp'],
+                })
+
+        return groups[-3:] if len(groups) > 3 else groups
+    
+    def append_recent_input(
+        self,
+        chat_id: int,
+        user_id: int,
+        user_name: str,
+        button: str,
+        timestamp: str,
+    ) -> None:
+        """Append a single button press to the recent_inputs log."""
+        self.connection.execute(
+            """INSERT INTO recent_inputs
+               (chat_id, user_id, user_name, button, timestamp)
+               VALUES (?, ?, ?, ?, ?);""",
+            (chat_id, user_id, user_name, button, timestamp)
+        )
+        self.connection.commit()
+
+    def get_recent_inputs_for_overlay(
+        self, chat_id: int, limit: int = 30
+    ) -> list:
+        """Get the most recent N input rows for sidebar overlay rendering.
+
+        Returns a list of dicts with keys: user_id, user_name, button, timestamp.
+        Ordered oldest-first (suitable for rendering bottom-up).
+        """
+        cursor = self.connection.execute(
+            """SELECT user_id, user_name, button, timestamp
+               FROM recent_inputs WHERE chat_id = ?
+               ORDER BY timestamp DESC LIMIT ?;""",
+            (chat_id, limit)
+        )
+        rows = list(cursor.fetchall())
+        rows.reverse()  # Oldest first
+        return [
+            {
                 'user_id': row['user_id'],
                 'user_name': row['user_name'],
-                'buttons': [row['button']] if row['button'] else [],
-                'timestamp': row['timestamp']
-            })
-        return inputs
-    
+                'button': row['button'],
+                'timestamp': row['timestamp'],
+            }
+            for row in rows
+        ]
+
+    def purge_old_recent_inputs(self, older_than_days: int) -> int:
+        """Delete recent_inputs rows older than N days.
+
+        Returns the number of rows deleted. No-op if older_than_days == 0.
+        """
+        if older_than_days == 0:
+            return 0
+
+        from datetime import datetime, timedelta
+        cutoff = (datetime.utcnow() - timedelta(days=older_than_days)).isoformat()
+        cursor = self.connection.execute(
+            "DELETE FROM recent_inputs WHERE timestamp < ?;",
+            (cutoff,)
+        )
+        self.connection.commit()
+        return cursor.rowcount
+
     # ==================== Save Slots ====================
     
     def save_to_slot(

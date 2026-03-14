@@ -447,7 +447,7 @@ async def save_frames_as_mp4_optimized(
         frame_transform(f) if frame_transform else f for f in frames[1:]
     ]
     for actual_frame in frames_to_encode:
-        img = Image.fromarray(actual_frame, mode='RGB').resize(
+        img = Image.fromarray(actual_frame).resize(
             (w_scaled, h_scaled), Image.Resampling.NEAREST
         )
         process.stdin.write(np.array(img).tobytes())

@@ -154,6 +154,11 @@ class Settings(BaseSettings):
         ge=1,
         description="Days to keep backups before purging (BACKUP_RETENTION_DAYS env var)",
     )
+    recent_inputs_max_retention_days: int = Field(
+        default=2,
+        ge=0,
+        description="Days to retain recent_inputs rows for overlay; 0 disables purge (RECENT_INPUTS_MAX_RETENTION_DAYS env var)",
+    )
 
     # Sequence input settings
     max_sequence_length: int = Field(

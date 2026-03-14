@@ -546,3 +546,36 @@ class TestBufferedQueueSettings:
             Settings(**base_kwargs, min_update_interval_seconds=0.5)  # below 1.0
         with pytest.raises(ValidationError):
             Settings(**base_kwargs, min_update_interval_seconds=61.0)  # above 60.0
+
+
+class TestRecentInputsRetentionSettings:
+    """Test recent_inputs_max_retention_days config setting."""
+
+    @pytest.fixture
+    def base_kwargs(self):
+        return dict(
+            telegram_bot_token="test_token",
+            webhook_url="https://test.example.com",
+            webhook_secret="test_secret_1234567890",
+        )
+
+    def test_default_is_two(self, base_kwargs):
+        """recent_inputs_max_retention_days defaults to 2."""
+        s = Settings(**base_kwargs)
+        assert s.recent_inputs_max_retention_days == 2
+
+    def test_env_var_override(self, monkeypatch, base_kwargs):
+        """RECENT_INPUTS_MAX_RETENTION_DAYS env var is parsed correctly."""
+        monkeypatch.setenv("RECENT_INPUTS_MAX_RETENTION_DAYS", "7")
+        s = Settings(**base_kwargs)
+        assert s.recent_inputs_max_retention_days == 7
+
+    def test_zero_is_valid(self, base_kwargs):
+        """Value 0 is accepted (disables purge)."""
+        s = Settings(**base_kwargs, recent_inputs_max_retention_days=0)
+        assert s.recent_inputs_max_retention_days == 0
+
+    def test_negative_is_invalid(self, base_kwargs):
+        """Negative values are rejected."""
+        with pytest.raises(ValidationError):
+            Settings(**base_kwargs, recent_inputs_max_retention_days=-1)

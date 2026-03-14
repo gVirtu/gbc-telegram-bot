@@ -275,7 +275,7 @@ class TestRecapCommandRealtimeRecaps:
         ctx = make_ctx(mock_adapter, args=["20260312"])
 
         # Create the _rt.mp4 file
-        rt_video_path = tmp_path / "data" / "recaps" / "123" / "20260312_rt.mp4"
+        rt_video_path = tmp_path / "data" / "recaps" / "123" / "recap_20260312_rt.mp4"
         rt_video_path.parent.mkdir(parents=True, exist_ok=True)
         rt_video_path.write_bytes(b"fake realtime video data")
 
@@ -310,8 +310,8 @@ class TestRecapCommandRealtimeRecaps:
         ctx = make_ctx(mock_adapter, args=["20260312"])
 
         # Create both the regular and the _rt.mp4 files
-        regular_video_path = tmp_path / "data" / "recaps" / "123" / "20260312.mp4"
-        rt_video_path = tmp_path / "data" / "recaps" / "123" / "20260312_rt.mp4"
+        regular_video_path = tmp_path / "data" / "recaps" / "123" / "recap_20260312.mp4"
+        rt_video_path = tmp_path / "data" / "recaps" / "123" / "recap_20260312_rt.mp4"
         regular_video_path.parent.mkdir(parents=True, exist_ok=True)
         regular_video_path.write_bytes(b"fake regular video data")
         rt_video_path.write_bytes(b"fake realtime video data")

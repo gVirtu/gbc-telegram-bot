@@ -597,8 +597,8 @@ async def recap_command(ctx: CommandContext) -> None:
 
     from pathlib import Path
 
-    video_path = settings.data_dir / "recaps" / str(leader_id) / f"{date_str}.mp4"
-    rt_video_path = settings.data_dir / "recaps" / str(leader_id) / f"{date_str}_rt.mp4"
+    video_path = settings.data_dir / "recaps" / str(leader_id) / f"recap_{date_str}.mp4"
+    rt_video_path = settings.data_dir / "recaps" / str(leader_id) / f"recap_{date_str}_rt.mp4"
 
     leader_config = state_manager.get_or_create_chat_config(leader_id)
     use_rt = leader_config.feature_flags.get("realtime_recaps") and rt_video_path.exists()

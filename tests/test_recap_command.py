@@ -264,7 +264,7 @@ class TestRecapCommand:
         ctx = make_ctx(mock_adapter, args=["20260215"])
 
         # Create fake video file so the path.exists() check passes
-        video_path = tmp_path / "data" / "recaps" / "123" / "20260215.mp4"
+        video_path = tmp_path / "data" / "recaps" / "123" / "recap_20260215.mp4"
         video_path.parent.mkdir(parents=True, exist_ok=True)
         video_path.write_bytes(b"fake video")
 
@@ -288,7 +288,7 @@ class TestRecapCommand:
         ctx = make_ctx(mock_adapter, args=["20260215"])
 
         # Create fake video file so the path.exists() check passes
-        video_path = tmp_path / "data" / "recaps" / "123" / "20260215.mp4"
+        video_path = tmp_path / "data" / "recaps" / "123" / "recap_20260215.mp4"
         video_path.parent.mkdir(parents=True, exist_ok=True)
         video_path.write_bytes(b"fake video data")
 

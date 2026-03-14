@@ -103,7 +103,7 @@ class TestRunBroadcastCycle:
         # We need to know yesterday's date to create the file
         from datetime import datetime, timedelta
         yesterday = (datetime.utcnow() - timedelta(days=1)).strftime("%Y%m%d")
-        (recap_dir / f"{yesterday}.mp4").write_bytes(b"fake video")
+        (recap_dir / f"recap_{yesterday}.mp4").write_bytes(b"fake video")
 
         with (
             patch("src.tasks.recap_broadcaster.state_manager") as mock_sm,
@@ -141,7 +141,7 @@ class TestRunBroadcastCycle:
 
         recap_dir = tmp_path / "recaps" / "100"
         recap_dir.mkdir(parents=True)
-        (recap_dir / f"{yesterday}.mp4").write_bytes(b"fake video")
+        (recap_dir / f"recap_{yesterday}.mp4").write_bytes(b"fake video")
 
         with (
             patch("src.tasks.recap_broadcaster.state_manager") as mock_sm,
@@ -175,7 +175,7 @@ class TestRunBroadcastCycle:
 
         recap_dir = tmp_path / "recaps" / "100"
         recap_dir.mkdir(parents=True)
-        (recap_dir / f"{yesterday}.mp4").write_bytes(b"fake video")
+        (recap_dir / f"recap_{yesterday}.mp4").write_bytes(b"fake video")
 
         with (
             patch("src.tasks.recap_broadcaster.state_manager") as mock_sm,

@@ -43,7 +43,7 @@ async def _run_broadcast_cycle() -> None:
     logger.info(f"Recap broadcast cycle: {len(leader_ids)} opted-in leader(s) for date {yesterday}")
 
     for leader_id in leader_ids:
-        video_path = settings.data_dir / "recaps" / str(leader_id) / f"{yesterday}.mp4"
+        video_path = settings.data_dir / "recaps" / str(leader_id) / f"recap_{yesterday}.mp4"
         if not video_path.exists():
             logger.debug(f"No recap file for leader {leader_id}, date {yesterday}; skipping")
             continue

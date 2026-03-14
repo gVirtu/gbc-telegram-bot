@@ -33,7 +33,7 @@ async def send_recap_to_chat(
     if recap_record is None:
         return False
 
-    video_path = settings.data_dir / "recaps" / str(leader_id) / f"{date_str}.mp4"
+    video_path = settings.data_dir / "recaps" / str(leader_id) / f"recap_{date_str}.mp4"
 
     if not video_path.exists():
         return False

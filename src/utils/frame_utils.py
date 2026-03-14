@@ -9,6 +9,7 @@ import logging
 import os
 import subprocess
 import tempfile
+from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 from typing import Callable, Optional, Tuple
@@ -184,7 +185,7 @@ def render_input_sidebar(
 
     # Render inputs bottom-up (most recent at bottom)
     for entry in reversed(inputs):
-        if y < 0:
+        if y < line_height:
             break  # Stop when we reach the top boundary
 
         button_val = entry.get("button", "")
@@ -202,6 +203,9 @@ def render_input_sidebar(
         x = width - text_w - padding
         draw.text((x, y), text, fill=(255, 255, 255), font=font, fontmode="1")
         y -= line_height
+
+    date_str = datetime.utcnow().strftime("%d/%m/%Y")
+    draw.text((padding, 0), date_str, fill=(255, 255, 255), font=font, fontmode="1")
 
     return np.array(img, dtype=np.uint8)
 

@@ -413,7 +413,10 @@ async def save_frames_as_mp4_optimized(
         raise ValueError("No frames provided")
 
     # Apply transform to get actual frame dimensions
-    first_frame = frame_transform(frames[0]) if frame_transform else frames[0]
+    if frame_transform:
+        first_frame = frame_transform(frames[0])
+    else:
+        first_frame = frames[0]
     h, w = first_frame.shape[:2]
     h_scaled, w_scaled = h * 2, w * 2
 
@@ -438,9 +441,12 @@ async def save_frames_as_mp4_optimized(
         stderr=asyncio.subprocess.PIPE,
     )
 
-    # Write frames to stdin
-    for frame in frames:
-        actual_frame = frame_transform(frame) if frame_transform else frame
+    # Write frames to stdin; reuse already-transformed first_frame to avoid
+    # calling frame_transform twice on frames[0] (important for stateful transforms)
+    frames_to_encode = [first_frame] + [
+        frame_transform(f) if frame_transform else f for f in frames[1:]
+    ]
+    for actual_frame in frames_to_encode:
         img = Image.fromarray(actual_frame, mode='RGB').resize(
             (w_scaled, h_scaled), Image.Resampling.NEAREST
         )
@@ -494,7 +500,10 @@ async def save_frames_as_mp4_with_audio(
         raise ValueError("No frames provided")
 
     # Apply transform to get actual frame dimensions
-    first_frame = frame_transform(frames[0]) if frame_transform else frames[0]
+    if frame_transform:
+        first_frame = frame_transform(frames[0])
+    else:
+        first_frame = frames[0]
     h, w = first_frame.shape[:2]
     h_scaled, w_scaled = h * 2, w * 2
 
@@ -563,9 +572,12 @@ async def save_frames_as_mp4_with_audio(
             stderr=asyncio.subprocess.PIPE,
         )
 
-        # Write frames to stdin
-        for frame in frames:
-            actual_frame = frame_transform(frame) if frame_transform else frame
+        # Write frames to stdin; reuse already-transformed first_frame to avoid
+        # calling frame_transform twice on frames[0] (important for stateful transforms)
+        frames_to_encode = [first_frame] + [
+            frame_transform(f) if frame_transform else f for f in frames[1:]
+        ]
+        for actual_frame in frames_to_encode:
             img = Image.fromarray(actual_frame, mode='RGB').resize(
                 (w_scaled, h_scaled), Image.Resampling.NEAREST
             )

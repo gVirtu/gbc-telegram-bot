@@ -390,10 +390,14 @@ async def save_frames_as_mp4_with_audio(
             # Scale to int16 range and add triangular PDF dither to reduce
             # quantization noise from the 8-bit source (lower 8 bits are
             # otherwise always zero, causing audible stepping artifacts).
-            scaled = combined.astype(np.int16) * 256
-            dither = (np.random.randint(0, 256, scaled.shape, dtype=np.int16)
-                      - np.random.randint(0, 256, scaled.shape, dtype=np.int16))
-            pcm_int16 = np.clip(scaled.astype(np.int32) + dither, -32768, 32767).astype(np.int16)
+            pcm_int16 = combined.astype(np.int16) << 8
+
+            dither = (
+                np.random.randint(-128, 129, pcm_int16.shape, dtype=np.int16)
+                + np.random.randint(-128, 129, pcm_int16.shape, dtype=np.int16)
+            ) // 2
+
+            pcm_int16 = np.clip(pcm_int16 + dither, -32768, 32767)
 
             with tempfile.NamedTemporaryFile(suffix='.pcm', delete=False) as f:
                 tmp_pcm = f.name
@@ -414,6 +418,7 @@ async def save_frames_as_mp4_with_audio(
                 '-c:v', 'libx264',
                 '-pix_fmt', 'yuv420p',
                 '-crf', str(crf),
+                '-af', 'highpass=f=40,lowpass=f=6500,aresample=32000',
                 '-preset', preset,
                 '-c:a', 'aac',
                 output_path,

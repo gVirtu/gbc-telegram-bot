@@ -11,10 +11,10 @@ import subprocess
 import tempfile
 from io import BytesIO
 from pathlib import Path
-from typing import Tuple
+from typing import Callable, Optional, Tuple
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw
 
 logger = logging.getLogger(__name__)
 
@@ -132,6 +132,112 @@ def create_empty_frame(
     frame = np.zeros((height, width, 3), dtype=np.uint8)
     frame[:, :] = color
     return frame
+
+
+def render_input_sidebar(
+    inputs: list,
+    width: int = 192,
+    height: int = 288,
+) -> np.ndarray:
+    """Render a sidebar showing recent input entries as a numpy RGB array.
+
+    Text is rendered white on black, right-aligned, bottom-up.
+    Each entry shows: "{user_name}: {button_char}"
+    Button chars: ← ↑ → ↓ A B START SELECT (WAIT shown as …)
+
+    Args:
+        inputs: List of dicts with keys: user_name, button (string value)
+        width: Width of the sidebar in pixels
+        height: Height of the sidebar in pixels
+
+    Returns:
+        np.ndarray of shape (height, width, 3), uint8, black background
+    """
+    BUTTON_CHARS = {
+        "left": "←",
+        "up": "↑",
+        "right": "→",
+        "down": "↓",
+        "a": "A",
+        "b": "B",
+        "start": "START",
+        "select": "SELECT",
+        "wait": "…",
+    }
+
+    img = Image.new("RGB", (width, height), color=(0, 0, 0))
+    draw = ImageDraw.Draw(img)
+
+    # Try to load bundled font; fall back to default
+    font = None
+    font_path = Path(__file__).parent.parent.parent / "assets" / "fonts" / "DejaVuSans.ttf"
+    try:
+        from PIL import ImageFont
+        font = ImageFont.truetype(str(font_path), size=11)
+    except Exception:
+        from PIL import ImageFont
+        font = ImageFont.load_default()
+
+    line_height = 14
+    padding = 4
+    y = height - line_height - padding  # start from bottom
+
+    # Render inputs bottom-up (most recent at bottom)
+    for entry in reversed(inputs):
+        if y < 0:
+            break  # Stop when we reach the top boundary
+
+        button_val = entry.get("button", "")
+        button_char = BUTTON_CHARS.get(button_val, button_val)
+        user_name = entry.get("user_name", "?")
+        text = f"{user_name}: {button_char}"
+
+        # Right-align: measure text width
+        try:
+            bbox = draw.textbbox((0, 0), text, font=font)
+            text_w = bbox[2] - bbox[0]
+        except Exception:
+            text_w = len(text) * 6
+
+        x = width - text_w - padding
+        draw.text((x, y), text, fill=(255, 255, 255), font=font)
+        y -= line_height
+
+    return np.array(img, dtype=np.uint8)
+
+
+def composite_overlay(
+    game_frame: np.ndarray,
+    sidebar: np.ndarray,
+) -> np.ndarray:
+    """Composite game frame and sidebar into a single wide frame.
+
+    Horizontally stacks game_frame (left) and sidebar (right).
+    If heights differ, pads shorter side with black.
+
+    Args:
+        game_frame: np.ndarray of shape (H, W, 3)
+        sidebar: np.ndarray of shape (H, W2, 3)
+
+    Returns:
+        np.ndarray of shape (H, W+W2, 3)
+    """
+    h1, w1 = game_frame.shape[:2]
+    h2, w2 = sidebar.shape[:2]
+
+    if h1 == h2:
+        return np.concatenate([game_frame, sidebar], axis=1)
+
+    # Pad to same height
+    max_h = max(h1, h2)
+    if h1 < max_h:
+        pad = np.zeros((max_h - h1, w1, 3), dtype=np.uint8)
+        game_frame = np.concatenate([game_frame, pad], axis=0)
+    if h2 < max_h:
+        pad = np.zeros((max_h - h2, w2, 3), dtype=np.uint8)
+        sidebar = np.concatenate([sidebar, pad], axis=0)
+
+    return np.concatenate([game_frame, sidebar], axis=1)
 
 
 def save_frames_as_mp4(
@@ -276,6 +382,7 @@ async def save_frames_as_mp4_optimized(
     fps: int = 10,
     crf: int = 28,
     preset: str = "medium",
+    frame_transform: Optional[Callable[[np.ndarray], np.ndarray]] = None,
 ) -> None:
     """Save a sequence of frames as an MP4 video with optimized compression.
 
@@ -289,6 +396,8 @@ async def save_frames_as_mp4_optimized(
         fps: Frames per second for the output video
         crf: Constant Rate Factor (quality, lower=better, 0-51)
         preset: Encoding speed preset (medium for balanced compression)
+        frame_transform: Optional callable to transform each frame before encoding.
+            Applied before 2x scaling; changes pixel content but not the scaling step.
 
     Raises:
         ValueError: If no frames provided
@@ -303,7 +412,9 @@ async def save_frames_as_mp4_optimized(
     if not frames:
         raise ValueError("No frames provided")
 
-    h, w = frames[0].shape[:2]
+    # Apply transform to get actual frame dimensions
+    first_frame = frame_transform(frames[0]) if frame_transform else frames[0]
+    h, w = first_frame.shape[:2]
     h_scaled, w_scaled = h * 2, w * 2
 
     cmd = [
@@ -329,7 +440,8 @@ async def save_frames_as_mp4_optimized(
 
     # Write frames to stdin
     for frame in frames:
-        img = Image.fromarray(frame, mode='RGB').resize(
+        actual_frame = frame_transform(frame) if frame_transform else frame
+        img = Image.fromarray(actual_frame, mode='RGB').resize(
             (w_scaled, h_scaled), Image.Resampling.NEAREST
         )
         process.stdin.write(np.array(img).tobytes())
@@ -354,6 +466,7 @@ async def save_frames_as_mp4_with_audio(
     crf: int = 28,
     preset: str = "medium",
     sample_rate: int = 48000,
+    frame_transform: Optional[Callable[[np.ndarray], np.ndarray]] = None,
 ) -> None:
     """Save frames as MP4 with audio using FFmpeg.
 
@@ -368,6 +481,8 @@ async def save_frames_as_mp4_with_audio(
         crf: Constant Rate Factor (quality, lower=better, 0-51)
         preset: Encoding speed preset
         sample_rate: Audio sample rate in Hz
+        frame_transform: Optional callable to transform each frame before encoding.
+            Applied before 2x scaling; changes pixel content but not the scaling step.
 
     Raises:
         ValueError: If no frames provided
@@ -378,7 +493,9 @@ async def save_frames_as_mp4_with_audio(
     if not frames:
         raise ValueError("No frames provided")
 
-    h, w = frames[0].shape[:2]
+    # Apply transform to get actual frame dimensions
+    first_frame = frame_transform(frames[0]) if frame_transform else frames[0]
+    h, w = first_frame.shape[:2]
     h_scaled, w_scaled = h * 2, w * 2
 
     # Convert int8 stereo chunks to int16 PCM and write to temp file
@@ -448,7 +565,8 @@ async def save_frames_as_mp4_with_audio(
 
         # Write frames to stdin
         for frame in frames:
-            img = Image.fromarray(frame, mode='RGB').resize(
+            actual_frame = frame_transform(frame) if frame_transform else frame
+            img = Image.fromarray(actual_frame, mode='RGB').resize(
                 (w_scaled, h_scaled), Image.Resampling.NEAREST
             )
             process.stdin.write(np.array(img).tobytes())

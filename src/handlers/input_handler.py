@@ -382,6 +382,13 @@ class InputHandler:
 
         input_keyboard = adapter.build_game_keyboard(chat_config=config, modifier_specs=modifier_specs)
 
+        # Fetch pre-existing recent inputs for overlay (before this batch)
+        pre_existing_inputs_for_overlay = []
+        try:
+            pre_existing_inputs_for_overlay = state_manager.get_recent_inputs_for_overlay(chat_id, limit=30)
+        except Exception as e:
+            logger.warning(f"Failed to get recent inputs for overlay for chat {chat_id}: {e}")
+
         logger.info(f"Executing batch of {len(buttons)} buttons for chat {chat_id} (modifier_states={modifier_states})")
 
         # Animation capture settings - GameBoy runs at 60fps, capture at 15fps
@@ -389,6 +396,9 @@ class InputHandler:
         capture_fps = 15
         capture_interval_frames = game_fps // capture_fps
         controller.begin_capture(capture_interval_frames)
+
+        new_inputs_with_offsets = []  # list of (input_dict, frame_offset)
+        cumulative_frames = 0  # tracks frames captured so far
 
         for i, button in enumerate(buttons):
             if button == GameButton.WAIT:
@@ -406,8 +416,34 @@ class InputHandler:
                     logger.debug(f"Executing {button.value} in batch for chat {chat_id}")
                     controller.send_input(button, frames=settings.input_hold_frames)
 
+            # Record frame offset at time of button press
+            frame_offset = cumulative_frames // capture_interval_frames  # convert game frames to capture frame index
+            bi = batch[i]
+            input_dict = {
+                'user_id': bi.user_id,
+                'user_name': bi.user_name,
+                'button': bi.button.value,
+                'timestamp': bi.received_at.isoformat(),
+            }
+            new_inputs_with_offsets.append((input_dict, frame_offset))
+
+            # Append to DB log
+            try:
+                state_manager.append_recent_input(
+                    chat_id=chat_id,
+                    user_id=bi.user_id,
+                    user_name=bi.user_name,
+                    button=bi.button.value,
+                    timestamp=bi.received_at.isoformat(),
+                )
+            except Exception as e:
+                logger.warning(f"Failed to append recent input for chat {chat_id}: {e}")
+
+            # Advance cumulative_frames count
+            cumulative_frames += settings.input_hold_frames
             if i < len(buttons) - 1:
                 delay_frames = int(settings.sequence_delay_seconds * game_fps)
+                cumulative_frames += delay_frames
                 for _frame_num in range(delay_frames):
                     controller.tick(1)
 
@@ -503,7 +539,15 @@ class InputHandler:
                             timelapse_audio = None
                             timelapse_fps = 10
                         timestamp = datetime.now().isoformat()
-                        await timelapse_queue.enqueue(chat_id, timelapse_frames, timestamp, audio_chunks=timelapse_audio, fps=timelapse_fps)
+                        await timelapse_queue.enqueue(
+                            chat_id,
+                            timelapse_frames,
+                            timestamp,
+                            audio_chunks=timelapse_audio,
+                            fps=timelapse_fps,
+                            pre_existing_inputs=pre_existing_inputs_for_overlay,
+                            new_inputs_with_offsets=new_inputs_with_offsets,
+                        )
                         logger.debug(f"Enqueued {len(timelapse_frames)} frames for timelapse encoding (chat {chat_id})")
                     except Exception as e:
                         logger.warning(f"Failed to enqueue timelapse for chat {chat_id}: {e}")

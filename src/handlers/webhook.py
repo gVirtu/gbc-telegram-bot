@@ -299,6 +299,11 @@ class WebhookHandler:
             from src.tasks.recap_broadcaster import run_recap_broadcast_loop
             recap_task = asyncio.create_task(run_recap_broadcast_loop())
 
+            from src.tasks.recent_inputs_cleanup_task import run_recent_inputs_cleanup_loop
+            recent_inputs_cleanup_task = asyncio.create_task(
+                run_recent_inputs_cleanup_loop(state_manager, settings)
+            )
+
             logger.info("Webhook handler started successfully")
 
             yield
@@ -318,6 +323,12 @@ class WebhookHandler:
             recap_task.cancel()
             try:
                 await recap_task
+            except asyncio.CancelledError:
+                pass
+
+            recent_inputs_cleanup_task.cancel()
+            try:
+                await recent_inputs_cleanup_task
             except asyncio.CancelledError:
                 pass
 

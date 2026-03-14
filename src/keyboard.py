@@ -8,6 +8,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 from src.i18n import translation_manager
 from src.models.game_state import BUTTON_LAYOUT, ChatConfig, GameButton, ModifierButtonSpec
+from src.config import settings
 
 
 def create_input_keyboard(
@@ -104,13 +105,15 @@ def create_game_message_text(
             if "buttons" in inp:
                 # New format: list of buttons
                 buttons = [GameButton(b) for b in inp["buttons"]]
+                ellipsis="…" if len(buttons) > settings.max_sequence_length else ""
+
                 if len(buttons) == 1:
                     button = buttons[0]
                     base_text += f"\n  {user_name}: {button.emoji} {translation_manager.get(f'keyboard.buttons.display_name.{button.value}', chat_id)}"
                 else:
                     # Sequence: comma-separated emojis
-                    emoji_sequence = ", ".join([b.emoji for b in buttons])
-                    base_text += f"\n  {user_name}: {emoji_sequence}"
+                    emoji_sequence = ", ".join([b.emoji for b in buttons[-settings.max_sequence_length:]])
+                    base_text += f"\n  {user_name}: {ellipsis}{emoji_sequence}"
             else:
                 # Old format: single button (backward compatibility)
                 button = GameButton(inp["button"])

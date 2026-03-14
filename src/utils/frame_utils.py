@@ -154,12 +154,12 @@ def render_input_sidebar(
         np.ndarray of shape (height, width, 3), uint8, black background
     """
     BUTTON_CHARS = {
-        "left": "←",
-        "up": "↑",
-        "right": "→",
-        "down": "↓",
-        "a": "A",
-        "b": "B",
+        "left": "⬅",
+        "up": "⬆",
+        "right": "⮕",
+        "down": "⬇",
+        "a": "Ⓐ",
+        "b": "Ⓑ",
         "start": "START",
         "select": "SELECT",
         "wait": "…",
@@ -170,15 +170,15 @@ def render_input_sidebar(
 
     # Try to load bundled font; fall back to default
     font = None
-    font_path = Path(__file__).parent.parent.parent / "assets" / "fonts" / "DejaVuSans.ttf"
+    font_path = Path(__file__).parent.parent.parent / "assets" / "fonts" / "unifont-17.0.04.otf"
     try:
         from PIL import ImageFont
-        font = ImageFont.truetype(str(font_path), size=11)
+        font = ImageFont.truetype(str(font_path), size=18)
     except Exception:
         from PIL import ImageFont
         font = ImageFont.load_default()
 
-    line_height = 14
+    line_height = 20
     padding = 4
     y = height - line_height - padding  # start from bottom
 
@@ -200,7 +200,7 @@ def render_input_sidebar(
             text_w = len(text) * 6
 
         x = width - text_w - padding
-        draw.text((x, y), text, fill=(255, 255, 255), font=font)
+        draw.text((x, y), text, fill=(255, 255, 255), font=font, fontmode="1")
         y -= line_height
 
     return np.array(img, dtype=np.uint8)
@@ -418,13 +418,12 @@ async def save_frames_as_mp4_optimized(
     else:
         first_frame = frames[0]
     h, w = first_frame.shape[:2]
-    h_scaled, w_scaled = h * 2, w * 2
 
     cmd = [
         'ffmpeg', '-y',
         '-f', 'rawvideo',
         '-pix_fmt', 'rgb24',
-        '-s', f'{w_scaled}x{h_scaled}',
+        '-s', f'{w}x{h}',
         '-framerate', str(fps),
         '-i', 'pipe:0',
         '-vcodec', 'libx264',
@@ -447,9 +446,7 @@ async def save_frames_as_mp4_optimized(
         frame_transform(f) if frame_transform else f for f in frames[1:]
     ]
     for actual_frame in frames_to_encode:
-        img = Image.fromarray(actual_frame).resize(
-            (w_scaled, h_scaled), Image.Resampling.NEAREST
-        )
+        img = Image.fromarray(actual_frame)
         process.stdin.write(np.array(img).tobytes())
 
     process.stdin.close()
@@ -505,7 +502,6 @@ async def save_frames_as_mp4_with_audio(
     else:
         first_frame = frames[0]
     h, w = first_frame.shape[:2]
-    h_scaled, w_scaled = h * 2, w * 2
 
     # Convert int8 stereo chunks to int16 PCM and write to temp file
     tmp_pcm = None
@@ -534,7 +530,7 @@ async def save_frames_as_mp4_with_audio(
                 'ffmpeg', '-y',
                 '-f', 'rawvideo',
                 '-pix_fmt', 'rgb24',
-                '-s', f'{w_scaled}x{h_scaled}',
+                '-s', f'{w}x{h}',
                 '-framerate', str(fps),
                 '-i', 'pipe:0',
                 '-f', 's16le',
@@ -554,7 +550,7 @@ async def save_frames_as_mp4_with_audio(
                 'ffmpeg', '-y',
                 '-f', 'rawvideo',
                 '-pix_fmt', 'rgb24',
-                '-s', f'{w_scaled}x{h_scaled}',
+                '-s', f'{w}x{h}',
                 '-framerate', str(fps),
                 '-i', 'pipe:0',
                 '-c:v', 'libx264',
@@ -578,9 +574,7 @@ async def save_frames_as_mp4_with_audio(
             frame_transform(f) if frame_transform else f for f in frames[1:]
         ]
         for actual_frame in frames_to_encode:
-            img = Image.fromarray(actual_frame, mode='RGB').resize(
-                (w_scaled, h_scaled), Image.Resampling.NEAREST
-            )
+            img = Image.fromarray(actual_frame)
             process.stdin.write(np.array(img).tobytes())
 
         process.stdin.close()

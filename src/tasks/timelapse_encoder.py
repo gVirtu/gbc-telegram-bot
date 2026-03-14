@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Callable, Dict, List, Optional
+from PIL import Image
 
 import numpy as np
 
@@ -376,7 +377,17 @@ class TimelapseEncoder:
             job: The timelapse job to encode
         """
         chat_id = job.chat_id
-        frames = job.frames
+
+        h, w = job.frames[0].shape[:2]
+        h_scaled, w_scaled = h * 2, w * 2
+
+        # TODO: Refactor so that `save_frames_as...` take Images instead of ndarrays 
+        #       so we don't need to wastefully convert back
+        frames = [
+            np.array(Image.fromarray(frame).resize((w_scaled, h_scaled), Image.Resampling.NEAREST))
+            for frame in job.frames
+        ]
+
         timestamp = job.timestamp
         audio_chunks = job.audio_chunks
         fps = job.fps

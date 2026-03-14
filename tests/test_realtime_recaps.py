@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, Mock, patch, call
 
 from src.handlers.commands import recap_command
-from src.tasks.timelapse_encoder import TimelapseEncoder
+from src.tasks.timelapse_encoder import TimelapseEncoder, TimelapseJob
 from src.utils.frame_utils import save_frames_as_mp4_with_audio
 from src.db.manager import DatabaseManager
 
@@ -131,13 +131,14 @@ class TestTimelapseEncoderRouting:
                 with patch.object(encoder, "_create_new_timelapse", new_callable=AsyncMock) as mock_regular:
                     with patch.object(encoder, "_update_recap_metadata", new_callable=AsyncMock):
                         with patch("fcntl.flock"):
-                            await encoder._do_encode_and_append(
+                            job = TimelapseJob(
                                 chat_id=123,
                                 frames=test_frames,
                                 timestamp="2026-03-12T10:00:00",
                                 audio_chunks=test_audio_chunks,
                                 fps=15,
                             )
+                            await encoder._do_encode_and_append(job)
 
             mock_rt.assert_called_once()
             mock_regular.assert_not_called()
@@ -152,13 +153,14 @@ class TestTimelapseEncoderRouting:
                 with patch.object(encoder, "_create_new_timelapse", new_callable=AsyncMock) as mock_regular:
                     with patch.object(encoder, "_update_recap_metadata", new_callable=AsyncMock):
                         with patch("fcntl.flock"):
-                            await encoder._do_encode_and_append(
+                            job = TimelapseJob(
                                 chat_id=123,
                                 frames=test_frames,
                                 timestamp="2026-03-12T10:00:00",
                                 audio_chunks=None,
                                 fps=10,
                             )
+                            await encoder._do_encode_and_append(job)
 
             mock_regular.assert_called_once()
             mock_rt.assert_not_called()

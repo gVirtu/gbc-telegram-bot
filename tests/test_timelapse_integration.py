@@ -63,7 +63,7 @@ class TestTimelapseIntegration:
                 await queue._queues[chat_id].join()
 
                 # Verify video file was created
-                video_path = tmp_path / "data" / "recaps" / "123" / "20260221.mp4"
+                video_path = tmp_path / "data" / "recaps" / "123" / "recap_20260221.mp4"
                 assert video_path.exists()
 
                 # Verify database was updated
@@ -168,8 +168,10 @@ class TestTimelapseIntegration:
 
             with patch('src.tasks.timelapse_encoder.save_frames_as_mp4_optimized', side_effect=failing_encode):
                 # Directly call encode_with_retry (bypasses queue complexity)
+                from src.tasks.timelapse_encoder import TimelapseJob
+                job = TimelapseJob(chat_id=chat_id, frames=test_frames, timestamp=timestamp)
                 try:
-                    await encoder._encode_with_retry(chat_id, test_frames, timestamp)
+                    await encoder._encode_with_retry(job)
                 except RuntimeError:
                     pass  # Expected to fail after retries
 
@@ -289,8 +291,8 @@ class TestTimelapseIntegration:
                 await queue._queues[456].join()
 
                 # Verify separate files exist
-                video_123 = tmp_path / "data" / "recaps" / "123" / "20260221.mp4"
-                video_456 = tmp_path / "data" / "recaps" / "456" / "20260221.mp4"
+                video_123 = tmp_path / "data" / "recaps" / "123" / "recap_20260221.mp4"
+                video_456 = tmp_path / "data" / "recaps" / "456" / "recap_20260221.mp4"
 
                 assert video_123.exists()
                 assert video_456.exists()

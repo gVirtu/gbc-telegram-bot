@@ -46,7 +46,7 @@ class TestTimelapseEncoder:
 
             path = encoder._get_video_path(123, "20260221")
 
-            assert path == tmp_path / "data" / "recaps" / "123" / "20260221.mp4"
+            assert path == tmp_path / "data" / "recaps" / "123" / "recap_20260221.mp4"
             assert path.parent.exists()
 
     def test_get_failed_frames_path(self, encoder, tmp_path):
@@ -94,7 +94,7 @@ class TestTimelapseEncoder:
         """Test creating a new timelapse video."""
         video_path = tmp_path / "test.mp4"
 
-        async def mock_save_func(frames, path, fps=10):
+        async def mock_save_func(frames, path, fps=10, **kwargs):
             # Create the actual file that the code expects
             Path(path).write_bytes(b"fake video data")
 
@@ -126,7 +126,7 @@ class TestTimelapseEncoder:
 
                 await encoder.encode_job(job)
 
-                mock_encode.assert_called_once_with(123, test_frames, "2026-02-21T10:30:00", audio_chunks=None, fps=10)
+                mock_encode.assert_called_once_with(job)
 
     @pytest.mark.asyncio
     async def test_encode_with_retry_success_first_attempt(self, encoder, test_frames, tmp_path):
@@ -138,7 +138,8 @@ class TestTimelapseEncoder:
             with patch.object(encoder, '_do_encode_and_append') as mock_encode:
                 mock_encode.return_value = None
 
-                await encoder._encode_with_retry(123, test_frames, "2026-02-21T10:30:00")
+                job = TimelapseJob(chat_id=123, frames=test_frames, timestamp="2026-02-21T10:30:00")
+                await encoder._encode_with_retry(job)
 
                 # Should only call once (success on first attempt)
                 assert mock_encode.call_count == 1
@@ -156,8 +157,9 @@ class TestTimelapseEncoder:
                 with patch.object(encoder, '_save_failed_frames') as mock_save_failed:
                     mock_save_failed.return_value = None
 
+                    job = TimelapseJob(chat_id=123, frames=test_frames, timestamp="2026-02-21T10:30:00")
                     with pytest.raises(RuntimeError):
-                        await encoder._encode_with_retry(123, test_frames, "2026-02-21T10:30:00")
+                        await encoder._encode_with_retry(job)
 
                     # Should try 3 times
                     assert mock_encode.call_count == 3
@@ -189,7 +191,7 @@ class TestTimelapseEncoder:
         # This is a simplified test - real file locking is OS-dependent
         # We mainly verify the code path executes without errors
 
-        async def mock_save_func(frames, path, fps=10):
+        async def mock_save_func(frames, path, fps=10, **kwargs):
             # Create the actual file that the code expects
             Path(path).write_bytes(b"fake video data")
 
@@ -198,7 +200,8 @@ class TestTimelapseEncoder:
 
             with patch('src.tasks.timelapse_encoder.save_frames_as_mp4_optimized', side_effect=mock_save_func):
                 with patch('fcntl.flock') as mock_flock:
-                    await encoder._do_encode_and_append(123, test_frames, "2026-02-21T10:30:00")
+                    job = TimelapseJob(chat_id=123, frames=test_frames, timestamp="2026-02-21T10:30:00")
+                    await encoder._do_encode_and_append(job)
 
                     # Verify lock was acquired and released
                     assert mock_flock.call_count >= 2  # LOCK_EX and LOCK_UN

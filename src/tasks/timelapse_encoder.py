@@ -9,16 +9,21 @@ import asyncio
 import fcntl
 import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 import numpy as np
 
 from src.config import settings
 from src.db.manager import DatabaseManager
-from src.utils.frame_utils import save_frames_as_mp4_optimized, save_frames_as_mp4_with_audio
+from src.utils.frame_utils import (
+    composite_overlay,
+    render_input_sidebar,
+    save_frames_as_mp4_optimized,
+    save_frames_as_mp4_with_audio,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +37,45 @@ class TimelapseJob:
     timestamp: str  # ISO8601 timestamp
     audio_chunks: Optional[List[np.ndarray]] = None
     fps: int = 10
+    pre_existing_inputs: list = field(default_factory=list)  # BufferedInput dicts from before this batch
+    new_inputs_with_offsets: list = field(default_factory=list)  # list of (BufferedInput_dict, frame_offset: int)
+
+
+def make_frame_transform(
+    pre_existing: list,
+    new_inputs_with_offsets: list,
+) -> Callable[[np.ndarray], np.ndarray]:
+    """Build a stateful frame transform for overlay rendering.
+
+    Returns a callable that, when called once per frame in sequence, composites
+    an input sidebar reflecting the accumulated inputs up to that frame.
+
+    Args:
+        pre_existing: List of input dicts already present at frame 0.
+        new_inputs_with_offsets: List of (input_dict, frame_offset) pairs
+            describing inputs that arrive at specific frame indices.
+
+    Returns:
+        A callable ``transform(frame) -> frame`` that applies the sidebar.
+    """
+    state: dict = {"frame_index": 0, "current_inputs": list(pre_existing)}
+    sorted_new = sorted(new_inputs_with_offsets, key=lambda x: x[1])
+    sorted_new_iter = iter(sorted_new)
+    next_new: list = [next(sorted_new_iter, None)]
+
+    def transform(frame: np.ndarray) -> np.ndarray:
+        fi = state["frame_index"]
+        state["frame_index"] += 1
+
+        # Add any new inputs whose frame_offset has been reached
+        while next_new[0] is not None and next_new[0][1] <= fi:
+            state["current_inputs"].append(next_new[0][0])
+            next_new[0] = next(sorted_new_iter, None)
+
+        sidebar = render_input_sidebar(state["current_inputs"])
+        return composite_overlay(frame, sidebar)
+
+    return transform
 
 
 class TimelapseEncoder:
@@ -57,7 +101,7 @@ class TimelapseEncoder:
         """
         recap_dir = settings.data_dir / "recaps" / str(chat_id)
         recap_dir.mkdir(parents=True, exist_ok=True)
-        return recap_dir / f"{date}.mp4"
+        return recap_dir / f"recap_{date}.mp4"
 
     def _get_rt_video_path(self, chat_id: int, date: str) -> Path:
         """Get the path to a daily realtime timelapse video.
@@ -71,7 +115,7 @@ class TimelapseEncoder:
         """
         recap_dir = settings.data_dir / "recaps" / str(chat_id)
         recap_dir.mkdir(parents=True, exist_ok=True)
-        return recap_dir / f"{date}_rt.mp4"
+        return recap_dir / f"recap_{date}_rt.mp4"
 
     def _get_failed_frames_path(self, chat_id: int, timestamp: str) -> Path:
         """Get the path to save failed frames.
@@ -144,19 +188,27 @@ class TimelapseEncoder:
         except Exception as e:
             logger.error(f"Failed to update recap metadata: {e}")
 
-    async def _create_new_timelapse(self, video_path: Path, frames: List[np.ndarray], fps: int = 10) -> None:
+    async def _create_new_timelapse(
+        self,
+        video_path: Path,
+        frames: List[np.ndarray],
+        fps: int = 10,
+        frame_transform: Optional[Callable] = None,
+    ) -> None:
         """Create a new daily timelapse video.
 
         Args:
             video_path: Path to save the video
             frames: Frames to encode
+            fps: Frames per second
+            frame_transform: Optional per-frame transform (e.g. sidebar overlay)
         """
         # Create temporary file
         tmp_path = video_path.with_suffix(".tmp.mp4")
 
         try:
             # Encode frames to temporary file
-            await save_frames_as_mp4_optimized(frames, str(tmp_path), fps=fps)
+            await save_frames_as_mp4_optimized(frames, str(tmp_path), fps=fps, frame_transform=frame_transform)
 
             # Atomically replace with final file
             os.replace(tmp_path, video_path)
@@ -170,7 +222,12 @@ class TimelapseEncoder:
             raise
 
     async def _create_new_realtime_timelapse(
-        self, video_path: Path, frames: List[np.ndarray], audio_chunks: List[np.ndarray], fps: int
+        self,
+        video_path: Path,
+        frames: List[np.ndarray],
+        audio_chunks: List[np.ndarray],
+        fps: int,
+        frame_transform: Optional[Callable] = None,
     ) -> None:
         """Create a new realtime timelapse video with audio.
 
@@ -179,11 +236,12 @@ class TimelapseEncoder:
             frames: Frames to encode
             audio_chunks: Audio chunks to include
             fps: Frames per second
+            frame_transform: Optional per-frame transform (e.g. sidebar overlay)
         """
         tmp_path = video_path.with_suffix(".tmp.mp4")
 
         try:
-            await save_frames_as_mp4_with_audio(frames, audio_chunks, str(tmp_path), fps=fps)
+            await save_frames_as_mp4_with_audio(frames, audio_chunks, str(tmp_path), fps=fps, frame_transform=frame_transform)
             os.replace(tmp_path, video_path)
             logger.info(f"Created new realtime timelapse: {video_path}")
 
@@ -192,12 +250,20 @@ class TimelapseEncoder:
                 tmp_path.unlink()
             raise
 
-    async def _append_frames(self, video_path: Path, frames: List[np.ndarray], fps: int = 10) -> None:
+    async def _append_frames(
+        self,
+        video_path: Path,
+        frames: List[np.ndarray],
+        fps: int = 10,
+        frame_transform: Optional[Callable] = None,
+    ) -> None:
         """Append frames to an existing timelapse video.
 
         Args:
             video_path: Path to existing video
             frames: Frames to append
+            fps: Frames per second
+            frame_transform: Optional per-frame transform (e.g. sidebar overlay)
         """
         # Create temporary segment file
         segment_path = video_path.parent / f"segment_{datetime.now().timestamp()}.mp4"
@@ -206,7 +272,7 @@ class TimelapseEncoder:
 
         try:
             # Encode new frames to segment
-            await save_frames_as_mp4_optimized(frames, str(segment_path), fps=fps)
+            await save_frames_as_mp4_optimized(frames, str(segment_path), fps=fps, frame_transform=frame_transform)
 
             # Create concat demuxer list
             with open(concat_list_path, "w") as f:
@@ -250,7 +316,12 @@ class TimelapseEncoder:
                     path.unlink()
 
     async def _append_realtime_frames(
-        self, video_path: Path, frames: List[np.ndarray], audio_chunks: List[np.ndarray], fps: int
+        self,
+        video_path: Path,
+        frames: List[np.ndarray],
+        audio_chunks: List[np.ndarray],
+        fps: int,
+        frame_transform: Optional[Callable] = None,
     ) -> None:
         """Append frames with audio to an existing realtime timelapse video.
 
@@ -259,13 +330,14 @@ class TimelapseEncoder:
             frames: Frames to append
             audio_chunks: Audio chunks to include
             fps: Frames per second
+            frame_transform: Optional per-frame transform (e.g. sidebar overlay)
         """
         segment_path = video_path.parent / f"segment_rt_{datetime.now().timestamp()}.mp4"
         concat_list_path = video_path.parent / f"concat_rt_{datetime.now().timestamp()}.txt"
         output_path = video_path.with_suffix(".tmp.mp4")
 
         try:
-            await save_frames_as_mp4_with_audio(frames, audio_chunks, str(segment_path), fps=fps)
+            await save_frames_as_mp4_with_audio(frames, audio_chunks, str(segment_path), fps=fps, frame_transform=frame_transform)
 
             with open(concat_list_path, "w") as f:
                 f.write(f"file '{video_path.absolute()}'\n")
@@ -297,16 +369,18 @@ class TimelapseEncoder:
                 if path.exists():
                     path.unlink()
 
-    async def _do_encode_and_append(
-        self, chat_id: int, frames: List[np.ndarray], timestamp: str, audio_chunks: Optional[List[np.ndarray]] = None, fps: int = 10
-    ) -> None:
+    async def _do_encode_and_append(self, job: "TimelapseJob") -> None:
         """Encode frames and append to daily timelapse.
 
         Args:
-            chat_id: The Telegram chat ID
-            frames: Frames to encode
-            timestamp: ISO8601 timestamp
+            job: The timelapse job to encode
         """
+        chat_id = job.chat_id
+        frames = job.frames
+        timestamp = job.timestamp
+        audio_chunks = job.audio_chunks
+        fps = job.fps
+
         # Get date from timestamp (server local timezone)
         dt = datetime.fromisoformat(timestamp)
         date = dt.strftime("%Y%m%d")
@@ -315,6 +389,14 @@ class TimelapseEncoder:
             video_path = self._get_rt_video_path(chat_id, date)
         else:
             video_path = self._get_video_path(chat_id, date)
+
+        # Build frame transform if input overlay data is provided
+        has_inputs = job.pre_existing_inputs or job.new_inputs_with_offsets
+        frame_transform = (
+            make_frame_transform(job.pre_existing_inputs, job.new_inputs_with_offsets)
+            if has_inputs
+            else None
+        )
 
         # Acquire file lock to prevent concurrent access
         lock_path = video_path.with_suffix(".lock")
@@ -326,14 +408,14 @@ class TimelapseEncoder:
 
                 if video_path.exists():
                     if audio_chunks:
-                        await self._append_realtime_frames(video_path, frames, audio_chunks, fps)
+                        await self._append_realtime_frames(video_path, frames, audio_chunks, fps, frame_transform=frame_transform)
                     else:
-                        await self._append_frames(video_path, frames, fps)
+                        await self._append_frames(video_path, frames, fps, frame_transform=frame_transform)
                 else:
                     if audio_chunks:
-                        await self._create_new_realtime_timelapse(video_path, frames, audio_chunks, fps)
+                        await self._create_new_realtime_timelapse(video_path, frames, audio_chunks, fps, frame_transform=frame_transform)
                     else:
-                        await self._create_new_timelapse(video_path, frames, fps)
+                        await self._create_new_timelapse(video_path, frames, fps, frame_transform=frame_transform)
 
                 await self._update_recap_metadata(chat_id, date, video_path, len(frames))
 
@@ -343,24 +425,18 @@ class TimelapseEncoder:
         if lock_path.exists():
             lock_path.unlink()
 
-    async def _encode_with_retry(
-        self, chat_id: int, frames: List[np.ndarray], timestamp: str, audio_chunks: Optional[List[np.ndarray]] = None, fps: int = 10
-    ) -> None:
+    async def _encode_with_retry(self, job: "TimelapseJob") -> None:
         """Encode frames with retry logic.
 
         Args:
-            chat_id: The Telegram chat ID
-            frames: Frames to encode
-            timestamp: ISO8601 timestamp
-            audio_chunks: Optional audio chunks
-            fps: Frames per second
+            job: The timelapse job to encode
         """
         backoff_delays = settings.timelapse_backoff_delays
         max_attempts = len(backoff_delays)
 
         for attempt in range(max_attempts + 1):
             try:
-                await self._do_encode_and_append(chat_id, frames, timestamp, audio_chunks=audio_chunks, fps=fps)
+                await self._do_encode_and_append(job)
                 return  # Success!
 
             except Exception as e:
@@ -373,8 +449,8 @@ class TimelapseEncoder:
                     await asyncio.sleep(delay)
                 else:
                     # All attempts failed, save frames for recovery
-                    logger.error(f"All encoding attempts failed for chat {chat_id}")
-                    await self._save_failed_frames(chat_id, timestamp, frames, e)
+                    logger.error(f"All encoding attempts failed for chat {job.chat_id}")
+                    await self._save_failed_frames(job.chat_id, job.timestamp, job.frames, e)
                     raise
 
     async def encode_job(self, job: TimelapseJob) -> None:
@@ -383,7 +459,7 @@ class TimelapseEncoder:
         Args:
             job: The timelapse job to encode
         """
-        await self._encode_with_retry(job.chat_id, job.frames, job.timestamp, audio_chunks=job.audio_chunks, fps=job.fps)
+        await self._encode_with_retry(job)
 
 
 class TimelapseEncodingQueue:
@@ -400,7 +476,16 @@ class TimelapseEncodingQueue:
         self._queues: Dict[int, asyncio.Queue] = {}
         self._workers: Dict[int, asyncio.Task] = {}
 
-    async def enqueue(self, chat_id: int, frames: List[np.ndarray], timestamp: str, audio_chunks: Optional[List[np.ndarray]] = None, fps: int = 10) -> None:
+    async def enqueue(
+        self,
+        chat_id: int,
+        frames: List[np.ndarray],
+        timestamp: str,
+        audio_chunks: Optional[List[np.ndarray]] = None,
+        fps: int = 10,
+        pre_existing_inputs: list = None,
+        new_inputs_with_offsets: list = None,
+    ) -> None:
         """Enqueue frames for encoding.
 
         Args:
@@ -409,6 +494,8 @@ class TimelapseEncodingQueue:
             timestamp: ISO8601 timestamp
             audio_chunks: Optional audio chunks
             fps: Frames per second
+            pre_existing_inputs: Input dicts already present at frame 0
+            new_inputs_with_offsets: List of (input_dict, frame_offset) pairs
         """
         # Create queue and worker for chat if not exists
         if chat_id not in self._queues:
@@ -416,7 +503,15 @@ class TimelapseEncodingQueue:
             self._workers[chat_id] = asyncio.create_task(self._worker(chat_id))
 
         # Add job to queue
-        job = TimelapseJob(chat_id=chat_id, frames=frames, timestamp=timestamp, audio_chunks=audio_chunks, fps=fps)
+        job = TimelapseJob(
+            chat_id=chat_id,
+            frames=frames,
+            timestamp=timestamp,
+            audio_chunks=audio_chunks,
+            fps=fps,
+            pre_existing_inputs=pre_existing_inputs or [],
+            new_inputs_with_offsets=new_inputs_with_offsets or [],
+        )
         await self._queues[chat_id].put(job)
 
         logger.debug(f"Enqueued timelapse job for chat {chat_id}, queue size: {self._queues[chat_id].qsize()}")

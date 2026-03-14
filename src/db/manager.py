@@ -149,6 +149,19 @@ class DatabaseManager:
             self.save_chat_config(config)
         return config
 
+    def get_leaders_with_flag(self, flag: str) -> list[int]:
+        """Get all leader chat IDs with a specific feature flag enabled.
+
+        Args:
+            flag: Feature flag name to check
+
+        Returns:
+            List of chat IDs that are leaders (mirrors_chat_id IS NULL) with the flag set to true
+        """
+        sql = "SELECT chat_id FROM chat_configs WHERE mirrors_chat_id IS NULL AND json_extract(feature_flags, '$.' || ?) = 1"
+        cursor = self.connection.execute(sql, (flag,))
+        return [row['chat_id'] for row in cursor.fetchall()]
+
     def get_mirror_chat_ids(self, leader_chat_id: int) -> list[int]:
         """Get all chat IDs that mirror the given leader chat.
 

@@ -20,6 +20,7 @@ from src.keyboard import create_help_text
 from src.models.game_state import KNOWN_FEATURE_FLAGS
 from src.utils.media_cache import load_last_animation
 from src.utils.mirror_utils import broadcast_text, get_leader_chat_id, is_media_only_mirror
+from src.utils.recap_utils import send_recap_to_chat
 from src.utils.state_manager import state_manager
 
 logger = logging.getLogger(__name__)
@@ -621,35 +622,8 @@ async def recap_command(ctx: CommandContext) -> None:
         await _send_no_gameplay_message(ctx, date_str, leader_id=leader_id)
         return
 
-    try:
-        # Try sending with cached file_id first (Telegram only - Discord always re-uploads)
-        if recap_record.file_id and ctx.adapter.platform == "telegram":
-            try:
-                file_id = await ctx.adapter.send_video(
-                    chat_id=chat_id,
-                    video=recap_record.file_id,
-                    caption=f"📅 Recap: {date_str}",
-                )
-                if file_id:
-                    logger.info(f"Sent cached recap for chat {chat_id}, date {date_str}")
-                    return
-            except Exception as e:
-                logger.warning(f"Failed to send cached file_id, uploading from disk: {e}")
-
-        # Upload from disk
-        with open(video_path, "rb") as video_file:
-            new_file_id = await ctx.adapter.send_video(
-                chat_id=chat_id,
-                video=video_file,
-                caption=f"📅 Recap: {date_str}",
-            )
-
-            if new_file_id:
-                await state_manager.update_recap_file_id(leader_id, date_str, new_file_id)
-                logger.info(f"Uploaded and cached recap for chat {chat_id} (leader {leader_id}), date {date_str}")
-
-    except Exception as e:
-        logger.error(f"Error sending recap for chat {chat_id}, date {date_str}: {e}")
+    success = await send_recap_to_chat(chat_id, leader_id, date_str, ctx.adapter)
+    if not success:
         error_msg = translation_manager.get("commands.recap.error", chat_id)
         await ctx.adapter.send_text(chat_id, error_msg)
 

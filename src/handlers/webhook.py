@@ -296,6 +296,9 @@ class WebhookHandler:
             backup_manager = BackupManager(state_manager, game_controller_manager, settings)
             backup_task = asyncio.create_task(run_backup_loop(backup_manager, settings))
 
+            from src.tasks.recap_broadcaster import run_recap_broadcast_loop
+            recap_task = asyncio.create_task(run_recap_broadcast_loop())
+
             logger.info("Webhook handler started successfully")
 
             yield
@@ -309,6 +312,12 @@ class WebhookHandler:
             backup_task.cancel()
             try:
                 await backup_task
+            except asyncio.CancelledError:
+                pass
+
+            recap_task.cancel()
+            try:
+                await recap_task
             except asyncio.CancelledError:
                 pass
 

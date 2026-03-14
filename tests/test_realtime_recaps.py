@@ -304,7 +304,7 @@ class TestRecapCommandRealtimeRecaps:
 
     @pytest.mark.asyncio
     async def test_recap_falls_back_to_regular_when_flag_off(self, mock_adapter, tmp_path):
-        """When realtime_recaps flag is off, the regular video path should be used."""
+        """When realtime_recaps flag is off, send_recap_to_chat is called for the regular path."""
         ctx = make_ctx(mock_adapter, args=["20260312"])
 
         # Create both the regular and the _rt.mp4 files
@@ -317,8 +317,6 @@ class TestRecapCommandRealtimeRecaps:
         mock_record = Mock()
         mock_record.file_id = None
 
-        mock_adapter.send_video = AsyncMock(return_value=None)
-
         # feature_flags WITHOUT "realtime_recaps"
         mock_leader_config = Mock()
         mock_leader_config.feature_flags = {}
@@ -326,16 +324,11 @@ class TestRecapCommandRealtimeRecaps:
         with patch("src.handlers.commands.state_manager") as mock_state_manager:
             mock_state_manager.get_recap_file = AsyncMock(return_value=mock_record)
             mock_state_manager.get_or_create_chat_config = Mock(return_value=mock_leader_config)
-            mock_state_manager.update_recap_file_id = AsyncMock()
 
             with patch("src.handlers.commands.settings") as mock_settings:
                 mock_settings.data_dir = tmp_path / "data"
 
-                await recap_command(ctx)
-
-        # send_video should still have been called (for the regular file)
-        mock_adapter.send_video.assert_called_once()
-        # The video arg should again be a file-like object from the regular path
-        call_kwargs = mock_adapter.send_video.call_args
-        video_arg = call_kwargs.kwargs.get("video") or call_kwargs[1].get("video")
-        assert hasattr(video_arg, "read"), "Expected a file-like object for the regular .mp4"
+                with patch("src.handlers.commands.send_recap_to_chat", new_callable=AsyncMock) as mock_send:
+                    mock_send.return_value = True
+                    await recap_command(ctx)
+                    mock_send.assert_called_once_with(123, 123, "20260312", mock_adapter)

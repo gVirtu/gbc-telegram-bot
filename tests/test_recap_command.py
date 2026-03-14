@@ -260,10 +260,10 @@ class TestRecapCommand:
 
     @pytest.mark.asyncio
     async def test_recap_sends_cached_file_id(self, mock_adapter, tmp_path):
-        """Test /recap uses cached file_id when available."""
+        """Test /recap delegates to send_recap_to_chat when video file exists."""
         ctx = make_ctx(mock_adapter, args=["20260215"])
 
-        # Create fake video file
+        # Create fake video file so the path.exists() check passes
         video_path = tmp_path / "data" / "recaps" / "123" / "20260215.mp4"
         video_path.parent.mkdir(parents=True, exist_ok=True)
         video_path.write_bytes(b"fake video")
@@ -271,52 +271,42 @@ class TestRecapCommand:
         mock_record = Mock()
         mock_record.file_id = "cached_file_id_xyz"
 
-        # Return a truthy file_id so the cached-send path returns early
-        mock_adapter.send_video = AsyncMock(return_value="cached_file_id_xyz")
-
         with patch('src.handlers.commands.state_manager') as mock_state_manager:
             mock_state_manager.get_recap_file = AsyncMock(return_value=mock_record)
 
             with patch('src.handlers.commands.settings') as mock_settings:
                 mock_settings.data_dir = tmp_path / "data"
 
-                await recap_command(ctx)
-
-                # Should send with cached file_id
-                mock_adapter.send_video.assert_called_once()
+                with patch('src.handlers.commands.send_recap_to_chat', new_callable=AsyncMock) as mock_send:
+                    mock_send.return_value = True
+                    await recap_command(ctx)
+                    mock_send.assert_called_once_with(123, 123, "20260215", mock_adapter)
 
     @pytest.mark.asyncio
     async def test_recap_uploads_when_no_file_id(self, mock_adapter, tmp_path):
-        """Test /recap uploads from disk when file_id is None."""
+        """Test /recap shows error when send_recap_to_chat fails."""
         ctx = make_ctx(mock_adapter, args=["20260215"])
 
-        # Create fake video file
+        # Create fake video file so the path.exists() check passes
         video_path = tmp_path / "data" / "recaps" / "123" / "20260215.mp4"
         video_path.parent.mkdir(parents=True, exist_ok=True)
         video_path.write_bytes(b"fake video data")
 
         mock_record = Mock()
-        mock_record.file_id = None  # No cached file_id
-
-        # send_video returns new_file_id string (or None)
-        mock_adapter.send_video = AsyncMock(return_value="new_file_id_123")
+        mock_record.file_id = None
 
         with patch('src.handlers.commands.state_manager') as mock_state_manager:
             mock_state_manager.get_recap_file = AsyncMock(return_value=mock_record)
-            mock_state_manager.update_recap_file_id = AsyncMock()
 
             with patch('src.handlers.commands.settings') as mock_settings:
                 mock_settings.data_dir = tmp_path / "data"
 
-                await recap_command(ctx)
-
-                # Should upload file
-                assert mock_adapter.send_video.call_count == 1
-
-                # Should update file_id in database
-                mock_state_manager.update_recap_file_id.assert_called_once_with(
-                    123, "20260215", "new_file_id_123"
-                )
+                with patch('src.handlers.commands.send_recap_to_chat', new_callable=AsyncMock) as mock_send:
+                    mock_send.return_value = False
+                    with patch('src.handlers.commands.translation_manager') as mock_trans:
+                        mock_trans.get.return_value = "Error sending recap"
+                        await recap_command(ctx)
+                        mock_adapter.send_text.assert_called_once_with(123, "Error sending recap")
 
     @pytest.mark.asyncio
     async def test_recap_no_gameplay_message(self, mock_adapter):

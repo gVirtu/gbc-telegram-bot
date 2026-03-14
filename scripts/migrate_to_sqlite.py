@@ -108,7 +108,16 @@ def migrate_game_states(data_dir: Path, db_manager: DatabaseManager, dry_run: bo
             
             if not dry_run:
                 db_manager.save_game_state(state)
-            
+                for group in state.recent_inputs:
+                    for button in group.get("buttons", []):
+                        db_manager.append_recent_input(
+                            chat_id=state.chat_id,
+                            user_id=group["user_id"],
+                            user_name=group["user_name"],
+                            button=button,
+                            timestamp=group["timestamp"],
+                        )
+
             count += 1
             logger.info(f"Migrated game state for chat {chat_id}")
         except Exception as e:

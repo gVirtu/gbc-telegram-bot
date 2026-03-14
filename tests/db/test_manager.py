@@ -137,19 +137,19 @@ class TestGameStateOperations:
         assert loaded.user_input_counts == {"111": 5, "222": 3}
     
     def test_save_game_state_with_recent_inputs(self, db_manager):
-        """Verify recent inputs are saved."""
+        """Verify recent inputs are saved via append_recent_input."""
         from datetime import datetime
-        state = ChatGameState(
-            chat_id=123,
-            recent_inputs=[{
-                "user_id": 111,
-                "user_name": "Alice",
-                "buttons": ["a"],
-                "timestamp": datetime.utcnow().isoformat()
-            }]
-        )
+        state = ChatGameState(chat_id=123)
         db_manager.save_game_state(state)
-        
+
+        db_manager.append_recent_input(
+            chat_id=123,
+            user_id=111,
+            user_name="Alice",
+            button="a",
+            timestamp=datetime.utcnow().isoformat()
+        )
+
         loaded = db_manager.load_game_state(123)
         assert len(loaded.recent_inputs) == 1
         assert loaded.recent_inputs[0]["user_name"] == "Alice"

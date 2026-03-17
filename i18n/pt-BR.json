@@ -192,5 +192,17 @@
       "wait": "Esperar / Deixar o jogo progredir sem input",
       "run": "Alternar modo corrida (segura B ao andar)"
     }
+  },
+  "discord": {
+    "sequence_modal": {
+      "button_label": "⌨️ Digitar Sequência",
+      "modal_title": "Digitar Sequência",
+      "mapping_label": "Mapeamento",
+      "mapping_placeholder": "Escolha o mapeamento…",
+      "sequence_label": "Sequência",
+      "sequence_placeholder": "ex: UUDR (máx {max} chars)",
+      "invalid_chars": "❌ Caracteres inválidos: {chars}",
+      "success": "⌨️ Enfileirado: {buttons}"
+    }
   }
 }

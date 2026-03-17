@@ -192,5 +192,17 @@
       "wait": "Wait / Let the game progress without input",
       "run": "Toggle running shoes (holds B while walking)"
     }
+  },
+  "discord": {
+    "sequence_modal": {
+      "button_label": "⌨️ Input Sequence",
+      "modal_title": "Input Sequence",
+      "mapping_label": "Mapping",
+      "mapping_placeholder": "Choose mapping…",
+      "sequence_label": "Sequence",
+      "sequence_placeholder": "e.g. UUDR (max {max} chars)",
+      "invalid_chars": "❌ Invalid characters: {chars}",
+      "success": "⌨️ Queued: {buttons}"
+    }
   }
 }

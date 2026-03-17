@@ -25,6 +25,62 @@ def _discord():
     return discord
 
 
+# ---------------------------------------------------------------------------
+# Sequence input mappings (Discord-exclusive modal feature)
+# ---------------------------------------------------------------------------
+
+# Maps canonical mapping names to {UPPERCASE_CHAR: GameButton}.
+# WAIT is intentionally not included — it is not supported in sequence input.
+SEQUENCE_MAPPINGS: dict[str, dict[str, "GameButton"]] = {
+    "ULDR AB ST": {
+        "U": GameButton.UP,  "L": GameButton.LEFT,  "D": GameButton.DOWN, "R": GameButton.RIGHT,
+        "A": GameButton.A,   "B": GameButton.B,     "S": GameButton.START, "T": GameButton.SELECT,
+    },
+    "WASD ZX CV": {
+        "W": GameButton.UP,  "A": GameButton.LEFT,  "S": GameButton.DOWN, "D": GameButton.RIGHT,
+        "Z": GameButton.A,   "X": GameButton.B,     "C": GameButton.START, "V": GameButton.SELECT,
+    },
+    "IJKL NM UO": {
+        "I": GameButton.UP,  "J": GameButton.LEFT,  "K": GameButton.DOWN, "L": GameButton.RIGHT,
+        "N": GameButton.A,   "M": GameButton.B,     "U": GameButton.START, "O": GameButton.SELECT,
+    },
+    "8426 13 79": {
+        "8": GameButton.UP,  "4": GameButton.LEFT,  "2": GameButton.DOWN, "6": GameButton.RIGHT,
+        "1": GameButton.A,   "3": GameButton.B,     "7": GameButton.START, "9": GameButton.SELECT,
+    },
+}
+
+_DEFAULT_MAPPING = "ULDR AB ST"
+
+
+def parse_sequence(
+    sequence: str,
+    mapping_key: str,
+) -> tuple[list["GameButton"], list[str]]:
+    """Parse a sequence string into GameButtons using the given mapping.
+
+    Matching is case-insensitive: input is normalised with .upper() before lookup.
+    Unknown mapping_key falls back to the default ("ULDR AB ST").
+
+    Args:
+        sequence: Raw character sequence from the user.
+        mapping_key: One of the SEQUENCE_MAPPINGS keys.
+
+    Returns:
+        (buttons, invalid_chars) — invalid_chars contains deduplicated uppercase
+        characters that were not found in the mapping.
+    """
+    mapping = SEQUENCE_MAPPINGS.get(mapping_key, SEQUENCE_MAPPINGS[_DEFAULT_MAPPING])
+    buttons: list[GameButton] = []
+    invalid: list[str] = []
+    for char in sequence.upper():
+        if char in mapping:
+            buttons.append(mapping[char])
+        elif char not in invalid:
+            invalid.append(char)
+    return buttons, invalid
+
+
 class DiscordGameView:
     """discord.ui.View subclass for game input keyboard."""
 

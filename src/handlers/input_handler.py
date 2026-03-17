@@ -279,6 +279,76 @@ class InputHandler:
             except Exception as e:
                 logger.error(f"Error answering callback for chat {chat_id}: {e}")
 
+    async def handle_sequence_input(
+        self,
+        buttons: list[GameButton],
+        chat_id: int,
+        message_id: int,
+        user_id: int,
+        user_name: str,
+        adapter: "BotAdapter",
+    ) -> tuple[bool, str]:
+        """Enqueue a pre-validated sequence of buttons from a modal submission.
+
+        Unlike handle_button_press, this method:
+        - Accepts a list of buttons (not a callback string)
+        - Pre-checks buffer capacity atomically before adding anything
+        - Sets the drain event immediately (no debounce timer)
+        - Does NOT send interaction acknowledgement (caller handles it)
+
+        Args:
+            buttons: Pre-validated list of GameButton values to enqueue
+            chat_id: Originating chat ID (may be a mirror)
+            message_id: Expected current message ID (validated against session)
+            user_id: Platform user ID
+            user_name: Display name
+            adapter: Platform adapter
+
+        Returns:
+            (True, "") on success, (False, error_message) on failure.
+        """
+        if is_media_only_mirror(chat_id):
+            return False, translation_manager.get("game.no_active_game", chat_id)
+
+        leader_id = get_leader_chat_id(chat_id)
+
+        session = self._get_session(chat_id)
+        if not session:
+            return False, translation_manager.get("game.no_active_game", chat_id)
+
+        if session.state.message_id != message_id:
+            return False, translation_manager.get("game.message_outdated", chat_id)
+
+        buffer = self._get_or_create_buffer(leader_id)
+
+        # Atomic pre-check: ensure ALL buttons fit before adding any.
+        # Uses > (not >=) to guarantee every individual buffer.add() call succeeds,
+        # since PendingBuffer.add() rejects when len(items) >= max_size.
+        if len(buffer.items) + len(buttons) > buffer.max_size:
+            return False, translation_manager.get("queue.error_queue_full", chat_id)
+
+        for button in buttons:
+            buffer.add(user_id, user_name, button)
+
+        # Signal drain immediately — sequence is a complete, finalized input.
+        drain_event = self._get_or_create_drain_event(leader_id)
+        drain_event.set()
+
+        # Start the processing loop if not already running.
+        if not self._is_processing(leader_id):
+            try:
+                leader_config = state_manager.get_or_create_chat_config(leader_id)
+                leader_adapter = self._get_adapter_for_chat(leader_id)
+                leader_session = self._get_session(leader_id)
+                leader_msg_id = leader_session.state.message_id if leader_session else message_id
+                asyncio.create_task(
+                    self._process_queue_loop(leader_id, leader_msg_id, leader_adapter or adapter)
+                )
+            except Exception as e:
+                logger.error(f"Error starting queue processing for chat {chat_id}: {e}")
+
+        return True, ""
+
     async def _handle_modifier_button_press(
         self, raw: object, chat_id: int, message_id: int, key: str, adapter: BotAdapter,
         leader_id: int | None = None

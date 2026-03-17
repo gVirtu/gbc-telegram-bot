@@ -122,6 +122,18 @@ class DiscordGameView:
                 )
                 view.add_item(btn)
 
+        # Discord-exclusive: sequence input button on its own row.
+        # seq_row is 3 (no modifiers) or 4 (modifiers on row 3).
+        # Discord allows max 5 rows (0–4); safe with current BUTTON_LAYOUT (3 rows).
+        seq_row = len(BUTTON_LAYOUT) + (1 if modifier_specs else 0)
+        seq_btn = discord.ui.Button(
+            label=translation_manager.get("discord.sequence_modal.button_label", chat_id),
+            custom_id="open_sequence_modal",
+            row=seq_row,
+            style=discord.ButtonStyle.primary,
+        )
+        view.add_item(seq_btn)
+
         return view
 
     @staticmethod

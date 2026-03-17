@@ -140,3 +140,60 @@ class TestParseSequence:
         assert not is_valid_button_callback("open_sequence_modal"), (
             "open_sequence_modal must never match a GameButton value or modifier_ prefix"
         )
+
+
+class TestDiscordGameViewSequenceButton:
+
+    def test_sequence_button_present_in_view_without_modifiers(self):
+        """View built without modifiers must contain an open_sequence_modal button."""
+        from src.adapters.discord import DiscordGameView
+        view = DiscordGameView.build(chat_config=None, modifier_specs=None)
+        custom_ids = [item.custom_id for item in view.children]
+        assert "open_sequence_modal" in custom_ids
+
+    def test_sequence_button_present_in_view_with_modifiers(self):
+        """View built with modifiers must still contain the sequence button."""
+        from src.adapters.discord import DiscordGameView
+        from src.models.game_state import ModifierButtonSpec, ChatConfig, GameButton
+        spec = ModifierButtonSpec(
+            key="run",
+            modifier_button=GameButton.B,
+            applies_to=[GameButton.UP, GameButton.DOWN, GameButton.LEFT, GameButton.RIGHT],
+            inactive_label_key="keyboard.modifier.run.inactive",
+            active_label_key="keyboard.modifier.run.active",
+        )
+        config = ChatConfig(chat_id=1)
+        view = DiscordGameView.build(chat_config=config, modifier_specs=[spec])
+        custom_ids = [item.custom_id for item in view.children]
+        assert "open_sequence_modal" in custom_ids
+
+    def test_sequence_button_on_correct_row_without_modifiers(self):
+        """Without modifiers, sequence button must be on row 3 (after 3 game rows 0-2)."""
+        from src.adapters.discord import DiscordGameView
+        view = DiscordGameView.build(chat_config=None, modifier_specs=None)
+        seq_btn = next(item for item in view.children if item.custom_id == "open_sequence_modal")
+        assert seq_btn.row == 3
+
+    def test_sequence_button_on_correct_row_with_modifiers(self):
+        """With modifiers on row 3, sequence button must be on row 4."""
+        from src.adapters.discord import DiscordGameView
+        from src.models.game_state import ModifierButtonSpec, ChatConfig, GameButton
+        spec = ModifierButtonSpec(
+            key="run",
+            modifier_button=GameButton.B,
+            applies_to=[GameButton.UP, GameButton.DOWN, GameButton.LEFT, GameButton.RIGHT],
+            inactive_label_key="keyboard.modifier.run.inactive",
+            active_label_key="keyboard.modifier.run.active",
+        )
+        config = ChatConfig(chat_id=1)
+        view = DiscordGameView.build(chat_config=config, modifier_specs=[spec])
+        seq_btn = next(item for item in view.children if item.custom_id == "open_sequence_modal")
+        assert seq_btn.row == 4
+
+    def test_sequence_button_style_is_primary(self):
+        """Sequence button must use primary (blue) style."""
+        import discord
+        from src.adapters.discord import DiscordGameView
+        view = DiscordGameView.build(chat_config=None, modifier_specs=None)
+        seq_btn = next(item for item in view.children if item.custom_id == "open_sequence_modal")
+        assert seq_btn.style == discord.ButtonStyle.primary

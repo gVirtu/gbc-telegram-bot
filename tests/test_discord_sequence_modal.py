@@ -1,6 +1,7 @@
 """Tests for Discord sequence modal mapping and parsing."""
 import os
 import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
 
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "test_token")
 os.environ.setdefault("WEBHOOK_URL", "https://test.example.com")
@@ -197,3 +198,181 @@ class TestDiscordGameViewSequenceButton:
         view = DiscordGameView.build(chat_config=None, modifier_specs=None)
         seq_btn = next(item for item in view.children if item.custom_id == "open_sequence_modal")
         assert seq_btn.style == discord.ButtonStyle.primary
+
+
+class TestDiscordSequenceModalOnSubmit:
+
+    def _make_modal(self, preferred_mapping="ULDR AB ST"):
+        from src.adapters.discord import DiscordSequenceModal
+        from src.handlers.input_handler import InputHandler
+        handler = InputHandler()
+        adapter = MagicMock()
+        adapter.platform = "discord"
+        return DiscordSequenceModal(
+            title="Input Sequence",
+            preferred_mapping=preferred_mapping,
+            chat_id=100,
+            message_id=42,
+            user_id=999,
+            user_name="Alice",
+            adapter=adapter,
+            handler=handler,
+        )
+
+    def _make_interaction(self):
+        interaction = MagicMock()
+        interaction.response = MagicMock()
+        interaction.response.send_message = AsyncMock()
+        interaction.response.is_done = MagicMock(return_value=False)
+        interaction.followup = MagicMock()
+        interaction.followup.send = AsyncMock()
+        return interaction
+
+    @pytest.mark.asyncio
+    async def test_invalid_chars_sends_ephemeral_error(self):
+        """Invalid characters produce an ephemeral error; no buttons queued."""
+        import os
+        os.environ.setdefault("TELEGRAM_BOT_TOKEN", "test_token")
+        os.environ.setdefault("WEBHOOK_URL", "https://test.example.com")
+        os.environ.setdefault("WEBHOOK_SECRET", "test_secret_1234567890")
+
+        from src.adapters.discord import DiscordSequenceModal
+        from src.handlers.input_handler import InputHandler
+
+        modal = self._make_modal()
+        # Simulate Select returning mapping key
+        modal.mapping_select = MagicMock()
+        modal.mapping_select.values = ["ULDR AB ST"]
+        # Simulate TextInput returning sequence with invalid char
+        modal.sequence_input = MagicMock()
+        modal.sequence_input.value = "UXZ"
+
+        interaction = self._make_interaction()
+
+        with patch("src.adapters.discord.state_manager"):
+            await modal.on_submit(interaction)
+
+        interaction.response.send_message.assert_awaited_once()
+        call_kwargs = interaction.response.send_message.call_args
+        assert call_kwargs.kwargs.get("ephemeral") is True
+        msg = call_kwargs.args[0] if call_kwargs.args else call_kwargs.kwargs.get("content", "")
+        assert "X" in msg or "Z" in msg  # invalid chars reported
+
+    @pytest.mark.asyncio
+    async def test_valid_sequence_saves_preference_and_sends_confirmation(self):
+        """Valid sequence: preference saved, confirmation sent."""
+        from src.adapters.discord import DiscordSequenceModal
+        from src.handlers.input_handler import InputHandler
+        from src.models.game_state import GameSession, ChatGameState
+
+        handler = InputHandler()
+        session_state = ChatGameState(chat_id=100, message_id=42)
+        handler._sessions[100] = GameSession(chat_id=100, state=session_state)
+
+        adapter = MagicMock()
+        adapter.platform = "discord"
+        modal = DiscordSequenceModal(
+            title="Input Sequence",
+            preferred_mapping="ULDR AB ST",
+            chat_id=100,
+            message_id=42,
+            user_id=999,
+            user_name="Alice",
+            adapter=adapter,
+            handler=handler,
+        )
+        modal.mapping_select = MagicMock()
+        modal.mapping_select.values = ["WASD ZX CV"]
+        modal.sequence_input = MagicMock()
+        modal.sequence_input.value = "wd"
+
+        interaction = self._make_interaction()
+
+        with patch("src.adapters.discord.state_manager") as mock_sm, \
+             patch("src.handlers.input_handler.get_leader_chat_id", return_value=100), \
+             patch("src.handlers.input_handler.state_manager") as mock_ih_sm, \
+             patch("src.handlers.input_handler.is_media_only_mirror", return_value=False), \
+             patch.object(handler, "_is_processing", return_value=True):
+            mock_sm.set_user_preference = MagicMock()
+            mock_ih_sm.get_or_create_chat_config.return_value = MagicMock()
+            await modal.on_submit(interaction)
+
+        # Preference must be saved
+        mock_sm.set_user_preference.assert_called_once_with(
+            "discord", 999, "sequence_mapping", "WASD ZX CV"
+        )
+        # Confirmation sent as ephemeral
+        interaction.response.send_message.assert_awaited_once()
+        assert interaction.response.send_message.call_args.kwargs.get("ephemeral") is True
+
+    @pytest.mark.asyncio
+    async def test_preference_not_saved_when_handler_fails(self):
+        """Preference must NOT be saved when handle_sequence_input returns False."""
+        from src.adapters.discord import DiscordSequenceModal
+        from src.handlers.input_handler import InputHandler
+
+        handler = InputHandler()
+        # No session → handle_sequence_input returns False
+        adapter = MagicMock()
+        adapter.platform = "discord"
+        modal = DiscordSequenceModal(
+            title="Input Sequence",
+            preferred_mapping="ULDR AB ST",
+            chat_id=100,
+            message_id=42,
+            user_id=999,
+            user_name="Alice",
+            adapter=adapter,
+            handler=handler,
+        )
+        modal.mapping_select = MagicMock()
+        modal.mapping_select.values = ["ULDR AB ST"]
+        modal.sequence_input = MagicMock()
+        modal.sequence_input.value = "UU"
+
+        interaction = self._make_interaction()
+
+        with patch("src.adapters.discord.state_manager") as mock_sm, \
+             patch("src.handlers.input_handler.state_manager") as mock_ih_sm, \
+             patch("src.handlers.input_handler.is_media_only_mirror", return_value=False), \
+             patch("src.handlers.input_handler.get_leader_chat_id", return_value=100):
+            mock_sm.set_user_preference = MagicMock()
+            mock_ih_sm.load_game_state.return_value = None
+            await modal.on_submit(interaction)
+
+        mock_sm.set_user_preference.assert_not_called()
+        # But an error response must still be sent
+        interaction.response.send_message.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_textinput_fallback_path_works(self):
+        """When _mapping_is_select is False (fallback), mapping is read from .value."""
+        modal = self._make_modal()
+        # Simulate the TextInput fallback path
+        modal._mapping_is_select = False
+        modal.mapping_select = MagicMock()
+        modal.mapping_select.value = "WASD ZX CV"  # .value, not .values
+        modal.sequence_input = MagicMock()
+        modal.sequence_input.value = "W"
+
+        from src.models.game_state import GameSession, ChatGameState
+        modal._handler._sessions[100] = GameSession(
+            chat_id=100, state=ChatGameState(chat_id=100, message_id=42)
+        )
+
+        interaction = self._make_interaction()
+
+        with patch("src.adapters.discord.state_manager") as mock_sm, \
+             patch("src.handlers.input_handler.get_leader_chat_id", return_value=100), \
+             patch("src.handlers.input_handler.state_manager"), \
+             patch("src.handlers.input_handler.is_media_only_mirror", return_value=False), \
+             patch.object(modal._handler, "_is_processing", return_value=True):
+            mock_sm.set_user_preference = MagicMock()
+            await modal.on_submit(interaction)
+
+        # Preference saved with the mapping from .value
+        mock_sm.set_user_preference.assert_called_once_with(
+            "discord", 999, "sequence_mapping", "WASD ZX CV"
+        )
+        interaction.response.send_message.assert_awaited_once()
+        assert interaction.response.send_message.call_args.kwargs.get("ephemeral") is True

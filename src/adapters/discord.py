@@ -10,9 +10,12 @@ import logging
 import time
 from typing import Any, Optional, TYPE_CHECKING
 
+import discord
+
 from src.adapters.base import BotAdapter
 from src.i18n import translation_manager
 from src.models.game_state import BUTTON_LAYOUT, GameButton
+from src.utils.state_manager import state_manager
 
 if TYPE_CHECKING:
     from src.models.game_state import ChatConfig, ModifierButtonSpec
@@ -166,6 +169,151 @@ class DiscordGameView:
         view.add_item(cancel_btn)
 
         return view
+
+
+class DiscordSequenceModal(discord.ui.Modal):
+    """Discord modal for entering a button sequence.
+
+    Opens when the user clicks the '⌨️ Input Sequence' keyboard button.
+    Contains a String Select (mapping choice) and a TextInput (the sequence).
+
+    Must subclass discord.ui.Modal directly — monkey-patching on_submit onto
+    a plain discord.ui.Modal instance does not work because discord.py dispatches
+    on_submit through its class mechanism, not instance attribute lookup.
+
+    Implementation note: Discord Components V2 officially supports String Select
+    inside modals. If discord.py raises ValueError/TypeError when adding a Select
+    to the Modal, replace self.mapping_select with a discord.ui.TextInput (short
+    style) with placeholder listing "ULDR AB ST / WASD ZX CV / IJKL NM UO / 8426 13 79"
+    and validate the submitted value against SEQUENCE_MAPPINGS keys.
+    """
+
+    def __init__(
+        self,
+        title: str,
+        preferred_mapping: str,
+        chat_id: int,
+        message_id: int,
+        user_id: int,
+        user_name: str,
+        adapter: Any,
+        handler: Any,
+    ) -> None:
+        super().__init__(title=title)
+
+        self._chat_id = chat_id
+        self._message_id = message_id
+        self._user_id = user_id
+        self._user_name = user_name
+        self._adapter = adapter
+        self._handler = handler
+
+        # Mapping select — pre-select the user's preferred mapping
+        options = [
+            discord.SelectOption(
+                label=key,
+                value=key,
+                default=(key == preferred_mapping),
+            )
+            for key in SEQUENCE_MAPPINGS
+        ]
+        try:
+            self.mapping_select = discord.ui.Select(
+                placeholder=translation_manager.get("discord.sequence_modal.mapping_placeholder", chat_id),
+                options=options,
+                min_values=1,
+                max_values=1,
+            )
+            self.add_item(self.mapping_select)
+            self._mapping_is_select = True
+        except (ValueError, TypeError):
+            # Discord.py version does not support Select in modals — fall back to TextInput
+            self.mapping_select = discord.ui.TextInput(
+                label=translation_manager.get("discord.sequence_modal.mapping_label", chat_id),
+                placeholder="ULDR AB ST / WASD ZX CV / IJKL NM UO / 8426 13 79",
+                max_length=20,
+                min_length=1,
+                required=True,
+            )
+            self.add_item(self.mapping_select)
+            self._mapping_is_select = False
+
+        from src.config import settings
+        self.sequence_input = discord.ui.TextInput(
+            label=translation_manager.get("discord.sequence_modal.sequence_label", chat_id),
+            placeholder=translation_manager.get(
+                "discord.sequence_modal.sequence_placeholder",
+                chat_id,
+                max=settings.max_sequence_length,
+            ),
+            max_length=settings.max_sequence_length,
+            min_length=1,
+            required=True,
+        )
+
+        self.add_item(self.sequence_input)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        """Handle modal submission."""
+
+        try:
+            # Resolve mapping key: Select has .values list; TextInput fallback has .value str
+            if self._mapping_is_select:
+                mapping_key = self.mapping_select.values[0]
+            else:
+                raw_key = self.mapping_select.value.strip()
+                mapping_key = raw_key if raw_key in SEQUENCE_MAPPINGS else _DEFAULT_MAPPING
+
+            raw_sequence = self.sequence_input.value
+
+            buttons, invalid_chars = parse_sequence(raw_sequence, mapping_key)
+
+            if invalid_chars:
+                chars_str = ", ".join(invalid_chars)
+                error_msg = translation_manager.get(
+                    "discord.sequence_modal.invalid_chars",
+                    self._chat_id,
+                    chars=chars_str,
+                )
+                await interaction.response.send_message(error_msg, ephemeral=True)
+                return
+
+            ok, error = await self._handler.handle_sequence_input(
+                buttons=buttons,
+                chat_id=self._chat_id,
+                message_id=self._message_id,
+                user_id=self._user_id,
+                user_name=self._user_name,
+                adapter=self._adapter,
+            )
+
+            if ok:
+                state_manager.set_user_preference(
+                    "discord", self._user_id, "sequence_mapping", mapping_key
+                )
+                buttons_str = "".join(b.emoji for b in buttons)
+                confirm_msg = translation_manager.get(
+                    "discord.sequence_modal.success",
+                    self._chat_id,
+                    buttons=buttons_str,
+                )
+                await interaction.response.send_message(confirm_msg, ephemeral=True)
+            else:
+                await interaction.response.send_message(error, ephemeral=True)
+
+        except Exception as e:
+            logger.error(f"Error in DiscordSequenceModal.on_submit: {e}", exc_info=True)
+            try:
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(
+                        "❌ An unexpected error occurred.", ephemeral=True
+                    )
+                else:
+                    await interaction.followup.send(
+                        "❌ An unexpected error occurred.", ephemeral=True
+                    )
+            except Exception:
+                pass
 
 
 class DiscordAdapter(BotAdapter):

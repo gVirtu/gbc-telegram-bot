@@ -14,11 +14,17 @@ from src.handlers.input_handler import get_input_handler
 from src.keyboard import is_valid_button_callback
 from src.utils.state_manager import state_manager
 from src.config import settings
+from src.i18n import translation_manager
 
 try:
     from src.adapters.discord import DiscordAdapter
 except ImportError:
     DiscordAdapter = None  # type: ignore[assignment,misc]
+
+try:
+    from src.adapters.discord import DiscordSequenceModal
+except ImportError:
+    DiscordSequenceModal = None  # type: ignore[assignment,misc]
 
 logger = logging.getLogger(__name__)
 
@@ -227,6 +233,36 @@ def create_discord_bot() -> Any:
             if custom_id == "cancel_load":
                 await interaction.response.defer(ephemeral=True)
                 return
+
+            # ── NEW: Open sequence input modal ──
+            if custom_id == "open_sequence_modal":
+                # Maintenance mode check — use same hardcoded message as existing button handler
+                if config.maintenance_mode:
+                    is_admin = await adapter.is_admin(channel_id, user_id, interaction)
+                    if not is_admin:
+                        await interaction.response.send_message(
+                            "No momento estamos em manutenção, apenas admins podem enviar comandos.",
+                            ephemeral=True,
+                        )
+                        return
+                # Load preferred mapping (default: "ULDR AB ST")
+                preferred_mapping = state_manager.get_user_preference(
+                    "discord", user_id, "sequence_mapping"
+                ) or "ULDR AB ST"
+                title = translation_manager.get("discord.sequence_modal.modal_title", channel_id)
+                modal = DiscordSequenceModal(
+                    title=title,
+                    preferred_mapping=preferred_mapping,
+                    chat_id=channel_id,
+                    message_id=message_id,
+                    user_id=user_id,
+                    user_name=user_name,
+                    adapter=adapter,
+                    handler=handler,
+                )
+                await interaction.response.send_modal(modal)
+                return
+            # ── END: Open sequence input modal ──
 
             # Game button or modifier button
             if not is_valid_button_callback(custom_id):

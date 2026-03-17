@@ -376,3 +376,140 @@ class TestDiscordSequenceModalOnSubmit:
         )
         interaction.response.send_message.assert_awaited_once()
         assert interaction.response.send_message.call_args.kwargs.get("ephemeral") is True
+
+
+def _make_sequence_button_interaction(channel_id: int = 100, user_id: int = 999) -> MagicMock:
+    """Build a component interaction for the open_sequence_modal button."""
+    import discord
+    interaction = MagicMock()
+    interaction.channel_id = channel_id
+    interaction.type = discord.InteractionType.component
+    interaction.data = {"custom_id": "open_sequence_modal"}
+    interaction.response = MagicMock()
+    interaction.response.defer = AsyncMock()
+    interaction.response.send_message = AsyncMock()
+    interaction.response.send_modal = AsyncMock()
+    user = MagicMock()
+    user.id = user_id
+    user.display_name = "Alice"
+    interaction.user = user
+    message = MagicMock()
+    message.id = 42
+    interaction.message = message
+    return interaction
+
+
+class TestOnInteractionOpenSequenceModal:
+
+    def _get_on_interaction(self, bot):
+        listeners = bot.extra_events.get("on_interaction", [])
+        assert listeners
+        return listeners[0]
+
+    @pytest.mark.asyncio
+    async def test_send_modal_called_for_open_sequence_modal(self):
+        """on_interaction calls send_modal when custom_id is open_sequence_modal."""
+        from src.handlers.discord_handler import create_discord_bot
+
+        config = MagicMock()
+        config.platform = "discord"
+        config.maintenance_mode = False
+
+        with patch("src.handlers.discord_handler.settings") as mock_settings, \
+             patch("src.handlers.discord_handler.state_manager") as mock_sm, \
+             patch("src.handlers.discord_handler.DiscordAdapter"), \
+             patch("src.handlers.discord_handler.DiscordSequenceModal") as mock_modal_cls:
+            mock_settings.allowed_chat_ids = []
+            mock_sm.get_or_create_chat_config.return_value = config
+            mock_sm.save_chat_config = MagicMock()
+            mock_sm.get_user_preference = MagicMock(return_value=None)
+
+            bot = create_discord_bot()
+            on_interaction = self._get_on_interaction(bot)
+            interaction = _make_sequence_button_interaction()
+
+            await on_interaction(interaction)
+
+        interaction.response.send_modal.assert_awaited_once_with(mock_modal_cls.return_value)
+
+    @pytest.mark.asyncio
+    async def test_maintenance_mode_blocks_sequence_modal(self):
+        """Maintenance mode prevents modal from opening for non-admins."""
+        from src.handlers.discord_handler import create_discord_bot
+
+        config = MagicMock()
+        config.platform = "discord"
+        config.maintenance_mode = True
+
+        with patch("src.handlers.discord_handler.settings") as mock_settings, \
+             patch("src.handlers.discord_handler.state_manager") as mock_sm, \
+             patch("src.handlers.discord_handler.DiscordAdapter") as mock_adapter_cls:
+            mock_settings.allowed_chat_ids = []
+            mock_sm.get_or_create_chat_config.return_value = config
+            mock_sm.save_chat_config = MagicMock()
+            # `_get_discord_adapter()` falls back to DiscordAdapter(bot) → mock_adapter_cls(bot)
+            # so the returned adapter is mock_adapter_cls.return_value (not a separate mock_adapter)
+            mock_adapter_cls.return_value.is_admin = AsyncMock(return_value=False)
+
+            bot = create_discord_bot()
+            on_interaction = self._get_on_interaction(bot)
+            interaction = _make_sequence_button_interaction()
+
+            await on_interaction(interaction)
+
+        interaction.response.send_modal.assert_not_awaited()
+        interaction.response.send_message.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_preferred_mapping_loaded_from_db(self):
+        """Preferred mapping is fetched from state_manager and passed to modal."""
+        from src.handlers.discord_handler import create_discord_bot
+
+        config = MagicMock()
+        config.platform = "discord"
+        config.maintenance_mode = False
+
+        with patch("src.handlers.discord_handler.settings") as mock_settings, \
+             patch("src.handlers.discord_handler.state_manager") as mock_sm, \
+             patch("src.handlers.discord_handler.DiscordAdapter"), \
+             patch("src.handlers.discord_handler.DiscordSequenceModal") as mock_modal_cls:
+            mock_settings.allowed_chat_ids = []
+            mock_sm.get_or_create_chat_config.return_value = config
+            mock_sm.save_chat_config = MagicMock()
+            mock_sm.get_user_preference = MagicMock(return_value="WASD ZX CV")
+
+            bot = create_discord_bot()
+            on_interaction = self._get_on_interaction(bot)
+            interaction = _make_sequence_button_interaction(user_id=999)
+
+            await on_interaction(interaction)
+
+        _, kwargs = mock_modal_cls.call_args
+        assert kwargs.get("preferred_mapping") == "WASD ZX CV"
+
+    @pytest.mark.asyncio
+    async def test_default_mapping_used_when_no_preference(self):
+        """Falls back to 'ULDR AB ST' when no preference stored."""
+        from src.handlers.discord_handler import create_discord_bot
+
+        config = MagicMock()
+        config.platform = "discord"
+        config.maintenance_mode = False
+
+        with patch("src.handlers.discord_handler.settings") as mock_settings, \
+             patch("src.handlers.discord_handler.state_manager") as mock_sm, \
+             patch("src.handlers.discord_handler.DiscordAdapter"), \
+             patch("src.handlers.discord_handler.DiscordSequenceModal") as mock_modal_cls:
+            mock_settings.allowed_chat_ids = []
+            mock_sm.get_or_create_chat_config.return_value = config
+            mock_sm.save_chat_config = MagicMock()
+            mock_sm.get_user_preference = MagicMock(return_value=None)  # no preference
+
+            bot = create_discord_bot()
+            on_interaction = self._get_on_interaction(bot)
+            interaction = _make_sequence_button_interaction()
+
+            await on_interaction(interaction)
+
+        _, kwargs = mock_modal_cls.call_args
+        assert kwargs.get("preferred_mapping") == "ULDR AB ST"

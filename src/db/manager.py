@@ -174,7 +174,44 @@ class DatabaseManager:
         sql = "SELECT chat_id FROM chat_configs WHERE mirrors_chat_id = ?;"
         cursor = self.connection.execute(sql, (leader_chat_id,))
         return [row['chat_id'] for row in cursor.fetchall()]
-    
+
+    # ==================== User Preferences ====================
+
+    def get_user_preference(self, platform: str, user_id: int, key: str) -> Optional[str]:
+        """Get a per-user preference value.
+
+        Args:
+            platform: Platform identifier (e.g. "discord", "telegram")
+            user_id: Platform user ID (64-bit integer)
+            key: Preference key
+
+        Returns:
+            The stored string value, or None if not set.
+        """
+        cursor = self.connection.execute(
+            "SELECT value FROM user_preferences WHERE platform = ? AND user_id = ? AND key = ?;",
+            (platform, user_id, key),
+        )
+        row = cursor.fetchone()
+        return row["value"] if row is not None else None
+
+    def set_user_preference(self, platform: str, user_id: int, key: str, value: str) -> None:
+        """Set a per-user preference value (upsert).
+
+        Args:
+            platform: Platform identifier (e.g. "discord", "telegram")
+            user_id: Platform user ID (64-bit integer)
+            key: Preference key
+            value: String value to store
+        """
+        self.connection.execute(
+            """INSERT INTO user_preferences (platform, user_id, key, value)
+               VALUES (?, ?, ?, ?)
+               ON CONFLICT(platform, user_id, key) DO UPDATE SET value = excluded.value;""",
+            (platform, user_id, key, value),
+        )
+        self.connection.commit()
+
     # ==================== Game State ====================
     
     def save_game_state(self, state: ChatGameState) -> None:

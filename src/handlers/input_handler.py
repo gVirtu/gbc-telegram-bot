@@ -148,7 +148,7 @@ class InputHandler:
             if hook_context.get("inputWaitCalls", {}).get("_total", 0) > wait_call_threshold:
                 input_wait_calls = hook_context.get("inputWaitCalls", {})
                 relevant_wait_calls = {k: v for k, v in input_wait_calls.items() if v > 0}
-                logger.info(f"Input wait loop detected, finishing animation early ({relevant_wait_calls})")
+                logger.debug(f"Input wait loop detected, finishing animation early ({relevant_wait_calls})")
                 break
 
     # ==================== Button press entry point ====================
@@ -530,7 +530,7 @@ class InputHandler:
 
         # Auto press A and capture more frames ahead (e.g.: during NPC dialogue)
         while hook_context.get("autoPressA", {}).get("_total", 0) >= auto_press_call_threshold:
-            logger.info("Auto-pressing A...")
+            logger.debug("Auto-pressing A...")
 
             controller.send_input(GameButton.A, frames=settings.input_hold_frames)
 

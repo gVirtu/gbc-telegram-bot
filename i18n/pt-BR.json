@@ -198,8 +198,10 @@
       "button_label": "⌨️ DIGITAR SEQUÊNCIA",
       "modal_title": "Digitar Sequência",
       "mapping_label": "Mapeamento",
+      "mapping_description": "Escolha quais teclas representam cada botão (Setas/A/B/Select/Start)",
       "mapping_placeholder": "Escolha o mapeamento…",
       "sequence_label": "Sequência",
+      "sequence_description": "Digite os botões em ordem usando o mapeamento selecionado",
       "sequence_placeholder": "Máx. {max} caracteres",
       "invalid_chars": "❌ Caracteres inválidos: {chars}",
       "success": "⌨️ Enfileirado: {buttons}"

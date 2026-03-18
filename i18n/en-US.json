@@ -198,8 +198,10 @@
       "button_label": "⌨️ INPUT SEQUENCE",
       "modal_title": "Input Sequence",
       "mapping_label": "Mapping",
+      "mapping_description": "Choose which keys represent each button (Arrows/A/B/Select/Start)",
       "mapping_placeholder": "Choose mapping…",
       "sequence_label": "Sequence",
+      "sequence_description": "Type the buttons in order using the selected mapping",
       "sequence_placeholder": "Up to {max} chars",
       "invalid_chars": "❌ Invalid characters: {chars}",
       "success": "⌨️ Queued: {buttons}"

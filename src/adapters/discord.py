@@ -37,19 +37,19 @@ def _discord():
 SEQUENCE_MAPPINGS: dict[str, dict[str, "GameButton"]] = {
     "ULDR AB ST": {
         "U": GameButton.UP,  "L": GameButton.LEFT,  "D": GameButton.DOWN, "R": GameButton.RIGHT,
-        "A": GameButton.A,   "B": GameButton.B,     "S": GameButton.START, "T": GameButton.SELECT,
+        "A": GameButton.A,   "B": GameButton.B,     "S": GameButton.SELECT, "T": GameButton.START,
     },
     "WASD ZX CV": {
         "W": GameButton.UP,  "A": GameButton.LEFT,  "S": GameButton.DOWN, "D": GameButton.RIGHT,
-        "Z": GameButton.A,   "X": GameButton.B,     "C": GameButton.START, "V": GameButton.SELECT,
+        "Z": GameButton.A,   "X": GameButton.B,     "C": GameButton.SELECT, "V": GameButton.START,
     },
     "IJKL NM UO": {
         "I": GameButton.UP,  "J": GameButton.LEFT,  "K": GameButton.DOWN, "L": GameButton.RIGHT,
-        "N": GameButton.A,   "M": GameButton.B,     "U": GameButton.START, "O": GameButton.SELECT,
+        "N": GameButton.A,   "M": GameButton.B,     "U": GameButton.SELECT, "O": GameButton.START,
     },
     "8426 13 79": {
         "8": GameButton.UP,  "4": GameButton.LEFT,  "2": GameButton.DOWN, "6": GameButton.RIGHT,
-        "1": GameButton.A,   "3": GameButton.B,     "7": GameButton.START, "9": GameButton.SELECT,
+        "1": GameButton.A,   "3": GameButton.B,     "7": GameButton.SELECT, "9": GameButton.START,
     },
 }
 
@@ -203,6 +203,25 @@ class DiscordSequenceModal(discord.ui.Modal):
         self._adapter = adapter
         self._handler = handler
 
+        from src.config import settings
+        self.sequence_input = discord.ui.TextInput(
+            placeholder=translation_manager.get(
+                "discord.sequence_modal.sequence_placeholder",
+                chat_id,
+                max=settings.max_sequence_length,
+            ),
+            max_length=settings.max_sequence_length,
+            min_length=1,
+            required=True,
+        )
+        self.add_item(
+            discord.ui.Label(
+                text=translation_manager.get("discord.sequence_modal.sequence_label", chat_id),
+                description=translation_manager.get("discord.sequence_modal.sequence_description", chat_id),
+                component=self.sequence_input,
+            )
+        )
+        
         # Mapping select — pre-select the user's preferred mapping
         options = [
             discord.SelectOption(
@@ -221,27 +240,11 @@ class DiscordSequenceModal(discord.ui.Modal):
         self.add_item(
             discord.ui.Label(
                 text=translation_manager.get("discord.sequence_modal.mapping_label", chat_id),
+                description=translation_manager.get("discord.sequence_modal.mapping_description", chat_id),
                 component=self.mapping_select,
             )
         )
 
-        from src.config import settings
-        self.sequence_input = discord.ui.TextInput(
-            placeholder=translation_manager.get(
-                "discord.sequence_modal.sequence_placeholder",
-                chat_id,
-                max=settings.max_sequence_length,
-            ),
-            max_length=settings.max_sequence_length,
-            min_length=1,
-            required=True,
-        )
-        self.add_item(
-            discord.ui.Label(
-                text=translation_manager.get("discord.sequence_modal.sequence_label", chat_id),
-                component=self.sequence_input,
-            )
-        )
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         """Handle modal submission."""

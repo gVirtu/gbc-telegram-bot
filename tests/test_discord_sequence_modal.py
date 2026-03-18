@@ -40,8 +40,8 @@ class TestSequenceMappings:
         assert m["R"] == GameButton.RIGHT
         assert m["A"] == GameButton.A
         assert m["B"] == GameButton.B
-        assert m["S"] == GameButton.START
-        assert m["T"] == GameButton.SELECT
+        assert m["S"] == GameButton.SELECT
+        assert m["T"] == GameButton.START
 
     def test_wasd_mapping_chars(self):
         from src.adapters.discord import SEQUENCE_MAPPINGS
@@ -52,8 +52,8 @@ class TestSequenceMappings:
         assert m["D"] == GameButton.RIGHT
         assert m["Z"] == GameButton.A
         assert m["X"] == GameButton.B
-        assert m["C"] == GameButton.START
-        assert m["V"] == GameButton.SELECT
+        assert m["C"] == GameButton.SELECT
+        assert m["V"] == GameButton.START
 
     def test_ijkl_mapping_chars(self):
         from src.adapters.discord import SEQUENCE_MAPPINGS
@@ -64,8 +64,8 @@ class TestSequenceMappings:
         assert m["L"] == GameButton.RIGHT
         assert m["N"] == GameButton.A
         assert m["M"] == GameButton.B
-        assert m["U"] == GameButton.START
-        assert m["O"] == GameButton.SELECT
+        assert m["U"] == GameButton.SELECT
+        assert m["O"] == GameButton.START
 
     def test_numpad_mapping_chars(self):
         from src.adapters.discord import SEQUENCE_MAPPINGS
@@ -76,8 +76,8 @@ class TestSequenceMappings:
         assert m["6"] == GameButton.RIGHT
         assert m["1"] == GameButton.A
         assert m["3"] == GameButton.B
-        assert m["7"] == GameButton.START
-        assert m["9"] == GameButton.SELECT
+        assert m["7"] == GameButton.SELECT
+        assert m["9"] == GameButton.START
 
 
 class TestParseSequence:
@@ -191,13 +191,13 @@ class TestDiscordGameViewSequenceButton:
         seq_btn = next(item for item in view.children if item.custom_id == "open_sequence_modal")
         assert seq_btn.row == 4
 
-    def test_sequence_button_style_is_primary(self):
-        """Sequence button must use primary (blue) style."""
+    def test_sequence_button_style_is_secondary(self):
+        """Sequence button must use secondary style."""
         import discord
         from src.adapters.discord import DiscordGameView
         view = DiscordGameView.build(chat_config=None, modifier_specs=None)
         seq_btn = next(item for item in view.children if item.custom_id == "open_sequence_modal")
-        assert seq_btn.style == discord.ButtonStyle.primary
+        assert seq_btn.style == discord.ButtonStyle.secondary
 
 
 class TestDiscordSequenceModalOnSubmit:

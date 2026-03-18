@@ -158,10 +158,11 @@ def test_make_frame_transform_adds_inputs_at_offset():
 
     # Frame 2 should have content in the sidebar area (white text on black)
     # frames 0 and 1 have an all-black sidebar (no inputs yet)
+    sidebar_row_start = 24
     sidebar_col_start = frame.shape[1]
 
     def sidebar_has_white(result):
-        sidebar = result[:, sidebar_col_start:, :]
+        sidebar = result[sidebar_row_start:, sidebar_col_start:, :]
         return bool(np.any(sidebar > 10))
 
     assert not sidebar_has_white(result0), "Frame 0 sidebar should be empty (black)"

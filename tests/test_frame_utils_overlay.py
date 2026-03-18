@@ -12,8 +12,9 @@ class TestRenderInputSidebar:
         result = render_input_sidebar([], width=192, height=288)
         assert result.shape == (288, 192, 3)
         assert result.dtype == np.uint8
-        # All pixels should be black (0, 0, 0)
-        assert np.all(result == 0)
+        # All pixels below the date should be black (0, 0, 0)
+        region = result[24:, :, :]
+        assert np.all(region == 0)
 
     def test_render_input_sidebar_single_input(self):
         """One input renders text, so non-black pixels should be present."""
@@ -21,7 +22,8 @@ class TestRenderInputSidebar:
         result = render_input_sidebar(inputs, width=192, height=288)
         assert result.shape == (288, 192, 3)
         # Should have some white (non-zero) pixels from the rendered text
-        assert np.any(result > 0)
+        region = result[24:, :, :]
+        assert np.any(region > 0)
 
     def test_render_input_sidebar_overflow_stops_at_top(self):
         """With 100+ inputs, image height should still be 288 (no overflow)."""
@@ -48,7 +50,8 @@ class TestRenderInputSidebar:
             result = render_input_sidebar(inputs, width=192, height=288)
             assert result.shape == (288, 192, 3), f"Wrong shape for button '{button_val}'"
             # Non-black pixels should be present (text rendered)
-            assert np.any(result > 0), f"No text rendered for button '{button_val}'"
+            region = result[24:, :, :]
+            assert np.any(region > 0), f"No text rendered for button '{button_val}'"
 
 
 class TestCompositeOverlay:

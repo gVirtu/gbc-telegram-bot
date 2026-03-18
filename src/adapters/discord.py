@@ -133,7 +133,7 @@ class DiscordGameView:
             label=translation_manager.get("discord.sequence_modal.button_label", chat_id),
             custom_id="open_sequence_modal",
             row=seq_row,
-            style=discord.ButtonStyle.primary,
+            style=discord.ButtonStyle.secondary,
         )
         view.add_item(seq_btn)
 
@@ -175,17 +175,12 @@ class DiscordSequenceModal(discord.ui.Modal):
     """Discord modal for entering a button sequence.
 
     Opens when the user clicks the '⌨️ Input Sequence' keyboard button.
-    Contains a String Select (mapping choice) and a TextInput (the sequence).
+    Contains a String Select (mapping choice) and a TextInput (the sequence),
+    each wrapped in a discord.ui.Label for visible headers inside the modal.
 
     Must subclass discord.ui.Modal directly — monkey-patching on_submit onto
     a plain discord.ui.Modal instance does not work because discord.py dispatches
     on_submit through its class mechanism, not instance attribute lookup.
-
-    Implementation note: Discord Components V2 officially supports String Select
-    inside modals. If discord.py raises ValueError/TypeError when adding a Select
-    to the Modal, replace self.mapping_select with a discord.ui.TextInput (short
-    style) with placeholder listing "ULDR AB ST / WASD ZX CV / IJKL NM UO / 8426 13 79"
-    and validate the submitted value against SEQUENCE_MAPPINGS keys.
     """
 
     def __init__(
@@ -217,30 +212,21 @@ class DiscordSequenceModal(discord.ui.Modal):
             )
             for key in SEQUENCE_MAPPINGS
         ]
-        try:
-            self.mapping_select = discord.ui.Select(
-                placeholder=translation_manager.get("discord.sequence_modal.mapping_placeholder", chat_id),
-                options=options,
-                min_values=1,
-                max_values=1,
+        self.mapping_select = discord.ui.Select(
+            placeholder=translation_manager.get("discord.sequence_modal.mapping_placeholder", chat_id),
+            options=options,
+            min_values=1,
+            max_values=1,
+        )
+        self.add_item(
+            discord.ui.Label(
+                text=translation_manager.get("discord.sequence_modal.mapping_label", chat_id),
+                component=self.mapping_select,
             )
-            self.add_item(self.mapping_select)
-            self._mapping_is_select = True
-        except (ValueError, TypeError):
-            # Discord.py version does not support Select in modals — fall back to TextInput
-            self.mapping_select = discord.ui.TextInput(
-                label=translation_manager.get("discord.sequence_modal.mapping_label", chat_id),
-                placeholder="ULDR AB ST / WASD ZX CV / IJKL NM UO / 8426 13 79",
-                max_length=20,
-                min_length=1,
-                required=True,
-            )
-            self.add_item(self.mapping_select)
-            self._mapping_is_select = False
+        )
 
         from src.config import settings
         self.sequence_input = discord.ui.TextInput(
-            label=translation_manager.get("discord.sequence_modal.sequence_label", chat_id),
             placeholder=translation_manager.get(
                 "discord.sequence_modal.sequence_placeholder",
                 chat_id,
@@ -250,20 +236,18 @@ class DiscordSequenceModal(discord.ui.Modal):
             min_length=1,
             required=True,
         )
-
-        self.add_item(self.sequence_input)
+        self.add_item(
+            discord.ui.Label(
+                text=translation_manager.get("discord.sequence_modal.sequence_label", chat_id),
+                component=self.sequence_input,
+            )
+        )
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         """Handle modal submission."""
 
         try:
-            # Resolve mapping key: Select has .values list; TextInput fallback has .value str
-            if self._mapping_is_select:
-                mapping_key = self.mapping_select.values[0]
-            else:
-                raw_key = self.mapping_select.value.strip()
-                mapping_key = raw_key if raw_key in SEQUENCE_MAPPINGS else _DEFAULT_MAPPING
-
+            mapping_key = self.mapping_select.values[0]
             raw_sequence = self.sequence_input.value
 
             buttons, invalid_chars = parse_sequence(raw_sequence, mapping_key)
@@ -297,7 +281,7 @@ class DiscordSequenceModal(discord.ui.Modal):
                     self._chat_id,
                     buttons=buttons_str,
                 )
-                await interaction.response.send_message(confirm_msg, ephemeral=True)
+                await interaction.response.send_message(confirm_msg, ephemeral=True, delete_after=5.0)
             else:
                 await interaction.response.send_message(error, ephemeral=True)
 

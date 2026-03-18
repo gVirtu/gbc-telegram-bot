@@ -344,38 +344,20 @@ class TestDiscordSequenceModalOnSubmit:
         # But an error response must still be sent
         interaction.response.send_message.assert_awaited_once()
 
-    @pytest.mark.asyncio
-    async def test_textinput_fallback_path_works(self):
-        """When _mapping_is_select is False (fallback), mapping is read from .value."""
+    def test_modal_items_are_labels_wrapping_select_and_textinput(self):
+        """Both top-level items added to the modal are discord.ui.Label instances."""
+        import discord
         modal = self._make_modal()
-        # Simulate the TextInput fallback path
-        modal._mapping_is_select = False
-        modal.mapping_select = MagicMock()
-        modal.mapping_select.value = "WASD ZX CV"  # .value, not .values
-        modal.sequence_input = MagicMock()
-        modal.sequence_input.value = "W"
-
-        from src.models.game_state import GameSession, ChatGameState
-        modal._handler._sessions[100] = GameSession(
-            chat_id=100, state=ChatGameState(chat_id=100, message_id=42)
-        )
-
-        interaction = self._make_interaction()
-
-        with patch("src.adapters.discord.state_manager") as mock_sm, \
-             patch("src.handlers.input_handler.get_leader_chat_id", return_value=100), \
-             patch("src.handlers.input_handler.state_manager"), \
-             patch("src.handlers.input_handler.is_media_only_mirror", return_value=False), \
-             patch.object(modal._handler, "_is_processing", return_value=True):
-            mock_sm.set_user_preference = MagicMock()
-            await modal.on_submit(interaction)
-
-        # Preference saved with the mapping from .value
-        mock_sm.set_user_preference.assert_called_once_with(
-            "discord", 999, "sequence_mapping", "WASD ZX CV"
-        )
-        interaction.response.send_message.assert_awaited_once()
-        assert interaction.response.send_message.call_args.kwargs.get("ephemeral") is True
+        labels = [item for item in modal.children if isinstance(item, discord.ui.Label)]
+        assert len(labels) == 2, f"Expected 2 Label items, got {len(labels)}"
+        components = [label.component for label in labels]
+        assert any(isinstance(c, discord.ui.Select) for c in components), "No Select component found"
+        assert any(isinstance(c, discord.ui.TextInput) for c in components), "No TextInput component found"
+        # .mapping_select and .sequence_input attributes must be the inner components
+        select_label = next(l for l in labels if isinstance(l.component, discord.ui.Select))
+        textinput_label = next(l for l in labels if isinstance(l.component, discord.ui.TextInput))
+        assert select_label.component is modal.mapping_select
+        assert textinput_label.component is modal.sequence_input
 
 
 def _make_sequence_button_interaction(channel_id: int = 100, user_id: int = 999) -> MagicMock:

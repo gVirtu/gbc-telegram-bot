@@ -195,12 +195,12 @@
   },
   "discord": {
     "sequence_modal": {
-      "button_label": "⌨️ Digitar Sequência",
+      "button_label": "⌨️ DIGITAR SEQUÊNCIA",
       "modal_title": "Digitar Sequência",
       "mapping_label": "Mapeamento",
       "mapping_placeholder": "Escolha o mapeamento…",
       "sequence_label": "Sequência",
-      "sequence_placeholder": "ex: UUDR (máx {max} chars)",
+      "sequence_placeholder": "Máx. {max} caracteres",
       "invalid_chars": "❌ Caracteres inválidos: {chars}",
       "success": "⌨️ Enfileirado: {buttons}"
     }

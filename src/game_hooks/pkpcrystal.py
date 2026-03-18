@@ -45,6 +45,10 @@ def begin_hooks(pyboy) -> dict:
             "JoyWaitAorB": 0,
             "ButtonSound.input_wait_loop": 0,
             "WaitPressAorB_BlinkCursor": 0,
+            "WaitPressAorB_BlinkCursor.loop": 0,
+            "BattleIntroSlidingPics.loop2": 0,
+            "_AnimateHPBar.loop": 0,
+            "RunBattleAnimScript.playframe": 0,
             "_total": 0
         }
     }

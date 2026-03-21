@@ -159,6 +159,16 @@ class Settings(BaseSettings):
         ge=0,
         description="Days to retain recent_inputs rows for overlay; 0 disables purge (RECENT_INPUTS_MAX_RETENTION_DAYS env var)",
     )
+    player_input_max_score: int = Field(
+        default=10,
+        ge=1,
+        description="Maximum base score per input; score decreases as same user dominates the scoring window",
+    )
+    daily_streak_score_bonus: int = Field(
+        default=50,
+        ge=0,
+        description="Bonus points awarded per streak day for playing on consecutive days",
+    )
 
     # Sequence input settings
     max_sequence_length: int = Field(

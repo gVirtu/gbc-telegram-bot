@@ -20,32 +20,20 @@ class TestChatGameStateSerialization:
     """Test ChatGameState serialization with new tracking fields."""
 
     def test_new_fields_default_values(self):
-        """Test that new fields have proper default values."""
+        """Test that tracking fields have proper default values."""
         state = ChatGameState(chat_id=123)
 
         assert state.user_input_counts == {}
-        assert state.recent_inputs == []
 
     def test_to_dict_includes_new_fields(self):
         """Test that to_dict includes user tracking fields."""
         state = ChatGameState(chat_id=123)
         state.user_input_counts = {"456": 5, "789": 3}
-        state.recent_inputs = [
-            {
-                "user_id": 456,
-                "user_name": "Alice",
-                "button": "a",
-                "timestamp": "2026-02-06T12:00:00.000000"
-            }
-        ]
 
         data = state.to_dict()
 
         assert "user_input_counts" in data
         assert data["user_input_counts"] == {"456": 5, "789": 3}
-        assert "recent_inputs" in data
-        assert len(data["recent_inputs"]) == 1
-        assert data["recent_inputs"][0]["user_name"] == "Alice"
 
     def test_from_dict_with_new_fields(self):
         """Test that from_dict loads user tracking fields."""
@@ -56,14 +44,6 @@ class TestChatGameStateSerialization:
             "last_input": "a",
             "last_input_time": None,
             "user_input_counts": {"789": 10},
-            "recent_inputs": [
-                {
-                    "user_id": 789,
-                    "user_name": "Bob",
-                    "button": "b",
-                    "timestamp": "2026-02-06T12:00:00.000000"
-                }
-            ],
             "created_at": "2026-02-06T12:00:00.000000",
             "updated_at": "2026-02-06T12:00:00.000000",
         }
@@ -71,8 +51,6 @@ class TestChatGameStateSerialization:
         state = ChatGameState.from_dict(data)
 
         assert state.user_input_counts == {"789": 10}
-        assert len(state.recent_inputs) == 1
-        assert state.recent_inputs[0]["user_name"] == "Bob"
 
     def test_from_dict_backward_compatibility(self):
         """Test that from_dict handles missing new fields (backward compatibility)."""
@@ -88,34 +66,17 @@ class TestChatGameStateSerialization:
 
         state = ChatGameState.from_dict(data)
 
-        # Should use default values
         assert state.user_input_counts == {}
-        assert state.recent_inputs == []
 
     def test_serialization_roundtrip(self):
         """Test that data survives serialization roundtrip."""
         original = ChatGameState(chat_id=123)
         original.user_input_counts = {"111": 1, "222": 2}
-        original.recent_inputs = [
-            {
-                "user_id": 111,
-                "user_name": "User1",
-                "button": "up",
-                "timestamp": "2026-02-06T12:00:00.000000"
-            },
-            {
-                "user_id": 222,
-                "user_name": "User2",
-                "button": "down",
-                "timestamp": "2026-02-06T12:01:00.000000"
-            }
-        ]
 
         data = original.to_dict()
         restored = ChatGameState.from_dict(data)
 
         assert restored.user_input_counts == original.user_input_counts
-        assert restored.recent_inputs == original.recent_inputs
 
 
 class TestInputRecording:
@@ -147,69 +108,6 @@ class TestInputRecording:
 
         assert state.user_input_counts["456"] == 2
         assert state.user_input_counts["789"] == 1
-
-    def test_record_user_input_adds_to_recent(self):
-        """Test that recording input adds to recent_inputs."""
-        handler = InputHandler()
-
-        state = ChatGameState(chat_id=123)
-
-        handler._aggregate_to_recent_inputs(state, [BufferedInput(456, "Alice", GameButton.A)])
-
-        assert len(state.recent_inputs) == 1
-        assert state.recent_inputs[0]["user_id"] == 456
-        assert state.recent_inputs[0]["user_name"] == "Alice"
-        assert state.recent_inputs[0]["buttons"] == ["a"]
-        assert "timestamp" in state.recent_inputs[0]
-
-    def test_record_user_input_fifo_behavior(self):
-        """Test that recent_inputs maintains FIFO with max 3 entries."""
-        handler = InputHandler()
-
-        state = ChatGameState(chat_id=123)
-
-        # Add 5 inputs
-        handler._aggregate_to_recent_inputs(state, [BufferedInput(1, "User1", GameButton.A)])
-        handler._aggregate_to_recent_inputs(state, [BufferedInput(2, "User2", GameButton.B)])
-        handler._aggregate_to_recent_inputs(state, [BufferedInput(3, "User3", GameButton.UP)])
-        handler._aggregate_to_recent_inputs(state, [BufferedInput(4, "User4", GameButton.DOWN)])
-        handler._aggregate_to_recent_inputs(state, [BufferedInput(5, "User5", GameButton.START)])
-
-        # Should only keep last 3
-        assert len(state.recent_inputs) == 3
-        assert state.recent_inputs[0]["user_id"] == 3
-        assert state.recent_inputs[1]["user_id"] == 4
-        assert state.recent_inputs[2]["user_id"] == 5
-
-    def test_user_name_extraction_first_name(self):
-        """Test that first_name is used when available."""
-        handler = InputHandler()
-
-        state = ChatGameState(chat_id=123)
-
-        handler._aggregate_to_recent_inputs(state, [BufferedInput(456, "Alice", GameButton.A)])
-
-        assert state.recent_inputs[0]["user_name"] == "Alice"
-
-    def test_user_name_extraction_username_fallback(self):
-        """Test that @username is used when first_name is not available."""
-        handler = InputHandler()
-
-        state = ChatGameState(chat_id=123)
-
-        handler._aggregate_to_recent_inputs(state, [BufferedInput(456, "@alice_user", GameButton.A)])
-
-        assert state.recent_inputs[0]["user_name"] == "@alice_user"
-
-    def test_user_name_extraction_user_fallback(self):
-        """Test that 'User' fallback works."""
-        handler = InputHandler()
-
-        state = ChatGameState(chat_id=123)
-
-        handler._aggregate_to_recent_inputs(state, [BufferedInput(456, "User", GameButton.A)])
-
-        assert state.recent_inputs[0]["user_name"] == "User"
 
 
 class TestMessageDisplay:
@@ -415,54 +313,9 @@ class TestIntegration:
         assert session.state.user_input_counts["789"] == 1
         assert session.state.user_input_counts["101"] == 1
 
-        # Verify recent inputs
-        assert len(session.state.recent_inputs) == 3
-
-        # Verify message display (most recent first)
-        text = create_game_message_text(recent_inputs=session.state.recent_inputs)
-        lines = text.split("\n")
-
-        assert "Charlie: ⬆️ Up" in lines[-3]
-        assert "Bob: 🅱️ B" in lines[-2]
-        assert "Alice: 🅰️ A" in lines[-1]
-
 
 class TestEdgeCases:
     """Test edge cases and error conditions."""
-
-    def test_empty_user_name(self):
-        """Test handling of empty user name."""
-        handler = InputHandler()
-
-        state = ChatGameState(chat_id=123)
-
-        handler._aggregate_to_recent_inputs(state, [BufferedInput(456, "", GameButton.A)])
-
-        # Should still record the input
-        assert len(state.recent_inputs) == 1
-        assert state.recent_inputs[0]["user_name"] == ""
-
-    def test_very_long_user_name(self):
-        """Test handling of very long user names."""
-        handler = InputHandler()
-
-        state = ChatGameState(chat_id=123)
-
-        long_name = "A" * 100
-        handler._aggregate_to_recent_inputs(state, [BufferedInput(456, long_name, GameButton.A)])
-
-        assert state.recent_inputs[0]["user_name"] == long_name
-
-    def test_special_characters_in_name(self):
-        """Test handling of special characters in user names."""
-        handler = InputHandler()
-
-        state = ChatGameState(chat_id=123)
-
-        special_name = "Alice 😀 *Test* _User_"
-        handler._aggregate_to_recent_inputs(state, [BufferedInput(456, special_name, GameButton.A)])
-
-        assert state.recent_inputs[0]["user_name"] == special_name
 
     def test_message_length_with_max_inputs(self):
         """Test that message with max inputs doesn't exceed reasonable length."""

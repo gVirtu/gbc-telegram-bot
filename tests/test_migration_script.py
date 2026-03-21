@@ -49,12 +49,6 @@ class TestMigrationScript:
             message_id=789,
             last_input=GameButton.A,
             user_input_counts={"111": 5, "222": 3},
-            recent_inputs=[{
-                "user_id": 111,
-                "user_name": "Alice",
-                "buttons": ["a"],
-                "timestamp": datetime.utcnow().isoformat()
-            }]
         )
         state_file = polls_dir / "456.json"
         with open(state_file, 'w') as f:
@@ -73,7 +67,6 @@ class TestMigrationScript:
         assert loaded.message_id == 789
         assert loaded.last_input == GameButton.A
         assert loaded.user_input_counts == {"111": 5, "222": 3}
-        assert len(loaded.recent_inputs) == 1
     
     def test_migrate_save_slot(self, tmp_path):
         """Verify save slot migration."""

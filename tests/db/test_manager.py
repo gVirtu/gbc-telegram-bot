@@ -137,7 +137,7 @@ class TestGameStateOperations:
         assert loaded.user_input_counts == {"111": 5, "222": 3}
     
     def test_save_game_state_with_recent_inputs(self, db_manager):
-        """Verify recent inputs are saved via append_recent_input."""
+        """Verify recent inputs are queryable via get_recent_inputs_for_overlay."""
         from datetime import datetime
         state = ChatGameState(chat_id=123)
         db_manager.save_game_state(state)
@@ -150,9 +150,9 @@ class TestGameStateOperations:
             timestamp=datetime.utcnow().isoformat()
         )
 
-        loaded = db_manager.load_game_state(123)
-        assert len(loaded.recent_inputs) == 1
-        assert loaded.recent_inputs[0]["user_name"] == "Alice"
+        rows = db_manager.get_recent_inputs_for_overlay(123)
+        assert len(rows) == 1
+        assert rows[0]["user_name"] == "Alice"
 
 
 

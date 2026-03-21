@@ -247,9 +247,6 @@ class DatabaseManager:
         # Save user input counts
         self._save_user_input_counts(state.chat_id, state.user_input_counts)
         
-        # Save recent inputs
-        self._save_recent_inputs(state.chat_id, state.recent_inputs)
-        
         self.connection.commit()
         logger.debug(f"Saved game state for chat {state.chat_id}")
     
@@ -279,7 +276,6 @@ class DatabaseManager:
             created_at=datetime.fromisoformat(row['created_at']),
             updated_at=datetime.fromisoformat(row['updated_at']),
             user_input_counts=self._load_user_input_counts(chat_id),
-            recent_inputs=self._load_recent_inputs(chat_id),
         )
         
         logger.debug(f"Loaded game state for chat {chat_id}")
@@ -335,13 +331,13 @@ class DatabaseManager:
         """
         pass
     
-    def _load_recent_inputs(self, chat_id: int) -> list:
-        """Load recent inputs from database, reconstructing max-3 grouped view."""
+    def _load_recent_inputs(self, chat_id: int, limit: int = 30, group_limit: int = 3) -> list:
+        """Load recent inputs from database, reconstructing grouped view."""
         cursor = self.connection.execute(
             """SELECT user_id, user_name, button, timestamp
                FROM recent_inputs WHERE chat_id = ? ORDER BY timestamp DESC
-               LIMIT 30;""",
-            (chat_id,)
+               LIMIT ?;""",
+            (chat_id, limit)
         )
         rows = list(cursor.fetchall())
         rows.reverse()  # Oldest first
@@ -359,7 +355,7 @@ class DatabaseManager:
                     'timestamp': row['timestamp'],
                 })
 
-        return groups[-3:] if len(groups) > 3 else groups
+        return groups[-group_limit:] if len(groups) > group_limit else groups
     
     def append_recent_input(
         self,
@@ -368,13 +364,16 @@ class DatabaseManager:
         user_name: str,
         button: str,
         timestamp: str,
+        base_score: int = 0,
+        streak_bonus: int = 0,
+        total_score: int = 0,
     ) -> None:
         """Append a single button press to the recent_inputs log."""
         self.connection.execute(
             """INSERT INTO recent_inputs
-               (chat_id, user_id, user_name, button, timestamp)
-               VALUES (?, ?, ?, ?, ?);""",
-            (chat_id, user_id, user_name, button, timestamp)
+               (chat_id, user_id, user_name, button, timestamp, base_score, streak_bonus, total_score)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?);""",
+            (chat_id, user_id, user_name, button, timestamp, base_score, streak_bonus, total_score)
         )
         self.connection.commit()
 

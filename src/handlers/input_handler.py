@@ -30,6 +30,7 @@ from src.utils.frame_utils import (  # noqa: F401 (needed for test patching)
     generate_tbc_frames,
 )
 from src.utils.mirror_utils import broadcast_game_update, get_leader_chat_id, is_media_only_mirror
+from src.utils.scoring_manager import scoring_manager
 from src.utils.state_manager import state_manager
 
 logger = logging.getLogger(__name__)
@@ -501,14 +502,24 @@ class InputHandler:
             }
             new_inputs_with_offsets.append((input_dict, frame_offset))
 
-            # Append to DB log
+            # Score input and append to DB log
             try:
+                scored = scoring_manager.score_input(
+                    platform=config.platform,
+                    user_id=bi.user_id,
+                    chat_id=chat_id,
+                    button=bi.button.value,
+                    timestamp=bi.received_at.isoformat(),
+                )
                 state_manager.append_recent_input(
                     chat_id=chat_id,
                     user_id=bi.user_id,
                     user_name=bi.user_name,
                     button=bi.button.value,
                     timestamp=bi.received_at.isoformat(),
+                    base_score=scored.base_score,
+                    streak_bonus=scored.streak_bonus,
+                    total_score=scored.total_score,
                 )
             except Exception as e:
                 logger.warning(f"Failed to append recent input for chat {chat_id}: {e}")
@@ -585,7 +596,7 @@ class InputHandler:
 
         animation_duration_seconds = len(composited_frames) / capture_fps
 
-        recent = session.state.recent_inputs if session else []
+        recent = state_manager._load_recent_inputs(chat_id)
         pending_count = self._get_or_create_buffer(chat_id).total_buttons()
         base_text = self._get_message_base_text(chat_id)
         caption = create_game_message_text(
@@ -687,37 +698,16 @@ class InputHandler:
     # ==================== Recent inputs aggregation ====================
 
     def _aggregate_to_recent_inputs(self, state: ChatGameState, batch: list[BufferedInput]) -> None:
-        """Aggregate a batch of BufferedInputs into state.recent_inputs.
-
-        Consecutive inputs from the same user are collapsed into one entry.
-        Keeps the last 3 entries (FIFO).
+        """Update per-user input counts from a processed batch.
 
         Args:
             state: The ChatGameState to update
             batch: The batch of BufferedInputs that were just processed
         """
-        if not batch:
-            return
-
-        groups: list[dict] = []
         for bi in batch:
-            if groups and groups[-1]["user_id"] == bi.user_id:
-                groups[-1]["buttons"].append(bi.button.value)
-            else:
-                groups.append({
-                    "user_id": bi.user_id,
-                    "user_name": bi.user_name,
-                    "buttons": [bi.button.value],
-                    "timestamp": datetime.utcnow().isoformat(),
-                })
-            # Also update per-user input counts
             state.user_input_counts[str(bi.user_id)] = (
                 state.user_input_counts.get(str(bi.user_id), 0) + 1
             )
-
-        state.recent_inputs.extend(groups)
-        if len(state.recent_inputs) > 3:
-            state.recent_inputs = state.recent_inputs[-3:]
 
     # ==================== Backward-compat: _process_sequence ====================
 
@@ -774,7 +764,7 @@ class InputHandler:
 
         buffer = self._get_or_create_buffer(chat_id)
 
-        recent = session.state.recent_inputs if session else []
+        recent = state_manager._load_recent_inputs(chat_id)
         base_text = self._get_message_base_text(chat_id)
         text = create_game_message_text(recent_inputs=recent, queue_length=buffer.total_buttons(), base_text_override=base_text, chat_id=chat_id)
         keyboard = adapter.build_game_keyboard(chat_config=config, modifier_specs=modifier_specs)
@@ -802,7 +792,7 @@ class InputHandler:
         buffer = self._get_or_create_buffer(chat_id)
 
         png_buffer = controller.get_frame_as_png()
-        recent = session.state.recent_inputs if session else []
+        recent = state_manager._load_recent_inputs(chat_id)
         base_text = self._get_message_base_text(chat_id)
         caption = create_game_message_text(recent_inputs=recent, queue_length=buffer.total_buttons(), base_text_override=base_text, chat_id=chat_id)
         keyboard = adapter.build_game_keyboard(chat_config=config, modifier_specs=modifier_specs)
@@ -858,7 +848,7 @@ class InputHandler:
                 pass
 
         leader_session = self._get_session(leader_id)
-        recent = leader_session.state.recent_inputs if leader_session else []
+        recent = state_manager._load_recent_inputs(leader_id)
         base_text = self._get_message_base_text(leader_id)
         text = create_game_message_text(recent_inputs=recent, queue_length=leader_buffer.total_buttons(), base_text_override=base_text, chat_id=leader_id)
         keyboard = adapter.build_game_keyboard(chat_config=leader_config, modifier_specs=modifier_specs)

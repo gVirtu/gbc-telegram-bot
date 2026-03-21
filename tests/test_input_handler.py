@@ -324,7 +324,7 @@ class TestInputProcessing:
 
 
 class TestAggregateToRecentInputs:
-    """Test _aggregate_to_recent_inputs."""
+    """Test _aggregate_to_recent_inputs (now only updates user_input_counts)."""
 
     @pytest.fixture
     def handler(self):
@@ -334,9 +334,7 @@ class TestAggregateToRecentInputs:
         state = ChatGameState(chat_id=1)
         batch = [BufferedInput(user_id=1, user_name="Alice", button=GameButton.A)]
         handler._aggregate_to_recent_inputs(state, batch)
-        assert len(state.recent_inputs) == 1
-        assert state.recent_inputs[0]["user_id"] == 1
-        assert state.recent_inputs[0]["buttons"] == ["a"]
+        assert state.user_input_counts["1"] == 1
 
     def test_consecutive_same_user_collapsed(self, handler):
         state = ChatGameState(chat_id=1)
@@ -345,8 +343,7 @@ class TestAggregateToRecentInputs:
             BufferedInput(user_id=1, user_name="Alice", button=GameButton.DOWN),
         ]
         handler._aggregate_to_recent_inputs(state, batch)
-        assert len(state.recent_inputs) == 1
-        assert state.recent_inputs[0]["buttons"] == ["up", "down"]
+        assert state.user_input_counts["1"] == 2
 
     def test_different_users_separate_entries(self, handler):
         state = ChatGameState(chat_id=1)
@@ -355,9 +352,8 @@ class TestAggregateToRecentInputs:
             BufferedInput(user_id=2, user_name="Bob", button=GameButton.B),
         ]
         handler._aggregate_to_recent_inputs(state, batch)
-        assert len(state.recent_inputs) == 2
-        assert state.recent_inputs[0]["user_id"] == 1
-        assert state.recent_inputs[1]["user_id"] == 2
+        assert state.user_input_counts["1"] == 1
+        assert state.user_input_counts["2"] == 1
 
     def test_alternating_users(self, handler):
         state = ChatGameState(chat_id=1)
@@ -367,15 +363,16 @@ class TestAggregateToRecentInputs:
             BufferedInput(user_id=1, user_name="Alice", button=GameButton.UP),
         ]
         handler._aggregate_to_recent_inputs(state, batch)
-        assert len(state.recent_inputs) == 3
+        assert state.user_input_counts["1"] == 2
+        assert state.user_input_counts["2"] == 1
 
     def test_capped_at_three_entries(self, handler):
+        """user_input_counts accumulates all users, not capped."""
         state = ChatGameState(chat_id=1)
-        # 4 different users → should keep only last 3
         for i in range(4):
             batch = [BufferedInput(user_id=i, user_name=f"User{i}", button=GameButton.A)]
             handler._aggregate_to_recent_inputs(state, batch)
-        assert len(state.recent_inputs) == 3
+        assert len(state.user_input_counts) == 4
 
     def test_user_input_counts_updated(self, handler):
         state = ChatGameState(chat_id=1)
@@ -389,7 +386,7 @@ class TestAggregateToRecentInputs:
     def test_empty_batch_no_change(self, handler):
         state = ChatGameState(chat_id=1)
         handler._aggregate_to_recent_inputs(state, [])
-        assert state.recent_inputs == []
+        assert state.user_input_counts == {}
 
 
 class TestSessionManagement:

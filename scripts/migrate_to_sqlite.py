@@ -94,6 +94,7 @@ def migrate_game_states(data_dir: Path, db_manager: DatabaseManager, dry_run: bo
             chat_id = int(state_file.stem)
             
             # Handle potential missing fields for backward compatibility
+            recent_inputs_from_json = data.get('recent_inputs', [])
             state = ChatGameState(
                 chat_id=chat_id,
                 message_id=data.get('message_id'),
@@ -101,14 +102,13 @@ def migrate_game_states(data_dir: Path, db_manager: DatabaseManager, dry_run: bo
                 last_input=GameButton(data['last_input']) if data.get('last_input') else None,
                 last_input_time=datetime.fromisoformat(data['last_input_time']) if data.get('last_input_time') else None,
                 user_input_counts=data.get('user_input_counts', {}),
-                recent_inputs=data.get('recent_inputs', []),
                 created_at=datetime.fromisoformat(data.get('created_at', datetime.utcnow().isoformat())),
                 updated_at=datetime.fromisoformat(data.get('updated_at', datetime.utcnow().isoformat()))
             )
-            
+
             if not dry_run:
                 db_manager.save_game_state(state)
-                for group in state.recent_inputs:
+                for group in recent_inputs_from_json:
                     for button in group.get("buttons", []):
                         db_manager.append_recent_input(
                             chat_id=state.chat_id,

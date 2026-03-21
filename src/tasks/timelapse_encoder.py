@@ -209,7 +209,7 @@ class TimelapseEncoder:
 
         try:
             # Encode frames to temporary file
-            await save_frames_as_mp4_optimized(frames, str(tmp_path), fps=fps, frame_transform=frame_transform)
+            await save_frames_as_mp4_optimized(frames, str(tmp_path), fps=fps)
 
             # Atomically replace with final file
             os.replace(tmp_path, video_path)
@@ -242,7 +242,7 @@ class TimelapseEncoder:
         tmp_path = video_path.with_suffix(".tmp.mp4")
 
         try:
-            await save_frames_as_mp4_with_audio(frames, audio_chunks, str(tmp_path), fps=fps, frame_transform=frame_transform)
+            await save_frames_as_mp4_with_audio(frames, audio_chunks, str(tmp_path), fps=fps)
             os.replace(tmp_path, video_path)
             logger.info(f"Created new realtime timelapse: {video_path}")
 
@@ -273,7 +273,7 @@ class TimelapseEncoder:
 
         try:
             # Encode new frames to segment
-            await save_frames_as_mp4_optimized(frames, str(segment_path), fps=fps, frame_transform=frame_transform)
+            await save_frames_as_mp4_optimized(frames, str(segment_path), fps=fps)
 
             # Create concat demuxer list
             with open(concat_list_path, "w") as f:
@@ -338,7 +338,7 @@ class TimelapseEncoder:
         output_path = video_path.with_suffix(".tmp.mp4")
 
         try:
-            await save_frames_as_mp4_with_audio(frames, audio_chunks, str(segment_path), fps=fps, frame_transform=frame_transform)
+            await save_frames_as_mp4_with_audio(frames, audio_chunks, str(segment_path), fps=fps)
 
             with open(concat_list_path, "w") as f:
                 f.write(f"file '{video_path.absolute()}'\n")

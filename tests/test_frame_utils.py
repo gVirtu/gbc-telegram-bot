@@ -230,59 +230,54 @@ class TestCreateEmptyFrame:
 
 class TestSaveFramesAsMp4:
     """Test MP4 encoding functionality."""
-    
+
     def test_mp4_output_valid(self):
         """Test that MP4 output is valid."""
-        frames = [create_empty_frame(color=(i * 50, 0, 0)) for i in range(5)]
-        
+        # Pass pre-scaled 288×320 frames (callers are responsible for scaling)
+        frames = [create_empty_frame(width=320, height=288, color=(i * 50, 0, 0)) for i in range(5)]
+
         mp4_buffer = save_frames_as_mp4(frames, fps=10)
-        
-        # Check MP4 magic bytes (ftyp box)
+
         mp4_buffer.seek(0)
         header = mp4_buffer.read(12)
-        # MP4 files start with ftyp box
         assert header[4:8] == b'ftyp'
-    
+
     def test_mp4_empty_frames_raises(self):
         """Test that empty frames raises ValueError."""
         with pytest.raises(ValueError, match="No frames provided"):
             save_frames_as_mp4([])
-    
+
     def test_mp4_different_fps(self):
         """Test MP4 encoding with different frame rates."""
-        frames = [create_empty_frame() for _ in range(3)]
-        
-        # Different FPS values should all work
+        frames = [create_empty_frame(width=320, height=288) for _ in range(3)]
+
         for fps in [5, 10, 15, 30]:
             mp4_buffer = save_frames_as_mp4(frames, fps=fps)
             assert len(mp4_buffer.getvalue()) > 0
-    
-    def test_mp4_upscaling(self):
-        """Test that frames are upscaled 2x."""
-        # Create frames at GameBoy resolution
-        frames = [create_empty_frame(width=160, height=144) for _ in range(3)]
-        
+
+    def test_mp4_encodes_at_received_dimensions(self):
+        """Frames are encoded at their received size — no internal upscaling."""
+        # Pass already-scaled 288×320 frames; function must NOT double them
+        frames = [create_empty_frame(width=320, height=288) for _ in range(3)]
+
         mp4_buffer = save_frames_as_mp4(frames, fps=10)
-        
-        # Output should be valid MP4
+
         assert len(mp4_buffer.getvalue()) > 0
-        mp4_buffer.seek(4)  # Skip size field
+        mp4_buffer.seek(4)
         assert mp4_buffer.read(4) == b'ftyp'
-    
+
     def test_mp4_crf_settings(self):
         """Test different CRF quality settings."""
-        frames = [create_empty_frame() for _ in range(3)]
-        
-        # Different CRF values should all work
+        frames = [create_empty_frame(width=320, height=288) for _ in range(3)]
+
         for crf in [18, 23, 28, 35]:
             mp4_buffer = save_frames_as_mp4(frames, crf=crf)
             assert len(mp4_buffer.getvalue()) > 0
-    
+
     def test_mp4_preset_settings(self):
         """Test different preset settings."""
-        frames = [create_empty_frame() for _ in range(3)]
-        
-        # Different presets should all work
+        frames = [create_empty_frame(width=320, height=288) for _ in range(3)]
+
         for preset in ["ultrafast", "fast", "medium"]:
             mp4_buffer = save_frames_as_mp4(frames, preset=preset)
             assert len(mp4_buffer.getvalue()) > 0
@@ -340,57 +335,44 @@ class TestGenerateTbcFrames:
 
 
 class TestSaveFramesAsGif:
-    """Test GIF encoding functionality."""
+    """Test AVIF encoding functionality."""
 
     def test_gif_magic_bytes(self):
-        """Test that GIF output starts with GIF magic bytes."""
-        frames = [create_empty_frame(color=(i * 80, 0, 0)) for i in range(3)]
+        frames = [create_empty_frame(width=320, height=288, color=(i * 80, 0, 0)) for i in range(3)]
         gif_buffer = save_frames_as_avif(frames, fps=10)
         gif_buffer.seek(4)
         header = gif_buffer.read(8)
-        # AVIF Sequence
         assert header == b"ftypavis"
 
     def test_gif_non_empty_output(self):
-        """Test that GIF output is non-empty."""
-        frames = [create_empty_frame() for _ in range(3)]
+        frames = [create_empty_frame(width=320, height=288) for _ in range(3)]
         gif_buffer = save_frames_as_avif(frames, fps=10)
         assert len(gif_buffer.getvalue()) > 0
 
     def test_gif_empty_frames_raises(self):
-        """Test that empty frames raises ValueError."""
         with pytest.raises(ValueError, match="No frames provided"):
             save_frames_as_avif([])
 
     def test_gif_buffer_seeked_to_zero(self):
-        """Test that returned buffer is seeked to start."""
-        frames = [create_empty_frame() for _ in range(2)]
+        frames = [create_empty_frame(width=320, height=288) for _ in range(2)]
         gif_buffer = save_frames_as_avif(frames, fps=10)
         assert gif_buffer.tell() == 0
 
     def test_gif_black_pixels_not_transparent(self):
-        """Regression: black pixels must not render as transparent in multi-frame GIF.
-
-        Per-frame palette quantization maps black (0,0,0) to palette index 0,
-        which is also Pillow's default GIF transparency index. The global-palette
-        fix prevents this collision, so black pixels should stay black.
-        """
-        black = create_empty_frame(color=(0, 0, 0))
-        white = create_empty_frame(color=(255, 255, 255))
+        """Regression: black pixels must not render as transparent in multi-frame AVIF."""
+        black = create_empty_frame(width=320, height=288, color=(0, 0, 0))
+        white = create_empty_frame(width=320, height=288, color=(255, 255, 255))
         frames = [black, white, black]
 
         gif_buffer = save_frames_as_avif(frames, fps=10)
         gif_buffer.seek(0)
         gif = Image.open(gif_buffer)
 
-        # Decode every frame and verify no black pixel became transparent/white
         for frame_idx in range(3):
             gif.seek(frame_idx)
             rgba = gif.convert("RGBA")
             pixels = np.array(rgba)
-            # Find pixels that were black in the source (frames 0 and 2)
             if frame_idx % 2 == 0:
-                # Alpha must be fully opaque (255) for all pixels
                 assert np.all(pixels[:, :, 3] == 255), (
                     f"Frame {frame_idx}: black pixels have unexpected transparency"
                 )

@@ -310,23 +310,24 @@ def save_frames_as_mp4(
     preset: str = "ultrafast",
 ) -> BytesIO:
     """Save a sequence of frames as an MP4 video using FFmpeg rawvideo piping.
-    
+
     Uses stdin to pipe frames directly to ffmpeg (no intermediate PNG files),
     then writes output to a temp file and reads into BytesIO.
-    
+    Frames are encoded at their received dimensions — no internal scaling is applied.
+
     Args:
         frames: List of NumPy arrays (H, W, 3) in RGB format
         fps: Frames per second for the output video
         crf: Constant Rate Factor (quality, lower=better, 0-51)
         preset: Encoding speed preset (ultrafast to veryslow)
-        
+
     Returns:
         BytesIO object containing MP4 data
-        
+
     Raises:
         ValueError: If no frames provided
         RuntimeError: If FFmpeg encoding fails
-        
+
     Example:
         >>> frames = [create_empty_frame() for _ in range(5)]
         >>> mp4_buffer = save_frames_as_mp4(frames)
@@ -335,20 +336,19 @@ def save_frames_as_mp4(
     """
     if not frames:
         raise ValueError("No frames provided")
-    
+
     h, w = frames[0].shape[:2]
-    h_scaled, w_scaled = h * 2, w * 2
-    
+
     with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as tmp_out:
         output_path = tmp_out.name
-    
+
     try:
         cmd = [
-            'ffmpeg', '-y', 
+            'ffmpeg', '-y',
             '-an',
             '-f', 'rawvideo',
             '-pix_fmt', 'rgb24',
-            '-s', f'{w_scaled}x{h_scaled}',
+            '-s', f'{w}x{h}',
             '-framerate', str(fps),
             '-i', 'pipe:0',
             '-vcodec', 'libx264',
@@ -359,19 +359,16 @@ def save_frames_as_mp4(
             '-movflags', '+faststart+frag_keyframe+empty_moov',
             output_path,
         ]
-        
+
         process = subprocess.Popen(
             cmd,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        
+
         for frame in frames:
-            img = Image.fromarray(frame).resize(
-                (w_scaled, h_scaled), Image.Resampling.NEAREST
-            )
-            process.stdin.write(np.array(img).tobytes())
+            process.stdin.write(np.array(frame).tobytes())
         
         process.stdin.close()
         
@@ -400,7 +397,7 @@ def save_frames_as_avif(
 ) -> BytesIO:
     """Save frames as an animated AVIF using Pillow.
 
-    Scales 2x (same as save_frames_as_mp4) using nearest-neighbor resampling.
+    Frames are encoded at their received dimensions — no internal scaling is applied.
 
     Args:
         frames: List of NumPy arrays (H, W, 3) in RGB format
@@ -415,15 +412,9 @@ def save_frames_as_avif(
     if not frames:
         raise ValueError("No frames provided")
 
-    h, w = frames[0].shape[:2]
-    h_scaled, w_scaled = h * 2, w * 2
     duration_ms = int(1000 / fps)
 
-    pil_frames = [
-        Image.fromarray(frame)
-        .resize((w_scaled, h_scaled), Image.Resampling.NEAREST)
-        for frame in frames
-    ]
+    pil_frames = [Image.fromarray(frame) for frame in frames]
 
     buffer = BytesIO()
     pil_frames[0].save(

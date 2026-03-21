@@ -94,3 +94,54 @@ class TestCompositeOverlay:
         assert result.shape == (288, 512, 3)
         # The sidebar padding area (200:288, 320:) should be black
         assert np.all(result[200:, 320:, :] == 0)
+
+
+class TestApplyOverlayComposite:
+    def test_output_length_matches_input(self):
+        """Returns same number of frames as input."""
+        from src.utils.frame_utils import apply_overlay_composite
+        frames = [np.zeros((288, 320, 3), dtype=np.uint8) for _ in range(5)]
+        result = apply_overlay_composite(frames, [], [])
+        assert len(result) == 5
+
+    def test_output_shape_is_composited(self):
+        """Each output frame has sidebar width added (288×320 → 288×512)."""
+        from src.utils.frame_utils import apply_overlay_composite
+        frames = [np.zeros((288, 320, 3), dtype=np.uint8) for _ in range(3)]
+        result = apply_overlay_composite(frames, [], [])
+        for f in result:
+            assert f.shape == (288, 512, 3)
+
+    def test_sidebar_empty_before_offset(self):
+        """Sidebar area is all-black on frames before an input's offset."""
+        from src.utils.frame_utils import apply_overlay_composite
+        frames = [np.zeros((288, 320, 3), dtype=np.uint8) for _ in range(3)]
+        new_input = {
+            "user_name": "Alice", "button": "a",
+            "user_id": 1, "timestamp": "2026-01-01T00:00:00",
+        }
+        result = apply_overlay_composite(frames, [], [(new_input, 2)])
+
+        # Before offset: sidebar (columns 320+) below date row should be black
+        assert not np.any(result[0][24:, 320:, :] > 10)
+        assert not np.any(result[1][24:, 320:, :] > 10)
+
+    def test_sidebar_has_text_at_and_after_offset(self):
+        """Sidebar area has white pixels on the frame where input arrives."""
+        from src.utils.frame_utils import apply_overlay_composite
+        frames = [np.zeros((288, 320, 3), dtype=np.uint8) for _ in range(3)]
+        new_input = {
+            "user_name": "Alice", "button": "a",
+            "user_id": 1, "timestamp": "2026-01-01T00:00:00",
+        }
+        result = apply_overlay_composite(frames, [], [(new_input, 2)])
+        assert np.any(result[2][24:, 320:, :] > 10)
+
+    def test_pre_existing_inputs_visible_from_frame_0(self):
+        """Pre-existing inputs appear in the sidebar from frame 0."""
+        from src.utils.frame_utils import apply_overlay_composite
+        frames = [np.zeros((288, 320, 3), dtype=np.uint8) for _ in range(2)]
+        pre = [{"user_name": "Bob", "button": "b", "user_id": 2, "timestamp": "2026-01-01T00:00:00"}]
+        result = apply_overlay_composite(frames, pre, [])
+        # Frame 0 sidebar should already have text
+        assert np.any(result[0][24:, 320:, :] > 10)

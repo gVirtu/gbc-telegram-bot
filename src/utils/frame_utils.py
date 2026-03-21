@@ -244,6 +244,64 @@ def composite_overlay(
     return np.concatenate([game_frame, sidebar], axis=1)
 
 
+def _make_frame_transform(
+    pre_existing: list,
+    new_inputs_with_offsets: list,
+) -> Callable[[np.ndarray], np.ndarray]:
+    """Build a stateful per-frame transform that composites the input sidebar.
+
+    Returns a callable that, when called once per frame in sequence, composites
+    an input sidebar reflecting accumulated inputs up to that frame.
+
+    Args:
+        pre_existing: Input dicts already visible at frame 0.
+        new_inputs_with_offsets: List of (input_dict, frame_offset) pairs.
+
+    Returns:
+        A callable ``transform(frame) -> composited_frame``.
+    """
+    state: dict = {"frame_index": 0, "current_inputs": list(pre_existing)}
+    sorted_new = sorted(new_inputs_with_offsets, key=lambda x: x[1])
+    sorted_new_iter = iter(sorted_new)
+    next_new: list = [next(sorted_new_iter, None)]
+
+    def transform(frame: np.ndarray) -> np.ndarray:
+        fi = state["frame_index"]
+        state["frame_index"] += 1
+
+        while next_new[0] is not None and next_new[0][1] <= fi:
+            state["current_inputs"].append(next_new[0][0])
+            next_new[0] = next(sorted_new_iter, None)
+
+        sidebar = render_input_sidebar(state["current_inputs"])
+        return composite_overlay(frame, sidebar)
+
+    return transform
+
+
+def apply_overlay_composite(
+    frames: list[np.ndarray],
+    pre_existing_inputs: list,
+    new_inputs_with_offsets: list,
+) -> list[np.ndarray]:
+    """Composite the input sidebar onto a sequence of already-2x-scaled frames.
+
+    Applies a stateful per-frame transform that adds new inputs to the sidebar
+    at the specified frame offsets.
+
+    Args:
+        frames: List of 2x-scaled numpy arrays (H, W, 3). Must be pre-scaled;
+            no internal scaling is applied.
+        pre_existing_inputs: Input dicts visible from frame 0.
+        new_inputs_with_offsets: List of (input_dict, frame_offset) pairs.
+
+    Returns:
+        List of composited frames, each wider by the sidebar width (H, W+192, 3).
+    """
+    transform = _make_frame_transform(pre_existing_inputs, new_inputs_with_offsets)
+    return [transform(f) for f in frames]
+
+
 def save_frames_as_mp4(
     frames: list[np.ndarray],
     fps: int = 10,

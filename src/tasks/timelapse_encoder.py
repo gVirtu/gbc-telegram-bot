@@ -9,19 +9,16 @@ import asyncio
 import fcntl
 import logging
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
-from PIL import Image
+from typing import Dict, List, Optional
 
 import numpy as np
 
 from src.config import settings
 from src.db.manager import DatabaseManager
 from src.utils.frame_utils import (
-    composite_overlay,
-    render_input_sidebar,
     save_frames_as_mp4_optimized,
     save_frames_as_mp4_with_audio,
 )
@@ -38,45 +35,7 @@ class TimelapseJob:
     timestamp: str  # ISO8601 timestamp
     audio_chunks: Optional[List[np.ndarray]] = None
     fps: int = 10
-    pre_existing_inputs: list = field(default_factory=list)  # BufferedInput dicts from before this batch
-    new_inputs_with_offsets: list = field(default_factory=list)  # list of (BufferedInput_dict, frame_offset: int)
 
-
-def make_frame_transform(
-    pre_existing: list,
-    new_inputs_with_offsets: list,
-) -> Callable[[np.ndarray], np.ndarray]:
-    """Build a stateful frame transform for overlay rendering.
-
-    Returns a callable that, when called once per frame in sequence, composites
-    an input sidebar reflecting the accumulated inputs up to that frame.
-
-    Args:
-        pre_existing: List of input dicts already present at frame 0.
-        new_inputs_with_offsets: List of (input_dict, frame_offset) pairs
-            describing inputs that arrive at specific frame indices.
-
-    Returns:
-        A callable ``transform(frame) -> frame`` that applies the sidebar.
-    """
-    state: dict = {"frame_index": 0, "current_inputs": list(pre_existing)}
-    sorted_new = sorted(new_inputs_with_offsets, key=lambda x: x[1])
-    sorted_new_iter = iter(sorted_new)
-    next_new: list = [next(sorted_new_iter, None)]
-
-    def transform(frame: np.ndarray) -> np.ndarray:
-        fi = state["frame_index"]
-        state["frame_index"] += 1
-
-        # Add any new inputs whose frame_offset has been reached
-        while next_new[0] is not None and next_new[0][1] <= fi:
-            state["current_inputs"].append(next_new[0][0])
-            next_new[0] = next(sorted_new_iter, None)
-
-        sidebar = render_input_sidebar(state["current_inputs"])
-        return composite_overlay(frame, sidebar)
-
-    return transform
 
 
 class TimelapseEncoder:
@@ -194,7 +153,6 @@ class TimelapseEncoder:
         video_path: Path,
         frames: List[np.ndarray],
         fps: int = 10,
-        frame_transform: Optional[Callable] = None,
     ) -> None:
         """Create a new daily timelapse video.
 
@@ -202,7 +160,6 @@ class TimelapseEncoder:
             video_path: Path to save the video
             frames: Frames to encode
             fps: Frames per second
-            frame_transform: Optional per-frame transform (e.g. sidebar overlay)
         """
         # Create temporary file
         tmp_path = video_path.with_suffix(".tmp.mp4")
@@ -228,7 +185,6 @@ class TimelapseEncoder:
         frames: List[np.ndarray],
         audio_chunks: List[np.ndarray],
         fps: int,
-        frame_transform: Optional[Callable] = None,
     ) -> None:
         """Create a new realtime timelapse video with audio.
 
@@ -237,7 +193,6 @@ class TimelapseEncoder:
             frames: Frames to encode
             audio_chunks: Audio chunks to include
             fps: Frames per second
-            frame_transform: Optional per-frame transform (e.g. sidebar overlay)
         """
         tmp_path = video_path.with_suffix(".tmp.mp4")
 
@@ -256,7 +211,6 @@ class TimelapseEncoder:
         video_path: Path,
         frames: List[np.ndarray],
         fps: int = 10,
-        frame_transform: Optional[Callable] = None,
     ) -> None:
         """Append frames to an existing timelapse video.
 
@@ -264,7 +218,6 @@ class TimelapseEncoder:
             video_path: Path to existing video
             frames: Frames to append
             fps: Frames per second
-            frame_transform: Optional per-frame transform (e.g. sidebar overlay)
         """
         # Create temporary segment file
         segment_path = video_path.parent / f"segment_{datetime.now().timestamp()}.mp4"
@@ -322,7 +275,6 @@ class TimelapseEncoder:
         frames: List[np.ndarray],
         audio_chunks: List[np.ndarray],
         fps: int,
-        frame_transform: Optional[Callable] = None,
     ) -> None:
         """Append frames with audio to an existing realtime timelapse video.
 
@@ -331,7 +283,6 @@ class TimelapseEncoder:
             frames: Frames to append
             audio_chunks: Audio chunks to include
             fps: Frames per second
-            frame_transform: Optional per-frame transform (e.g. sidebar overlay)
         """
         segment_path = video_path.parent / f"segment_rt_{datetime.now().timestamp()}.mp4"
         concat_list_path = video_path.parent / f"concat_rt_{datetime.now().timestamp()}.txt"
@@ -378,15 +329,7 @@ class TimelapseEncoder:
         """
         chat_id = job.chat_id
 
-        h, w = job.frames[0].shape[:2]
-        h_scaled, w_scaled = h * 2, w * 2
-
-        # TODO: Refactor so that `save_frames_as...` take Images instead of ndarrays 
-        #       so we don't need to wastefully convert back
-        frames = [
-            np.array(Image.fromarray(frame).resize((w_scaled, h_scaled), Image.Resampling.NEAREST))
-            for frame in job.frames
-        ]
+        frames = job.frames
 
         timestamp = job.timestamp
         audio_chunks = job.audio_chunks
@@ -401,14 +344,6 @@ class TimelapseEncoder:
         else:
             video_path = self._get_video_path(chat_id, date)
 
-        # Build frame transform if input overlay data is provided
-        has_inputs = job.pre_existing_inputs or job.new_inputs_with_offsets
-        frame_transform = (
-            make_frame_transform(job.pre_existing_inputs, job.new_inputs_with_offsets)
-            if has_inputs
-            else None
-        )
-
         # Acquire file lock to prevent concurrent access
         lock_path = video_path.with_suffix(".lock")
         lock_path.parent.mkdir(parents=True, exist_ok=True)
@@ -419,14 +354,14 @@ class TimelapseEncoder:
 
                 if video_path.exists():
                     if audio_chunks:
-                        await self._append_realtime_frames(video_path, frames, audio_chunks, fps, frame_transform=frame_transform)
+                        await self._append_realtime_frames(video_path, frames, audio_chunks, fps)
                     else:
-                        await self._append_frames(video_path, frames, fps, frame_transform=frame_transform)
+                        await self._append_frames(video_path, frames, fps)
                 else:
                     if audio_chunks:
-                        await self._create_new_realtime_timelapse(video_path, frames, audio_chunks, fps, frame_transform=frame_transform)
+                        await self._create_new_realtime_timelapse(video_path, frames, audio_chunks, fps)
                     else:
-                        await self._create_new_timelapse(video_path, frames, fps, frame_transform=frame_transform)
+                        await self._create_new_timelapse(video_path, frames, fps)
 
                 await self._update_recap_metadata(chat_id, date, video_path, len(frames))
 
@@ -494,8 +429,6 @@ class TimelapseEncodingQueue:
         timestamp: str,
         audio_chunks: Optional[List[np.ndarray]] = None,
         fps: int = 10,
-        pre_existing_inputs: list = None,
-        new_inputs_with_offsets: list = None,
     ) -> None:
         """Enqueue frames for encoding.
 
@@ -505,8 +438,6 @@ class TimelapseEncodingQueue:
             timestamp: ISO8601 timestamp
             audio_chunks: Optional audio chunks
             fps: Frames per second
-            pre_existing_inputs: Input dicts already present at frame 0
-            new_inputs_with_offsets: List of (input_dict, frame_offset) pairs
         """
         # Create queue and worker for chat if not exists
         if chat_id not in self._queues:
@@ -520,8 +451,6 @@ class TimelapseEncodingQueue:
             timestamp=timestamp,
             audio_chunks=audio_chunks,
             fps=fps,
-            pre_existing_inputs=pre_existing_inputs or [],
-            new_inputs_with_offsets=new_inputs_with_offsets or [],
         )
         await self._queues[chat_id].put(job)
 

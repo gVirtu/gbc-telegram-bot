@@ -2,6 +2,7 @@
 import asyncio
 import os
 import pytest
+import numpy as np
 from io import BytesIO
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -42,7 +43,9 @@ def _mock_controller_for_batch():
     c.begin_hooks.return_value = {}
     c.end_hooks.return_value = None
     c.get_modifier_specs.return_value = []
-    c.get_frame.return_value = MagicMock()
+    c.get_frame.return_value = np.zeros((144, 160, 3), dtype=np.uint8)
+    c.end_capture.return_value = [np.zeros((144, 160, 3), dtype=np.uint8)]
+    c.get_last_captured_audio.return_value = None
     c.get_frame_as_png.return_value = BytesIO(b"png")
     c.send_input.return_value = None
     c.send_input_with_modifier.return_value = None
@@ -440,6 +443,7 @@ class TestProcessQueueLoop:
              patch("src.handlers.input_handler.state_manager") as mock_sm, \
              patch("src.handlers.input_handler.broadcast_game_update", new_callable=AsyncMock), \
              patch("src.handlers.input_handler.generate_tbc_frames", return_value=[]), \
+             patch("src.handlers.input_handler.apply_overlay_composite", return_value=[]), \
              patch("src.handlers.input_handler.settings") as mock_s:
             mock_gcm.get_or_create_controller = AsyncMock(return_value=mock_controller)
             mock_sm.get_or_create_chat_config.return_value = ChatConfig(
@@ -517,6 +521,7 @@ class TestProcessBatchEdgeCases:
              patch("src.handlers.input_handler.state_manager") as mock_sm, \
              patch("src.handlers.input_handler.broadcast_game_update", new_callable=AsyncMock), \
              patch("src.handlers.input_handler.generate_tbc_frames", return_value=[]), \
+             patch("src.handlers.input_handler.apply_overlay_composite", return_value=[]), \
              patch("src.handlers.input_handler.settings") as mock_s:
             mock_gcm.get_or_create_controller = AsyncMock(return_value=controller)
             controller.get_modifier_specs.return_value = [spec]
@@ -545,6 +550,7 @@ class TestProcessBatchEdgeCases:
              patch("src.handlers.input_handler.state_manager") as mock_sm, \
              patch("src.handlers.input_handler.broadcast_game_update", new_callable=AsyncMock), \
              patch("src.handlers.input_handler.generate_tbc_frames", return_value=[]), \
+             patch("src.handlers.input_handler.apply_overlay_composite", return_value=[]), \
              patch("src.handlers.input_handler.settings") as mock_s:
             mock_gcm.get_or_create_controller = AsyncMock(return_value=controller)
             mock_sm.get_or_create_chat_config.return_value = ChatConfig(
@@ -588,6 +594,7 @@ class TestProcessBatchEdgeCases:
              patch("src.handlers.input_handler.state_manager") as mock_sm, \
              patch("src.handlers.input_handler.broadcast_game_update", new_callable=AsyncMock), \
              patch("src.handlers.input_handler.generate_tbc_frames", return_value=[]), \
+             patch("src.handlers.input_handler.apply_overlay_composite", return_value=[]), \
              patch("src.handlers.input_handler.settings") as mock_s:
             mock_gcm.get_or_create_controller = AsyncMock(return_value=controller)
             mock_sm.get_or_create_chat_config.return_value = ChatConfig(
@@ -615,6 +622,7 @@ class TestProcessBatchEdgeCases:
              patch("src.handlers.input_handler.state_manager") as mock_sm, \
              patch("src.handlers.input_handler.broadcast_game_update", new_callable=AsyncMock), \
              patch("src.handlers.input_handler.generate_tbc_frames", return_value=[]), \
+             patch("src.handlers.input_handler.apply_overlay_composite", return_value=[]), \
              patch("src.handlers.input_handler.translation_manager") as mock_tm, \
              patch("src.handlers.input_handler.settings") as mock_s:
             mock_gcm.get_or_create_controller = AsyncMock(return_value=controller)
@@ -643,6 +651,7 @@ class TestProcessBatchEdgeCases:
              patch("src.handlers.input_handler.state_manager") as mock_sm, \
              patch("src.handlers.input_handler.broadcast_game_update", new_callable=AsyncMock) as mock_bcast, \
              patch("src.handlers.input_handler.generate_tbc_frames", return_value=[]), \
+             patch("src.handlers.input_handler.apply_overlay_composite", return_value=[MagicMock()]), \
              patch("src.handlers.input_handler.settings") as mock_s:
             mock_gcm.get_or_create_controller = AsyncMock(return_value=controller)
             mock_sm.get_or_create_chat_config.return_value = ChatConfig(
@@ -672,6 +681,7 @@ class TestProcessBatchEdgeCases:
              patch("src.handlers.input_handler.state_manager") as mock_sm, \
              patch("src.handlers.input_handler.broadcast_game_update", new_callable=AsyncMock), \
              patch("src.handlers.input_handler.generate_tbc_frames", return_value=[]), \
+             patch("src.handlers.input_handler.apply_overlay_composite", return_value=[MagicMock()]), \
              patch("src.tasks.timelapse_encoder.timelapse_queue", mock_timelapse_queue), \
              patch("src.handlers.input_handler.settings") as mock_s:
             mock_gcm.get_or_create_controller = AsyncMock(return_value=controller)
@@ -700,6 +710,7 @@ class TestProcessBatchEdgeCases:
              patch("src.handlers.input_handler.state_manager") as mock_sm, \
              patch("src.handlers.input_handler.broadcast_game_update", new_callable=AsyncMock), \
              patch("src.handlers.input_handler.generate_tbc_frames", return_value=[]), \
+             patch("src.handlers.input_handler.apply_overlay_composite", return_value=[MagicMock()]), \
              patch("src.tasks.timelapse_encoder.timelapse_queue", mock_timelapse_queue), \
              patch("src.handlers.input_handler.settings") as mock_s:
             mock_gcm.get_or_create_controller = AsyncMock(return_value=controller)
@@ -733,6 +744,7 @@ class TestProcessBatchEdgeCases:
              patch("src.handlers.input_handler.state_manager") as mock_sm, \
              patch("src.handlers.input_handler.broadcast_game_update", new_callable=AsyncMock), \
              patch("src.handlers.input_handler.generate_tbc_frames", return_value=[]), \
+             patch("src.handlers.input_handler.apply_overlay_composite", return_value=[MagicMock()]), \
              patch("src.handlers.input_handler.settings") as mock_s, \
              patch.dict("sys.modules", {"src.tasks.timelapse_encoder": fake_timelapse_module}):
             mock_gcm.get_or_create_controller = AsyncMock(return_value=controller)
@@ -761,6 +773,7 @@ class TestProcessBatchEdgeCases:
              patch("src.handlers.input_handler.state_manager") as mock_sm, \
              patch("src.handlers.input_handler.broadcast_game_update", new_callable=AsyncMock), \
              patch("src.handlers.input_handler.generate_tbc_frames", return_value=[]), \
+             patch("src.handlers.input_handler.apply_overlay_composite", return_value=[]), \
              patch("src.handlers.input_handler.settings") as mock_s:
             mock_gcm.get_or_create_controller = AsyncMock(return_value=controller)
             mock_sm.get_or_create_chat_config.return_value = ChatConfig(

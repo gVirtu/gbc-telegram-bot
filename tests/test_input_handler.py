@@ -7,6 +7,7 @@ and input processing flow.
 import asyncio
 import os
 import pytest
+import numpy as np
 from datetime import datetime
 from io import BytesIO
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -296,6 +297,8 @@ class TestInputProcessing:
         controller.send_input.return_value = MagicMock()
         controller.get_frame_as_png.return_value = BytesIO(b"png")
         controller.begin_hooks.return_value = {}
+        controller.end_capture.return_value = [np.zeros((144, 160, 3), dtype=np.uint8)]
+        controller.get_last_captured_audio.return_value = None
         return controller
 
     @pytest.mark.asyncio
@@ -305,18 +308,19 @@ class TestInputProcessing:
             with patch("src.handlers.input_handler.state_manager") as mock_sm:
                 with patch("src.handlers.input_handler.broadcast_game_update", new_callable=AsyncMock):
                     with patch("src.handlers.input_handler.generate_tbc_frames") as mock_tbc:
-                        mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
-                        mock_sm.get_or_create_chat_config.return_value = MagicMock(
-                            modifier_states={}, auto_save_enabled=False
-                        )
-                        mock_controller.get_modifier_specs.return_value = []
-                        mock_tbc.return_value = []
+                        with patch("src.handlers.input_handler.apply_overlay_composite", return_value=[]):
+                            mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
+                            mock_sm.get_or_create_chat_config.return_value = MagicMock(
+                                modifier_states={}, auto_save_enabled=False
+                            )
+                            mock_controller.get_modifier_specs.return_value = []
+                            mock_tbc.return_value = []
 
-                        await handler._process_sequence(123456, [GameButton.B], 789, mock_adapter)
+                            await handler._process_sequence(123456, [GameButton.B], 789, mock_adapter)
 
-                        mock_controller.send_input.assert_called_once()
-                        call_args = mock_controller.send_input.call_args
-                        assert call_args[0][0] == GameButton.B
+                            mock_controller.send_input.assert_called_once()
+                            call_args = mock_controller.send_input.call_args
+                            assert call_args[0][0] == GameButton.B
 
 
 class TestAggregateToRecentInputs:
@@ -546,6 +550,8 @@ class TestWaitButtonProcessing:
         controller.send_input.return_value = MagicMock()
         controller.get_frame_as_png.return_value = BytesIO(b"png")
         controller.begin_hooks.return_value = {}
+        controller.end_capture.return_value = [np.zeros((144, 160, 3), dtype=np.uint8)]
+        controller.get_last_captured_audio.return_value = None
         return controller
 
     @pytest.mark.asyncio
@@ -554,38 +560,7 @@ class TestWaitButtonProcessing:
             with patch("src.handlers.input_handler.state_manager") as mock_sm:
                 with patch("src.handlers.input_handler.broadcast_game_update", new_callable=AsyncMock):
                     with patch("src.handlers.input_handler.generate_tbc_frames") as mock_tbc:
-                        mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
-                        mock_sm.get_or_create_chat_config.return_value = MagicMock(
-                            modifier_states={}, auto_save_enabled=False
-                        )
-                        mock_controller.get_modifier_specs.return_value = []
-                        mock_tbc.return_value = []
-
-                        handler._sessions[123456] = GameSession(
-                            chat_id=123456,
-                            state=ChatGameState(chat_id=123456, message_id=789)
-                        )
-
-                        await handler._process_sequence(123456, [GameButton.WAIT], 789, mock_adapter)
-
-                        mock_controller.send_input.assert_not_called()
-                        assert mock_controller.tick.call_count > 1
-
-    @pytest.mark.asyncio
-    async def test_wait_button_ticks_emulator(self, handler, mock_adapter, mock_controller):
-        with patch("src.handlers.input_handler.game_controller_manager") as mock_mgr:
-            with patch("src.handlers.input_handler.state_manager") as mock_sm:
-                with patch("src.handlers.input_handler.settings") as mock_settings:
-                    with patch("src.handlers.input_handler.broadcast_game_update", new_callable=AsyncMock):
-                        with patch("src.handlers.input_handler.generate_tbc_frames") as mock_tbc:
-                            mock_settings.input_hold_frames = 30
-                            mock_settings.animation_duration = 1
-                            mock_settings.sequence_delay_seconds = 0
-                            mock_settings.tbc_duration_frames = 0
-                            mock_settings.max_queue_size = 10
-                            mock_settings.maximum_inputs_per_animation = 8
-                            mock_settings.tbc_overlay_path = MagicMock()
-                            mock_settings.timelapse_frame_skip = 1
+                        with patch("src.handlers.input_handler.apply_overlay_composite", return_value=[]):
                             mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
                             mock_sm.get_or_create_chat_config.return_value = MagicMock(
                                 modifier_states={}, auto_save_enabled=False
@@ -600,10 +575,43 @@ class TestWaitButtonProcessing:
 
                             await handler._process_sequence(123456, [GameButton.WAIT], 789, mock_adapter)
 
-                            from unittest.mock import call
-                            assert mock_controller.tick.call_args_list[0] == call(frames=30)
-                            for tick_call in mock_controller.tick.call_args_list[1:]:
-                                assert tick_call == call(1)
+                            mock_controller.send_input.assert_not_called()
+                            assert mock_controller.tick.call_count > 1
+
+    @pytest.mark.asyncio
+    async def test_wait_button_ticks_emulator(self, handler, mock_adapter, mock_controller):
+        with patch("src.handlers.input_handler.game_controller_manager") as mock_mgr:
+            with patch("src.handlers.input_handler.state_manager") as mock_sm:
+                with patch("src.handlers.input_handler.settings") as mock_settings:
+                    with patch("src.handlers.input_handler.broadcast_game_update", new_callable=AsyncMock):
+                        with patch("src.handlers.input_handler.generate_tbc_frames") as mock_tbc:
+                            with patch("src.handlers.input_handler.apply_overlay_composite", return_value=[]):
+                                mock_settings.input_hold_frames = 30
+                                mock_settings.animation_duration = 1
+                                mock_settings.sequence_delay_seconds = 0
+                                mock_settings.tbc_duration_frames = 0
+                                mock_settings.max_queue_size = 10
+                                mock_settings.maximum_inputs_per_animation = 8
+                                mock_settings.tbc_overlay_path = MagicMock()
+                                mock_settings.timelapse_frame_skip = 1
+                                mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
+                                mock_sm.get_or_create_chat_config.return_value = MagicMock(
+                                    modifier_states={}, auto_save_enabled=False
+                                )
+                                mock_controller.get_modifier_specs.return_value = []
+                                mock_tbc.return_value = []
+
+                                handler._sessions[123456] = GameSession(
+                                    chat_id=123456,
+                                    state=ChatGameState(chat_id=123456, message_id=789)
+                                )
+
+                                await handler._process_sequence(123456, [GameButton.WAIT], 789, mock_adapter)
+
+                                from unittest.mock import call
+                                assert mock_controller.tick.call_args_list[0] == call(frames=30)
+                                for tick_call in mock_controller.tick.call_args_list[1:]:
+                                    assert tick_call == call(1)
 
     @pytest.mark.asyncio
     async def test_wait_button_runs_animation(self, handler, mock_adapter, mock_controller):
@@ -611,6 +619,7 @@ class TestWaitButtonProcessing:
             patch("src.handlers.input_handler.game_controller_manager") as mock_mgr,
             patch("src.handlers.input_handler.state_manager") as mock_sm,
             patch("src.handlers.input_handler.generate_tbc_frames") as mock_tbc,
+            patch("src.handlers.input_handler.apply_overlay_composite", return_value=[MagicMock()]),
             patch("src.handlers.input_handler.broadcast_game_update", new_callable=AsyncMock) as mock_bcast,
         ):
             mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
@@ -637,22 +646,23 @@ class TestWaitButtonProcessing:
             with patch("src.handlers.input_handler.state_manager") as mock_sm:
                 with patch("src.handlers.input_handler.broadcast_game_update", new_callable=AsyncMock):
                     with patch("src.handlers.input_handler.generate_tbc_frames") as mock_tbc:
-                        mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
-                        mock_sm.get_or_create_chat_config.return_value = MagicMock(
-                            modifier_states={}, auto_save_enabled=False
-                        )
-                        mock_controller.get_modifier_specs.return_value = []
-                        mock_tbc.return_value = []
+                        with patch("src.handlers.input_handler.apply_overlay_composite", return_value=[]):
+                            mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
+                            mock_sm.get_or_create_chat_config.return_value = MagicMock(
+                                modifier_states={}, auto_save_enabled=False
+                            )
+                            mock_controller.get_modifier_specs.return_value = []
+                            mock_tbc.return_value = []
 
-                        handler._sessions[123456] = GameSession(
-                            chat_id=123456,
-                            state=ChatGameState(chat_id=123456, message_id=789)
-                        )
+                            handler._sessions[123456] = GameSession(
+                                chat_id=123456,
+                                state=ChatGameState(chat_id=123456, message_id=789)
+                            )
 
-                        await handler._process_sequence(123456, [GameButton.A], 789, mock_adapter)
+                            await handler._process_sequence(123456, [GameButton.A], 789, mock_adapter)
 
-                        mock_controller.send_input.assert_called_once()
-                        assert mock_controller.tick.call_count > 0
+                            mock_controller.send_input.assert_called_once()
+                            assert mock_controller.tick.call_count > 0
 
 
 class TestModifierButtonHandling:

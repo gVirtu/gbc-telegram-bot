@@ -145,3 +145,23 @@ class TestApplyOverlayComposite:
         result = apply_overlay_composite(frames, pre, [])
         # Frame 0 sidebar should already have text
         assert np.any(result[0][24:, 320:, :] > 10)
+
+    def test_multiple_inputs_at_different_offsets(self):
+        """Two inputs at offsets 1 and 3: frame 0 empty, frame 1 has one, frame 3 has both."""
+        from src.utils.frame_utils import apply_overlay_composite
+        frames = [np.zeros((288, 320, 3), dtype=np.uint8) for _ in range(4)]
+        input_a = {"user_name": "A", "button": "a", "user_id": 1, "timestamp": "2026-01-01T00:00:00"}
+        input_b = {"user_name": "B", "button": "b", "user_id": 2, "timestamp": "2026-01-01T00:00:01"}
+
+        result = apply_overlay_composite(frames, [], [(input_a, 1), (input_b, 3)])
+
+        def sidebar_white_pixel_count(f):
+            return int(np.sum(f[24:, 320:, :] > 10))
+
+        count_0 = sidebar_white_pixel_count(result[0])
+        count_1 = sidebar_white_pixel_count(result[1])
+        count_3 = sidebar_white_pixel_count(result[3])
+
+        assert count_0 == 0, "Frame 0: no inputs yet, sidebar should be black"
+        assert count_1 > 0, "Frame 1: input_a arrives, sidebar should have text"
+        assert count_3 > count_1, "Frame 3: input_b arrives, sidebar should have more text"

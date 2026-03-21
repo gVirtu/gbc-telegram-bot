@@ -263,15 +263,16 @@ def _make_frame_transform(
     state: dict = {"frame_index": 0, "current_inputs": list(pre_existing)}
     sorted_new = sorted(new_inputs_with_offsets, key=lambda x: x[1])
     sorted_new_iter = iter(sorted_new)
-    next_new: list = [next(sorted_new_iter, None)]
+    next_item = next(sorted_new_iter, None)
 
     def transform(frame: np.ndarray) -> np.ndarray:
+        nonlocal next_item
         fi = state["frame_index"]
         state["frame_index"] += 1
 
-        while next_new[0] is not None and next_new[0][1] <= fi:
-            state["current_inputs"].append(next_new[0][0])
-            next_new[0] = next(sorted_new_iter, None)
+        while next_item is not None and next_item[1] <= fi:
+            state["current_inputs"].append(next_item[0])
+            next_item = next(sorted_new_iter, None)
 
         sidebar = render_input_sidebar(state["current_inputs"])
         return composite_overlay(frame, sidebar)

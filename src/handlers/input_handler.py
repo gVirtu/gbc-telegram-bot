@@ -560,8 +560,6 @@ class InputHandler:
             await self._send_error_message(chat_id, error_msg, adapter)
             return {"animation_duration": None}
 
-        animation_duration_seconds = len(frames) / capture_fps
-
         # 1. Scale raw frames 2x
         scaled_frames = [
             np.array(Image.fromarray(f).resize(
@@ -584,6 +582,8 @@ class InputHandler:
         composited_frames = apply_overlay_composite(
             all_frames, pre_existing_inputs_for_overlay, new_inputs_with_offsets
         )
+
+        animation_duration_seconds = len(composited_frames) / capture_fps
 
         recent = session.state.recent_inputs if session else []
         pending_count = self._get_or_create_buffer(chat_id).total_buttons()

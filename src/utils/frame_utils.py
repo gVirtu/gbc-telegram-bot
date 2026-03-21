@@ -436,7 +436,6 @@ async def save_frames_as_mp4_optimized(
     fps: int = 10,
     crf: int = 28,
     preset: str = "medium",
-    frame_transform: Optional[Callable[[np.ndarray], np.ndarray]] = None,
 ) -> None:
     """Save a sequence of frames as an MP4 video with optimized compression.
 
@@ -450,8 +449,6 @@ async def save_frames_as_mp4_optimized(
         fps: Frames per second for the output video
         crf: Constant Rate Factor (quality, lower=better, 0-51)
         preset: Encoding speed preset (medium for balanced compression)
-        frame_transform: Optional callable to transform each frame before encoding.
-            Applied before 2x scaling; changes pixel content but not the scaling step.
 
     Raises:
         ValueError: If no frames provided
@@ -466,11 +463,7 @@ async def save_frames_as_mp4_optimized(
     if not frames:
         raise ValueError("No frames provided")
 
-    # Apply transform to get actual frame dimensions
-    if frame_transform:
-        first_frame = frame_transform(frames[0])
-    else:
-        first_frame = frames[0]
+    first_frame = frames[0]
     h, w = first_frame.shape[:2]
 
     cmd = [
@@ -494,13 +487,8 @@ async def save_frames_as_mp4_optimized(
         stderr=asyncio.subprocess.PIPE,
     )
 
-    # Write frames to stdin; reuse already-transformed first_frame to avoid
-    # calling frame_transform twice on frames[0] (important for stateful transforms)
-    frames_to_encode = [first_frame] + [
-        frame_transform(f) if frame_transform else f for f in frames[1:]
-    ]
-    for actual_frame in frames_to_encode:
-        img = Image.fromarray(actual_frame)
+    for frame in frames:
+        img = Image.fromarray(frame)
         process.stdin.write(np.array(img).tobytes())
 
     process.stdin.close()
@@ -523,7 +511,6 @@ async def save_frames_as_mp4_with_audio(
     crf: int = 28,
     preset: str = "medium",
     sample_rate: int = 48000,
-    frame_transform: Optional[Callable[[np.ndarray], np.ndarray]] = None,
 ) -> None:
     """Save frames as MP4 with audio using FFmpeg.
 
@@ -538,8 +525,6 @@ async def save_frames_as_mp4_with_audio(
         crf: Constant Rate Factor (quality, lower=better, 0-51)
         preset: Encoding speed preset
         sample_rate: Audio sample rate in Hz
-        frame_transform: Optional callable to transform each frame before encoding.
-            Applied before 2x scaling; changes pixel content but not the scaling step.
 
     Raises:
         ValueError: If no frames provided
@@ -550,11 +535,7 @@ async def save_frames_as_mp4_with_audio(
     if not frames:
         raise ValueError("No frames provided")
 
-    # Apply transform to get actual frame dimensions
-    if frame_transform:
-        first_frame = frame_transform(frames[0])
-    else:
-        first_frame = frames[0]
+    first_frame = frames[0]
     h, w = first_frame.shape[:2]
 
     # Convert int8 stereo chunks to int16 PCM and write to temp file
@@ -622,13 +603,8 @@ async def save_frames_as_mp4_with_audio(
             stderr=asyncio.subprocess.PIPE,
         )
 
-        # Write frames to stdin; reuse already-transformed first_frame to avoid
-        # calling frame_transform twice on frames[0] (important for stateful transforms)
-        frames_to_encode = [first_frame] + [
-            frame_transform(f) if frame_transform else f for f in frames[1:]
-        ]
-        for actual_frame in frames_to_encode:
-            img = Image.fromarray(actual_frame)
+        for frame in frames:
+            img = Image.fromarray(frame)
             process.stdin.write(np.array(img).tobytes())
 
         process.stdin.close()

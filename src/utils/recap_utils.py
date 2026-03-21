@@ -13,8 +13,10 @@ async def send_recap_to_chat(
 ) -> bool:
     """Send a recap video for a given date to a chat.
 
-    Looks up the recap record, tries cached file_id first (Telegram only),
-    falls back to disk upload. Updates cached file_id on successful upload.
+    If the realtime_recaps feature flag is set and an rt video exists, sends
+    that. Otherwise looks up the recap record, tries cached file_id first
+    (Telegram only), falls back to disk upload, and updates cached file_id on
+    successful upload.
 
     Args:
         chat_id: Target chat ID to send the recap to
@@ -28,12 +30,30 @@ async def send_recap_to_chat(
     from src.config import settings
     from src.utils.state_manager import state_manager
 
+    video_path = settings.data_dir / "recaps" / str(leader_id) / f"recap_{date_str}.mp4"
+    rt_video_path = settings.data_dir / "recaps" / str(leader_id) / f"recap_{date_str}_rt.mp4"
+
+    leader_config = state_manager.get_or_create_chat_config(leader_id)
+    use_rt = leader_config.feature_flags.get("realtime_recaps") and rt_video_path.exists()
+
+    if use_rt:
+        try:
+            with open(rt_video_path, "rb") as video_file:
+                await adapter.send_video(
+                    chat_id=chat_id,
+                    video=video_file,
+                    caption=f"📅 Recap: {date_str}",
+                )
+            logger.info(f"Sent realtime recap for chat {chat_id} (leader {leader_id}), date {date_str}")
+            return True
+        except Exception as e:
+            logger.error(f"Error sending realtime recap for chat {chat_id}, date {date_str}: {e}")
+            return False
+
     recap_record = await state_manager.get_recap_file(leader_id, date_str)
 
     if recap_record is None:
         return False
-
-    video_path = settings.data_dir / "recaps" / str(leader_id) / f"recap_{date_str}.mp4"
 
     if not video_path.exists():
         return False

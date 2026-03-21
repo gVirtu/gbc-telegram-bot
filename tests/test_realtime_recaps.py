@@ -287,14 +287,16 @@ class TestRecapCommandRealtimeRecaps:
         mock_leader_config = Mock()
         mock_leader_config.feature_flags = {"realtime_recaps": True}
 
-        with patch("src.handlers.commands.state_manager") as mock_state_manager:
-            mock_state_manager.get_recap_file = AsyncMock(return_value=mock_record)
-            mock_state_manager.get_or_create_chat_config = Mock(return_value=mock_leader_config)
+        with patch("src.handlers.commands.state_manager") as mock_commands_sm:
+            mock_commands_sm.get_recap_file = AsyncMock(return_value=mock_record)
 
-            with patch("src.handlers.commands.settings") as mock_settings:
-                mock_settings.data_dir = tmp_path / "data"
+            with patch("src.utils.state_manager.state_manager") as mock_utils_sm:
+                mock_utils_sm.get_or_create_chat_config = Mock(return_value=mock_leader_config)
 
-                await recap_command(ctx)
+                with patch("src.config.settings") as mock_settings:
+                    mock_settings.data_dir = tmp_path / "data"
+
+                    await recap_command(ctx)
 
         # send_video should have been called exactly once
         mock_adapter.send_video.assert_called_once()

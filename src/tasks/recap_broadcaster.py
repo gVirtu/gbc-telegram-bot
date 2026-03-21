@@ -44,7 +44,9 @@ async def _run_broadcast_cycle() -> None:
 
     for leader_id in leader_ids:
         video_path = settings.data_dir / "recaps" / str(leader_id) / f"recap_{yesterday}.mp4"
-        if not video_path.exists():
+        rt_video_path = settings.data_dir / "recaps" / str(leader_id) / f"recap_{yesterday}_rt.mp4"
+
+        if not video_path.exists() and not rt_video_path.exists():
             logger.debug(f"No recap file for leader {leader_id}, date {yesterday}; skipping")
             continue
 

@@ -595,33 +595,6 @@ async def recap_command(ctx: CommandContext) -> None:
         await _send_no_gameplay_message(ctx, date_str, leader_id=leader_id)
         return
 
-    from pathlib import Path
-
-    video_path = settings.data_dir / "recaps" / str(leader_id) / f"recap_{date_str}.mp4"
-    rt_video_path = settings.data_dir / "recaps" / str(leader_id) / f"recap_{date_str}_rt.mp4"
-
-    leader_config = state_manager.get_or_create_chat_config(leader_id)
-    use_rt = leader_config.feature_flags.get("realtime_recaps") and rt_video_path.exists()
-
-    if use_rt:
-        try:
-            with open(rt_video_path, "rb") as video_file:
-                await ctx.adapter.send_video(
-                    chat_id=chat_id,
-                    video=video_file,
-                    caption=f"📅 Recap: {date_str}",
-                )
-                logger.info(f"Sent realtime recap for chat {chat_id} (leader {leader_id}), date {date_str}")
-        except Exception as e:
-            logger.error(f"Error sending realtime recap for chat {chat_id}, date {date_str}: {e}")
-            error_msg = translation_manager.get("commands.recap.error", chat_id)
-            await ctx.adapter.send_text(chat_id, error_msg)
-        return
-
-    if not video_path.exists():
-        await _send_no_gameplay_message(ctx, date_str, leader_id=leader_id)
-        return
-
     success = await send_recap_to_chat(chat_id, leader_id, date_str, ctx.adapter)
     if not success:
         error_msg = translation_manager.get("commands.recap.error", chat_id)

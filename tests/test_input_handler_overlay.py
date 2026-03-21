@@ -6,6 +6,7 @@ and pre_existing_inputs passing to timelapse_queue.enqueue().
 
 import os
 import pytest
+import numpy as np
 from datetime import datetime
 from io import BytesIO
 from unittest.mock import AsyncMock, MagicMock, call, patch
@@ -34,7 +35,7 @@ def _make_mock_controller():
     controller.send_input.return_value = None
     controller.get_frame_as_png.return_value = BytesIO(b"png")
     controller.begin_hooks.return_value = {}
-    controller.end_capture.return_value = [MagicMock()]
+    controller.end_capture.return_value = [np.zeros((144, 160, 3), dtype=np.uint8)]
     controller.get_last_captured_audio.return_value = None
     controller.get_modifier_specs.return_value = []
     return controller
@@ -77,6 +78,7 @@ class TestProcessBatchAppendsRecentInput:
              patch("src.handlers.input_handler.state_manager") as mock_sm, \
              patch("src.handlers.input_handler.broadcast_game_update", new_callable=AsyncMock), \
              patch("src.handlers.input_handler.generate_tbc_frames", return_value=[]), \
+             patch("src.handlers.input_handler.apply_overlay_composite", return_value=[]), \
              patch("src.handlers.input_handler.settings") as mock_settings:
 
             mock_settings.input_hold_frames = 10
@@ -102,8 +104,8 @@ class TestProcessBatchAppendsRecentInput:
             assert "b" in buttons_called
 
 
-class TestProcessBatchTracksFrameOffsets:
-    """Test that _process_batch computes correct frame offsets and passes them to enqueue."""
+class TestProcessBatchCallsApplyOverlayComposite:
+    """Test that _process_batch calls apply_overlay_composite with the correct args."""
 
     @pytest.fixture
     def handler(self):
@@ -115,13 +117,51 @@ class TestProcessBatchTracksFrameOffsets:
         return h
 
     @pytest.mark.asyncio
-    async def test_process_batch_tracks_frame_offsets(self, handler, mock_adapter):
-        """enqueue receives new_inputs_with_offsets as a list of (dict, int) tuples."""
-        batch = _make_batch([
-            (GameButton.A, 1, "Alice"),
-            (GameButton.B, 2, "Bob"),
-        ])
+    async def test_apply_overlay_composite_called_with_pre_existing(
+        self, handler, mock_adapter
+    ):
+        """apply_overlay_composite is called with the pre_existing_inputs from the DB."""
+        pre_existing = [
+            {"user_id": 99, "user_name": "Old", "button": "up", "timestamp": "2026-01-01T00:00:00"},
+        ]
+        batch = _make_batch([(GameButton.A, 1, "Alice")])
 
+        mock_controller = _make_mock_controller()
+        mock_config = _make_mock_config()
+
+        with patch("src.handlers.input_handler.game_controller_manager") as mock_mgr, \
+             patch("src.handlers.input_handler.state_manager") as mock_sm, \
+             patch("src.handlers.input_handler.broadcast_game_update", new_callable=AsyncMock), \
+             patch("src.handlers.input_handler.generate_tbc_frames", return_value=[]), \
+             patch("src.handlers.input_handler.apply_overlay_composite", return_value=[]) as mock_composite, \
+             patch("src.handlers.input_handler.settings") as mock_settings:
+
+            mock_settings.input_hold_frames = 10
+            mock_settings.animation_duration = 0
+            mock_settings.sequence_delay_seconds = 0.0
+            mock_settings.tbc_duration_frames = 0
+            mock_settings.tbc_overlay_path = MagicMock()
+            mock_settings.timelapse_frame_skip = 1
+            mock_settings.max_queue_size = 50
+
+            mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
+            mock_sm.get_or_create_chat_config.return_value = mock_config
+            mock_sm.get_recent_inputs_for_overlay.return_value = pre_existing
+            mock_sm.append_recent_input.return_value = None
+
+            await handler._process_batch(123456, 789, batch, mock_adapter)
+
+            mock_composite.assert_called_once()
+            call_args = mock_composite.call_args
+            assert call_args[0][1] == pre_existing  # second positional arg
+
+
+    @pytest.mark.asyncio
+    async def test_timelapse_enqueue_receives_no_overlay_params(
+        self, handler, mock_adapter
+    ):
+        """timelapse_queue.enqueue is called without pre_existing_inputs or new_inputs_with_offsets."""
+        batch = _make_batch([(GameButton.A, 1, "Alice")])
         mock_controller = _make_mock_controller()
         mock_config = _make_mock_config(feature_flags={"realtime_recaps": True})
         mock_enqueue = AsyncMock()
@@ -132,6 +172,7 @@ class TestProcessBatchTracksFrameOffsets:
              patch("src.handlers.input_handler.state_manager") as mock_sm, \
              patch("src.handlers.input_handler.broadcast_game_update", new_callable=AsyncMock), \
              patch("src.handlers.input_handler.generate_tbc_frames", return_value=[]), \
+             patch("src.handlers.input_handler.apply_overlay_composite", return_value=[MagicMock()]), \
              patch("src.handlers.input_handler.settings") as mock_settings, \
              patch("src.tasks.timelapse_encoder.timelapse_queue", mock_tq):
 
@@ -152,75 +193,8 @@ class TestProcessBatchTracksFrameOffsets:
 
             mock_enqueue.assert_called_once()
             call_kwargs = mock_enqueue.call_args.kwargs
-            niwo = call_kwargs.get("new_inputs_with_offsets")
-            assert niwo is not None
-            assert len(niwo) == 2
-            # Each entry should be a (dict, int) tuple
-            for entry in niwo:
-                input_dict, frame_offset = entry
-                assert isinstance(input_dict, dict)
-                assert isinstance(frame_offset, int)
-                assert "user_id" in input_dict
-                assert "user_name" in input_dict
-                assert "button" in input_dict
-                assert "timestamp" in input_dict
-
-
-class TestProcessBatchPassesPreExistingInputs:
-    """Test that _process_batch fetches and passes pre_existing_inputs to enqueue."""
-
-    @pytest.fixture
-    def handler(self):
-        h = InputHandler()
-        h._sessions[123456] = GameSession(
-            chat_id=123456,
-            state=ChatGameState(chat_id=123456, message_id=789),
-        )
-        return h
-
-    @pytest.mark.asyncio
-    async def test_process_batch_passes_pre_existing_inputs(self, handler, mock_adapter):
-        """enqueue receives the pre_existing_inputs returned by get_recent_inputs_for_overlay."""
-        pre_existing = [
-            {"user_id": 99, "user_name": "OldUser", "button": "up", "timestamp": "2026-01-01T00:00:00"},
-        ]
-
-        batch = _make_batch([
-            (GameButton.A, 1, "Alice"),
-        ])
-
-        mock_controller = _make_mock_controller()
-        mock_config = _make_mock_config(feature_flags={"realtime_recaps": True})
-        mock_enqueue = AsyncMock()
-
-        mock_tq = MagicMock()
-        mock_tq.enqueue = mock_enqueue
-
-        with patch("src.handlers.input_handler.game_controller_manager") as mock_mgr, \
-             patch("src.handlers.input_handler.state_manager") as mock_sm, \
-             patch("src.handlers.input_handler.broadcast_game_update", new_callable=AsyncMock), \
-             patch("src.handlers.input_handler.generate_tbc_frames", return_value=[]), \
-             patch("src.handlers.input_handler.settings") as mock_settings, \
-             patch("src.tasks.timelapse_encoder.timelapse_queue", mock_tq):
-
-            mock_settings.input_hold_frames = 10
-            mock_settings.animation_duration = 0
-            mock_settings.sequence_delay_seconds = 0.0
-            mock_settings.tbc_duration_frames = 0
-            mock_settings.tbc_overlay_path = MagicMock()
-            mock_settings.timelapse_frame_skip = 1
-            mock_settings.max_queue_size = 50
-
-            mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
-            mock_sm.get_or_create_chat_config.return_value = mock_config
-            mock_sm.get_recent_inputs_for_overlay.return_value = pre_existing
-            mock_sm.append_recent_input.return_value = None
-
-            await handler._process_batch(123456, 789, batch, mock_adapter)
-
-            mock_enqueue.assert_called_once()
-            call_kwargs = mock_enqueue.call_args.kwargs
-            assert call_kwargs.get("pre_existing_inputs") == pre_existing
+            assert "pre_existing_inputs" not in call_kwargs
+            assert "new_inputs_with_offsets" not in call_kwargs
 
 
 class TestProcessBatchPreExistingCappedAt30:
@@ -249,6 +223,7 @@ class TestProcessBatchPreExistingCappedAt30:
              patch("src.handlers.input_handler.state_manager") as mock_sm, \
              patch("src.handlers.input_handler.broadcast_game_update", new_callable=AsyncMock), \
              patch("src.handlers.input_handler.generate_tbc_frames", return_value=[]), \
+             patch("src.handlers.input_handler.apply_overlay_composite", return_value=[]), \
              patch("src.handlers.input_handler.settings") as mock_settings:
 
             mock_settings.input_hold_frames = 10

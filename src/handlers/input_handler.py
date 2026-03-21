@@ -11,6 +11,9 @@ import logging
 from typing import Optional
 from datetime import datetime, timedelta
 
+import numpy as np
+from PIL import Image
+
 from src.adapters.base import BotAdapter
 from src.config import settings
 from src.game import game_controller_manager
@@ -23,6 +26,7 @@ from src.keyboard import (
 from src.models.game_state import ChatGameState, GameButton, GameSession, ModifierButtonSpec
 from src.models.input_queue import BufferedInput, PendingBuffer
 from src.utils.frame_utils import (  # noqa: F401 (needed for test patching)
+    apply_overlay_composite,
     generate_tbc_frames,
 )
 from src.utils.mirror_utils import broadcast_game_update, get_leader_chat_id, is_media_only_mirror
@@ -558,13 +562,28 @@ class InputHandler:
 
         animation_duration_seconds = len(frames) / capture_fps
 
+        # 1. Scale raw frames 2x
+        scaled_frames = [
+            np.array(Image.fromarray(f).resize(
+                (f.shape[1] * 2, f.shape[0] * 2), Image.Resampling.NEAREST
+            ))
+            for f in frames
+        ]
+
+        # 2. Generate TBC from the last 2x-scaled game frame (no overlay yet)
         tbc_frames = generate_tbc_frames(
-            frames[-1] if frames else controller.get_frame(),
+            scaled_frames[-1] if scaled_frames else controller.get_frame(),
             overlay_path=settings.tbc_overlay_path,
             duration_frames=settings.tbc_duration_frames,
-            max_width_percent=0.7
+            max_width_percent=0.7,
         )
-        frames.extend(tbc_frames)
+        num_tbc_frames = len(tbc_frames)
+        all_frames = scaled_frames + tbc_frames
+
+        # 3. Composite overlay onto all frames (game + TBC share same final overlay state)
+        composited_frames = apply_overlay_composite(
+            all_frames, pre_existing_inputs_for_overlay, new_inputs_with_offsets
+        )
 
         recent = session.state.recent_inputs if session else []
         pending_count = self._get_or_create_buffer(chat_id).total_buttons()
@@ -576,13 +595,13 @@ class InputHandler:
             chat_id=chat_id,
         )
 
-        if frames:
-            logger.info(f"Generating animation with {len(frames)} frames for chat {chat_id}")
+        if composited_frames:
+            logger.info(f"Generating animation with {len(composited_frames)} frames for chat {chat_id}")
             try:
                 # Broadcast to chat and mirrors (chat_id is always the leader here)
                 try:
                     await broadcast_game_update(
-                        chat_id, caption, frames, capture_fps, modifier_specs
+                        chat_id, caption, composited_frames, capture_fps, modifier_specs
                     )
                 except Exception as e:
                     logger.warning(f"Failed to broadcast game update for chat {chat_id}: {e}")
@@ -599,13 +618,15 @@ class InputHandler:
 
                 if timelapse_queue is not None:
                     try:
-                        frames_without_tbc = frames[:-settings.tbc_duration_frames] if len(frames) > settings.tbc_duration_frames else frames
+                        frames_for_timelapse = (
+                            composited_frames[:-num_tbc_frames] if num_tbc_frames > 0 else composited_frames
+                        )
                         if config.feature_flags.get("realtime_recaps"):
-                            timelapse_frames = frames_without_tbc  # all frames, no skip
+                            timelapse_frames = frames_for_timelapse
                             timelapse_audio = audio_chunks or None
                             timelapse_fps = 15
                         else:
-                            timelapse_frames = frames_without_tbc[::settings.timelapse_frame_skip]
+                            timelapse_frames = frames_for_timelapse[::settings.timelapse_frame_skip]
                             timelapse_audio = None
                             timelapse_fps = 10
                         timestamp = datetime.now().isoformat()
@@ -615,8 +636,6 @@ class InputHandler:
                             timestamp,
                             audio_chunks=timelapse_audio,
                             fps=timelapse_fps,
-                            pre_existing_inputs=pre_existing_inputs_for_overlay,
-                            new_inputs_with_offsets=new_inputs_with_offsets,
                         )
                         logger.debug(f"Enqueued {len(timelapse_frames)} frames for timelapse encoding (chat {chat_id})")
                     except Exception as e:

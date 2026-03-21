@@ -53,7 +53,7 @@ class TestHandleButtonPressLeaderResolution:
             patch("src.handlers.input_handler.get_leader_chat_id", return_value=leader_id),
             patch("src.handlers.input_handler.state_manager") as mock_sm,
             patch("src.handlers.input_handler.game_controller_manager"),
-            patch("src.handlers.input_handler.asyncio.create_task"),
+            patch("src.handlers.input_handler.asyncio.create_task", side_effect=lambda coro, **kw: coro.close()),
         ):
             mock_sm.get_or_create_chat_config.return_value = ChatConfig(chat_id=leader_id)
             leader_session = _make_session(leader_id, 888)
@@ -116,7 +116,7 @@ class TestHandleButtonPressLeaderResolution:
             patch("src.handlers.input_handler.get_leader_chat_id", return_value=chat_id),
             patch("src.handlers.input_handler.state_manager") as mock_sm,
             patch("src.handlers.input_handler.game_controller_manager"),
-            patch("src.handlers.input_handler.asyncio.create_task"),
+            patch("src.handlers.input_handler.asyncio.create_task", side_effect=lambda coro, **kw: coro.close()),
         ):
             mock_sm.get_or_create_chat_config.return_value = ChatConfig(chat_id=chat_id)
             mock_sm.load_game_state.return_value = None
@@ -232,6 +232,7 @@ class TestProcessBatchMirrorBroadcast:
             patch("src.handlers.input_handler.game_controller_manager") as mock_gcm,
             patch("src.handlers.input_handler.state_manager") as mock_sm,
             patch("src.handlers.input_handler.generate_tbc_frames", return_value=[]),
+            patch("src.handlers.input_handler.apply_overlay_composite", return_value=[MagicMock()]),
             patch("src.handlers.input_handler.create_game_message_text", return_value="caption"),
         ):
             mock_gcm.get_or_create_controller = AsyncMock(return_value=mock_controller)
@@ -269,6 +270,7 @@ class TestProcessBatchMirrorBroadcast:
             patch("src.handlers.input_handler.game_controller_manager") as mock_gcm,
             patch("src.handlers.input_handler.state_manager") as mock_sm,
             patch("src.handlers.input_handler.generate_tbc_frames", return_value=[]),
+            patch("src.handlers.input_handler.apply_overlay_composite", return_value=[MagicMock()]),
             patch("src.handlers.input_handler.create_game_message_text", return_value="caption"),
         ):
             mock_gcm.get_or_create_controller = AsyncMock(return_value=mock_controller)

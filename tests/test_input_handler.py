@@ -139,7 +139,7 @@ class TestButtonPressHandling:
         """Test successful button press starts buffer timer and processing loop."""
         with patch("src.handlers.input_handler.state_manager") as mock_state:
             mock_state.save_game_state.return_value = None
-            with patch("src.handlers.input_handler.asyncio.create_task") as mock_create_task:
+            with patch("src.handlers.input_handler.asyncio.create_task", side_effect=lambda coro, **kw: coro.close()) as mock_create_task:
                 handler._sessions[123456] = GameSession(
                     chat_id=123456,
                     state=ChatGameState(chat_id=123456, message_id=789)
@@ -168,7 +168,7 @@ class TestButtonPressHandling:
         """Test that reaching max_sequence_length fires drain event immediately."""
         with patch("src.handlers.input_handler.state_manager") as mock_state:
             mock_state.save_game_state.return_value = None
-            with patch("src.handlers.input_handler.asyncio.create_task"):
+            with patch("src.handlers.input_handler.asyncio.create_task", side_effect=lambda coro, **kw: coro.close()):
                 with patch("src.handlers.input_handler.settings") as mock_settings:
                     mock_settings.max_sequence_length = 2
                     mock_settings.maximum_inputs_per_animation = 8

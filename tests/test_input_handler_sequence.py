@@ -176,7 +176,7 @@ class TestHandleSequenceInput:
              patch.object(handler, "_is_processing", return_value=False), \
              patch.object(handler, "_get_adapter_for_chat", return_value=adapter):
             mock_sm.get_or_create_chat_config.return_value = mock_config
-            mock_asyncio.create_task = MagicMock()
+            mock_asyncio.create_task = MagicMock(side_effect=lambda coro, **kw: coro.close())
             await handler.handle_sequence_input(
                 buttons=[GameButton.UP],
                 chat_id=100,

@@ -26,6 +26,10 @@ async def cancel_pending_tasks():
     next test to fail with OSError: [Errno 9] Bad file descriptor.
     """
     yield
+    # One iteration lets newly-created tasks reach their first await point so
+    # their coroutines are considered "started" — preventing the
+    # "coroutine was never awaited" RuntimeWarning when they are cancelled.
+    await asyncio.sleep(0)
     tasks = [t for t in asyncio.all_tasks() if not t.done() and t is not asyncio.current_task()]
     for task in tasks:
         task.cancel()

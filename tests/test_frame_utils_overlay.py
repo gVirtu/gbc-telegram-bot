@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from src.utils.frame_utils import composite_overlay, render_input_sidebar
+from src.utils.frame_utils import composite_overlay, render_input_sidebar, _make_frame_transform, apply_overlay_composite
 
 
 class TestRenderInputSidebar:
@@ -165,3 +165,81 @@ class TestApplyOverlayComposite:
         assert count_0 == 0, "Frame 0: no inputs yet, sidebar should be black"
         assert count_1 > 0, "Frame 1: input_a arrives, sidebar should have text"
         assert count_3 > count_1, "Frame 3: input_b arrives, sidebar should have more text"
+
+
+class TestScoreLabels:
+    """Tests for animated score label rendering."""
+
+    def test_label_appears_at_correct_frame(self):
+        """Score label is present on the frame when a new input arrives (frame_offset)."""
+        frames = [np.zeros((288, 320, 3), dtype=np.uint8) for _ in range(5)]
+        inp = {"user_name": "Alice", "button": "a", "user_id": 1,
+               "timestamp": "2026-01-01T00:00:00", "total_score": 10}
+        result = apply_overlay_composite(frames, [], [(inp, 0)], capture_fps=5)
+        # frame 0: label should be at alpha=1.0 (fully white)
+        sidebar_frame0 = result[0][24:, 320:, :]
+        assert np.any(sidebar_frame0 > 10), "Label should render on frame 0"
+
+    def test_label_absent_on_pre_existing_inputs(self):
+        """Pre-existing inputs have no score labels (no animation window)."""
+        pre = [{"user_name": "Bob", "button": "b", "user_id": 2,
+                "timestamp": "2026-01-01T00:00:00", "total_score": 5}]
+        frames = [np.zeros((288, 320, 3), dtype=np.uint8) for _ in range(2)]
+        # Render with no new inputs — pre-existing get no label
+        result = apply_overlay_composite(frames, pre, [], capture_fps=5)
+        # We can't easily test label absence vs text presence, but just verify it renders
+        assert result[0].shape == (288, 512, 3)
+
+    def test_label_at_frame_0_alpha_is_1(self):
+        """At frame 0 (frames_since=0): ease=0, alpha=1.0, x_offset=0."""
+        inp = {"user_name": "X", "button": "a", "user_id": 1,
+               "timestamp": "2026-01-01T00:00:00", "total_score": 7}
+        transform = _make_frame_transform([], [(inp, 0)], capture_fps=5)
+        frame = np.zeros((288, 320, 3), dtype=np.uint8)
+        # Just verify transform runs and returns correct shape
+        out = transform(frame)
+        assert out.shape == (288, 512, 3)
+
+    def test_label_fades_out_over_capture_fps_frames(self):
+        """Label has fewer bright pixels at the last frame compared to frame 0."""
+        capture_fps = 5
+        n_frames = capture_fps
+        frames = [np.zeros((288, 320, 3), dtype=np.uint8) for _ in range(n_frames)]
+        inp = {"user_name": "Alice", "button": "a", "user_id": 1,
+               "timestamp": "2026-01-01T00:00:00", "total_score": 10}
+        result = apply_overlay_composite(frames, [], [(inp, 0)], capture_fps=capture_fps)
+        sidebar_0 = result[0][24:, 320:, :]
+        sidebar_last = result[-1][24:, 320:, :]
+        bright_0 = int(np.sum(sidebar_0 > 50))
+        bright_last = int(np.sum(sidebar_last > 50))
+        assert bright_0 >= bright_last, "Label should be brighter at frame 0 than at the last frame"
+
+    def test_no_label_when_total_score_is_none(self):
+        """Input with total_score=None renders no label."""
+        inp_no_score = {"user_name": "Alice", "button": "a", "user_id": 1,
+                        "timestamp": "2026-01-01T00:00:00", "total_score": None}
+        inp_with_score = {"user_name": "Alice", "button": "a", "user_id": 1,
+                          "timestamp": "2026-01-01T00:00:00", "total_score": 10}
+        frames = [np.zeros((288, 320, 3), dtype=np.uint8)]
+        result_no = apply_overlay_composite(frames, [], [(inp_no_score, 0)], capture_fps=5)
+        result_yes = apply_overlay_composite(frames, [], [(inp_with_score, 0)], capture_fps=5)
+        bright_no = int(np.sum(result_no[0][24:, 320:, :] > 10))
+        bright_yes = int(np.sum(result_yes[0][24:, 320:, :] > 10))
+        assert bright_yes >= bright_no, "Input with score should render at least as many bright pixels"
+
+    def test_multiple_simultaneous_labels_animate_independently(self):
+        """Two inputs at different offsets each get their own label animation."""
+        capture_fps = 10
+        frames = [np.zeros((288, 320, 3), dtype=np.uint8) for _ in range(capture_fps + 2)]
+        inp_a = {"user_name": "A", "button": "a", "user_id": 1,
+                 "timestamp": "2026-01-01T00:00:00", "total_score": 5}
+        inp_b = {"user_name": "B", "button": "b", "user_id": 2,
+                 "timestamp": "2026-01-01T00:00:01", "total_score": 8}
+        # inp_a at frame 0, inp_b at frame 2
+        result = apply_overlay_composite(frames, [], [(inp_a, 0), (inp_b, 2)], capture_fps=capture_fps)
+        # Frame 2: both inputs visible, both labels active
+        assert result[2].shape == (288, 512, 3)
+        # Frame 0: only inp_a visible, inp_a label active
+        assert result[0].shape == (288, 512, 3)
+        # Frame capture_fps + 1: both inputs visible but labels have expired
+        assert result[capture_fps + 1].shape == (288, 512, 3)

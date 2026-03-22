@@ -139,6 +139,7 @@ def render_input_sidebar(
     inputs: list,
     width: int = 192,
     height: int = 288,
+    active_labels: Optional[dict] = None,
 ) -> np.ndarray:
     """Render a sidebar showing recent input entries as a numpy RGB array.
 
@@ -150,6 +151,8 @@ def render_input_sidebar(
         inputs: List of dicts with keys: user_name, button (string value)
         width: Width of the sidebar in pixels
         height: Height of the sidebar in pixels
+        active_labels: Optional dict mapping input index → (x_offset_px, alpha_0_to_1)
+            for animated "+score" labels. None means no labels.
 
     Returns:
         np.ndarray of shape (height, width, 3), uint8, black background
@@ -175,16 +178,20 @@ def render_input_sidebar(
     try:
         from PIL import ImageFont
         font = ImageFont.truetype(str(font_path), size=18)
+        label_font = ImageFont.truetype(str(font_path), size=12)
     except Exception:
         from PIL import ImageFont
         font = ImageFont.load_default()
+        label_font = ImageFont.load_default()
 
     line_height = 20
     padding = 4
     y = height - line_height - padding  # start from bottom
 
     # Render inputs bottom-up (most recent at bottom)
-    for entry in reversed(inputs):
+    for idx, entry in enumerate(reversed(inputs)):
+        original_index = len(inputs) - 1 - idx
+
         if y < line_height:
             break  # Stop when we reach the top boundary
 
@@ -202,6 +209,28 @@ def render_input_sidebar(
 
         x = width - text_w - padding
         draw.text((x, y), text, fill=(255, 255, 255), font=font, fontmode="1")
+
+        # Score label animation
+        label_info = (active_labels or {}).get(original_index)
+        score = entry.get("total_score")
+        if label_info is not None and score is not None:
+            x_off, alpha = label_info
+            v = max(0, min(255, int(255 * alpha)))
+            label_text = f"+{score}"
+            try:
+                lbbox = draw.textbbox((0, 0), label_text, font=label_font)
+                lw = lbbox[2] - lbbox[0]
+            except Exception:
+                lw = len(label_text) * 5
+            gap_x = 4
+            gap_y = 4
+
+            lx = x + x_off - lw - gap_x
+            ly = y + gap_y
+            
+            # Fill with yellow tint
+            draw.text((lx, ly), label_text, fill=(v, v, 0), font=label_font, fontmode="1")
+
         y -= line_height
 
     date_str = datetime.utcnow().strftime("%d/%m/%Y")
@@ -247,6 +276,7 @@ def composite_overlay(
 def _make_frame_transform(
     pre_existing: list,
     new_inputs_with_offsets: list,
+    capture_fps: int = 15,
 ) -> Callable[[np.ndarray], np.ndarray]:
     """Build a stateful per-frame transform that composites the input sidebar.
 
@@ -256,6 +286,7 @@ def _make_frame_transform(
     Args:
         pre_existing: Input dicts already visible at frame 0.
         new_inputs_with_offsets: List of (input_dict, frame_offset) pairs.
+        capture_fps: Capture frames per second (used for label animation duration).
 
     Returns:
         A callable ``transform(frame) -> composited_frame``.
@@ -264,6 +295,8 @@ def _make_frame_transform(
     sorted_new = sorted(new_inputs_with_offsets, key=lambda x: x[1])
     sorted_new_iter = iter(sorted_new)
     next_item = next(sorted_new_iter, None)
+    pending = list(sorted_new)
+    score_label_animation_duration = 2 * capture_fps
 
     def transform(frame: np.ndarray) -> np.ndarray:
         nonlocal next_item
@@ -274,7 +307,27 @@ def _make_frame_transform(
             state["current_inputs"].append(next_item[0])
             next_item = next(sorted_new_iter, None)
 
-        sidebar = render_input_sidebar(state["current_inputs"])
+        # Build active score labels for inputs within their N-second animation window
+        active_labels: dict = {}
+        n = len(state["current_inputs"])
+
+        for inp_dict, frame_offset in pending:
+            frames_since = fi - frame_offset
+            if 0 <= frames_since < score_label_animation_duration:
+                for ci in range(n - 1, -1, -1):
+                    if state["current_inputs"][ci] is inp_dict:
+                        translation_t = frames_since / max((score_label_animation_duration//2) - 1, 1)
+                        translation_ease = 1.0 - (1.0 - translation_t) ** 2  # quadratic ease-out
+                        x_offset = -10.0 * translation_ease
+
+                        alpha_t = frames_since / max(score_label_animation_duration - 1, 1)
+                        alpha_ease = 1.0 - (1.0 - alpha_t) ** 2  # quadratic ease-out
+                        alpha = 1.0 - alpha_ease
+
+                        active_labels[ci] = (x_offset, alpha)
+                        break
+
+        sidebar = render_input_sidebar(state["current_inputs"], active_labels=active_labels)
         return composite_overlay(frame, sidebar)
 
     return transform
@@ -284,6 +337,7 @@ def apply_overlay_composite(
     frames: list[np.ndarray],
     pre_existing_inputs: list,
     new_inputs_with_offsets: list,
+    capture_fps: int = 15,
 ) -> list[np.ndarray]:
     """Composite the input sidebar onto a sequence of already-2x-scaled frames.
 
@@ -295,11 +349,12 @@ def apply_overlay_composite(
             no internal scaling is applied.
         pre_existing_inputs: Input dicts visible from frame 0.
         new_inputs_with_offsets: List of (input_dict, frame_offset) pairs.
+        capture_fps: Capture frames per second (used for score label animation duration).
 
     Returns:
         List of composited frames, each wider by the sidebar width (H, W+192, 3).
     """
-    transform = _make_frame_transform(pre_existing_inputs, new_inputs_with_offsets)
+    transform = _make_frame_transform(pre_existing_inputs, new_inputs_with_offsets, capture_fps)
     return [transform(f) for f in frames]
 
 

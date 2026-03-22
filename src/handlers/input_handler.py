@@ -144,17 +144,25 @@ class InputHandler:
         animation_frames: int,
         hook_context: dict,
         game_fps: int,
-    ) -> None:
-        """Tick the game controller for animation frames (capture handled by controller)."""
+    ) -> int:
+        """Tick the game controller for animation frames (capture handled by controller).
+
+        Returns:
+            Number of frames actually ticked.
+        """
         wait_call_threshold = hook_context.get("inputWaitCalls", {}).get("_total", 0) + game_fps
+        count = 0
 
         for _frame_num in range(animation_frames):
             controller.tick(1)
+            count += 1
             if hook_context.get("inputWaitCalls", {}).get("_total", 0) > wait_call_threshold:
                 input_wait_calls = hook_context.get("inputWaitCalls", {})
                 relevant_wait_calls = {k: v for k, v in input_wait_calls.items() if v > 0}
                 logger.debug(f"Input wait loop detected, finishing animation early ({relevant_wait_calls})")
                 break
+
+        return count
 
     # ==================== Button press entry point ====================
 
@@ -494,15 +502,9 @@ class InputHandler:
             # Record frame offset at time of button press
             frame_offset = cumulative_frames // capture_interval_frames  # convert game frames to capture frame index
             bi = batch[i]
-            input_dict = {
-                'user_id': bi.user_id,
-                'user_name': bi.user_name,
-                'button': bi.button.value,
-                'timestamp': bi.received_at.isoformat(),
-            }
-            new_inputs_with_offsets.append((input_dict, frame_offset))
 
-            # Score input and append to DB log
+            # Score input first so total_score can be included in input_dict
+            input_total_score = None
             try:
                 scored = scoring_manager.score_input(
                     platform=config.platform,
@@ -511,6 +513,7 @@ class InputHandler:
                     button=bi.button.value,
                     timestamp=bi.received_at.isoformat(),
                 )
+                input_total_score = scored.total_score
                 state_manager.append_recent_input(
                     chat_id=chat_id,
                     user_id=bi.user_id,
@@ -524,6 +527,15 @@ class InputHandler:
             except Exception as e:
                 logger.warning(f"Failed to append recent input for chat {chat_id}: {e}")
 
+            input_dict = {
+                'user_id': bi.user_id,
+                'user_name': bi.user_name,
+                'button': bi.button.value,
+                'timestamp': bi.received_at.isoformat(),
+                'total_score': input_total_score,
+            }
+            new_inputs_with_offsets.append((input_dict, frame_offset))
+
             # Advance cumulative_frames count
             cumulative_frames += settings.input_hold_frames
             if i < len(buttons) - 1:
@@ -536,12 +548,19 @@ class InputHandler:
         animation_frames = int(settings.animation_duration * game_fps)
         auto_press_call_threshold = hook_context.get("autoPressA", {}).get("_total", 0) + game_fps
 
-        self._tick_and_capture_animation_frames(
+        actual_ticked = self._tick_and_capture_animation_frames(
             controller,
             animation_frames,
             hook_context,
             game_fps,
         )
+
+        # Guarantee ≥2 second (2 * capture_fps capture frames) after last user input
+        capture_frames_elapsed = actual_ticked // capture_interval_frames
+        capture_frames_expected = 2 * capture_fps
+        remaining_capture = capture_frames_expected - capture_frames_elapsed
+        if remaining_capture > 0:
+            controller.tick(remaining_capture * capture_interval_frames)
 
         # Auto press A and capture more frames ahead (e.g.: during NPC dialogue)
         while hook_context.get("autoPressA", {}).get("_total", 0) >= auto_press_call_threshold:
@@ -591,7 +610,7 @@ class InputHandler:
 
         # 3. Composite overlay onto all frames (game + TBC share same final overlay state)
         composited_frames = apply_overlay_composite(
-            all_frames, pre_existing_inputs_for_overlay, new_inputs_with_offsets
+            all_frames, pre_existing_inputs_for_overlay, new_inputs_with_offsets, capture_fps
         )
 
         animation_duration_seconds = len(composited_frames) / capture_fps

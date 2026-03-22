@@ -589,6 +589,7 @@ class TestProcessBatchEdgeCases:
                 # First call: simulate autoPressA threshold being reached
                 initial_context["autoPressA"]["_total"] = 60
             # Subsequent calls: _total stays at 60, threshold becomes 120, while exits
+            return 60  # return frame count (≥ capture_fps so no padding needed)
 
         with patch("src.handlers.input_handler.game_controller_manager") as mock_gcm, \
              patch("src.handlers.input_handler.state_manager") as mock_sm, \
@@ -838,6 +839,41 @@ class TestTickAndCaptureAnimationFramesEarlyBreak:
 
         # All 5 frames should have been processed
         assert controller.tick.call_count == 5
+
+    def test_returns_count_of_ticked_frames_no_early_exit(self):
+        """Returns the number of frames actually ticked (no early break)."""
+        handler = _handler()
+        controller = MagicMock()
+        hook_context = {"inputWaitCalls": {"_total": 0}}
+
+        count = handler._tick_and_capture_animation_frames(
+            controller=controller,
+            animation_frames=7,
+            hook_context=hook_context,
+            game_fps=60,
+        )
+
+        assert count == 7
+
+    def test_returns_count_of_ticked_frames_with_early_exit(self):
+        """Returns the number of frames ticked before early break."""
+        handler = _handler()
+        controller = MagicMock()
+        hook_context = {"inputWaitCalls": {"_total": 0}}
+
+        def mutate_on_tick(n):
+            hook_context["inputWaitCalls"]["_total"] = 61  # > threshold 60
+
+        controller.tick.side_effect = mutate_on_tick
+
+        count = handler._tick_and_capture_animation_frames(
+            controller=controller,
+            animation_frames=100,
+            hook_context=hook_context,
+            game_fps=60,
+        )
+
+        assert count == 1  # broke after first tick
 
 
 class TestShowCurrentFrameFallbackPaths:

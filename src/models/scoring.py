@@ -41,6 +41,7 @@ class PlayerProfile:
         best_streak: All-time best streak
         best_streak_date: UTC date when best_streak was set (ISO format)
         last_input_at: UTC timestamp of last scored input (ISO format)
+        name_tag_color: Hex color string for the player's name tag (default #FFFFFF)
     """
 
     platform: str

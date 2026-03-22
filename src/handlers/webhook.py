@@ -183,8 +183,8 @@ class WebhookHandler:
                 return
             items, total_pages = _sm.get_page(page)
             balance = _sm.get_balance(platform, user_id)
-            text = _build_shop_text(balance, page, total_pages, dm_chat_id)
-            keyboard = _build_shop_keyboard(dm_chat_id, source_chat_id, page, total_pages, items)
+            text = _build_shop_text(balance, page, total_pages, source_chat_id)
+            keyboard = _build_shop_keyboard(source_chat_id, source_chat_id, page, total_pages, items)
             await callback_query.message.edit_text(text, reply_markup=keyboard)
             await callback_query.answer()
 
@@ -200,23 +200,23 @@ class WebhookHandler:
             items, total_pages = _sm.get_page(page)
             balance = _sm.get_balance(platform, user_id)
             if result.success:
-                item_name = translation_manager.get(result.item.name_i18n_key, dm_chat_id)
+                item_name = translation_manager.get(result.item.name_i18n_key, source_chat_id)
                 status = translation_manager.get(
-                    "shop.purchase_success", dm_chat_id, item_name=item_name
+                    "shop.purchase_success", source_chat_id, item_name=item_name
                 )
             else:
                 if result.item:
                     status = translation_manager.get(
-                        "shop.insufficient_funds", dm_chat_id,
+                        "shop.insufficient_funds", source_chat_id,
                         cost=f"{result.item.cost:,}", balance=f"{balance:,}"
                     )
                 else:
                     status = translation_manager.get(
-                        "shop.insufficient_funds", dm_chat_id,
+                        "shop.insufficient_funds", source_chat_id,
                         cost="?", balance=f"{balance:,}"
                     )
-            text = _build_shop_text(balance, page, total_pages, dm_chat_id, status_message=status)
-            keyboard = _build_shop_keyboard(dm_chat_id, source_chat_id, page, total_pages, items)
+            text = _build_shop_text(balance, page, total_pages, source_chat_id, status_message=status)
+            keyboard = _build_shop_keyboard(source_chat_id, source_chat_id, page, total_pages, items)
             await callback_query.message.edit_text(text, reply_markup=keyboard)
             await callback_query.answer()
 

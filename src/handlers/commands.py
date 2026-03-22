@@ -973,8 +973,8 @@ async def _show_shop(
     """Send or edit the shop message in ctx's chat."""
     items, total_pages = shop_manager.get_page(page)
     balance = shop_manager.get_balance(ctx.adapter.platform, ctx.user_id)
-    text = _build_shop_text(balance, page, total_pages, ctx.chat_id, status_message)
-    keyboard = _build_shop_keyboard(ctx.chat_id, source_chat_id, page, total_pages, items)
+    text = _build_shop_text(balance, page, total_pages, source_chat_id, status_message)
+    keyboard = _build_shop_keyboard(source_chat_id, source_chat_id, page, total_pages, items)
     await ctx.adapter.send_text(ctx.chat_id, text, reply_markup=keyboard)
 
 

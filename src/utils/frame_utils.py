@@ -198,17 +198,41 @@ def render_input_sidebar(
         button_val = entry.get("button", "")
         button_char = BUTTON_CHARS.get(button_val, button_val)
         user_name = entry.get("user_name", "?")
-        text = f"{user_name}: {button_char}"
+        suffix = f": {button_char}"
 
-        # Right-align: measure text width
+        # Measure username and suffix widths independently
         try:
-            bbox = draw.textbbox((0, 0), text, font=font)
-            text_w = bbox[2] - bbox[0]
+            name_bbox = draw.textbbox((0, 0), user_name, font=font)
+            name_natural_w = name_bbox[2] - name_bbox[0]
         except Exception:
-            text_w = len(text) * 6
+            name_natural_w = len(user_name) * 6
 
-        x = width - text_w - padding
-        draw.text((x, y), text, fill=(255, 255, 255), font=font, fontmode="1")
+        try:
+            suf_bbox = draw.textbbox((0, 0), suffix, font=font)
+            suffix_w = suf_bbox[2] - suf_bbox[0]
+        except Exception:
+            suffix_w = len(suffix) * 6
+
+        max_name_w = max(int(width * 0.8) - suffix_w, 1)
+
+        if name_natural_w > max_name_w and name_natural_w > 0:
+            # Compress username horizontally to fit within budget
+            tmp = Image.new("RGB", (name_natural_w, line_height), (0, 0, 0))
+            tmp_draw = ImageDraw.Draw(tmp)
+            tmp_draw.text((0, 0), user_name, fill=(255, 255, 255), font=font, fontmode="1")
+            tmp = tmp.resize((max_name_w, line_height), Image.Resampling.LANCZOS)
+            x = width - max_name_w - suffix_w - padding
+            img.paste(tmp, (x, y))
+            draw.text((x + max_name_w, y), suffix, fill=(255, 255, 255), font=font, fontmode="1")
+        else:
+            text = f"{user_name}{suffix}"
+            try:
+                tb = draw.textbbox((0, 0), text, font=font)
+                text_w = tb[2] - tb[0]
+            except Exception:
+                text_w = len(text) * 6
+            x = width - text_w - padding
+            draw.text((x, y), text, fill=(255, 255, 255), font=font, fontmode="1")
 
         # Score label animation
         label_info = (active_labels or {}).get(original_index)

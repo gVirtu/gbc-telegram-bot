@@ -18,6 +18,8 @@ from src.handlers.input_handler import get_input_handler
 from src.i18n import translation_manager, SUPPORTED_LANGUAGES
 from src.keyboard import create_help_text
 from src.models.game_state import KNOWN_FEATURE_FLAGS
+from src.shop.shop_manager import shop_manager
+from src.shop.items import SHOP_ITEMS, ITEMS_PER_PAGE
 from src.utils.media_cache import load_last_animation
 from src.utils.mirror_utils import broadcast_text, get_leader_chat_id, is_media_only_mirror
 from src.utils.recap_utils import send_recap_to_chat
@@ -914,8 +916,113 @@ async def maintenance_command(ctx: CommandContext) -> None:
     logger.info(f"Maintenance mode {arg} for chat {chat_id}")
 
 
+def _build_shop_text(
+    balance: int,
+    page: int,
+    total_pages: int,
+    chat_id: int,
+    status_message: str | None = None,
+) -> str:
+    """Build the shop message text."""
+    parts = []
+    if status_message:
+        parts.append(status_message)
+    parts.append(translation_manager.get("shop.balance", chat_id, balance=f"{balance:,}"))
+    parts.append(translation_manager.get("shop.page_indicator", chat_id, page=page + 1, total=total_pages))
+    return "\n".join(parts)
+
+
+def _build_shop_keyboard(
+    chat_id: int, source_chat_id: int, page: int, total_pages: int, items: list
+) -> "InlineKeyboardMarkup":
+    """Build the shop inline keyboard for Telegram."""
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+    rows = []
+    for item in items:
+        name = translation_manager.get(item.name_i18n_key, chat_id)
+        cost_label = "free" if item.cost == 0 else f"{item.cost:,} pts"
+        rows.append([InlineKeyboardButton(
+            f"{name} — {cost_label}",
+            callback_data=f"shop_buy_{source_chat_id}_{item.id}",
+        )])
+
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton(
+            translation_manager.get("shop.prev", chat_id),
+            callback_data=f"shop_page_{source_chat_id}_{page - 1}",
+        ))
+    if page < total_pages - 1:
+        nav.append(InlineKeyboardButton(
+            translation_manager.get("shop.next", chat_id),
+            callback_data=f"shop_page_{source_chat_id}_{page + 1}",
+        ))
+    if nav:
+        rows.append(nav)
+
+    return InlineKeyboardMarkup(rows)
+
+
+async def _show_shop(
+    ctx: "CommandContext",
+    source_chat_id: int,
+    page: int,
+    status_message: str | None = None,
+) -> None:
+    """Send or edit the shop message in ctx's chat."""
+    items, total_pages = shop_manager.get_page(page)
+    balance = shop_manager.get_balance(ctx.adapter.platform, ctx.user_id)
+    text = _build_shop_text(balance, page, total_pages, ctx.chat_id, status_message)
+    keyboard = _build_shop_keyboard(ctx.chat_id, source_chat_id, page, total_pages, items)
+    await ctx.adapter.send_text(ctx.chat_id, text, reply_markup=keyboard)
+
+
+async def start_command(ctx: CommandContext) -> None:
+    """Handle /start with a deep-link payload (e.g. shop_{chat_id})."""
+    if not ctx.args:
+        return
+    payload = ctx.args[0]
+    if payload.startswith("shop_"):
+        chat_id_str = payload.removeprefix("shop_")
+        try:
+            source_chat_id = int(chat_id_str)
+        except ValueError:
+            return  # malformed — silent ignore
+        ok, error_key = shop_manager.validate_shop_access(
+            "telegram", ctx.user_id, source_chat_id
+        )
+        if not ok:
+            if error_key:
+                await ctx.adapter.send_text(
+                    ctx.chat_id,
+                    translation_manager.get(error_key, ctx.chat_id),
+                )
+            return
+        await _show_shop(ctx, source_chat_id, page=0)
+
+
+async def shop_command(ctx: CommandContext) -> None:
+    """Handle /shop <chat_id> (Telegram DM only)."""
+    if not ctx.args:
+        return
+    try:
+        source_chat_id = int(ctx.args[0])
+    except (ValueError, IndexError):
+        return
+    ok, error_key = shop_manager.validate_shop_access("telegram", ctx.user_id, source_chat_id)
+    if not ok:
+        if error_key:
+            await ctx.adapter.send_text(
+                ctx.chat_id, translation_manager.get(error_key, ctx.chat_id)
+            )
+        return
+    await _show_shop(ctx, source_chat_id, page=0)
+
+
 # Command handlers dictionary
 COMMAND_HANDLERS = {
+    "start": start_command,
     "start_game": start_game_command,
     "resume": resume_command,
     "reboot": reboot_command,
@@ -931,4 +1038,5 @@ COMMAND_HANDLERS = {
     "maintenance": maintenance_command,
     "mirror": mirror_command,
     "feature": feature_command,
+    "shop": shop_command,
 }

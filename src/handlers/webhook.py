@@ -157,8 +157,66 @@ class WebhookHandler:
                 logger.warning(f"Invalid load_slot callback: {callback_data}")
         elif callback_data == "cancel_load":
             await callback_query.message.edit_text("Load cancelled.")
+        elif callback_data.startswith("shop_page_") or callback_data.startswith("shop_buy_"):
+            await self._handle_shop_callback(update, callback_data)
         else:
             logger.debug(f"Unhandled callback: {callback_data}")
+
+    async def _handle_shop_callback(self, update: "Update", callback_data: str) -> None:
+        """Handle shop pagination and purchase callbacks."""
+        from src.handlers.commands import _build_shop_keyboard, _build_shop_text
+        from src.shop.shop_manager import shop_manager as _sm
+        from src.i18n import translation_manager
+
+        callback_query = update.callback_query
+        user_id = callback_query.from_user.id
+        dm_chat_id = callback_query.message.chat.id  # the DM chat
+        platform = "telegram"
+
+        if callback_data.startswith("shop_page_"):
+            rest = callback_data.removeprefix("shop_page_")
+            source_chat_id_str, page_str = rest.split("_", 1)
+            try:
+                source_chat_id = int(source_chat_id_str)
+                page = int(page_str)
+            except ValueError:
+                return
+            items, total_pages = _sm.get_page(page)
+            balance = _sm.get_balance(platform, user_id)
+            text = _build_shop_text(balance, page, total_pages, dm_chat_id)
+            keyboard = _build_shop_keyboard(dm_chat_id, source_chat_id, page, total_pages, items)
+            await callback_query.message.edit_text(text, reply_markup=keyboard)
+
+        elif callback_data.startswith("shop_buy_"):
+            rest = callback_data.removeprefix("shop_buy_")
+            source_chat_id_str, item_id = rest.split("_", 1)
+            try:
+                source_chat_id = int(source_chat_id_str)
+            except ValueError:
+                return
+            result = _sm.purchase(platform, user_id, item_id)
+            page = 0  # return to page 0 after purchase
+            items, total_pages = _sm.get_page(page)
+            balance = _sm.get_balance(platform, user_id)
+            if result.success:
+                item_name = translation_manager.get(result.item.name_i18n_key, dm_chat_id)
+                status = translation_manager.get(
+                    "shop.purchase_success", dm_chat_id, item_name=item_name
+                )
+            else:
+                if result.item:
+                    status = translation_manager.get(
+                        "shop.insufficient_funds", dm_chat_id,
+                        cost=f"{result.item.cost:,}", balance=f"{balance:,}"
+                    )
+                else:
+                    status = translation_manager.get(
+                        "shop.insufficient_funds", dm_chat_id,
+                        cost="?", balance=f"{balance:,}"
+                    )
+            text = _build_shop_text(balance, page, total_pages, dm_chat_id, status_message=status)
+            keyboard = _build_shop_keyboard(dm_chat_id, source_chat_id, page, total_pages, items)
+            await callback_query.message.edit_text(text, reply_markup=keyboard)
 
     async def _handle_message(self, update: Update) -> None:
         """Handle incoming message (commands)."""
@@ -209,7 +267,15 @@ class WebhookHandler:
                 logger.warning("Could not extract chat ID from update")
                 return
 
-            if not self._is_chat_allowed(chat_id):
+            is_private = (
+                (update.message and update.message.chat.type == "private")
+                or (
+                    update.callback_query
+                    and update.callback_query.message
+                    and update.callback_query.message.chat.type == "private"
+                )
+            )
+            if not is_private and not self._is_chat_allowed(chat_id):
                 logger.warning(f"Ignored update from unauthorized chat {chat_id}")
                 return
 

@@ -20,6 +20,20 @@ from PIL import Image, ImageDraw
 logger = logging.getLogger(__name__)
 
 
+def hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
+    """Convert a hex color string to an RGB tuple.
+
+    Args:
+        hex_color: Hex color string, with or without leading '#'.
+
+    Returns:
+        (r, g, b) tuple with values 0-255.
+    """
+    h = hex_color.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return r, g, b
+
+
 def hash_frame(frame: np.ndarray) -> str:
     """Create a SHA256 hash of a frame buffer for deduplication.
     
@@ -140,6 +154,7 @@ def render_input_sidebar(
     width: int = 192,
     height: int = 288,
     active_labels: Optional[dict] = None,
+    user_colors: Optional[dict] = None,
 ) -> np.ndarray:
     """Render a sidebar showing recent input entries as a numpy RGB array.
 
@@ -199,6 +214,7 @@ def render_input_sidebar(
         button_char = BUTTON_CHARS.get(button_val, button_val)
         user_name = entry.get("user_name", "?")
         suffix = f": {button_char}"
+        color = user_colors.get(user_name, (255, 255, 255)) if user_colors else (255, 255, 255)
 
         # Measure username and suffix widths independently
         try:
@@ -219,11 +235,11 @@ def render_input_sidebar(
             # Compress username horizontally to fit within budget
             tmp = Image.new("RGB", (name_natural_w, line_height), (0, 0, 0))
             tmp_draw = ImageDraw.Draw(tmp)
-            tmp_draw.text((0, 0), user_name, fill=(255, 255, 255), font=font, fontmode="1")
+            tmp_draw.text((0, 0), user_name, fill=color, font=font, fontmode="1")
             tmp = tmp.resize((max_name_w, line_height), Image.Resampling.LANCZOS)
             x = width - max_name_w - suffix_w - padding
             img.paste(tmp, (x, y))
-            draw.text((x + max_name_w, y), suffix, fill=(255, 255, 255), font=font, fontmode="1")
+            draw.text((x + max_name_w, y), suffix, fill=color, font=font, fontmode="1")
         else:
             text = f"{user_name}{suffix}"
             try:
@@ -232,7 +248,7 @@ def render_input_sidebar(
             except Exception:
                 text_w = len(text) * 6
             x = width - text_w - padding
-            draw.text((x, y), text, fill=(255, 255, 255), font=font, fontmode="1")
+            draw.text((x, y), text, fill=color, font=font, fontmode="1")
 
         # Score label animation
         label_info = (active_labels or {}).get(original_index)
@@ -301,6 +317,7 @@ def _make_frame_transform(
     pre_existing: list,
     new_inputs_with_offsets: list,
     capture_fps: int = 15,
+    user_colors: Optional[dict] = None,
 ) -> Callable[[np.ndarray], np.ndarray]:
     """Build a stateful per-frame transform that composites the input sidebar.
 
@@ -351,7 +368,7 @@ def _make_frame_transform(
                         active_labels[ci] = (x_offset, alpha)
                         break
 
-        sidebar = render_input_sidebar(state["current_inputs"], active_labels=active_labels)
+        sidebar = render_input_sidebar(state["current_inputs"], active_labels=active_labels, user_colors=user_colors)
         return composite_overlay(frame, sidebar)
 
     return transform
@@ -362,6 +379,7 @@ def apply_overlay_composite(
     pre_existing_inputs: list,
     new_inputs_with_offsets: list,
     capture_fps: int = 15,
+    user_colors: Optional[dict] = None,
 ) -> list[np.ndarray]:
     """Composite the input sidebar onto a sequence of already-2x-scaled frames.
 
@@ -378,7 +396,7 @@ def apply_overlay_composite(
     Returns:
         List of composited frames, each wider by the sidebar width (H, W+192, 3).
     """
-    transform = _make_frame_transform(pre_existing_inputs, new_inputs_with_offsets, capture_fps)
+    transform = _make_frame_transform(pre_existing_inputs, new_inputs_with_offsets, capture_fps, user_colors=user_colors)
     return [transform(f) for f in frames]
 
 

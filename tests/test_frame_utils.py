@@ -14,6 +14,8 @@ from src.utils.frame_utils import (
     frame_to_png,
     frames_equal,
     hash_frame,
+    hex_to_rgb,
+    render_input_sidebar,
     save_frames_as_mp4,
     save_frames_as_avif,
 )
@@ -376,3 +378,56 @@ class TestSaveFramesAsGif:
                 assert np.all(pixels[:, :, 3] == 255), (
                     f"Frame {frame_idx}: black pixels have unexpected transparency"
                 )
+
+
+class TestHexToRgb:
+    def test_white(self):
+        assert hex_to_rgb("#FFFFFF") == (255, 255, 255)
+
+    def test_red(self):
+        assert hex_to_rgb("#FF0000") == (255, 0, 0)
+
+    def test_green(self):
+        assert hex_to_rgb("#00FF00") == (0, 255, 0)
+
+    def test_blue(self):
+        assert hex_to_rgb("#0000FF") == (0, 0, 255)
+
+    def test_yellow(self):
+        assert hex_to_rgb("#FFFF00") == (255, 255, 0)
+
+    def test_magenta(self):
+        assert hex_to_rgb("#FF00FF") == (255, 0, 255)
+
+    def test_cyan(self):
+        assert hex_to_rgb("#00FFFF") == (0, 255, 255)
+
+    def test_no_hash(self):
+        assert hex_to_rgb("FF0000") == (255, 0, 0)
+
+
+class TestRenderInputSidebarUserColors:
+    def _make_inputs(self):
+        return [{"user_name": "Alice", "button": "a", "total_score": 10}]
+
+    def test_defaults_to_white_when_no_user_colors(self):
+        # Should not raise; white is used
+        sidebar = render_input_sidebar(self._make_inputs(), user_colors=None)
+        assert sidebar is not None
+
+    def test_uses_provided_color(self):
+        # Red Alice vs white Alice — sidebars should differ
+        red = render_input_sidebar(
+            self._make_inputs(), user_colors={"Alice": (255, 0, 0)}
+        )
+        white = render_input_sidebar(
+            self._make_inputs(), user_colors={"Alice": (255, 255, 255)}
+        )
+        assert not (red == white).all()
+
+    def test_falls_back_to_white_for_missing_key(self):
+        # Should not raise when user_name not in dict
+        sidebar = render_input_sidebar(
+            self._make_inputs(), user_colors={"Bob": (255, 0, 0)}
+        )
+        assert sidebar is not None

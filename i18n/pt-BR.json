@@ -206,5 +206,24 @@
       "invalid_chars": "❌ Caracteres inválidos: {chars}",
       "success": "⌨️ Enfileirado: {buttons}"
     }
+  },
+  "shop": {
+    "button_label": "💎 LOJA",
+    "balance": "Saldo: {balance} pts",
+    "page_indicator": "Página {page}/{total}",
+    "prev": "◀ Anterior",
+    "next": "Próximo ▶",
+    "purchase_success": "✅ {item_name} resgatado!",
+    "insufficient_funds": "❌ Pontos insuficientes (precisa de {cost}, tem {balance}).",
+    "no_profile": "❌ Você ainda não jogou.",
+    "items": {
+      "name_tag_white": "Tag de Nome Branca",
+      "name_tag_red": "Tag de Nome Vermelha",
+      "name_tag_green": "Tag de Nome Verde",
+      "name_tag_blue": "Tag de Nome Azul",
+      "name_tag_yellow": "Tag de Nome Amarela",
+      "name_tag_magenta": "Tag de Nome Magenta",
+      "name_tag_cyan": "Tag de Nome Ciano"
+    }
   }
 }

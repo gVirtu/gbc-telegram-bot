@@ -206,5 +206,24 @@
       "invalid_chars": "❌ Invalid characters: {chars}",
       "success": "⌨️ Queued: {buttons}"
     }
+  },
+  "shop": {
+    "button_label": "💎 SHOP",
+    "balance": "Balance: {balance} pts",
+    "page_indicator": "Page {page}/{total}",
+    "prev": "◀ Previous",
+    "next": "Next ▶",
+    "purchase_success": "✅ {item_name} redeemed!",
+    "insufficient_funds": "❌ Not enough points (need {cost}, have {balance}).",
+    "no_profile": "❌ You haven't played yet.",
+    "items": {
+      "name_tag_white": "White Name Tag",
+      "name_tag_red": "Red Name Tag",
+      "name_tag_green": "Green Name Tag",
+      "name_tag_blue": "Blue Name Tag",
+      "name_tag_yellow": "Yellow Name Tag",
+      "name_tag_magenta": "Magenta Name Tag",
+      "name_tag_cyan": "Cyan Name Tag"
+    }
   }
 }

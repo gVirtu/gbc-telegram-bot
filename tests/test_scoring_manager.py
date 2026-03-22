@@ -276,3 +276,16 @@ class TestMigrationDefaults:
         assert row["streak_bonus"] == 0
         assert row["total_score"] == 0
         raw.close()
+
+
+def test_player_profile_has_name_tag_color_default(manager):
+    """PlayerProfile has name_tag_color field defaulting to #FFFFFF."""
+    from unittest.mock import patch
+    _ensure_game_state(manager._conn, chat_id=1)
+    with patch("src.utils.scoring_manager.settings") as s:
+        s.player_input_max_score = 5
+        s.daily_streak_score_bonus = 10
+        manager.score_input("telegram", 1, 1, "a", "2026-01-01T00:00:00")
+    profile = manager.get_player_profile("telegram", 1)
+    assert profile is not None
+    assert profile.name_tag_color == "#FFFFFF"

@@ -87,6 +87,7 @@ class ScoringManager:
             best_streak=row["best_streak"],
             best_streak_date=row["best_streak_date"],
             last_input_at=row["last_input_at"],
+            name_tag_color=row["name_tag_color"],
         )
 
     # ------------------------------------------------------------------ #

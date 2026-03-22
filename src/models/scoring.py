@@ -51,3 +51,4 @@ class PlayerProfile:
     best_streak: int
     best_streak_date: str | None
     last_input_at: str | None
+    name_tag_color: str = "#FFFFFF"

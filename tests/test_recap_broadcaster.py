@@ -4,13 +4,14 @@ import asyncio
 import os
 import pytest
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch, call
 
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "test_token")
 os.environ.setdefault("WEBHOOK_URL", "https://test.example.com")
 os.environ.setdefault("WEBHOOK_SECRET", "test_secret_1234567890")
 
 from src.tasks.recap_broadcaster import _run_broadcast_cycle, run_recap_broadcast_loop
+from src.utils.recap_utils import send_recap_to_chat
 
 
 # ---------------------------------------------------------------------------
@@ -212,3 +213,205 @@ class TestRunRecapBroadcastLoop:
         with patch("src.tasks.recap_broadcaster.asyncio.sleep", side_effect=asyncio.CancelledError):
             with pytest.raises(asyncio.CancelledError):
                 await run_recap_broadcast_loop()
+
+
+# ---------------------------------------------------------------------------
+# Tests for send_recap_to_chat multi-part logic
+# ---------------------------------------------------------------------------
+
+def make_part(part_number, is_rt=False, file_id=None):
+    part = Mock()
+    part.part_number = part_number
+    part.is_rt = is_rt
+    part.file_id = file_id
+    return part
+
+
+class TestSendRecapToChat:
+    """Tests for multi-part send_recap_to_chat."""
+
+    @pytest.mark.asyncio
+    async def test_no_parts_returns_false(self, tmp_path):
+        """Returns False when no parts exist in DB."""
+        adapter = make_adapter()
+        with (
+            patch("src.utils.recap_utils.state_manager") as mock_sm,
+            patch("src.utils.recap_utils.settings") as mock_settings,
+        ):
+            mock_settings.data_dir = tmp_path
+            mock_settings.recap_part_send_delay_seconds = 10.0
+            mock_sm.get_or_create_chat_config.return_value = MagicMock(feature_flags={})
+            mock_sm.get_recap_parts = AsyncMock(return_value=[])
+
+            result = await send_recap_to_chat(100, 100, "20260221", adapter)
+
+        assert result is False
+        adapter.send_video.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_single_part_sends_no_delay(self, tmp_path):
+        """Single part is sent without delay."""
+        adapter = make_adapter()
+        video_path = tmp_path / "recaps" / "100" / "recap_20260221.mp4"
+        video_path.parent.mkdir(parents=True)
+        video_path.write_bytes(b"fake video")
+
+        with (
+            patch("src.utils.recap_utils.state_manager") as mock_sm,
+            patch("src.utils.recap_utils.settings") as mock_settings,
+            patch("src.utils.recap_utils.asyncio.sleep", new_callable=AsyncMock) as mock_sleep,
+        ):
+            mock_settings.data_dir = tmp_path
+            mock_settings.recap_part_send_delay_seconds = 10.0
+            mock_sm.get_or_create_chat_config.return_value = MagicMock(feature_flags={})
+            mock_sm.get_recap_parts = AsyncMock(return_value=[make_part(1)])
+            mock_sm.update_recap_file_id = AsyncMock()
+
+            result = await send_recap_to_chat(100, 100, "20260221", adapter)
+
+        assert result is True
+        adapter.send_video.assert_called_once()
+        mock_sleep.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_multi_part_sends_delay_between_parts_not_after_last(self, tmp_path):
+        """Delay is inserted between parts but NOT after the last part."""
+        adapter = make_adapter()
+        recap_dir = tmp_path / "recaps" / "100"
+        recap_dir.mkdir(parents=True)
+        # Part 1 uses named file, last part uses suffixless
+        (recap_dir / "recap_20260221_part1.mp4").write_bytes(b"part1")
+        (recap_dir / "recap_20260221.mp4").write_bytes(b"part2")
+
+        with (
+            patch("src.utils.recap_utils.state_manager") as mock_sm,
+            patch("src.utils.recap_utils.settings") as mock_settings,
+            patch("src.utils.recap_utils.asyncio.sleep", new_callable=AsyncMock) as mock_sleep,
+        ):
+            mock_settings.data_dir = tmp_path
+            mock_settings.recap_part_send_delay_seconds = 10.0
+            mock_sm.get_or_create_chat_config.return_value = MagicMock(feature_flags={})
+            mock_sm.get_recap_parts = AsyncMock(return_value=[make_part(1), make_part(2)])
+            mock_sm.update_recap_file_id = AsyncMock()
+
+            result = await send_recap_to_chat(100, 100, "20260221", adapter)
+
+        assert result is True
+        assert adapter.send_video.call_count == 2
+        mock_sleep.assert_called_once_with(10.0)
+
+    @pytest.mark.asyncio
+    async def test_cache_hit_reuses_file_id_per_part(self, tmp_path):
+        """File ID is reused for parts that have a cached file_id (Telegram)."""
+        adapter = make_adapter(platform="telegram")
+        adapter.send_video = AsyncMock(return_value="new_file_id")
+
+        recap_dir = tmp_path / "recaps" / "100"
+        recap_dir.mkdir(parents=True)
+        (recap_dir / "recap_20260221.mp4").write_bytes(b"part1")
+
+        with (
+            patch("src.utils.recap_utils.state_manager") as mock_sm,
+            patch("src.utils.recap_utils.settings") as mock_settings,
+            patch("src.utils.recap_utils.asyncio.sleep", new_callable=AsyncMock),
+        ):
+            mock_settings.data_dir = tmp_path
+            mock_settings.recap_part_send_delay_seconds = 10.0
+            mock_sm.get_or_create_chat_config.return_value = MagicMock(feature_flags={})
+            mock_sm.get_recap_parts = AsyncMock(return_value=[make_part(1, file_id="cached_fid")])
+
+            result = await send_recap_to_chat(100, 100, "20260221", adapter)
+
+        assert result is True
+        # Called with the cached file_id (not an open file)
+        adapter.send_video.assert_called_once()
+        call_video_arg = adapter.send_video.call_args.kwargs.get("video")
+        assert call_video_arg == "cached_fid"
+
+    @pytest.mark.asyncio
+    async def test_cache_miss_falls_back_to_disk(self, tmp_path):
+        """Cache failure falls back to disk upload and other parts are unaffected."""
+        adapter = make_adapter(platform="telegram")
+        # First call (file_id) raises, second (disk) succeeds
+        adapter.send_video = AsyncMock(side_effect=[Exception("expired"), "new_file_id"])
+
+        recap_dir = tmp_path / "recaps" / "100"
+        recap_dir.mkdir(parents=True)
+        (recap_dir / "recap_20260221.mp4").write_bytes(b"video")
+
+        with (
+            patch("src.utils.recap_utils.state_manager") as mock_sm,
+            patch("src.utils.recap_utils.settings") as mock_settings,
+            patch("src.utils.recap_utils.asyncio.sleep", new_callable=AsyncMock),
+        ):
+            mock_settings.data_dir = tmp_path
+            mock_settings.recap_part_send_delay_seconds = 10.0
+            mock_sm.get_or_create_chat_config.return_value = MagicMock(feature_flags={})
+            mock_sm.get_recap_parts = AsyncMock(return_value=[make_part(1, file_id="stale_fid")])
+            mock_sm.update_recap_file_id = AsyncMock()
+
+            result = await send_recap_to_chat(100, 100, "20260221", adapter)
+
+        assert result is True
+        assert adapter.send_video.call_count == 2
+        # new_file_id should have been cached
+        mock_sm.update_recap_file_id.assert_called_once_with(100, "20260221", 1, False, "new_file_id")
+
+    @pytest.mark.asyncio
+    async def test_missing_part_file_skipped_send_continues(self, tmp_path):
+        """Missing part file is skipped with a warning; remaining parts are still sent."""
+        adapter = make_adapter()
+        recap_dir = tmp_path / "recaps" / "100"
+        recap_dir.mkdir(parents=True)
+        # Only last part file exists
+        (recap_dir / "recap_20260221.mp4").write_bytes(b"part2")
+        # Part 1 file intentionally absent
+
+        with (
+            patch("src.utils.recap_utils.state_manager") as mock_sm,
+            patch("src.utils.recap_utils.settings") as mock_settings,
+            patch("src.utils.recap_utils.asyncio.sleep", new_callable=AsyncMock) as mock_sleep,
+        ):
+            mock_settings.data_dir = tmp_path
+            mock_settings.recap_part_send_delay_seconds = 10.0
+            mock_sm.get_or_create_chat_config.return_value = MagicMock(feature_flags={})
+            mock_sm.get_recap_parts = AsyncMock(return_value=[make_part(1), make_part(2)])
+            mock_sm.update_recap_file_id = AsyncMock()
+
+            result = await send_recap_to_chat(100, 100, "20260221", adapter)
+
+        # Part 2 was still sent
+        assert result is True
+        adapter.send_video.assert_called_once()
+        # Delay was still applied after the skipped part 1 (before part 2)
+        mock_sleep.assert_called_once_with(10.0)
+
+    @pytest.mark.asyncio
+    async def test_discord_no_file_id_logic(self, tmp_path):
+        """On Discord, file_id cache is never used regardless of parts."""
+        adapter = make_adapter(platform="discord")
+        adapter.send_video = AsyncMock(return_value=None)
+
+        recap_dir = tmp_path / "recaps" / "100"
+        recap_dir.mkdir(parents=True)
+        (recap_dir / "recap_20260221.mp4").write_bytes(b"video")
+
+        with (
+            patch("src.utils.recap_utils.state_manager") as mock_sm,
+            patch("src.utils.recap_utils.settings") as mock_settings,
+            patch("src.utils.recap_utils.asyncio.sleep", new_callable=AsyncMock),
+        ):
+            mock_settings.data_dir = tmp_path
+            mock_settings.recap_part_send_delay_seconds = 10.0
+            mock_sm.get_or_create_chat_config.return_value = MagicMock(feature_flags={})
+            # Part has a file_id but it should NOT be used on Discord
+            mock_sm.get_recap_parts = AsyncMock(return_value=[make_part(1, file_id="some_file_id")])
+            mock_sm.update_recap_file_id = AsyncMock()
+
+            result = await send_recap_to_chat(100, 100, "20260221", adapter)
+
+        assert result is True
+        # Called once with a file-like object (disk upload), not with the file_id string
+        adapter.send_video.assert_called_once()
+        video_arg = adapter.send_video.call_args.kwargs.get("video")
+        assert hasattr(video_arg, "read"), "Expected disk upload on Discord"

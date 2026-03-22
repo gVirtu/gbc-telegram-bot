@@ -41,6 +41,8 @@ class TestRecapFileDatabase:
         assert record is not None
         assert record.chat_id == 123
         assert record.date == "20260221"
+        assert record.part_number == 1
+        assert record.is_rt is False
         assert record.file_id is None  # Initially null
         assert record.frame_count == 100
         assert record.duration_sec == 10.0
@@ -61,7 +63,7 @@ class TestRecapFileDatabase:
         )
 
         # Set file_id
-        await db_manager.update_recap_file_id(123, "20260221", "file_123")
+        await db_manager.update_recap_file_id(123, "20260221", 1, False, "file_123")
 
         # Upsert again (should increment frame count and duration)
         await db_manager.upsert_recap_metadata(
@@ -89,7 +91,7 @@ class TestRecapFileDatabase:
             file_size_bytes=50000,
         )
 
-        await db_manager.update_recap_file_id(123, "20260221", "telegram_file_id_xyz")
+        await db_manager.update_recap_file_id(123, "20260221", 1, False, "telegram_file_id_xyz")
 
         record = await db_manager.get_recap_file(123, "20260221")
         assert record.file_id == "telegram_file_id_xyz"
@@ -159,3 +161,93 @@ class TestRecapFileDatabase:
         # Nearest dates should not cross chats
         result = await db_manager.get_nearest_recap_date(123, "20260220", "after")
         assert result == "20260221"
+
+    # ==================== New tests for parts ====================
+
+    @pytest.mark.asyncio
+    async def test_get_recap_parts_empty(self, db_manager):
+        """Test get_recap_parts returns empty list when no records exist."""
+        parts = await db_manager.get_recap_parts(123, "20260221", False)
+        assert parts == []
+
+    @pytest.mark.asyncio
+    async def test_get_recap_parts_single(self, db_manager):
+        """Test get_recap_parts returns single part after upsert."""
+        await db_manager.upsert_recap_metadata(123, "20260221", 100, 10.0, 50000, part_number=1, is_rt=False)
+
+        parts = await db_manager.get_recap_parts(123, "20260221", False)
+        assert len(parts) == 1
+        assert parts[0].part_number == 1
+        assert parts[0].is_rt is False
+        assert parts[0].frame_count == 100
+
+    @pytest.mark.asyncio
+    async def test_get_recap_parts_ordered_by_part_number(self, db_manager):
+        """Test get_recap_parts returns rows ordered by part_number ascending."""
+        await db_manager.upsert_recap_metadata(123, "20260221", 100, 10.0, 50000, part_number=1, is_rt=False)
+        await db_manager.split_recap_part(123, "20260221", 1, False)
+        await db_manager.upsert_recap_metadata(123, "20260221", 50, 5.0, 25000, part_number=2, is_rt=False)
+
+        parts = await db_manager.get_recap_parts(123, "20260221", False)
+        assert len(parts) == 2
+        assert parts[0].part_number == 1
+        assert parts[1].part_number == 2
+
+    @pytest.mark.asyncio
+    async def test_split_recap_part_nullifies_file_id(self, db_manager):
+        """Test split_recap_part nullifies file_id on current part."""
+        await db_manager.upsert_recap_metadata(123, "20260221", 100, 10.0, 50000)
+        await db_manager.update_recap_file_id(123, "20260221", 1, False, "cached_file_id")
+
+        # Verify file_id is set
+        parts_before = await db_manager.get_recap_parts(123, "20260221", False)
+        assert parts_before[0].file_id == "cached_file_id"
+
+        await db_manager.split_recap_part(123, "20260221", 1, False)
+
+        parts_after = await db_manager.get_recap_parts(123, "20260221", False)
+        assert len(parts_after) == 2
+        assert parts_after[0].file_id is None  # Nullified
+        assert parts_after[1].part_number == 2
+        assert parts_after[1].frame_count == 0  # Fresh row
+
+    @pytest.mark.asyncio
+    async def test_rt_and_non_rt_rows_do_not_collide(self, db_manager):
+        """Test that RT and non-RT rows for the same (chat_id, date) are independent."""
+        await db_manager.upsert_recap_metadata(123, "20260221", 100, 10.0, 50000, part_number=1, is_rt=False)
+        await db_manager.upsert_recap_metadata(123, "20260221", 80, 8.0, 40000, part_number=1, is_rt=True)
+
+        non_rt_parts = await db_manager.get_recap_parts(123, "20260221", False)
+        rt_parts = await db_manager.get_recap_parts(123, "20260221", True)
+
+        assert len(non_rt_parts) == 1
+        assert len(rt_parts) == 1
+        assert non_rt_parts[0].frame_count == 100
+        assert rt_parts[0].frame_count == 80
+        assert non_rt_parts[0].is_rt is False
+        assert rt_parts[0].is_rt is True
+
+    @pytest.mark.asyncio
+    async def test_get_nearest_recap_date_distinct_with_multiple_parts(self, db_manager):
+        """Test get_nearest_recap_date returns distinct dates even when multiple parts exist."""
+        # Insert multiple parts for the same date
+        await db_manager.upsert_recap_metadata(123, "20260218", 100, 10.0, 50000, part_number=1)
+        await db_manager.split_recap_part(123, "20260218", 1, False)
+        await db_manager.upsert_recap_metadata(123, "20260218", 50, 5.0, 25000, part_number=2)
+
+        await db_manager.upsert_recap_metadata(123, "20260220", 100, 10.0, 50000)
+
+        # Should only return 20260218 once, not duplicate
+        result = await db_manager.get_nearest_recap_date(123, "20260219", "before")
+        assert result == "20260218"
+
+    @pytest.mark.asyncio
+    async def test_get_recap_file_returns_highest_part(self, db_manager):
+        """Test get_recap_file returns the row with highest part_number."""
+        await db_manager.upsert_recap_metadata(123, "20260221", 100, 10.0, 50000, part_number=1)
+        await db_manager.split_recap_part(123, "20260221", 1, False)
+        await db_manager.upsert_recap_metadata(123, "20260221", 50, 5.0, 25000, part_number=2)
+
+        record = await db_manager.get_recap_file(123, "20260221")
+        assert record is not None
+        assert record.part_number == 2

@@ -197,6 +197,7 @@ class TestTimelapseEncoder:
 
         with patch('src.tasks.timelapse_encoder.settings') as mock_settings:
             mock_settings.data_dir = tmp_path / "data"
+            mock_settings.recap_part_file_size_threshold = 10 * 1024 * 1024
 
             with patch('src.tasks.timelapse_encoder.save_frames_as_mp4_optimized', side_effect=mock_save_func):
                 with patch('fcntl.flock') as mock_flock:

@@ -122,20 +122,47 @@ class TimelapseEncoder:
         except Exception as e:
             logger.error(f"Failed to save failed frames: {e}")
 
-    async def _update_recap_metadata(self, chat_id: int, date: str, video_path: Path, frame_count: int) -> None:
+    async def _get_current_part_number(self, chat_id: int, date: str, is_rt: bool) -> int:
+        """Get the current (highest) part number for a chat/date/is_rt combination.
+
+        Args:
+            chat_id: The Telegram chat ID
+            date: Date in YYYYMMDD format
+            is_rt: Whether this is a realtime recap
+
+        Returns:
+            Highest part_number, or 1 if no rows exist yet
+        """
+        parts = await self.db_manager.get_recap_parts(chat_id, date, is_rt)
+        if not parts:
+            return 1
+        return max(p.part_number for p in parts)
+
+    async def _update_recap_metadata(
+        self,
+        chat_id: int,
+        date: str,
+        video_path: Path,
+        frame_count: int,
+        is_rt: bool = False,
+        current_part_number: int = 1,
+    ) -> None:
         """Update database with recap metadata.
 
         Args:
             chat_id: The Telegram chat ID
             date: Date in YYYYMMDD format
             video_path: Path to the video file
+            frame_count: Number of frames encoded
+            is_rt: Whether this is a realtime recap
+            current_part_number: Part number to upsert
         """
         try:
             file_size = video_path.stat().st_size
 
             # Estimate duration from file size and typical bitrate
-            # With 10 FPS and our encoding settings, estimate
-            duration_sec = frame_count / 10
+            # With 15 FPS and our encoding settings, estimate
+            duration_sec = frame_count / 15
 
             await self.db_manager.upsert_recap_metadata(
                 chat_id=chat_id,
@@ -143,10 +170,40 @@ class TimelapseEncoder:
                 added_frame_count=frame_count,
                 added_duration_sec=duration_sec,
                 file_size_bytes=file_size,
+                part_number=current_part_number,
+                is_rt=is_rt,
             )
 
         except Exception as e:
             logger.error(f"Failed to update recap metadata: {e}")
+
+    async def _check_and_split_if_needed(
+        self,
+        chat_id: int,
+        date: str,
+        video_path: Path,
+        is_rt: bool,
+        current_part_number: int,
+    ) -> None:
+        """Rename current part file and create a new DB row if size threshold is exceeded.
+
+        Args:
+            chat_id: The Telegram chat ID
+            date: Date in YYYYMMDD format
+            video_path: Path to the current (suffixless) video file
+            is_rt: Whether this is a realtime recap
+            current_part_number: The current part number
+        """
+        if not video_path.exists():
+            return
+        if video_path.stat().st_size <= settings.recap_part_file_size_threshold:
+            return
+
+        suffix = "_rt" if is_rt else ""
+        part_path = video_path.parent / f"recap_{date}_part{current_part_number}{suffix}.mp4"
+        os.rename(video_path, part_path)
+        await self.db_manager.split_recap_part(chat_id, date, current_part_number, is_rt)
+        logger.info(f"Split recap for chat {chat_id}, date {date} into part {current_part_number}")
 
     async def _create_new_timelapse(
         self,
@@ -363,7 +420,10 @@ class TimelapseEncoder:
                     else:
                         await self._create_new_timelapse(video_path, frames, fps)
 
-                await self._update_recap_metadata(chat_id, date, video_path, len(frames))
+                is_rt = bool(audio_chunks)
+                current_part_number = await self._get_current_part_number(chat_id, date, is_rt)
+                await self._update_recap_metadata(chat_id, date, video_path, len(frames), is_rt, current_part_number)
+                await self._check_and_split_if_needed(chat_id, date, video_path, is_rt, current_part_number)
 
             finally:
                 fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)

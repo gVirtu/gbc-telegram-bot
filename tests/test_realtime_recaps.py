@@ -274,7 +274,7 @@ class TestRecapCommandRealtimeRecaps:
         """When realtime_recaps flag is on and _rt.mp4 exists, send_video uses _rt.mp4."""
         ctx = make_ctx(mock_adapter, args=["20260312"])
 
-        # Create the _rt.mp4 file
+        # Create the _rt.mp4 file (last/only part uses suffixless name)
         rt_video_path = tmp_path / "data" / "recaps" / "123" / "recap_20260312_rt.mp4"
         rt_video_path.parent.mkdir(parents=True, exist_ok=True)
         rt_video_path.write_bytes(b"fake realtime video data")
@@ -287,14 +287,22 @@ class TestRecapCommandRealtimeRecaps:
         mock_leader_config = Mock()
         mock_leader_config.feature_flags = {"realtime_recaps": True}
 
+        mock_rt_part = Mock()
+        mock_rt_part.part_number = 1
+        mock_rt_part.is_rt = True
+        mock_rt_part.file_id = None
+
         with patch("src.handlers.commands.state_manager") as mock_commands_sm:
             mock_commands_sm.get_recap_file = AsyncMock(return_value=mock_record)
 
-            with patch("src.utils.state_manager.state_manager") as mock_utils_sm:
+            with patch("src.utils.recap_utils.state_manager") as mock_utils_sm:
                 mock_utils_sm.get_or_create_chat_config = Mock(return_value=mock_leader_config)
+                mock_utils_sm.get_recap_parts = AsyncMock(return_value=[mock_rt_part])
+                mock_utils_sm.update_recap_file_id = AsyncMock()
 
-                with patch("src.config.settings") as mock_settings:
+                with patch("src.utils.recap_utils.settings") as mock_settings:
                     mock_settings.data_dir = tmp_path / "data"
+                    mock_settings.recap_part_send_delay_seconds = 10.0
 
                     await recap_command(ctx)
 
@@ -336,3 +344,89 @@ class TestRecapCommandRealtimeRecaps:
                     mock_send.return_value = True
                     await recap_command(ctx)
                     mock_send.assert_called_once_with(123, 123, "20260312", mock_adapter)
+
+
+# ---------------------------------------------------------------------------
+# Tests for TimelapseEncoder split logic
+# ---------------------------------------------------------------------------
+
+
+class TestTimelapseEncoderSplitLogic:
+    """Tests for _check_and_split_if_needed and _get_current_part_number."""
+
+    @pytest.mark.asyncio
+    async def test_no_split_when_file_below_threshold(self, encoder, tmp_path):
+        """File below threshold does not trigger rename or DB split."""
+        video_path = tmp_path / "recap_20260312.mp4"
+        video_path.write_bytes(b"small")
+
+        with patch("src.tasks.timelapse_encoder.settings") as mock_settings:
+            mock_settings.recap_part_file_size_threshold = 10 * 1024 * 1024
+
+            with patch.object(encoder.db_manager, "split_recap_part", new_callable=AsyncMock) as mock_split:
+                await encoder._check_and_split_if_needed(123, "20260312", video_path, False, 1)
+
+        assert video_path.exists()
+        mock_split.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_split_when_file_exceeds_threshold(self, encoder, tmp_path):
+        """File over threshold is renamed to _partN and DB split is called."""
+        video_path = tmp_path / "recap_20260312.mp4"
+        video_path.write_bytes(b"x" * 100)
+
+        with patch("src.tasks.timelapse_encoder.settings") as mock_settings:
+            mock_settings.recap_part_file_size_threshold = 50  # very low threshold
+
+            with patch.object(encoder.db_manager, "split_recap_part", new_callable=AsyncMock) as mock_split:
+                await encoder._check_and_split_if_needed(123, "20260312", video_path, False, 1)
+
+        part_path = tmp_path / "recap_20260312_part1.mp4"
+        assert part_path.exists()
+        assert not video_path.exists()
+        mock_split.assert_called_once_with(123, "20260312", 1, False)
+
+    @pytest.mark.asyncio
+    async def test_split_rt_uses_rt_suffix(self, encoder, tmp_path):
+        """RT splits use _rt suffix in the part filename."""
+        video_path = tmp_path / "recap_20260312_rt.mp4"
+        video_path.write_bytes(b"x" * 100)
+
+        with patch("src.tasks.timelapse_encoder.settings") as mock_settings:
+            mock_settings.recap_part_file_size_threshold = 50
+
+            with patch.object(encoder.db_manager, "split_recap_part", new_callable=AsyncMock) as mock_split:
+                await encoder._check_and_split_if_needed(123, "20260312", video_path, True, 2)
+
+        part_path = tmp_path / "recap_20260312_part2_rt.mp4"
+        assert part_path.exists()
+        assert not video_path.exists()
+        mock_split.assert_called_once_with(123, "20260312", 2, True)
+
+    @pytest.mark.asyncio
+    async def test_no_split_when_file_missing(self, encoder, tmp_path):
+        """Missing file does not raise and does not trigger split."""
+        video_path = tmp_path / "nonexistent.mp4"
+
+        with patch("src.tasks.timelapse_encoder.settings") as mock_settings:
+            mock_settings.recap_part_file_size_threshold = 1
+
+            with patch.object(encoder.db_manager, "split_recap_part", new_callable=AsyncMock) as mock_split:
+                await encoder._check_and_split_if_needed(123, "20260312", video_path, False, 1)
+
+        mock_split.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_get_current_part_number_defaults_to_1_when_no_parts(self, encoder):
+        """Returns 1 when no DB rows exist for the chat/date/is_rt."""
+        result = await encoder._get_current_part_number(123, "20260312", False)
+        assert result == 1
+
+    @pytest.mark.asyncio
+    async def test_get_current_part_number_returns_highest(self, encoder):
+        """Returns the highest part_number from DB rows."""
+        await encoder.db_manager.upsert_recap_metadata(123, "20260312", 100, 10.0, 1000, part_number=1)
+        await encoder.db_manager.split_recap_part(123, "20260312", 1, False)
+
+        result = await encoder._get_current_part_number(123, "20260312", False)
+        assert result == 2

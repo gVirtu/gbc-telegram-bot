@@ -1,6 +1,10 @@
 """Utilities for sending recap videos to chats."""
 
+import asyncio
 import logging
+
+from src.config import settings
+from src.utils.state_manager import state_manager
 
 logger = logging.getLogger(__name__)
 
@@ -13,10 +17,9 @@ async def send_recap_to_chat(
 ) -> bool:
     """Send a recap video for a given date to a chat.
 
-    If the realtime_recaps feature flag is set and an rt video exists, sends
-    that. Otherwise looks up the recap record, tries cached file_id first
-    (Telegram only), falls back to disk upload, and updates cached file_id on
-    successful upload.
+    Fetches all parts for the recap (RT or regular based on feature flag),
+    sends them in order with a delay between parts, and caches file_ids on
+    successful upload (Telegram only).
 
     Args:
         chat_id: Target chat ID to send the recap to
@@ -25,68 +28,63 @@ async def send_recap_to_chat(
         adapter: Platform adapter to use for sending
 
     Returns:
-        True on success, False if no record/file or on any exception
+        True if at least one part was sent, False otherwise
     """
-    from src.config import settings
-    from src.utils.state_manager import state_manager
-
-    video_path = settings.data_dir / "recaps" / str(leader_id) / f"recap_{date_str}.mp4"
-    rt_video_path = settings.data_dir / "recaps" / str(leader_id) / f"recap_{date_str}_rt.mp4"
-
     leader_config = state_manager.get_or_create_chat_config(leader_id)
-    use_rt = leader_config.feature_flags.get("realtime_recaps") and rt_video_path.exists()
+    is_rt = leader_config.feature_flags.get("realtime_recaps", False)
 
-    if use_rt:
+    parts = await state_manager.get_recap_parts(leader_id, date_str, is_rt)
+
+    if not parts:
+        return False
+
+    sent_any = False
+    for i, part in enumerate(parts):
+        is_last = (i == len(parts) - 1)
+        suffix = "_rt" if is_rt else ""
+        if is_last:
+            file_path = settings.data_dir / "recaps" / str(leader_id) / f"recap_{date_str}{suffix}.mp4"
+        else:
+            file_path = settings.data_dir / "recaps" / str(leader_id) / f"recap_{date_str}_part{part.part_number}{suffix}.mp4"
+
+        if not file_path.exists():
+            logger.warning(f"Recap part {part.part_number} missing on disk for chat {leader_id}, skipping")
+            if not is_last:
+                await asyncio.sleep(settings.recap_part_send_delay_seconds)
+            continue
+
         try:
-            with open(rt_video_path, "rb") as video_file:
-                await adapter.send_video(
+            if part.file_id and adapter.platform == "telegram":
+                try:
+                    file_id = await adapter.send_video(
+                        chat_id=chat_id,
+                        video=part.file_id,
+                        caption=f"📅 Recap of {date_str} ({part.part_number} of {len(parts)})",
+                    )
+                    if file_id:
+                        sent_any = True
+                        if not is_last:
+                            await asyncio.sleep(settings.recap_part_send_delay_seconds)
+                        continue
+                except Exception as e:
+                    logger.warning(f"Failed to send cached file_id for part {part.part_number}, uploading from disk: {e}")
+
+            with open(file_path, "rb") as f:
+                new_file_id = await adapter.send_video(
                     chat_id=chat_id,
-                    video=video_file,
-                    caption=f"📅 Recap: {date_str}",
+                    video=f,
+                    caption=f"📅 Recap of {date_str} (part {part.part_number} of {len(parts)})",
                 )
-            logger.info(f"Sent realtime recap for chat {chat_id} (leader {leader_id}), date {date_str}")
-            return True
+            if new_file_id:
+                await state_manager.update_recap_file_id(
+                    leader_id, date_str, part.part_number, is_rt, new_file_id
+                )
+            sent_any = True
+
         except Exception as e:
-            logger.error(f"Error sending realtime recap for chat {chat_id}, date {date_str}: {e}")
-            return False
+            logger.error(f"Error sending recap part {part.part_number} for chat {leader_id}: {e}")
 
-    recap_record = await state_manager.get_recap_file(leader_id, date_str)
+        if not is_last:
+            await asyncio.sleep(settings.recap_part_send_delay_seconds)
 
-    if recap_record is None:
-        return False
-
-    if not video_path.exists():
-        return False
-
-    try:
-        # Try sending with cached file_id first (Telegram only)
-        if recap_record.file_id and adapter.platform == "telegram":
-            try:
-                file_id = await adapter.send_video(
-                    chat_id=chat_id,
-                    video=recap_record.file_id,
-                    caption=f"📅 Recap: {date_str}",
-                )
-                if file_id:
-                    logger.info(f"Sent cached recap for chat {chat_id}, date {date_str}")
-                    return True
-            except Exception as e:
-                logger.warning(f"Failed to send cached file_id, uploading from disk: {e}")
-
-        # Upload from disk
-        with open(video_path, "rb") as video_file:
-            new_file_id = await adapter.send_video(
-                chat_id=chat_id,
-                video=video_file,
-                caption=f"📅 Recap: {date_str}",
-            )
-
-        if new_file_id:
-            await state_manager.update_recap_file_id(leader_id, date_str, new_file_id)
-            logger.info(f"Uploaded and cached recap for chat {chat_id} (leader {leader_id}), date {date_str}")
-
-        return True
-
-    except Exception as e:
-        logger.error(f"Error sending recap for chat {chat_id}, date {date_str}: {e}")
-        return False
+    return sent_any

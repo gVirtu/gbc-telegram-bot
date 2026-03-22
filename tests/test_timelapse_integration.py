@@ -225,7 +225,7 @@ class TestTimelapseIntegration:
         assert record.file_id is None
 
         # Simulate uploading to Telegram and getting file_id
-        await db_manager.update_recap_file_id(chat_id, date, "telegram_file_id_abc123")
+        await db_manager.update_recap_file_id(chat_id, date, 1, False, "telegram_file_id_abc123")
 
         record = await db_manager.get_recap_file(chat_id, date)
         assert record.file_id == "telegram_file_id_abc123"

@@ -275,6 +275,8 @@ class RecapFileRecord:
     Attributes:
         chat_id: Telegram chat ID
         date: Date in YYYYMMDD format
+        part_number: Part number (1-based) for split recaps
+        is_rt: Whether this is a realtime recap
         file_id: Telegram file ID (None if invalidated)
         frame_count: Total frames in timelapse
         duration_sec: Duration of timelapse in seconds
@@ -285,6 +287,8 @@ class RecapFileRecord:
 
     chat_id: int
     date: str
+    part_number: int = 1
+    is_rt: bool = False
     file_id: Optional[str] = None
     frame_count: int = 0
     duration_sec: float = 0.0
@@ -297,6 +301,8 @@ class RecapFileRecord:
         return {
             "chat_id": self.chat_id,
             "date": self.date,
+            "part_number": self.part_number,
+            "is_rt": self.is_rt,
             "file_id": self.file_id,
             "frame_count": self.frame_count,
             "duration_sec": self.duration_sec,
@@ -311,6 +317,8 @@ class RecapFileRecord:
         return cls(
             chat_id=data["chat_id"],
             date=data["date"],
+            part_number=data.get("part_number", 1),
+            is_rt=data.get("is_rt", False),
             file_id=data.get("file_id"),
             frame_count=data.get("frame_count", 0),
             duration_sec=data.get("duration_sec", 0.0),

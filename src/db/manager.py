@@ -705,7 +705,9 @@ class DatabaseManager:
     # ==================== Recap Files ====================
 
     async def get_recap_file(self, chat_id: int, date: str) -> Optional["RecapFileRecord"]:
-        """Get recap file metadata for a specific date.
+        """Get recap file metadata for a specific date (latest part).
+
+        Returns the row with the highest part_number for (chat_id, date, is_rt=False).
 
         Args:
             chat_id: The Telegram chat ID
@@ -716,7 +718,12 @@ class DatabaseManager:
         """
         from src.models.game_state import RecapFileRecord
 
-        sql = "SELECT * FROM recap_files WHERE chat_id = ? AND date = ?;"
+        sql = """
+        SELECT * FROM recap_files
+        WHERE chat_id = ? AND date = ?
+        ORDER BY part_number DESC
+        LIMIT 1;
+        """
         cursor = self.connection.execute(sql, (chat_id, date))
         row = cursor.fetchone()
 
@@ -726,6 +733,8 @@ class DatabaseManager:
         return RecapFileRecord(
             chat_id=row['chat_id'],
             date=row['date'],
+            part_number=row['part_number'],
+            is_rt=bool(row['is_rt']),
             file_id=row['file_id'],
             frame_count=row['frame_count'],
             duration_sec=row['duration_sec'],
@@ -740,7 +749,9 @@ class DatabaseManager:
         date: str,
         added_frame_count: int,
         added_duration_sec: float,
-        file_size_bytes: int
+        file_size_bytes: int,
+        part_number: int = 1,
+        is_rt: bool = False,
     ) -> None:
         """Upsert recap file metadata, invalidating file_id.
 
@@ -748,15 +759,17 @@ class DatabaseManager:
             chat_id: The Telegram chat ID
             date: Date in YYYYMMDD format
             added_frame_count: Added frames in timelapse
-            duration_sec: Duration in seconds
+            added_duration_sec: Duration in seconds
             file_size_bytes: File size in bytes
+            part_number: Part number (1-based) for split recaps
+            is_rt: Whether this is a realtime recap
         """
         now = datetime.utcnow()
         sql = """
         INSERT INTO recap_files
-            (chat_id, date, file_id, frame_count, duration_sec, file_size_bytes, created_at, updated_at)
-        VALUES (?, ?, NULL, ?, ?, ?, ?, ?)
-        ON CONFLICT(chat_id, date) DO UPDATE SET
+            (chat_id, date, part_number, is_rt, file_id, frame_count, duration_sec, file_size_bytes, created_at, updated_at)
+        VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)
+        ON CONFLICT(chat_id, date, part_number, is_rt) DO UPDATE SET
             file_id = NULL,
             frame_count = frame_count + excluded.frame_count,
             duration_sec = duration_sec + excluded.duration_sec,
@@ -765,31 +778,40 @@ class DatabaseManager:
         """
 
         self.connection.execute(sql, (
-            chat_id, date, added_frame_count, added_duration_sec, file_size_bytes,
+            chat_id, date, part_number, is_rt, added_frame_count, added_duration_sec, file_size_bytes,
             now.isoformat(), now.isoformat()
         ))
         self.connection.commit()
-        logger.debug(f"Upserted recap metadata for chat {chat_id}, date {date}")
+        logger.debug(f"Upserted recap metadata for chat {chat_id}, date {date}, part {part_number}, is_rt={is_rt}")
 
-    async def update_recap_file_id(self, chat_id: int, date: str, file_id: str) -> None:
-        """Update the Telegram file_id for a recap file.
+    async def update_recap_file_id(
+        self,
+        chat_id: int,
+        date: str,
+        part_number: int,
+        is_rt: bool,
+        file_id: str,
+    ) -> None:
+        """Update the Telegram file_id for a recap file part.
 
         Args:
             chat_id: The Telegram chat ID
             date: Date in YYYYMMDD format
+            part_number: Part number (1-based)
+            is_rt: Whether this is a realtime recap
             file_id: Telegram file ID
         """
         sql = """
         UPDATE recap_files
         SET file_id = ?, updated_at = ?
-        WHERE chat_id = ? AND date = ?;
+        WHERE chat_id = ? AND date = ? AND part_number = ? AND is_rt = ?;
         """
 
         self.connection.execute(sql, (
-            file_id, datetime.utcnow().isoformat(), chat_id, date
+            file_id, datetime.utcnow().isoformat(), chat_id, date, part_number, is_rt
         ))
         self.connection.commit()
-        logger.debug(f"Updated recap file_id for chat {chat_id}, date {date}")
+        logger.debug(f"Updated recap file_id for chat {chat_id}, date {date}, part {part_number}, is_rt={is_rt}")
 
     async def get_nearest_recap_date(
         self,
@@ -809,14 +831,14 @@ class DatabaseManager:
         """
         if direction == 'before':
             sql = """
-            SELECT date FROM recap_files
+            SELECT DISTINCT date FROM recap_files
             WHERE chat_id = ? AND date < ?
             ORDER BY date DESC
             LIMIT 1;
             """
         elif direction == 'after':
             sql = """
-            SELECT date FROM recap_files
+            SELECT DISTINCT date FROM recap_files
             WHERE chat_id = ? AND date > ?
             ORDER BY date ASC
             LIMIT 1;
@@ -831,3 +853,79 @@ class DatabaseManager:
             return None
 
         return row['date']
+
+    async def get_recap_parts(
+        self,
+        chat_id: int,
+        date: str,
+        is_rt: bool,
+    ) -> list:
+        """Get all recap file parts for a specific date, ordered by part_number.
+
+        Args:
+            chat_id: The Telegram chat ID
+            date: Date in YYYYMMDD format
+            is_rt: Whether to fetch realtime recap parts
+
+        Returns:
+            List of RecapFileRecord ordered by part_number ascending
+        """
+        from src.models.game_state import RecapFileRecord
+
+        sql = """
+        SELECT * FROM recap_files
+        WHERE chat_id = ? AND date = ? AND is_rt = ?
+        ORDER BY part_number ASC;
+        """
+        cursor = self.connection.execute(sql, (chat_id, date, is_rt))
+        rows = cursor.fetchall()
+
+        return [
+            RecapFileRecord(
+                chat_id=row['chat_id'],
+                date=row['date'],
+                part_number=row['part_number'],
+                is_rt=bool(row['is_rt']),
+                file_id=row['file_id'],
+                frame_count=row['frame_count'],
+                duration_sec=row['duration_sec'],
+                file_size_bytes=row['file_size_bytes'],
+                created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else None,
+                updated_at=datetime.fromisoformat(row['updated_at']) if row['updated_at'] else None,
+            )
+            for row in rows
+        ]
+
+    async def split_recap_part(
+        self,
+        chat_id: int,
+        date: str,
+        current_part_number: int,
+        is_rt: bool,
+    ) -> None:
+        """Finalize current part and create a new empty next part.
+
+        Nullifies file_id on the current part row and inserts a new row for
+        part_number = current_part_number + 1.
+
+        Args:
+            chat_id: The Telegram chat ID
+            date: Date in YYYYMMDD format
+            current_part_number: The part number being finalized
+            is_rt: Whether this is a realtime recap
+        """
+        now = datetime.utcnow().isoformat()
+        next_part = current_part_number + 1
+
+        self.connection.execute(
+            "UPDATE recap_files SET file_id = NULL WHERE chat_id = ? AND date = ? AND part_number = ? AND is_rt = ?;",
+            (chat_id, date, current_part_number, is_rt),
+        )
+        self.connection.execute(
+            """INSERT INTO recap_files
+               (chat_id, date, part_number, is_rt, frame_count, duration_sec, file_size_bytes, created_at, updated_at)
+               VALUES (?, ?, ?, ?, 0, 0.0, 0, ?, ?);""",
+            (chat_id, date, next_part, is_rt, now, now),
+        )
+        self.connection.commit()
+        logger.debug(f"Split recap for chat {chat_id}, date {date}: part {current_part_number} -> {next_part}, is_rt={is_rt}")

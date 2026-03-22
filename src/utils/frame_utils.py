@@ -239,16 +239,17 @@ def render_input_sidebar(
             tmp = tmp.resize((max_name_w, line_height), Image.Resampling.LANCZOS)
             x = width - max_name_w - suffix_w - padding
             img.paste(tmp, (x, y))
-            draw.text((x + max_name_w, y), suffix, fill=color, font=font, fontmode="1")
+            draw.text((x + max_name_w, y), suffix, fill=(255, 255, 255), font=font, fontmode="1")
         else:
-            text = f"{user_name}{suffix}"
+            full_text = f"{user_name}{suffix}"
             try:
-                tb = draw.textbbox((0, 0), text, font=font)
+                tb = draw.textbbox((0, 0), full_text, font=font)
                 text_w = tb[2] - tb[0]
             except Exception:
-                text_w = len(text) * 6
+                text_w = len(full_text) * 6
             x = width - text_w - padding
-            draw.text((x, y), text, fill=color, font=font, fontmode="1")
+            draw.text((x, y), user_name, fill=color, font=font, fontmode="1")
+            draw.text((x + name_natural_w, y), suffix, fill=(255, 255, 255), font=font, fontmode="1")
 
         # Score label animation
         label_info = (active_labels or {}).get(original_index)

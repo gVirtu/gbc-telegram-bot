@@ -927,9 +927,10 @@ def _build_shop_text(
     parts = []
     if status_message:
         parts.append(status_message)
+    parts.append(translation_manager.get("shop.welcome", chat_id))
     parts.append(translation_manager.get("shop.balance", chat_id, balance=f"{balance:,}"))
     parts.append(translation_manager.get("shop.page_indicator", chat_id, page=page + 1, total=total_pages))
-    return "\n".join(parts)
+    return "\n\n".join(parts)
 
 
 def _build_shop_keyboard(
@@ -941,7 +942,7 @@ def _build_shop_keyboard(
     rows = []
     for item in items:
         name = translation_manager.get(item.name_i18n_key, chat_id)
-        cost_label = "free" if item.cost == 0 else f"{item.cost:,} pts"
+        cost_label = translation_manager.get("shop.free", chat_id) if item.cost == 0 else f"{item.cost:,} pts"
         rows.append([InlineKeyboardButton(
             f"{name} — {cost_label}",
             callback_data=f"shop_buy_{source_chat_id}_{item.id}",
@@ -975,7 +976,7 @@ async def _show_shop(
     balance = shop_manager.get_balance(ctx.adapter.platform, ctx.user_id)
     text = _build_shop_text(balance, page, total_pages, source_chat_id, status_message)
     keyboard = _build_shop_keyboard(source_chat_id, source_chat_id, page, total_pages, items)
-    await ctx.adapter.send_text(ctx.chat_id, text, reply_markup=keyboard)
+    await ctx.adapter.send_text(ctx.chat_id, text, reply_markup=keyboard, parse_mode="Markdown")
 
 
 async def start_command(ctx: CommandContext) -> None:

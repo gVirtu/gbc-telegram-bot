@@ -208,11 +208,13 @@
     }
   },
   "shop": {
-    "button_label": "💎 LOJA",
-    "balance": "Saldo: {balance} pts",
+    "button_label": "💎 LOJA DE PONTOS",
+    "welcome": "🛍️ Bem-vindo à *Loja de Pontos*! Resgate seus pontos aqui para obter vantagens.",
+    "balance": "💎 *Saldo*: {balance} pts",
     "page_indicator": "Página {page}/{total}",
     "prev": "◀ Anterior",
     "next": "Próximo ▶",
+    "free": "Grátis",
     "purchase_success": "✅ {item_name} resgatado!",
     "insufficient_funds": "❌ Pontos insuficientes (precisa de {cost}, tem {balance}).",
     "no_profile": "❌ Você ainda não jogou.",

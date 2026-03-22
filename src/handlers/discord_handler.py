@@ -271,7 +271,8 @@ def create_discord_bot() -> Any:
                 items, total_pages = shop_manager.get_page(0)
                 balance = shop_manager.get_balance("discord", user_id)
                 content = (
-                    f"{translation_manager.get('shop.balance', channel_id, balance=f'{balance:,}')}\n"
+                    f"{translation_manager.get('shop.welcome', channel_id)}\n\n"
+                    f"{translation_manager.get('shop.balance', channel_id, balance=f'{balance:,}')}\n\n"
                     f"{translation_manager.get('shop.page_indicator', channel_id, page=1, total=total_pages)}"
                 )
                 view = build_discord_shop_view(0, total_pages, items, channel_id)
@@ -288,7 +289,8 @@ def create_discord_bot() -> Any:
                 items, total_pages = shop_manager.get_page(page)
                 balance = shop_manager.get_balance("discord", user_id)
                 content = (
-                    f"{translation_manager.get('shop.balance', channel_id, balance=f'{balance:,}')}\n"
+                    f"{translation_manager.get('shop.welcome', channel_id)}\n\n"
+                    f"{translation_manager.get('shop.balance', channel_id, balance=f'{balance:,}')}\n\n"
                     f"{translation_manager.get('shop.page_indicator', channel_id, page=page + 1, total=total_pages)}"
                 )
                 view = build_discord_shop_view(page, total_pages, items, channel_id)
@@ -315,8 +317,9 @@ def create_discord_bot() -> Any:
                         cost=cost, balance=f"{balance:,}"
                     )
                 content = (
-                    f"{status}\n"
-                    f"{translation_manager.get('shop.balance', channel_id, balance=f'{balance:,}')}\n"
+                    f"{status}\n\n"
+                    f"{translation_manager.get('shop.welcome', channel_id)}\n\n"
+                    f"{translation_manager.get('shop.balance', channel_id, balance=f'{balance:,}')}\n\n"
                     f"{translation_manager.get('shop.page_indicator', channel_id, page=page + 1, total=total_pages)}"
                 )
                 view = build_discord_shop_view(page, total_pages, items, channel_id)

@@ -185,7 +185,7 @@ class WebhookHandler:
             balance = _sm.get_balance(platform, user_id)
             text = _build_shop_text(balance, page, total_pages, source_chat_id)
             keyboard = _build_shop_keyboard(source_chat_id, source_chat_id, page, total_pages, items)
-            await callback_query.message.edit_text(text, reply_markup=keyboard)
+            await callback_query.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
             await callback_query.answer()
 
         elif callback_data.startswith("shop_buy_"):
@@ -217,7 +217,7 @@ class WebhookHandler:
                     )
             text = _build_shop_text(balance, page, total_pages, source_chat_id, status_message=status)
             keyboard = _build_shop_keyboard(source_chat_id, source_chat_id, page, total_pages, items)
-            await callback_query.message.edit_text(text, reply_markup=keyboard)
+            await callback_query.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
             await callback_query.answer()
 
     async def _handle_message(self, update: Update) -> None:

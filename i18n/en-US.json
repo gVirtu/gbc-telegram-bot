@@ -208,11 +208,13 @@
     }
   },
   "shop": {
-    "button_label": "💎 SHOP",
-    "balance": "Balance: {balance} pts",
+    "button_label": "💎 POINTS SHOP",
+    "welcome": "🛍️ Welcome to the *Points Shop*! Redeem your points here for perks.",
+    "balance": "💎 *Balance*: {balance} pts",
     "page_indicator": "Page {page}/{total}",
     "prev": "◀ Previous",
     "next": "Next ▶",
+    "free": "Free",
     "purchase_success": "✅ {item_name} redeemed!",
     "insufficient_funds": "❌ Not enough points (need {cost}, have {balance}).",
     "no_profile": "❌ You haven't played yet.",

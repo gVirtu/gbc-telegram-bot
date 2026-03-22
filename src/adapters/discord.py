@@ -198,7 +198,7 @@ def build_discord_shop_view(
         if i >= 3:  # rows 0-2 only; row 3 is reserved for navigation
             break
         name = translation_manager.get(item.name_i18n_key, chat_id)
-        cost_label = "free" if item.cost == 0 else f"{item.cost:,} pts"
+        cost_label = translation_manager.get("shop.free", chat_id) if item.cost == 0 else f"{item.cost:,} pts"
         btn = discord.ui.Button(
             label=f"{name} — {cost_label}",
             custom_id=f"shop_buy_{item.id}",

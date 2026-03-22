@@ -68,7 +68,14 @@ class ShopManager:
 
         return (True, None)
 
-    def purchase(self, platform: str, user_id: int, item_id: str) -> PurchaseResult:
+    def purchase(
+        self,
+        platform: str,
+        user_id: int,
+        item_id: str,
+        chat_id: int = 0,
+        user_name: str = "",
+    ) -> PurchaseResult:
         """Attempt to purchase an item.
 
         Called only after validate_shop_access has passed.
@@ -84,13 +91,28 @@ class ShopManager:
                 success=False, error_i18n_key="shop.insufficient_funds", item=item
             )
 
-        name_tag_color = item.effect.get("name_tag_color", "#FFFFFF")
-        self._conn.execute(
-            "UPDATE user_player_profiles "
-            "SET name_tag_color = ?, total_score_spent = total_score_spent + ? "
-            "WHERE platform = ? AND user_id = ?;",
-            (name_tag_color, item.cost, platform, user_id),
-        )
+        if "reaction" in item.effect:
+            reaction_type = item.effect["reaction"]
+            self._conn.execute(
+                "INSERT INTO reaction_queue (chat_id, user_id, user_name, reaction_type) "
+                "VALUES (?, ?, ?, ?);",
+                (chat_id, user_id, user_name, reaction_type),
+            )
+            self._conn.execute(
+                "UPDATE user_player_profiles "
+                "SET total_score_spent = total_score_spent + ? "
+                "WHERE platform = ? AND user_id = ?;",
+                (item.cost, platform, user_id),
+            )
+        else:
+            name_tag_color = item.effect.get("name_tag_color", "#FFFFFF")
+            self._conn.execute(
+                "UPDATE user_player_profiles "
+                "SET name_tag_color = ?, total_score_spent = total_score_spent + ? "
+                "WHERE platform = ? AND user_id = ?;",
+                (name_tag_color, item.cost, platform, user_id),
+            )
+
         self._conn.commit()
         return PurchaseResult(success=True, item=item)
 

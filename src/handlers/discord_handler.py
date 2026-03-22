@@ -292,7 +292,7 @@ def create_discord_bot() -> Any:
 
                 if custom_id.startswith("shop_buy_"):
                     item_id = custom_id.removeprefix("shop_buy_")
-                    result = shop_manager.purchase("discord", user_id, item_id)
+                    result = shop_manager.purchase("discord", user_id, item_id, chat_id=channel_id, user_name=user_name)
                     page = 0
                     items, total_pages = shop_manager.get_page(page)
                     balance = shop_manager.get_balance("discord", user_id)

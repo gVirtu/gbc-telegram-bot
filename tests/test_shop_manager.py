@@ -75,7 +75,7 @@ class TestGetPage:
     def test_last_page(self, tmp_path):
         mgr = _make_manager(tmp_path)
         items, total_pages = mgr.get_page(2)
-        assert len(items) == 1  # 7 items, page 2 has 1
+        assert len(items) == 2  # 8 items, page 2 has 2
         assert total_pages == 3
 
     def test_single_page_case(self, tmp_path):

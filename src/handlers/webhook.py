@@ -170,6 +170,10 @@ class WebhookHandler:
 
         callback_query = update.callback_query
         user_id = callback_query.from_user.id
+        user_name = (
+            callback_query.from_user.first_name or
+            (f"@{callback_query.from_user.username}" if callback_query.from_user.username else "User")
+        )
         dm_chat_id = callback_query.message.chat.id  # the DM chat
         platform = "telegram"
 
@@ -195,7 +199,7 @@ class WebhookHandler:
                 source_chat_id = int(source_chat_id_str)
             except ValueError:
                 return
-            result = _sm.purchase(platform, user_id, item_id)
+            result = _sm.purchase(platform, user_id, item_id, chat_id=source_chat_id, user_name=user_name)
             page = 0  # return to page 0 after purchase
             items, total_pages = _sm.get_page(page)
             balance = _sm.get_balance(platform, user_id)

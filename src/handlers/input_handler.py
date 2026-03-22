@@ -612,23 +612,20 @@ class InputHandler:
         # 3. Composite overlay onto all frames (game + TBC share same final overlay state)
         # Pre-fetch user colors for sidebar rendering
         user_colors: dict = {}
-        try:
-            for inp_dict, _ in new_inputs_with_offsets:
-                uid = inp_dict.get("user_id")
-                uname = inp_dict.get("user_name", "")
-                if uid and uname not in user_colors:
-                    profile = scoring_manager.get_player_profile(config.platform, uid)
-                    if profile:
-                        user_colors[uname] = hex_to_rgb(profile.name_tag_color)
-            for inp in pre_existing_inputs_for_overlay:
-                uid = inp.get("user_id")
-                uname = inp.get("user_name", "")
-                if uid and uname not in user_colors:
-                    profile = scoring_manager.get_player_profile(config.platform, uid)
-                    if profile:
-                        user_colors[uname] = hex_to_rgb(profile.name_tag_color)
-        except Exception as e:
-            logger.warning(f"Failed to pre-fetch user colors for overlay: {e}")
+        for inp_dict, _ in new_inputs_with_offsets:
+            uid = inp_dict.get("user_id")
+            uname = inp_dict.get("user_name", "")
+            if uid and uname not in user_colors:
+                profile = scoring_manager.get_player_profile(config.platform, uid)
+                if profile:
+                    user_colors[uname] = hex_to_rgb(profile.name_tag_color)
+        for inp in pre_existing_inputs_for_overlay:
+            uid = inp.get("user_id")
+            uname = inp.get("user_name", "")
+            if uid and uname not in user_colors:
+                profile = scoring_manager.get_player_profile(config.platform, uid)
+                if profile:
+                    user_colors[uname] = hex_to_rgb(profile.name_tag_color)
 
         composited_frames = apply_overlay_composite(
             all_frames, pre_existing_inputs_for_overlay, new_inputs_with_offsets, capture_fps,

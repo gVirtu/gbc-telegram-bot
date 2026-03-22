@@ -46,6 +46,7 @@ def _make_mock_config(feature_flags=None):
     config.modifier_states = {}
     config.auto_save_enabled = False
     config.feature_flags = feature_flags or {}
+    config.platform = "telegram"
     return config
 
 

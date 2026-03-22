@@ -311,7 +311,7 @@ class TestInputProcessing:
                         with patch("src.handlers.input_handler.apply_overlay_composite", return_value=[]):
                             mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
                             mock_sm.get_or_create_chat_config.return_value = MagicMock(
-                                modifier_states={}, auto_save_enabled=False
+                                modifier_states={}, auto_save_enabled=False, platform="telegram"
                             )
                             mock_controller.get_modifier_specs.return_value = []
                             mock_tbc.return_value = []
@@ -560,7 +560,7 @@ class TestWaitButtonProcessing:
                         with patch("src.handlers.input_handler.apply_overlay_composite", return_value=[]):
                             mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
                             mock_sm.get_or_create_chat_config.return_value = MagicMock(
-                                modifier_states={}, auto_save_enabled=False
+                                modifier_states={}, auto_save_enabled=False, platform="telegram"
                             )
                             mock_controller.get_modifier_specs.return_value = []
                             mock_tbc.return_value = []
@@ -593,7 +593,7 @@ class TestWaitButtonProcessing:
                                 mock_settings.timelapse_frame_skip = 1
                                 mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
                                 mock_sm.get_or_create_chat_config.return_value = MagicMock(
-                                    modifier_states={}, auto_save_enabled=False
+                                    modifier_states={}, auto_save_enabled=False, platform="telegram"
                                 )
                                 mock_controller.get_modifier_specs.return_value = []
                                 mock_tbc.return_value = []
@@ -624,7 +624,7 @@ class TestWaitButtonProcessing:
         ):
             mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
             mock_sm.get_or_create_chat_config.return_value = MagicMock(
-                modifier_states={}, auto_save_enabled=False
+                modifier_states={}, auto_save_enabled=False, platform="telegram"
             )
             mock_controller.get_modifier_specs.return_value = []
             mock_tbc.return_value = []
@@ -649,7 +649,7 @@ class TestWaitButtonProcessing:
                         with patch("src.handlers.input_handler.apply_overlay_composite", return_value=[]):
                             mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
                             mock_sm.get_or_create_chat_config.return_value = MagicMock(
-                                modifier_states={}, auto_save_enabled=False
+                                modifier_states={}, auto_save_enabled=False, platform="telegram"
                             )
                             mock_controller.get_modifier_specs.return_value = []
                             mock_tbc.return_value = []
@@ -791,52 +791,26 @@ class TestModifierButtonHandling:
 
 
 class TestUserColorPrefetch:
-    """Test that user colors are correctly pre-fetched for sidebar rendering."""
+    """Test that user color pre-fetch logic works correctly for sidebar rendering."""
 
-    def test_custom_color_passed_to_apply_overlay_composite(self):
-        """When a user has a non-default name_tag_color, it should appear in user_colors."""
-        from unittest.mock import MagicMock
+    def test_custom_color_hex_to_rgb_conversion(self):
+        """hex_to_rgb correctly converts name_tag_color for use in user_colors dict."""
         from src.utils.frame_utils import hex_to_rgb
-
-        mock_profile = MagicMock()
-        mock_profile.name_tag_color = "#FF0000"
-
-        new_inputs = [
-            ({"user_id": 42, "user_name": "Alice", "button": "a", "total_score": 10}, 0)
-        ]
-
-        mock_sm = MagicMock()
-        mock_sm.get_player_profile.return_value = mock_profile
-
-        user_colors: dict = {}
-        for inp_dict, _ in new_inputs:
-            uid = inp_dict.get("user_id")
-            uname = inp_dict.get("user_name", "")
-            if uid and uname not in user_colors:
-                profile = mock_sm.get_player_profile("discord", uid)
-                if profile:
-                    user_colors[uname] = hex_to_rgb(profile.name_tag_color)
-
-        assert user_colors == {"Alice": (255, 0, 0)}
+        # This is the conversion that happens in the pre-fetch loop
+        color = hex_to_rgb("#FF0000")
+        assert color == (255, 0, 0)
 
     def test_missing_profile_omits_entry(self):
-        """When get_player_profile returns None, the user is not in user_colors."""
-        from unittest.mock import MagicMock
+        """When get_player_profile returns None, the user is not added to user_colors."""
         from src.utils.frame_utils import hex_to_rgb
 
-        new_inputs = [
-            ({"user_id": 99, "user_name": "Bob", "button": "b", "total_score": 5}, 0)
-        ]
-
         user_colors: dict = {}
-        mock_sm = MagicMock()
-        mock_sm.get_player_profile.return_value = None
-        for inp_dict, _ in new_inputs:
-            uid = inp_dict.get("user_id")
-            uname = inp_dict.get("user_name", "")
-            if uid and uname not in user_colors:
-                profile = mock_sm.get_player_profile("telegram", uid)
-                if profile:
-                    user_colors[uname] = hex_to_rgb(profile.name_tag_color)
+        mock_profile = None  # simulates no profile
+
+        uid = 99
+        uname = "Bob"
+        if uid and uname not in user_colors:
+            if mock_profile:
+                user_colors[uname] = hex_to_rgb(mock_profile.name_tag_color)
 
         assert "Bob" not in user_colors

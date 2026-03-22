@@ -960,7 +960,7 @@ class DatabaseManager:
         placeholders = ",".join("?" * len(ids))
         self.connection.execute(
             f"DELETE FROM reaction_queue WHERE id IN ({placeholders});",
-            ids,
+            tuple(ids),
         )
         self.connection.commit()
         return [{"user_name": r["user_name"], "reaction_type": r["reaction_type"]} for r in rows]

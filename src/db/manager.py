@@ -929,3 +929,38 @@ class DatabaseManager:
         )
         self.connection.commit()
         logger.debug(f"Split recap for chat {chat_id}, date {date}: part {current_part_number} -> {next_part}, is_rt={is_rt}")
+
+    # ==================== Reaction Queue ====================
+
+    def enqueue_reaction(
+        self, chat_id: int, user_id: int, user_name: str, reaction_type: str
+    ) -> None:
+        """Insert a reaction into the queue for a chat."""
+        self.connection.execute(
+            "INSERT INTO reaction_queue (chat_id, user_id, user_name, reaction_type) "
+            "VALUES (?, ?, ?, ?);",
+            (chat_id, user_id, user_name, reaction_type),
+        )
+        self.connection.commit()
+
+    def pop_reactions(self, chat_id: int, limit: int = 3) -> list[dict]:
+        """Pop up to `limit` oldest reactions for a chat and remove them.
+
+        Returns a list of dicts with keys: user_name, reaction_type.
+        Atomic: rows are selected then deleted in sequence (single-writer app).
+        """
+        rows = self.connection.execute(
+            "SELECT id, user_name, reaction_type FROM reaction_queue "
+            "WHERE chat_id = ? ORDER BY id ASC LIMIT ?;",
+            (chat_id, limit),
+        ).fetchall()
+        if not rows:
+            return []
+        ids = [r["id"] for r in rows]
+        placeholders = ",".join("?" * len(ids))
+        self.connection.execute(
+            f"DELETE FROM reaction_queue WHERE id IN ({placeholders});",
+            ids,
+        )
+        self.connection.commit()
+        return [{"user_name": r["user_name"], "reaction_type": r["reaction_type"]} for r in rows]

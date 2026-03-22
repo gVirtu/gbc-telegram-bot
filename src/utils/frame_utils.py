@@ -778,3 +778,137 @@ def generate_tbc_frames(
         return []
 
     return frames
+
+
+# Module-level asset cache keyed by (reaction_type, asset_dir_str)
+# Keying on asset_dir prevents test isolation issues when different dirs
+# are used across tests in the same session.
+_reaction_asset_cache: dict[tuple[str, str], Optional["Image.Image"]] = {}
+
+
+def _load_reaction_asset(reaction_type: str, asset_dir: Path) -> Optional["Image.Image"]:
+    """Load and cache reaction emoji PNG (RGBA). Returns None if missing."""
+    cache_key = (reaction_type, str(asset_dir))
+    if cache_key in _reaction_asset_cache:
+        return _reaction_asset_cache[cache_key]
+    asset_path = asset_dir / f"reaction_{reaction_type}.png"
+    if not asset_path.exists():
+        logger.warning(f"Reaction asset not found: {asset_path}")
+        _reaction_asset_cache[cache_key] = None
+        return None
+    img = Image.open(asset_path).convert("RGBA")
+    _reaction_asset_cache[cache_key] = img
+    return img
+
+
+def apply_reaction_overlay(
+    frames: list[np.ndarray],
+    reactions: list[dict],
+    capture_fps: int = 15,
+    asset_dir: Path = Path("./assets"),
+) -> list[np.ndarray]:
+    """Composite reaction emoji animations onto game frames.
+
+    Reactions are grouped into 2-second windows of up to 3. Each window
+    starts at frame ``w * 2 * capture_fps``. Within a window, each slot
+    staggers by ~100ms (``round(0.1 * capture_fps)`` frames).
+
+    Each reaction animates: scale-up (5 frames), hold (15 frames),
+    scale-down (5 frames) = 25 frames total.
+
+    Layout: 3 side-by-side slots at x=[0, 64, 128], each 64px wide.
+    Username rendered above emoji in white using the existing unifont.
+
+    Args:
+        frames: 2x-scaled game frames (H, W, 3), before sidebar compositing.
+        reactions: List of dicts with keys ``user_name`` and ``reaction_type``,
+            in queue order (oldest first).
+        capture_fps: Capture frames per second (default 15).
+        asset_dir: Directory containing ``reaction_<type>.png`` assets.
+
+    Returns:
+        Frames with reaction overlays composited in-place.
+    """
+    if not reactions:
+        return frames
+
+    num_frames = len(frames)
+    window_size = 2 * capture_fps        # 30 frames per window
+    anim_total = 25                       # frames per reaction animation
+    scale_up_frames = 5
+    hold_frames = 15
+    stagger_frames = round(0.1 * capture_fps)  # 2 frames
+    slot_width = 64
+    slot_x_positions = [0, 64, 128]
+
+    # Load font (same as sidebar)
+    font = None
+    font_path = Path(__file__).parent.parent.parent / "assets" / "fonts" / "unifont-17.0.04.otf"
+    try:
+        from PIL import ImageFont
+        font = ImageFont.truetype(str(font_path), size=14)
+    except Exception:
+        from PIL import ImageFont
+        font = ImageFont.load_default()
+
+    # Group reactions into windows of 3
+    windows: list[list[dict]] = []
+    for i in range(0, len(reactions), 3):
+        windows.append(reactions[i : i + 3])
+
+    result = [f.copy() for f in frames]
+
+    for w_idx, window_reactions in enumerate(windows):
+        window_start = w_idx * window_size
+        if window_start >= num_frames:
+            break  # no room for this window
+
+        for slot_idx, reaction in enumerate(window_reactions):
+            reaction_type = reaction["reaction_type"]
+            user_name = reaction["user_name"]
+            slot_x = slot_x_positions[slot_idx]
+
+            asset = _load_reaction_asset(reaction_type, asset_dir)
+            start_frame = window_start + slot_idx * stagger_frames
+
+            for fi in range(num_frames):
+                frames_into = fi - start_frame
+                if frames_into < 0 or frames_into >= anim_total:
+                    continue
+
+                # Compute scale
+                if frames_into < scale_up_frames:
+                    phase_frame = frames_into
+                    scale = phase_frame / 4
+                elif frames_into < scale_up_frames + hold_frames:
+                    scale = 1.0
+                else:
+                    phase_frame = frames_into - (scale_up_frames + hold_frames)
+                    scale = 1.0 - phase_frame / 4
+
+                if scale <= 0:
+                    continue
+
+                pil_frame = Image.fromarray(result[fi])
+                draw = ImageDraw.Draw(pil_frame)
+
+                # Draw username above slot, centered
+                try:
+                    bbox = draw.textbbox((0, 0), user_name, font=font)
+                    text_w = bbox[2] - bbox[0]
+                except Exception:
+                    text_w = len(user_name) * 7
+                text_x = slot_x + (slot_width - text_w) // 2
+                draw.text((text_x, 2), user_name, fill=(255, 255, 255), font=font, fontmode="1")
+
+                if asset is not None:
+                    # Resize emoji to scaled size, centered in slot
+                    emoji_size = max(1, int(slot_width * scale))
+                    resized = asset.resize((emoji_size, emoji_size), Image.Resampling.NEAREST)
+                    emoji_x = slot_x + (slot_width - emoji_size) // 2
+                    emoji_y = 20 + (slot_width - emoji_size) // 2  # below username
+                    pil_frame.paste(resized, (emoji_x, emoji_y), resized)
+
+                result[fi] = np.array(pil_frame, dtype=np.uint8)
+
+    return result

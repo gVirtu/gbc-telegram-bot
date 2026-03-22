@@ -112,3 +112,30 @@ class _ShopManagerProxy:
 
 
 shop_manager: _ShopManagerProxy = _ShopManagerProxy()
+
+
+def build_shop_text(
+    balance: int,
+    page: int,
+    total_pages: int,
+    chat_id: int,
+    status_message: str | None = None,
+) -> str:
+    """Build the shop message text (platform-agnostic).
+
+    Args:
+        balance: Current point balance to display.
+        page: Zero-based page index.
+        total_pages: Total number of pages.
+        chat_id: Chat ID used for i18n lookups.
+        status_message: Optional status line prepended before the welcome text.
+    """
+    from src.i18n import translation_manager
+
+    parts = []
+    if status_message:
+        parts.append(status_message)
+    parts.append(translation_manager.get("shop.welcome", chat_id))
+    parts.append(translation_manager.get("shop.balance", chat_id, balance=f"{balance:,}"))
+    parts.append(translation_manager.get("shop.page_indicator", chat_id, page=page + 1, total=total_pages))
+    return "\n\n".join(parts)

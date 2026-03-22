@@ -18,7 +18,7 @@ from src.handlers.input_handler import get_input_handler
 from src.i18n import translation_manager, SUPPORTED_LANGUAGES
 from src.keyboard import create_help_text
 from src.models.game_state import KNOWN_FEATURE_FLAGS
-from src.shop.shop_manager import shop_manager
+from src.shop.shop_manager import shop_manager, build_shop_text
 from src.shop.items import SHOP_ITEMS, ITEMS_PER_PAGE
 from src.utils.media_cache import load_last_animation
 from src.utils.mirror_utils import broadcast_text, get_leader_chat_id, is_media_only_mirror
@@ -916,22 +916,6 @@ async def maintenance_command(ctx: CommandContext) -> None:
     logger.info(f"Maintenance mode {arg} for chat {chat_id}")
 
 
-def _build_shop_text(
-    balance: int,
-    page: int,
-    total_pages: int,
-    chat_id: int,
-    status_message: str | None = None,
-) -> str:
-    """Build the shop message text."""
-    parts = []
-    if status_message:
-        parts.append(status_message)
-    parts.append(translation_manager.get("shop.welcome", chat_id))
-    parts.append(translation_manager.get("shop.balance", chat_id, balance=f"{balance:,}"))
-    parts.append(translation_manager.get("shop.page_indicator", chat_id, page=page + 1, total=total_pages))
-    return "\n\n".join(parts)
-
 
 def _build_shop_keyboard(
     chat_id: int, source_chat_id: int, page: int, total_pages: int, items: list
@@ -974,7 +958,7 @@ async def _show_shop(
     """Send or edit the shop message in ctx's chat."""
     items, total_pages = shop_manager.get_page(page)
     balance = shop_manager.get_balance(ctx.adapter.platform, ctx.user_id)
-    text = _build_shop_text(balance, page, total_pages, source_chat_id, status_message)
+    text = build_shop_text(balance, page, total_pages, source_chat_id, status_message)
     keyboard = _build_shop_keyboard(source_chat_id, source_chat_id, page, total_pages, items)
     await ctx.adapter.send_text(ctx.chat_id, text, reply_markup=keyboard, parse_mode="Markdown")
 

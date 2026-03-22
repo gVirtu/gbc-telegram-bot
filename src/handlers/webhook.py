@@ -164,8 +164,8 @@ class WebhookHandler:
 
     async def _handle_shop_callback(self, update: "Update", callback_data: str) -> None:
         """Handle shop pagination and purchase callbacks."""
-        from src.handlers.commands import _build_shop_keyboard, _build_shop_text
-        from src.shop.shop_manager import shop_manager as _sm
+        from src.handlers.commands import _build_shop_keyboard
+        from src.shop.shop_manager import shop_manager as _sm, build_shop_text
         from src.i18n import translation_manager
 
         callback_query = update.callback_query
@@ -183,7 +183,7 @@ class WebhookHandler:
                 return
             items, total_pages = _sm.get_page(page)
             balance = _sm.get_balance(platform, user_id)
-            text = _build_shop_text(balance, page, total_pages, source_chat_id)
+            text = build_shop_text(balance, page, total_pages, source_chat_id)
             keyboard = _build_shop_keyboard(source_chat_id, source_chat_id, page, total_pages, items)
             await callback_query.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
             await callback_query.answer()
@@ -215,7 +215,7 @@ class WebhookHandler:
                         "shop.insufficient_funds", source_chat_id,
                         cost="?", balance=f"{balance:,}"
                     )
-            text = _build_shop_text(balance, page, total_pages, source_chat_id, status_message=status)
+            text = build_shop_text(balance, page, total_pages, source_chat_id, status_message=status)
             keyboard = _build_shop_keyboard(source_chat_id, source_chat_id, page, total_pages, items)
             await callback_query.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
             await callback_query.answer()

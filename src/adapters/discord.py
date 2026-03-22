@@ -137,6 +137,14 @@ class DiscordGameView:
         )
         view.add_item(seq_btn)
 
+        shop_btn = discord.ui.Button(
+            label=translation_manager.get("shop.button_label", chat_id),
+            custom_id="open_shop",
+            row=seq_row,
+            style=discord.ButtonStyle.secondary,
+        )
+        view.add_item(shop_btn)
+
         return view
 
     @staticmethod
@@ -169,6 +177,46 @@ class DiscordGameView:
         view.add_item(cancel_btn)
 
         return view
+
+
+def build_discord_shop_view(
+    page: int,
+    total_pages: int,
+    items: list,
+    chat_id: int = 0,
+) -> Any:
+    """Build a discord.ui.View for a shop page."""
+    import discord
+    from src.i18n import translation_manager
+
+    view = discord.ui.View(timeout=None)
+    for i, item in enumerate(items):
+        name = translation_manager.get(item.name_i18n_key, chat_id)
+        cost_label = "free" if item.cost == 0 else f"{item.cost:,} pts"
+        btn = discord.ui.Button(
+            label=f"{name} — {cost_label}",
+            custom_id=f"shop_buy_{item.id}",
+            row=i,
+            style=discord.ButtonStyle.primary,
+        )
+        view.add_item(btn)
+
+    if page > 0:
+        view.add_item(discord.ui.Button(
+            label=translation_manager.get("shop.prev", chat_id),
+            custom_id=f"shop_page_{page - 1}",
+            row=3,
+            style=discord.ButtonStyle.secondary,
+        ))
+    if page < total_pages - 1:
+        view.add_item(discord.ui.Button(
+            label=translation_manager.get("shop.next", chat_id),
+            custom_id=f"shop_page_{page + 1}",
+            row=3,
+            style=discord.ButtonStyle.secondary,
+        ))
+
+    return view
 
 
 class DiscordSequenceModal(discord.ui.Modal):

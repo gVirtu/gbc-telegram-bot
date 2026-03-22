@@ -264,6 +264,66 @@ def create_discord_bot() -> Any:
                 return
             # ── END: Open sequence input modal ──
 
+            # ── Shop interactions ──
+            if custom_id == "open_shop":
+                from src.shop.shop_manager import shop_manager
+                from src.adapters.discord import build_discord_shop_view
+                items, total_pages = shop_manager.get_page(0)
+                balance = shop_manager.get_balance("discord", user_id)
+                content = (
+                    f"{translation_manager.get('shop.balance', channel_id, balance=f'{balance:,}')}\n"
+                    f"{translation_manager.get('shop.page_indicator', channel_id, page=1, total=total_pages)}"
+                )
+                view = build_discord_shop_view(0, total_pages, items, channel_id)
+                await interaction.response.send_message(content=content, view=view, ephemeral=True)
+                return
+
+            if custom_id.startswith("shop_page_"):
+                from src.shop.shop_manager import shop_manager
+                from src.adapters.discord import build_discord_shop_view
+                try:
+                    page = int(custom_id.removeprefix("shop_page_"))
+                except ValueError:
+                    return
+                items, total_pages = shop_manager.get_page(page)
+                balance = shop_manager.get_balance("discord", user_id)
+                content = (
+                    f"{translation_manager.get('shop.balance', channel_id, balance=f'{balance:,}')}\n"
+                    f"{translation_manager.get('shop.page_indicator', channel_id, page=page + 1, total=total_pages)}"
+                )
+                view = build_discord_shop_view(page, total_pages, items, channel_id)
+                await interaction.response.edit_message(content=content, view=view)
+                return
+
+            if custom_id.startswith("shop_buy_"):
+                from src.shop.shop_manager import shop_manager
+                from src.adapters.discord import build_discord_shop_view
+                item_id = custom_id.removeprefix("shop_buy_")
+                result = shop_manager.purchase("discord", user_id, item_id)
+                page = 0
+                items, total_pages = shop_manager.get_page(page)
+                balance = shop_manager.get_balance("discord", user_id)
+                if result.success:
+                    item_name = translation_manager.get(result.item.name_i18n_key, channel_id)
+                    status = translation_manager.get(
+                        "shop.purchase_success", channel_id, item_name=item_name
+                    )
+                else:
+                    cost = f"{result.item.cost:,}" if result.item else "?"
+                    status = translation_manager.get(
+                        "shop.insufficient_funds", channel_id,
+                        cost=cost, balance=f"{balance:,}"
+                    )
+                content = (
+                    f"{status}\n"
+                    f"{translation_manager.get('shop.balance', channel_id, balance=f'{balance:,}')}\n"
+                    f"{translation_manager.get('shop.page_indicator', channel_id, page=page + 1, total=total_pages)}"
+                )
+                view = build_discord_shop_view(page, total_pages, items, channel_id)
+                await interaction.response.edit_message(content=content, view=view)
+                return
+            # ── END: Shop interactions ──
+
             # Game button or modifier button
             if not is_valid_button_callback(custom_id):
                 logger.debug(f"Unhandled Discord component: {custom_id}")

@@ -433,3 +433,6 @@ class _SettingsProxy:
 
 # Singleton proxy for import convenience
 settings = _SettingsProxy()
+
+# Set at startup by webhook.py when Telegram is initialized
+telegram_bot_username: str | None = None

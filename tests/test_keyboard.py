@@ -3,6 +3,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 
+import src.config as _cfg
 from src.keyboard import (
     create_input_keyboard,
     create_game_message_text,
@@ -235,6 +236,43 @@ class TestIsValidButtonCallback:
     def test_invalid_callbacks(self):
         assert is_valid_button_callback("load") is False
         assert is_valid_button_callback("") is False
+
+
+class TestShopButton:
+    def test_shop_button_present_when_username_set(self):
+        original = _cfg.telegram_bot_username
+        try:
+            _cfg.telegram_bot_username = "testbot"
+            kb = create_input_keyboard()
+            # Flatten all buttons
+            all_buttons = [btn for row in kb.inline_keyboard for btn in row]
+            urls = [b.url for b in all_buttons if b.url]
+            assert any("?start=shop_" in u for u in urls)
+        finally:
+            _cfg.telegram_bot_username = original
+
+    def test_shop_button_url_format(self):
+        original = _cfg.telegram_bot_username
+        try:
+            _cfg.telegram_bot_username = "mygamebot"
+            kb = create_input_keyboard()
+            all_buttons = [btn for row in kb.inline_keyboard for btn in row]
+            shop_btns = [b for b in all_buttons if b.url and "?start=shop_" in b.url]
+            assert len(shop_btns) == 1
+            assert shop_btns[0].url == "https://t.me/mygamebot?start=shop_0"
+        finally:
+            _cfg.telegram_bot_username = original
+
+    def test_shop_button_absent_when_no_username(self):
+        original = _cfg.telegram_bot_username
+        try:
+            _cfg.telegram_bot_username = None
+            kb = create_input_keyboard()
+            all_buttons = [btn for row in kb.inline_keyboard for btn in row]
+            urls = [b.url for b in all_buttons if b.url]
+            assert not any("shop" in u for u in urls if u)
+        finally:
+            _cfg.telegram_bot_username = original
 
 
 class TestCreateHelpText:

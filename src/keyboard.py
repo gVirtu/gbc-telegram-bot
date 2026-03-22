@@ -57,6 +57,12 @@ def create_input_keyboard(
             )
         keyboard.append(modifier_row)
 
+    import src.config as _cfg
+    if _cfg.telegram_bot_username:
+        shop_label = translation_manager.get("shop.button_label", chat_id)
+        shop_url = f"https://t.me/{_cfg.telegram_bot_username}?start=shop_{chat_id}"
+        keyboard.append([InlineKeyboardButton(shop_label, url=shop_url)])
+
     return InlineKeyboardMarkup(keyboard)
 
 

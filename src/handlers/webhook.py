@@ -269,6 +269,11 @@ class WebhookHandler:
                 self._telegram_adapter = TelegramAdapter(rate_limited_bot)
                 register_adapter("telegram", self._telegram_adapter)
 
+                bot_info = await self.telegram_app.bot.get_me()
+                import src.config as _cfg
+                _cfg.telegram_bot_username = bot_info.username
+                logger.info(f"Telegram bot username: {bot_info.username}")
+
                 logger.info("Telegram adapter initialized")
 
             # Initialize Discord if configured

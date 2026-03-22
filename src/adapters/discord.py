@@ -185,12 +185,18 @@ def build_discord_shop_view(
     items: list,
     chat_id: int = 0,
 ) -> Any:
-    """Build a discord.ui.View for a shop page."""
+    """Build a discord.ui.View for a shop page.
+
+    Discord supports rows 0-4 max. Item buttons occupy rows 0-2 (max 3 items),
+    and navigation buttons are reserved for row 3.
+    """
     import discord
     from src.i18n import translation_manager
 
     view = discord.ui.View(timeout=None)
     for i, item in enumerate(items):
+        if i >= 3:  # rows 0-2 only; row 3 is reserved for navigation
+            break
         name = translation_manager.get(item.name_i18n_key, chat_id)
         cost_label = "free" if item.cost == 0 else f"{item.cost:,} pts"
         btn = discord.ui.Button(

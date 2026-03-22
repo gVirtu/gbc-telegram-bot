@@ -1008,7 +1008,7 @@ async def shop_command(ctx: CommandContext) -> None:
         return
     try:
         source_chat_id = int(ctx.args[0])
-    except (ValueError, IndexError):
+    except ValueError:
         return
     ok, error_key = shop_manager.validate_shop_access("telegram", ctx.user_id, source_chat_id)
     if not ok:

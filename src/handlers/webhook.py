@@ -186,6 +186,7 @@ class WebhookHandler:
             text = _build_shop_text(balance, page, total_pages, dm_chat_id)
             keyboard = _build_shop_keyboard(dm_chat_id, source_chat_id, page, total_pages, items)
             await callback_query.message.edit_text(text, reply_markup=keyboard)
+            await callback_query.answer()
 
         elif callback_data.startswith("shop_buy_"):
             rest = callback_data.removeprefix("shop_buy_")
@@ -217,6 +218,7 @@ class WebhookHandler:
             text = _build_shop_text(balance, page, total_pages, dm_chat_id, status_message=status)
             keyboard = _build_shop_keyboard(dm_chat_id, source_chat_id, page, total_pages, items)
             await callback_query.message.edit_text(text, reply_markup=keyboard)
+            await callback_query.answer()
 
     async def _handle_message(self, update: Update) -> None:
         """Handle incoming message (commands)."""

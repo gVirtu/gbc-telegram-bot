@@ -289,6 +289,20 @@ class TestSampleMigration:
         conn.close()
 
 
+def test_018_creates_reaction_queue(tmp_path):
+    from src.db.manager import DatabaseManager
+
+    db_path = tmp_path / "test.db"
+    manager = DatabaseManager(db_path)
+    manager.initialize()
+    conn = manager.connection.get_connection()
+    row = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='reaction_queue';"
+    ).fetchone()
+    assert row is not None, "reaction_queue table should exist after migration"
+    manager.close()
+
+
 class TestMigrationStatus:
     """Test migration status reporting."""
     

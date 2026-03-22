@@ -132,6 +132,7 @@ class BotAdapter(ABC):
         text: str,
         reply_to: Optional[int] = None,
         parse_mode: Optional[str] = None,
+        reply_markup: Optional[Any] = None,
     ) -> None:
         """Send a plain text message.
 
@@ -140,6 +141,7 @@ class BotAdapter(ABC):
             text: Message text
             reply_to: Optional message ID to reply to
             parse_mode: Optional parse mode ("Markdown", "HTML", etc.)
+            reply_markup: Optional inline keyboard markup
         """
         ...
 

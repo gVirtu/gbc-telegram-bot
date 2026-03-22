@@ -495,6 +495,7 @@ class DiscordAdapter(BotAdapter):
         text: str,
         reply_to: Optional[int] = None,
         parse_mode: Optional[str] = None,
+        reply_markup: Optional[Any] = None,
     ) -> None:
         channel = self._get_channel(chat_id)
         if channel is None:

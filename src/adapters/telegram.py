@@ -129,12 +129,15 @@ class TelegramAdapter(BotAdapter):
         text: str,
         reply_to: Optional[int] = None,
         parse_mode: Optional[str] = None,
+        reply_markup: Optional[Any] = None,
     ) -> None:
         kwargs: dict[str, Any] = {"chat_id": chat_id, "text": text}
         if reply_to is not None:
             kwargs["reply_to_message_id"] = reply_to
         if parse_mode is not None:
             kwargs["parse_mode"] = parse_mode
+        if reply_markup is not None:
+            kwargs["reply_markup"] = reply_markup
         await self._bot.send_message(**kwargs)
 
     async def send_video(

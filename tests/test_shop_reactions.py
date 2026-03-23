@@ -33,6 +33,16 @@ def _make_manager(with_reaction_queue=True):
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
         """)
+    conn.execute("""
+        CREATE TABLE shop_transactions (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            platform     TEXT    NOT NULL,
+            user_id      INTEGER NOT NULL,
+            item_id      TEXT    NOT NULL,
+            pts_spent    INTEGER NOT NULL,
+            purchased_at TEXT    NOT NULL DEFAULT (datetime('now'))
+        );
+    """)
     conn.commit()
 
     class FakeConn:

@@ -87,6 +87,14 @@ class ShopManager:
 
         return (True, None)
 
+    def get_owned_items(self, platform: str, user_id: int) -> set[str]:
+        """Return set of all item IDs this user has ever purchased."""
+        rows = self._conn.execute(
+            "SELECT DISTINCT item_id FROM shop_transactions WHERE platform = ? AND user_id = ?;",
+            (platform, user_id),
+        ).fetchall()
+        return {row[0] for row in rows}
+
     def purchase(
         self,
         platform: str,
@@ -104,8 +112,18 @@ class ShopManager:
         if item is None:
             return PurchaseResult(success=False)  # unknown item_id; callers handle gracefully
 
+        # For one_time_purchase items, re-purchasing is free if already owned
+        if item.one_time_purchase:
+            already_owned = self._conn.execute(
+                "SELECT 1 FROM shop_transactions WHERE platform = ? AND user_id = ? AND item_id = ? LIMIT 1;",
+                (platform, user_id, item_id),
+            ).fetchone()
+            effective_cost = 0 if already_owned else item.cost
+        else:
+            effective_cost = item.cost
+
         balance = self.get_balance(platform, user_id)
-        if balance < item.cost:
+        if balance < effective_cost:
             return PurchaseResult(
                 success=False, error_i18n_key="shop.insufficient_funds", item=item
             )
@@ -121,7 +139,7 @@ class ShopManager:
                 "UPDATE user_player_profiles "
                 "SET total_score_spent = total_score_spent + ? "
                 "WHERE platform = ? AND user_id = ?;",
-                (item.cost, platform, user_id),
+                (effective_cost, platform, user_id),
             )
         else:
             name_tag_color = item.effect.get("name_tag_color", "#FFFFFF")
@@ -129,9 +147,13 @@ class ShopManager:
                 "UPDATE user_player_profiles "
                 "SET name_tag_color = ?, total_score_spent = total_score_spent + ? "
                 "WHERE platform = ? AND user_id = ?;",
-                (name_tag_color, item.cost, platform, user_id),
+                (name_tag_color, effective_cost, platform, user_id),
             )
 
+        self._conn.execute(
+            "INSERT INTO shop_transactions (platform, user_id, item_id, pts_spent) VALUES (?, ?, ?, ?);",
+            (platform, user_id, item_id, effective_cost),
+        )
         self._conn.commit()
         return PurchaseResult(success=True, item=item)
 

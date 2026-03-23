@@ -924,6 +924,7 @@ def _build_shop_keyboard(
     total_pages: int,
     items: list,
     category: "ShopCategory | None" = None,
+    owned_items: "frozenset[str]" = frozenset(),
 ) -> "InlineKeyboardMarkup":
     """Build the shop inline keyboard for Telegram.
 
@@ -961,9 +962,15 @@ def _build_shop_keyboard(
         row: list = []
         for item in items:
             name = translation_manager.get(item.name_i18n_key, chat_id)
-            cost_label = translation_manager.get("shop.free", chat_id) if item.cost == 0 else f"{item.cost:,} pts"
+            is_owned = item.one_time_purchase and item.id in owned_items
+            if is_owned:
+                display_name = f"✓ {name}"
+                cost_label = translation_manager.get("shop.free", chat_id)
+            else:
+                display_name = name
+                cost_label = translation_manager.get("shop.free", chat_id) if item.cost == 0 else f"{item.cost:,} pts"
             row.append(InlineKeyboardButton(
-                f"{name} — {cost_label}",
+                f"{display_name} — {cost_label}",
                 callback_data=f"shop_buy_{source_chat_id}_{item.id}",
             ))
             if len(row) >= items_per_row:

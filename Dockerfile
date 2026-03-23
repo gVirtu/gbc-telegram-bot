@@ -48,6 +48,16 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PORT=8000
 ENV WEB_CONCURRENCY=1
 
+# Reduce glibc malloc fragmentation. MALLOC_ARENA_MAX caps the number of
+# per-thread arenas (default: 8×nCPU); without this, freed numpy arrays leave
+# large holes in many arenas that glibc never returns to the OS.
+# MALLOC_MMAP_THRESHOLD_ / MALLOC_TRIM_THRESHOLD_ tell glibc to use mmap for
+# allocations above 128 KB (mmap'd memory IS returned to the OS on free) and
+# to trim the heap more aggressively between batches.
+ENV MALLOC_ARENA_MAX=2
+ENV MALLOC_MMAP_THRESHOLD_=131072
+ENV MALLOC_TRIM_THRESHOLD_=131072
+
 ENV DATA_DIR=/app/data
 ENV TBC_OVERLAY_PATH=/app/assets/to_be_continued.png
 

@@ -122,7 +122,7 @@ class TestGetItem:
         mgr = _make_manager(tmp_path)
         item = mgr.get_item("name_tag_red")
         assert item is not None
-        assert item.cost == 5000
+        assert item.cost == 25000
 
     def test_finds_item_in_reactions(self, tmp_path):
         mgr = _make_manager(tmp_path)
@@ -172,7 +172,7 @@ class TestPurchase:
         return mgr
 
     def test_success_updates_color_and_spent(self, tmp_path):
-        mgr = self._setup(tmp_path, earned=10000)
+        mgr = self._setup(tmp_path, earned=30000)
         result = mgr.purchase("telegram", 1, "name_tag_red")
         assert result.success is True
         assert result.item.id == "name_tag_red"
@@ -182,7 +182,7 @@ class TestPurchase:
             ("telegram", 1),
         ).fetchone()
         assert row["name_tag_color"] == "#FF8888"
-        assert row["total_score_spent"] == 5000
+        assert row["total_score_spent"] == 25000
 
     def test_insufficient_funds(self, tmp_path):
         mgr = self._setup(tmp_path, earned=100, spent=0)

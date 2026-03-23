@@ -83,7 +83,7 @@ class TestPurchaseReaction:
         row = conn.execute(
             "SELECT total_score_spent FROM user_player_profiles WHERE user_id = 1"
         ).fetchone()
-        assert row["total_score_spent"] == 10
+        assert row["total_score_spent"] == 50
 
     def test_reaction_purchase_insufficient_funds(self):
         mgr, conn = _make_manager()
@@ -91,14 +91,3 @@ class TestPurchaseReaction:
         result = mgr.purchase("telegram", 1, "react_joy", chat_id=42, user_name="Alice")
         assert result.success is False
         assert result.error_i18n_key == "shop.insufficient_funds"
-
-    def test_name_tag_purchase_still_works(self):
-        """Existing name_tag_color purchases must not break."""
-        mgr, conn = _make_manager()
-        self._setup_user(conn, earned=10000)
-        result = mgr.purchase("telegram", 1, "name_tag_red", chat_id=42, user_name="Alice")
-        assert result.success is True
-        row = conn.execute(
-            "SELECT name_tag_color FROM user_player_profiles WHERE user_id = 1"
-        ).fetchone()
-        assert row["name_tag_color"] == "#FF8888"

@@ -1008,12 +1008,12 @@ async def _show_shop(
     balance = shop_manager.get_balance(ctx.adapter.platform, ctx.user_id)
     if cat_id is None:
         total_pages = 1
-        text = build_shop_text(balance, None, 0, total_pages, source_chat_id, status_message)
+        text = build_shop_text(balance, None, 0, total_pages, source_chat_id, status_message, platform=ctx.adapter.platform, user_id=ctx.user_id)
         keyboard = _build_shop_keyboard(source_chat_id, source_chat_id, 0, total_pages, [], category=None)
     else:
         category = shop_manager.get_category(cat_id)
         items, total_pages = shop_manager.get_category_page(cat_id, page)
-        text = build_shop_text(balance, category, page, total_pages, source_chat_id, status_message)
+        text = build_shop_text(balance, category, page, total_pages, source_chat_id, status_message, platform=ctx.adapter.platform, user_id=ctx.user_id)
         keyboard = _build_shop_keyboard(source_chat_id, source_chat_id, page, total_pages, items, category=category)
     await ctx.adapter.send_text(ctx.chat_id, text, reply_markup=keyboard, parse_mode="Markdown")
 

@@ -192,7 +192,7 @@ class WebhookHandler:
                 return
             balance = _sm.get_balance(platform, user_id)
             total_pages = 1
-            text = build_shop_text(balance, None, page, total_pages, source_chat_id)
+            text = build_shop_text(balance, None, page, total_pages, source_chat_id, platform=platform, user_id=user_id)
             keyboard = _build_shop_keyboard(source_chat_id, source_chat_id, page, total_pages, [], category=None)
             await callback_query.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
             await callback_query.answer()
@@ -215,7 +215,7 @@ class WebhookHandler:
                 return
             items, total_pages = _sm.get_category_page(cat_id, page)
             balance = _sm.get_balance(platform, user_id)
-            text = build_shop_text(balance, category, page, total_pages, source_chat_id)
+            text = build_shop_text(balance, category, page, total_pages, source_chat_id, platform=platform, user_id=user_id)
             keyboard = _build_shop_keyboard(source_chat_id, source_chat_id, page, total_pages, items, category=category)
             await callback_query.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
             await callback_query.answer()
@@ -229,7 +229,7 @@ class WebhookHandler:
                 return
             balance = _sm.get_balance(platform, user_id)
             total_pages = 1
-            text = build_shop_text(balance, None, 0, total_pages, source_chat_id)
+            text = build_shop_text(balance, None, 0, total_pages, source_chat_id, platform=platform, user_id=user_id)
             keyboard = _build_shop_keyboard(source_chat_id, source_chat_id, 0, total_pages, [], category=None)
             await callback_query.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
             await callback_query.answer()
@@ -262,7 +262,7 @@ class WebhookHandler:
                         cost="?", balance=f"{balance:,}"
                     )
             # Return to outer category listing after purchase
-            text = build_shop_text(balance, None, 0, total_pages, source_chat_id, status_message=status)
+            text = build_shop_text(balance, None, 0, total_pages, source_chat_id, status_message=status, platform=platform, user_id=user_id)
             keyboard = _build_shop_keyboard(source_chat_id, source_chat_id, 0, total_pages, [], category=None)
             await callback_query.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
             await callback_query.answer()

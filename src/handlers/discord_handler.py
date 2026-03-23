@@ -273,7 +273,7 @@ def create_discord_bot() -> Any:
 
                 if custom_id == "open_shop" or custom_id == "shop_back":
                     balance = shop_manager.get_balance("discord", user_id)
-                    content = build_shop_text(balance, None, 0, 1, channel_id)
+                    content = build_shop_text(balance, None, 0, 1, channel_id, platform="discord", user_id=user_id)
                     view = build_discord_shop_view(0, 1, [], channel_id, category=None)
                     if custom_id == "open_shop":
                         await interaction.response.send_message(content=content, view=view, ephemeral=True)
@@ -287,7 +287,7 @@ def create_discord_bot() -> Any:
                     except ValueError:
                         return
                     balance = shop_manager.get_balance("discord", user_id)
-                    content = build_shop_text(balance, None, page, 1, channel_id)
+                    content = build_shop_text(balance, None, page, 1, channel_id, platform="discord", user_id=user_id)
                     view = build_discord_shop_view(page, 1, [], channel_id, category=None)
                     await interaction.response.edit_message(content=content, view=view)
                     return
@@ -308,7 +308,7 @@ def create_discord_bot() -> Any:
                         return
                     items, total_pages = shop_manager.get_category_page(cat_id, page)
                     balance = shop_manager.get_balance("discord", user_id)
-                    content = build_shop_text(balance, category, page, total_pages, channel_id)
+                    content = build_shop_text(balance, category, page, total_pages, channel_id, platform="discord", user_id=user_id)
                     view = build_discord_shop_view(page, total_pages, items, channel_id, category=category)
                     await interaction.response.edit_message(content=content, view=view)
                     return
@@ -329,7 +329,7 @@ def create_discord_bot() -> Any:
                             cost=cost, balance=f"{balance:,}"
                         )
                     # Return to outer category listing after purchase
-                    content = build_shop_text(balance, None, 0, 1, channel_id, status_message=status)
+                    content = build_shop_text(balance, None, 0, 1, channel_id, status_message=status, platform="discord", user_id=user_id)
                     view = build_discord_shop_view(0, 1, [], channel_id, category=None)
                     await interaction.response.edit_message(content=content, view=view)
                     return

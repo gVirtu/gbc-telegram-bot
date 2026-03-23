@@ -220,6 +220,10 @@
     "purchase_success": "✅ {item_name} redeemed!",
     "insufficient_funds": "❌ Not enough points (need {cost}, have {balance}).",
     "no_profile": "❌ You haven't played yet.",
+    "streak": "🔥 Your current daily streak: *{streak}* day(s). {streak_suffix}",
+    "streak_is_best": "This is your best streak so far!",
+    "streak_prev_best": "Your best streak was: {best_streak} day(s).",
+    "streak_tip": "*TIP*: A single input each day is enough to extend your streak. Farm pts by getting long streaks!",
     "categories": {
       "name_tags": {
         "label": "🎨 Colored Name Tags",
@@ -227,7 +231,7 @@
       },
       "reactions": {
         "label": "🎉 Reactions",
-        "description": "Show a reaction in the next gameplay update. Reactions cost 10 pts."
+        "description": "Show a reaction in the next gameplay update. Reactions cost 50 pts."
       }
     },
     "items": {

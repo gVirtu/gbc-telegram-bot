@@ -220,6 +220,10 @@
     "purchase_success": "✅ {item_name} resgatado!",
     "insufficient_funds": "❌ Pontos insuficientes (precisa de {cost}, tem {balance}).",
     "no_profile": "❌ Você ainda não jogou.",
+    "streak": "🔥 Sua ofensiva atual: *{streak}* dia(s). {streak_suffix}",
+    "streak_is_best": "Esta é sua melhor ofensiva até agora!",
+    "streak_prev_best": "Sua melhor ofensiva foi: {best_streak}.",
+    "streak_tip": "*DICA*: Basta um input por dia para estender sua ofensiva. Acumule pts com ofensivas longas!",
     "categories": {
       "name_tags": {
         "label": "🎨 Tags de Nome Coloridas",
@@ -227,7 +231,7 @@
       },
       "reactions": {
         "label": "🎉 Reações",
-        "description": "Mostre uma reação na próxima atualização do jogo. Reações custam 10 pts."
+        "description": "Mostre uma reação na próxima atualização do jogo. Reações custam 50 pts."
       }
     },
     "items": {

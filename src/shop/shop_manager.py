@@ -162,6 +162,8 @@ def build_shop_text(
     total_pages: int,
     chat_id: int,
     status_message: str | None = None,
+    platform: str | None = None,
+    user_id: int | None = None,
 ) -> str:
     """Build the shop message text (platform-agnostic).
 
@@ -171,8 +173,11 @@ def build_shop_text(
         total_pages: Total number of pages.
         chat_id: Chat ID used for i18n lookups.
         status_message: Optional status line prepended before the welcome text.
+        platform: Platform identifier, used to fetch the player's streak.
+        user_id: User identifier, used to fetch the player's streak.
     """
     from src.i18n import translation_manager
+    from src.utils.scoring_manager import scoring_manager
 
     parts = []
     if status_message:
@@ -182,5 +187,17 @@ def build_shop_text(
         parts.append(translation_manager.get(category.label, chat_id))
         parts.append(translation_manager.get(category.description, chat_id))
     parts.append(translation_manager.get("shop.balance", chat_id, balance=f"{balance:,}"))
+
+    if platform is not None and user_id is not None:
+        profile = scoring_manager.get_player_profile(platform, user_id)
+        current_streak = profile.current_streak if profile else 0
+        best_streak = profile.best_streak if profile else 0
+        if current_streak >= best_streak:
+            streak_suffix = translation_manager.get("shop.streak_is_best", chat_id)
+        else:
+            streak_suffix = translation_manager.get("shop.streak_prev_best", chat_id, best_streak=best_streak)
+        parts.append(translation_manager.get("shop.streak", chat_id, streak=current_streak, streak_suffix=streak_suffix))
+        parts.append(translation_manager.get("shop.streak_tip", chat_id))
+
     parts.append(translation_manager.get("shop.page_indicator", chat_id, page=page + 1, total=total_pages))
     return "\n\n".join(parts)

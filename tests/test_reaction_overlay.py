@@ -68,12 +68,12 @@ class TestApplyReactionOverlayTiming:
 
 class TestApplyReactionOverlayMultiWindow:
     def test_second_window_reactions_appear_at_frame_30(self, tmp_path):
-        """With 60 frames and 4 reactions, reactions 0–2 appear in window 0,
-        reaction 3 starts at frame 30 (window 1)."""
+        """With 60 frames and 6 reactions, reactions 0–4 appear in window 0,
+        reaction 5 starts at frame 30 (window 1)."""
         frames = _make_frames(60)
         asset_dir = _make_asset_dir(tmp_path)
         reactions = [
-            {"user_name": f"User{i}", "reaction_type": "joy"} for i in range(4)
+            {"user_name": f"User{i}", "reaction_type": "joy"} for i in range(6)
         ]
         result = apply_reaction_overlay(frames, reactions, capture_fps=15, asset_dir=asset_dir)
         # Frame 35 (window 1, hold phase) should have emoji on top-left

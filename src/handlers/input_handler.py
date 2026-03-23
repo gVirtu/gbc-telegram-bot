@@ -592,15 +592,15 @@ class InputHandler:
             await self._send_error_message(chat_id, error_msg, adapter)
             return {"animation_duration": None}
 
-        # 1. Scale raw frames 2x
+        # 1. Scale raw frames 3x
         scaled_frames = [
             np.array(Image.fromarray(f).resize(
-                (f.shape[1] * 2, f.shape[0] * 2), Image.Resampling.NEAREST
+                (f.shape[1] * 3, f.shape[0] * 3), Image.Resampling.NEAREST
             ))
             for f in frames
         ]
 
-        # 2. Generate TBC from the last 2x-scaled game frame (no overlay yet)
+        # 2. Generate TBC from the last 3x-scaled game frame (no overlay yet)
         tbc_frames = generate_tbc_frames(
             scaled_frames[-1] if scaled_frames else controller.get_frame(),
             overlay_path=settings.tbc_overlay_path,

@@ -151,8 +151,8 @@ def create_empty_frame(
 
 def render_input_sidebar(
     inputs: list,
-    width: int = 192,
-    height: int = 288,
+    width: int = 288,
+    height: int = 432,
     active_labels: Optional[dict] = None,
     user_colors: Optional[dict] = None,
 ) -> np.ndarray:
@@ -192,15 +192,15 @@ def render_input_sidebar(
     font_path = Path(__file__).parent.parent.parent / "assets" / "fonts" / "unifont-17.0.04.otf"
     try:
         from PIL import ImageFont
-        font = ImageFont.truetype(str(font_path), size=18)
-        label_font = ImageFont.truetype(str(font_path), size=12)
+        font = ImageFont.truetype(str(font_path), size=27)
+        label_font = ImageFont.truetype(str(font_path), size=18)
     except Exception:
         from PIL import ImageFont
         font = ImageFont.load_default()
         label_font = ImageFont.load_default()
 
-    line_height = 20
-    padding = 4
+    line_height = 30
+    padding = 6
     y = height - line_height - padding  # start from bottom
 
     # Render inputs bottom-up (most recent at bottom)
@@ -263,8 +263,8 @@ def render_input_sidebar(
                 lw = lbbox[2] - lbbox[0]
             except Exception:
                 lw = len(label_text) * 5
-            gap_x = 4
-            gap_y = 4
+            gap_x = 6
+            gap_y = 6
 
             lx = x + x_off - lw - gap_x
             ly = y + gap_y
@@ -382,13 +382,13 @@ def apply_overlay_composite(
     capture_fps: int = 15,
     user_colors: Optional[dict] = None,
 ) -> list[np.ndarray]:
-    """Composite the input sidebar onto a sequence of already-2x-scaled frames.
+    """Composite the input sidebar onto a sequence of already-3x-scaled frames.
 
     Applies a stateful per-frame transform that adds new inputs to the sidebar
     at the specified frame offsets.
 
     Args:
-        frames: List of 2x-scaled numpy arrays (H, W, 3). Must be pre-scaled;
+        frames: List of 3x-scaled numpy arrays (H, W, 3). Must be pre-scaled;
             no internal scaling is applied.
         pre_existing_inputs: Input dicts visible from frame 0.
         new_inputs_with_offsets: List of (input_dict, frame_offset) pairs.
@@ -820,7 +820,7 @@ def apply_reaction_overlay(
     Username rendered above emoji in white using the existing unifont.
 
     Args:
-        frames: 2x-scaled game frames (H, W, 3), before sidebar compositing.
+        frames: 3x-scaled game frames (H, W, 3), before sidebar compositing.
         reactions: List of dicts with keys ``user_name`` and ``reaction_type``,
             in queue order (oldest first).
         capture_fps: Capture frames per second (default 15).
@@ -833,13 +833,21 @@ def apply_reaction_overlay(
         return frames
 
     num_frames = len(frames)
+    
+    if num_frames == 0:
+        return frames
+
+    frame_w = frames[0].shape[1]
+    
     window_size = 2 * capture_fps        # 30 frames per window
+    window_reaction_capacity = 5
+
     anim_total = 25                       # frames per reaction animation
     scale_up_frames = 5
     hold_frames = 15
-    stagger_frames = round(0.1 * capture_fps)  # 2 frames
-    slot_width = 64
-    slot_x_positions = [0, 64, 128]
+    stagger_frames = 1
+    slot_width = round(0.2 * frame_w)
+    slot_x_positions = [slot_width * 4, slot_width * 3, slot_width * 2, slot_width, 0]
 
     # Load font (same as sidebar)
     font = None
@@ -851,10 +859,10 @@ def apply_reaction_overlay(
         from PIL import ImageFont
         font = ImageFont.load_default()
 
-    # Group reactions into windows of 3
+    # Group reactions into windows of 5
     windows: list[list[dict]] = []
-    for i in range(0, len(reactions), 3):
-        windows.append(reactions[i : i + 3])
+    for i in range(0, len(reactions), window_reaction_capacity):
+        windows.append(reactions[i : i + window_reaction_capacity])
 
     result = [f.copy() for f in frames]
 
@@ -900,7 +908,7 @@ def apply_reaction_overlay(
                     except Exception:
                         text_w = len(user_name) * 7
                     text_x = slot_x + (slot_width - text_w) // 2
-                    draw.text((text_x, 2), user_name, fill=(255, 255, 255), font=font, fontmode="1")
+                    draw.text((text_x, 2), user_name, fill=(255, 255, 255), stroke_fill=(0, 0, 0), stroke_width=1, font=font, fontmode="1")
 
                     # Resize emoji to scaled size, centered in slot
                     emoji_size = max(1, int(slot_width * scale))

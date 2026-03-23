@@ -566,8 +566,14 @@ class InputHandler:
             controller.tick(remaining_capture * capture_interval_frames)
 
         # Auto press A and capture more frames ahead (e.g.: during NPC dialogue)
-        while hook_context.get("autoPressA", {}).get("_total", 0) >= auto_press_call_threshold:
-            logger.debug("Auto-pressing A...")
+        MAX_AUTO_PRESS_ITERATIONS = 10
+        auto_press_iterations = 0
+
+        while (
+            hook_context.get("autoPressA", {}).get("_total", 0) >= auto_press_call_threshold
+            and auto_press_iterations < MAX_AUTO_PRESS_ITERATIONS
+        ):
+            logger.debug(f"Auto-pressing A (iteration {auto_press_iterations + 1}/{MAX_AUTO_PRESS_ITERATIONS})...")
 
             controller.send_input(GameButton.A, frames=settings.input_hold_frames)
 
@@ -579,10 +585,15 @@ class InputHandler:
                 hook_context,
                 game_fps,
             )
+            auto_press_iterations += 1
+
+        if auto_press_iterations >= MAX_AUTO_PRESS_ITERATIONS:
+            logger.warning(f"[MEM] autoPressA loop hit cap ({MAX_AUTO_PRESS_ITERATIONS}) for chat {chat_id}")
 
         logger.info(f"Animation completed for chat {chat_id} in {animation_frames} frames")
 
         frames = controller.end_capture()
+        logger.info(f"[MEM] frames={len(frames)}, approx_raw_MB={len(frames)*69/1024:.1f}")
         audio_chunks = controller.get_last_captured_audio()
         controller.end_hooks(hook_context)
 
@@ -600,6 +611,8 @@ class InputHandler:
             ))
             for f in frames
         ]
+        del frames  # release raw frames before compositing
+        logger.info(f"[MEM] scaled_frames approx MB={len(scaled_frames)*622/1024:.1f}")
 
         # 2. Generate TBC from the last 3x-scaled game frame (no overlay yet)
         tbc_frames = generate_tbc_frames(
@@ -610,6 +623,7 @@ class InputHandler:
         )
         num_tbc_frames = len(tbc_frames)
         all_frames = scaled_frames + tbc_frames
+        del scaled_frames, tbc_frames  # release before compositing allocates composited_frames
 
         # 2.5. Pop queued reactions and composite onto game frames (before sidebar)
         num_windows = len(all_frames) // (2 * capture_fps)
@@ -640,6 +654,8 @@ class InputHandler:
             all_frames, pre_existing_inputs_for_overlay, new_inputs_with_offsets, capture_fps,
             user_colors=user_colors,
         )
+        del all_frames  # release scaled frames now that composited_frames is built
+        logger.info(f"[MEM] composited_frames approx MB={len(composited_frames)*972/1024:.1f}")
 
         animation_duration_seconds = len(composited_frames) / capture_fps
 

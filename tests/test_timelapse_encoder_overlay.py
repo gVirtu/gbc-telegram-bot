@@ -81,10 +81,13 @@ def test_apply_overlay_composite_applies_sidebar():
 
     pre = [{"user_name": "Alice", "button": "a", "user_id": 1, "timestamp": "2026-03-21T12:00:00"}]
     frames = [np.zeros((288, 320, 3), dtype=np.uint8)]
+    original_width = frames[0].shape[1]
+    original_height = frames[0].shape[0]
     result = apply_overlay_composite(frames, pre, [])
 
-    assert result[0].shape[1] > frames[0].shape[1]
-    assert result[0].shape[0] >= frames[0].shape[0]
+    # result is the same list mutated in-place, so compare against saved originals
+    assert result[0].shape[1] > original_width
+    assert result[0].shape[0] >= original_height
 
 
 def test_apply_overlay_composite_adds_inputs_at_offset():

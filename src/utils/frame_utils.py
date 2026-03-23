@@ -474,7 +474,12 @@ def apply_overlay_composite(
         List of composited frames, each wider by the sidebar width (H, W+192, 3).
     """
     transform = _make_frame_transform(pre_existing_inputs, new_inputs_with_offsets, capture_fps, user_colors=user_colors)
-    return [transform(f) for f in frames]
+    # Transform in-place: as each slot is overwritten CPython immediately frees
+    # the old frame (refcount → 0), so we never hold both the raw and composited
+    # generations simultaneously.
+    for i in range(len(frames)):
+        frames[i] = transform(frames[i])
+    return frames
 
 
 def save_frames_as_mp4(

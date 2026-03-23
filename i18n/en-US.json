@@ -214,10 +214,21 @@
     "page_indicator": "Page {page}/{total}",
     "prev": "◀ Previous",
     "next": "Next ▶",
+    "back": "↩ Back",
     "free": "Free",
     "purchase_success": "✅ {item_name} redeemed!",
     "insufficient_funds": "❌ Not enough points (need {cost}, have {balance}).",
     "no_profile": "❌ You haven't played yet.",
+    "categories": {
+      "name_tags": {
+        "label": "🎨 Colored Name Tags",
+        "description": "Change the color of your name tag."
+      },
+      "reactions": {
+        "label": "🎉 Reactions",
+        "description": "Show a reaction in the next gameplay update. Reactions cost 10 pts."
+      }
+    },
     "items": {
       "name_tag_white": "White Name Tag",
       "name_tag_red": "Red Name Tag",
@@ -226,24 +237,24 @@
       "name_tag_yellow": "Yellow Name Tag",
       "name_tag_magenta": "Magenta Name Tag",
       "name_tag_cyan": "Cyan Name Tag",
-      "react_joy": "React: 😂",
-      "react_clap": "React: 👏",
-      "react_clown": "React: 🤡",
-      "react_cry": "React: 😢",
-      "react_eyes": "React: 👀",
-      "react_fire": "React: 🔥",
-      "react_heart": "React: ❤️",
-      "react_mind_blown": "React: 🤯",
-      "react_moai": "React: 🗿",
-      "react_party_popper": "React: 🎉",
-      "react_pointing_down": "React: 👇",
-      "react_pointing_left": "React: 👈",
-      "react_pointing_right": "React: 👉",
-      "react_pointing_up": "React: 👆",
-      "react_poop": "React: 💩",
-      "react_skull": "React: 💀",
-      "react_sunglasses": "React: 😎",
-      "react_thumbs_up": "React: 👍"
+      "react_joy": "😂",
+      "react_clap": "👏",
+      "react_clown": "🤡",
+      "react_cry": "😢",
+      "react_eyes": "👀",
+      "react_fire": "🔥",
+      "react_heart": "❤️",
+      "react_mind_blown": "🤯",
+      "react_moai": "🗿",
+      "react_party_popper": "🎉",
+      "react_pointing_down": "👇",
+      "react_pointing_left": "👈",
+      "react_pointing_right": "👉",
+      "react_pointing_up": "👆",
+      "react_poop": "💩",
+      "react_skull": "💀",
+      "react_sunglasses": "😎",
+      "react_thumbs_up": "👍"
     }
   }
 }

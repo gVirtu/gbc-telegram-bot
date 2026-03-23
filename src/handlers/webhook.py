@@ -157,13 +157,18 @@ class WebhookHandler:
                 logger.warning(f"Invalid load_slot callback: {callback_data}")
         elif callback_data == "cancel_load":
             await callback_query.message.edit_text("Load cancelled.")
-        elif callback_data.startswith("shop_page_") or callback_data.startswith("shop_buy_"):
+        elif (
+            callback_data.startswith("shop_page_")
+            or callback_data.startswith("shop_buy_")
+            or callback_data.startswith("shop_cat_")
+            or callback_data.startswith("shop_back_")
+        ):
             await self._handle_shop_callback(update, callback_data)
         else:
             logger.debug(f"Unhandled callback: {callback_data}")
 
     async def _handle_shop_callback(self, update: "Update", callback_data: str) -> None:
-        """Handle shop pagination and purchase callbacks."""
+        """Handle shop navigation, category, and purchase callbacks."""
         from src.handlers.commands import _build_shop_keyboard
         from src.shop.shop_manager import shop_manager as _sm, build_shop_text
         from src.i18n import translation_manager
@@ -174,10 +179,10 @@ class WebhookHandler:
             callback_query.from_user.first_name or
             (f"@{callback_query.from_user.username}" if callback_query.from_user.username else "User")
         )
-        dm_chat_id = callback_query.message.chat.id  # the DM chat
         platform = "telegram"
 
         if callback_data.startswith("shop_page_"):
+            # Outer category listing navigation: shop_page_{source_chat_id}_{page}
             rest = callback_data.removeprefix("shop_page_")
             source_chat_id_str, page_str = rest.split("_", 1)
             try:
@@ -185,14 +190,52 @@ class WebhookHandler:
                 page = int(page_str)
             except ValueError:
                 return
-            items, total_pages = _sm.get_page(page)
             balance = _sm.get_balance(platform, user_id)
-            text = build_shop_text(balance, page, total_pages, source_chat_id)
-            keyboard = _build_shop_keyboard(source_chat_id, source_chat_id, page, total_pages, items)
+            total_pages = 1
+            text = build_shop_text(balance, None, page, total_pages, source_chat_id)
+            keyboard = _build_shop_keyboard(source_chat_id, source_chat_id, page, total_pages, [], category=None)
+            await callback_query.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
+            await callback_query.answer()
+
+        elif callback_data.startswith("shop_cat_"):
+            # Enter/navigate within a category: shop_cat_{source_chat_id}_{cat_id}_{page}
+            rest = callback_data.removeprefix("shop_cat_")
+            # source_chat_id is first numeric segment; cat_id may contain underscores; page is last
+            parts = rest.split("_")
+            if len(parts) < 3:
+                return
+            try:
+                source_chat_id = int(parts[0])
+                page = int(parts[-1])
+            except ValueError:
+                return
+            cat_id = "_".join(parts[1:-1])
+            category = _sm.get_category(cat_id)
+            if category is None:
+                return
+            items, total_pages = _sm.get_category_page(cat_id, page)
+            balance = _sm.get_balance(platform, user_id)
+            text = build_shop_text(balance, category, page, total_pages, source_chat_id)
+            keyboard = _build_shop_keyboard(source_chat_id, source_chat_id, page, total_pages, items, category=category)
+            await callback_query.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
+            await callback_query.answer()
+
+        elif callback_data.startswith("shop_back_"):
+            # Return to category listing: shop_back_{source_chat_id}
+            source_chat_id_str = callback_data.removeprefix("shop_back_")
+            try:
+                source_chat_id = int(source_chat_id_str)
+            except ValueError:
+                return
+            balance = _sm.get_balance(platform, user_id)
+            total_pages = 1
+            text = build_shop_text(balance, None, 0, total_pages, source_chat_id)
+            keyboard = _build_shop_keyboard(source_chat_id, source_chat_id, 0, total_pages, [], category=None)
             await callback_query.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
             await callback_query.answer()
 
         elif callback_data.startswith("shop_buy_"):
+            # Purchase: shop_buy_{source_chat_id}_{item_id}
             rest = callback_data.removeprefix("shop_buy_")
             source_chat_id_str, item_id = rest.split("_", 1)
             try:
@@ -200,9 +243,8 @@ class WebhookHandler:
             except ValueError:
                 return
             result = _sm.purchase(platform, user_id, item_id, chat_id=source_chat_id, user_name=user_name)
-            page = 0  # return to page 0 after purchase
-            items, total_pages = _sm.get_page(page)
             balance = _sm.get_balance(platform, user_id)
+            total_pages = 1
             if result.success:
                 item_name = translation_manager.get(result.item.name_i18n_key, source_chat_id)
                 status = translation_manager.get(
@@ -219,8 +261,9 @@ class WebhookHandler:
                         "shop.insufficient_funds", source_chat_id,
                         cost="?", balance=f"{balance:,}"
                     )
-            text = build_shop_text(balance, page, total_pages, source_chat_id, status_message=status)
-            keyboard = _build_shop_keyboard(source_chat_id, source_chat_id, page, total_pages, items)
+            # Return to outer category listing after purchase
+            text = build_shop_text(balance, None, 0, total_pages, source_chat_id, status_message=status)
+            keyboard = _build_shop_keyboard(source_chat_id, source_chat_id, 0, total_pages, [], category=None)
             await callback_query.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
             await callback_query.answer()
 

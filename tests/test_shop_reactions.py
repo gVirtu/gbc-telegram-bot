@@ -6,7 +6,7 @@ os.environ.setdefault("PYTEST_CURRENT_TEST", "1")
 import sqlite3
 import pytest
 from src.shop.shop_manager import ShopManager
-from src.shop.items import SHOP_ITEMS
+from src.shop.items import SHOP_CATEGORIES
 
 
 def _make_manager(with_reaction_queue=True):
@@ -44,17 +44,17 @@ def _make_manager(with_reaction_queue=True):
     return ShopManager(FakeConn()), conn
 
 
+def _all_items():
+    return [item for cat in SHOP_CATEGORIES for item in cat.items]
+
+
 class TestReactJoyItem:
     def test_react_joy_in_shop_items(self):
-        ids = [i.id for i in SHOP_ITEMS]
+        ids = [i.id for i in _all_items()]
         assert "react_joy" in ids
 
-    def test_react_joy_costs_1(self):
-        item = next(i for i in SHOP_ITEMS if i.id == "react_joy")
-        assert item.cost == 1
-
     def test_react_joy_has_reaction_effect(self):
-        item = next(i for i in SHOP_ITEMS if i.id == "react_joy")
+        item = next(i for i in _all_items() if i.id == "react_joy")
         assert item.effect.get("reaction") == "joy"
 
 
@@ -83,7 +83,7 @@ class TestPurchaseReaction:
         row = conn.execute(
             "SELECT total_score_spent FROM user_player_profiles WHERE user_id = 1"
         ).fetchone()
-        assert row["total_score_spent"] == 1
+        assert row["total_score_spent"] == 10
 
     def test_reaction_purchase_insufficient_funds(self):
         mgr, conn = _make_manager()

@@ -7,7 +7,7 @@ import logging
 from dataclasses import dataclass
 
 from src.db.connection import DatabaseConnection
-from src.shop.items import ITEMS_PER_PAGE, SHOP_ITEMS, ShopItem
+from src.shop.items import SHOP_CATEGORIES, ShopCategory, ShopItem
 
 logger = logging.getLogger(__name__)
 
@@ -36,12 +36,31 @@ class ShopManager:
         ).fetchone()
         return row[0] if row else 0
 
-    def get_page(self, page: int) -> tuple[list[ShopItem], int]:
-        """Return (items_on_page, total_pages), clamping page to valid range."""
-        total_pages = max(1, math.ceil(len(SHOP_ITEMS) / ITEMS_PER_PAGE))
+    def get_categories(self) -> list[ShopCategory]:
+        """Return all shop categories."""
+        return SHOP_CATEGORIES
+
+    def get_category(self, cat_id: str) -> ShopCategory | None:
+        """Return the category with the given id, or None."""
+        return next((c for c in SHOP_CATEGORIES if c.id == cat_id), None)
+
+    def get_category_page(self, cat_id: str, page: int) -> tuple[list[ShopItem], int]:
+        """Return (items_on_page, total_pages) for the given category, clamping page to valid range."""
+        cat = self.get_category(cat_id)
+        if cat is None:
+            return [], 1
+        total_pages = max(1, math.ceil(len(cat.items) / cat.items_per_page))
         page = max(0, min(page, total_pages - 1))
-        start = page * ITEMS_PER_PAGE
-        return SHOP_ITEMS[start : start + ITEMS_PER_PAGE], total_pages
+        start = page * cat.items_per_page
+        return cat.items[start : start + cat.items_per_page], total_pages
+
+    def get_item(self, item_id: str) -> ShopItem | None:
+        """Search across all categories and return the item with the given id, or None."""
+        for cat in SHOP_CATEGORIES:
+            for item in cat.items:
+                if item.id == item_id:
+                    return item
+        return None
 
     def validate_shop_access(
         self, platform: str, user_id: int, chat_id: int
@@ -81,7 +100,7 @@ class ShopManager:
         Called only after validate_shop_access has passed.
         Returns PurchaseResult with success=True or error details.
         """
-        item = next((i for i in SHOP_ITEMS if i.id == item_id), None)
+        item = self.get_item(item_id)
         if item is None:
             return PurchaseResult(success=False)  # unknown item_id; callers handle gracefully
 
@@ -138,6 +157,7 @@ shop_manager: _ShopManagerProxy = _ShopManagerProxy()
 
 def build_shop_text(
     balance: int,
+    category: ShopCategory | None,
     page: int,
     total_pages: int,
     chat_id: int,
@@ -158,6 +178,9 @@ def build_shop_text(
     if status_message:
         parts.append(status_message)
     parts.append(translation_manager.get("shop.welcome", chat_id))
+    if category:
+        parts.append(translation_manager.get(category.label, chat_id))
+        parts.append(translation_manager.get(category.description, chat_id))
     parts.append(translation_manager.get("shop.balance", chat_id, balance=f"{balance:,}"))
     parts.append(translation_manager.get("shop.page_indicator", chat_id, page=page + 1, total=total_pages))
     return "\n\n".join(parts)

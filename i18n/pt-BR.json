@@ -214,10 +214,21 @@
     "page_indicator": "Página {page}/{total}",
     "prev": "◀ Anterior",
     "next": "Próximo ▶",
+    "back": "↩ Voltar",
     "free": "Grátis",
     "purchase_success": "✅ {item_name} resgatado!",
     "insufficient_funds": "❌ Pontos insuficientes (precisa de {cost}, tem {balance}).",
     "no_profile": "❌ Você ainda não jogou.",
+    "categories": {
+      "name_tags": {
+        "label": "🎨 Tags de Nome Coloridas",
+        "description": "Mude a cor da sua tag de nome."
+      },
+      "reactions": {
+        "label": "🎉 Reações",
+        "description": "Mostre uma reação na próxima atualização do jogo. Reações custam 10 pts."
+      }
+    },
     "items": {
       "name_tag_white": "Tag de Nome Branca",
       "name_tag_red": "Tag de Nome Vermelha",
@@ -226,24 +237,24 @@
       "name_tag_yellow": "Tag de Nome Amarela",
       "name_tag_magenta": "Tag de Nome Magenta",
       "name_tag_cyan": "Tag de Nome Ciano",
-      "react_joy": "Reagir: 😂",
-      "react_clap": "Reagir: 👏",
-      "react_clown": "Reagir: 🤡",
-      "react_cry": "Reagir: 😢",
-      "react_eyes": "Reagir: 👀",
-      "react_fire": "Reagir: 🔥",
-      "react_heart": "Reagir: ❤️",
-      "react_mind_blown": "Reagir: 🤯",
-      "react_moai": "Reagir: 🗿",
-      "react_party_popper": "Reagir: 🎉",
-      "react_pointing_down": "Reagir: 👇",
-      "react_pointing_left": "Reagir: 👈",
-      "react_pointing_right": "Reagir: 👉",
-      "react_pointing_up": "Reagir: 👆",
-      "react_poop": "Reagir: 💩",
-      "react_skull": "Reagir: 💀",
-      "react_sunglasses": "Reagir: 😎",
-      "react_thumbs_up": "Reagir: 👍"
+      "react_joy": "😂",
+      "react_clap": "👏",
+      "react_clown": "🤡",
+      "react_cry": "😢",
+      "react_eyes": "👀",
+      "react_fire": "🔥",
+      "react_heart": "❤️",
+      "react_mind_blown": "🤯",
+      "react_moai": "🗿",
+      "react_party_popper": "🎉",
+      "react_pointing_down": "👇",
+      "react_pointing_left": "👈",
+      "react_pointing_right": "👉",
+      "react_pointing_up": "👆",
+      "react_poop": "💩",
+      "react_skull": "💀",
+      "react_sunglasses": "😎",
+      "react_thumbs_up": "👍"
     }
   }
 }

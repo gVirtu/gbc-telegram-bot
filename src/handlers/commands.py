@@ -19,7 +19,7 @@ from src.i18n import translation_manager, SUPPORTED_LANGUAGES
 from src.keyboard import create_help_text
 from src.models.game_state import KNOWN_FEATURE_FLAGS
 from src.shop.shop_manager import shop_manager, build_shop_text
-from src.shop.items import SHOP_ITEMS, ITEMS_PER_PAGE
+from src.shop.items import ShopCategory
 from src.utils.media_cache import load_last_animation
 from src.utils.mirror_utils import broadcast_text, get_leader_chat_id, is_media_only_mirror
 from src.utils.recap_utils import send_recap_to_chat
@@ -918,32 +918,76 @@ async def maintenance_command(ctx: CommandContext) -> None:
 
 
 def _build_shop_keyboard(
-    chat_id: int, source_chat_id: int, page: int, total_pages: int, items: list
+    chat_id: int,
+    source_chat_id: int,
+    page: int,
+    total_pages: int,
+    items: list,
+    category: "ShopCategory | None" = None,
 ) -> "InlineKeyboardMarkup":
-    """Build the shop inline keyboard for Telegram."""
+    """Build the shop inline keyboard for Telegram.
+
+    When category is None, renders the outer category listing.
+    When category is provided, renders the inner item view for that category.
+    """
     from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
     rows = []
-    for item in items:
-        name = translation_manager.get(item.name_i18n_key, chat_id)
-        cost_label = translation_manager.get("shop.free", chat_id) if item.cost == 0 else f"{item.cost:,} pts"
-        rows.append([InlineKeyboardButton(
-            f"{name} — {cost_label}",
-            callback_data=f"shop_buy_{source_chat_id}_{item.id}",
-        )])
 
-    nav = []
-    if page > 0:
+    if category is None:
+        # Outer category listing: one button per category
+        for cat in shop_manager.get_categories():
+            label = translation_manager.get(cat.label, chat_id)
+            rows.append([InlineKeyboardButton(
+                label,
+                callback_data=f"shop_cat_{source_chat_id}_{cat.id}_0",
+            )])
+        nav = []
+        if page > 0:
+            nav.append(InlineKeyboardButton(
+                translation_manager.get("shop.prev", chat_id),
+                callback_data=f"shop_page_{source_chat_id}_{page - 1}",
+            ))
+        if page < total_pages - 1:
+            nav.append(InlineKeyboardButton(
+                translation_manager.get("shop.next", chat_id),
+                callback_data=f"shop_page_{source_chat_id}_{page + 1}",
+            ))
+        if nav:
+            rows.append(nav)
+    else:
+        # Inner category view: items laid out in rows of items_per_row
+        items_per_row = category.items_per_row
+        row: list = []
+        for item in items:
+            name = translation_manager.get(item.name_i18n_key, chat_id)
+            cost_label = translation_manager.get("shop.free", chat_id) if item.cost == 0 else f"{item.cost:,} pts"
+            row.append(InlineKeyboardButton(
+                f"{name} — {cost_label}",
+                callback_data=f"shop_buy_{source_chat_id}_{item.id}",
+            ))
+            if len(row) >= items_per_row:
+                rows.append(row)
+                row = []
+        if row:
+            rows.append(row)
+
+        # Bottom nav row: [← Prev] [BACK] [Next →]
+        nav = []
+        if page > 0:
+            nav.append(InlineKeyboardButton(
+                translation_manager.get("shop.prev", chat_id),
+                callback_data=f"shop_cat_{source_chat_id}_{category.id}_{page - 1}",
+            ))
         nav.append(InlineKeyboardButton(
-            translation_manager.get("shop.prev", chat_id),
-            callback_data=f"shop_page_{source_chat_id}_{page - 1}",
+            translation_manager.get("shop.back", chat_id),
+            callback_data=f"shop_back_{source_chat_id}",
         ))
-    if page < total_pages - 1:
-        nav.append(InlineKeyboardButton(
-            translation_manager.get("shop.next", chat_id),
-            callback_data=f"shop_page_{source_chat_id}_{page + 1}",
-        ))
-    if nav:
+        if page < total_pages - 1:
+            nav.append(InlineKeyboardButton(
+                translation_manager.get("shop.next", chat_id),
+                callback_data=f"shop_cat_{source_chat_id}_{category.id}_{page + 1}",
+            ))
         rows.append(nav)
 
     return InlineKeyboardMarkup(rows)
@@ -953,13 +997,24 @@ async def _show_shop(
     ctx: "CommandContext",
     source_chat_id: int,
     page: int,
+    cat_id: str | None = None,
     status_message: str | None = None,
 ) -> None:
-    """Send or edit the shop message in ctx's chat."""
-    items, total_pages = shop_manager.get_page(page)
+    """Send the shop message in ctx's chat.
+
+    When cat_id is None, renders the outer category listing.
+    When cat_id is provided, renders the inner category item view.
+    """
     balance = shop_manager.get_balance(ctx.adapter.platform, ctx.user_id)
-    text = build_shop_text(balance, page, total_pages, source_chat_id, status_message)
-    keyboard = _build_shop_keyboard(source_chat_id, source_chat_id, page, total_pages, items)
+    if cat_id is None:
+        total_pages = 1
+        text = build_shop_text(balance, None, 0, total_pages, source_chat_id, status_message)
+        keyboard = _build_shop_keyboard(source_chat_id, source_chat_id, 0, total_pages, [], category=None)
+    else:
+        category = shop_manager.get_category(cat_id)
+        items, total_pages = shop_manager.get_category_page(cat_id, page)
+        text = build_shop_text(balance, category, page, total_pages, source_chat_id, status_message)
+        keyboard = _build_shop_keyboard(source_chat_id, source_chat_id, page, total_pages, items, category=category)
     await ctx.adapter.send_text(ctx.chat_id, text, reply_markup=keyboard, parse_mode="Markdown")
 
 

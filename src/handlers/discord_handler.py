@@ -265,17 +265,20 @@ def create_discord_bot() -> Any:
             # ── END: Open sequence input modal ──
 
             # ── Shop interactions ──
-            if custom_id in ("open_shop",) or custom_id.startswith(("shop_page_", "shop_buy_")):
+            if custom_id in ("open_shop", "shop_back") or custom_id.startswith(
+                ("shop_page_", "shop_buy_", "shop_cat_")
+            ):
                 from src.shop.shop_manager import shop_manager, build_shop_text
                 from src.adapters.discord import build_discord_shop_view
 
-                if custom_id == "open_shop":
-                    page = 0
-                    items, total_pages = shop_manager.get_page(page)
+                if custom_id == "open_shop" or custom_id == "shop_back":
                     balance = shop_manager.get_balance("discord", user_id)
-                    content = build_shop_text(balance, page, total_pages, channel_id)
-                    view = build_discord_shop_view(page, total_pages, items, channel_id)
-                    await interaction.response.send_message(content=content, view=view, ephemeral=True)
+                    content = build_shop_text(balance, None, 0, 1, channel_id)
+                    view = build_discord_shop_view(0, 1, [], channel_id, category=None)
+                    if custom_id == "open_shop":
+                        await interaction.response.send_message(content=content, view=view, ephemeral=True)
+                    else:
+                        await interaction.response.edit_message(content=content, view=view)
                     return
 
                 if custom_id.startswith("shop_page_"):
@@ -283,18 +286,36 @@ def create_discord_bot() -> Any:
                         page = int(custom_id.removeprefix("shop_page_"))
                     except ValueError:
                         return
-                    items, total_pages = shop_manager.get_page(page)
                     balance = shop_manager.get_balance("discord", user_id)
-                    content = build_shop_text(balance, page, total_pages, channel_id)
-                    view = build_discord_shop_view(page, total_pages, items, channel_id)
+                    content = build_shop_text(balance, None, page, 1, channel_id)
+                    view = build_discord_shop_view(page, 1, [], channel_id, category=None)
+                    await interaction.response.edit_message(content=content, view=view)
+                    return
+
+                if custom_id.startswith("shop_cat_"):
+                    # Format: shop_cat_{cat_id}_{page}
+                    rest = custom_id.removeprefix("shop_cat_")
+                    parts = rest.rsplit("_", 1)
+                    if len(parts) != 2:
+                        return
+                    cat_id, page_str = parts
+                    try:
+                        page = int(page_str)
+                    except ValueError:
+                        return
+                    category = shop_manager.get_category(cat_id)
+                    if category is None:
+                        return
+                    items, total_pages = shop_manager.get_category_page(cat_id, page)
+                    balance = shop_manager.get_balance("discord", user_id)
+                    content = build_shop_text(balance, category, page, total_pages, channel_id)
+                    view = build_discord_shop_view(page, total_pages, items, channel_id, category=category)
                     await interaction.response.edit_message(content=content, view=view)
                     return
 
                 if custom_id.startswith("shop_buy_"):
                     item_id = custom_id.removeprefix("shop_buy_")
                     result = shop_manager.purchase("discord", user_id, item_id, chat_id=channel_id, user_name=user_name)
-                    page = 0
-                    items, total_pages = shop_manager.get_page(page)
                     balance = shop_manager.get_balance("discord", user_id)
                     if result.success:
                         item_name = translation_manager.get(result.item.name_i18n_key, channel_id)
@@ -307,8 +328,9 @@ def create_discord_bot() -> Any:
                             "shop.insufficient_funds", channel_id,
                             cost=cost, balance=f"{balance:,}"
                         )
-                    content = build_shop_text(balance, page, total_pages, channel_id, status_message=status)
-                    view = build_discord_shop_view(page, total_pages, items, channel_id)
+                    # Return to outer category listing after purchase
+                    content = build_shop_text(balance, None, 0, 1, channel_id, status_message=status)
+                    view = build_discord_shop_view(0, 1, [], channel_id, category=None)
                     await interaction.response.edit_message(content=content, view=view)
                     return
             # ── END: Shop interactions ──

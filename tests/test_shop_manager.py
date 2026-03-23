@@ -7,6 +7,7 @@ os.environ.setdefault("PYTEST_CURRENT_TEST", "1")
 import sqlite3
 import pytest
 from src.shop.shop_manager import ShopManager, PurchaseResult
+from src.shop.items import SHOP_CATEGORIES
 
 
 def _make_manager(tmp_path):
@@ -64,18 +65,74 @@ class TestGetBalance:
         assert mgr.get_balance("telegram", 2) == 0
 
 
-class TestGetPage:
-    def test_single_page_case(self, tmp_path):
-        """Clamps out-of-range page to valid range."""
+class TestGetCategories:
+    def test_returns_all_categories(self, tmp_path):
         mgr = _make_manager(tmp_path)
-        items, total_pages = mgr.get_page(99)
-        assert items == mgr.get_page(total_pages - 1)[0]
+        cats = mgr.get_categories()
+        assert len(cats) == 2
+        assert cats[0].id == "name_tags"
+        assert cats[1].id == "reactions"
 
-    def test_boundary_index(self, tmp_path):
+    def test_get_category_known(self, tmp_path):
         mgr = _make_manager(tmp_path)
-        items1, _ = mgr.get_page(1)
-        assert len(items1) == 3
-        assert items1[0].id == "name_tag_blue"
+        cat = mgr.get_category("reactions")
+        assert cat is not None
+        assert cat.id == "reactions"
+        assert len(cat.items) == 18
+
+    def test_get_category_unknown(self, tmp_path):
+        mgr = _make_manager(tmp_path)
+        assert mgr.get_category("does_not_exist") is None
+
+
+class TestGetCategoryPage:
+    def test_clamps_out_of_range_page(self, tmp_path):
+        mgr = _make_manager(tmp_path)
+        items, total_pages = mgr.get_category_page("name_tags", 99)
+        assert items == mgr.get_category_page("name_tags", total_pages - 1)[0]
+
+    def test_first_page_name_tags(self, tmp_path):
+        mgr = _make_manager(tmp_path)
+        items, total_pages = mgr.get_category_page("name_tags", 0)
+        assert len(items) == 3
+        assert items[0].id == "name_tag_white"
+        assert total_pages == 3  # 7 items / 3 per page = 3 pages
+
+    def test_second_page_name_tags(self, tmp_path):
+        mgr = _make_manager(tmp_path)
+        items, _ = mgr.get_category_page("name_tags", 1)
+        assert len(items) == 3
+        assert items[0].id == "name_tag_blue"
+
+    def test_reactions_all_on_one_page(self, tmp_path):
+        mgr = _make_manager(tmp_path)
+        items, total_pages = mgr.get_category_page("reactions", 0)
+        assert len(items) == 18
+        assert total_pages == 1
+
+    def test_unknown_category_returns_empty(self, tmp_path):
+        mgr = _make_manager(tmp_path)
+        items, total_pages = mgr.get_category_page("nope", 0)
+        assert items == []
+        assert total_pages == 1
+
+
+class TestGetItem:
+    def test_finds_item_in_name_tags(self, tmp_path):
+        mgr = _make_manager(tmp_path)
+        item = mgr.get_item("name_tag_red")
+        assert item is not None
+        assert item.cost == 5000
+
+    def test_finds_item_in_reactions(self, tmp_path):
+        mgr = _make_manager(tmp_path)
+        item = mgr.get_item("react_joy")
+        assert item is not None
+        assert item.effect.get("reaction") == "joy"
+
+    def test_returns_none_for_unknown(self, tmp_path):
+        mgr = _make_manager(tmp_path)
+        assert mgr.get_item("does_not_exist") is None
 
 
 class TestValidateShopAccess:

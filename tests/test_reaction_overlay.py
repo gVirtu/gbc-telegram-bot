@@ -95,6 +95,8 @@ class TestApplyReactionOverlayMissingAsset:
         empty_dir.mkdir()
         frames = _make_frames(30)
         reactions = [{"user_name": "Alice", "reaction_type": "joy"}]
-        # Should not raise
+        # Should not raise, and frames should be unchanged
         result = apply_reaction_overlay(frames, reactions, capture_fps=15, asset_dir=empty_dir)
         assert len(result) == 30
+        for orig, res in zip(frames, result):
+            assert np.array_equal(orig, res), "Frames should be unchanged when asset is missing"

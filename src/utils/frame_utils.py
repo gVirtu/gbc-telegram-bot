@@ -889,19 +889,19 @@ def apply_reaction_overlay(
                 if scale <= 0:
                     continue
 
-                pil_frame = Image.fromarray(result[fi])
-                draw = ImageDraw.Draw(pil_frame)
-
-                # Draw username above slot, centered
-                try:
-                    bbox = draw.textbbox((0, 0), user_name, font=font)
-                    text_w = bbox[2] - bbox[0]
-                except Exception:
-                    text_w = len(user_name) * 7
-                text_x = slot_x + (slot_width - text_w) // 2
-                draw.text((text_x, 2), user_name, fill=(255, 255, 255), font=font, fontmode="1")
-
                 if asset is not None:
+                    pil_frame = Image.fromarray(result[fi])
+                    draw = ImageDraw.Draw(pil_frame)
+
+                    # Draw username above slot, centered
+                    try:
+                        bbox = draw.textbbox((0, 0), user_name, font=font)
+                        text_w = bbox[2] - bbox[0]
+                    except Exception:
+                        text_w = len(user_name) * 7
+                    text_x = slot_x + (slot_width - text_w) // 2
+                    draw.text((text_x, 2), user_name, fill=(255, 255, 255), font=font, fontmode="1")
+
                     # Resize emoji to scaled size, centered in slot
                     emoji_size = max(1, int(slot_width * scale))
                     resized = asset.resize((emoji_size, emoji_size), Image.Resampling.NEAREST)
@@ -909,6 +909,6 @@ def apply_reaction_overlay(
                     emoji_y = 20 + (slot_width - emoji_size) // 2  # below username
                     pil_frame.paste(resized, (emoji_x, emoji_y), resized)
 
-                result[fi] = np.array(pil_frame, dtype=np.uint8)
+                    result[fi] = np.array(pil_frame, dtype=np.uint8)
 
     return result

@@ -38,6 +38,7 @@ def begin_hooks(pyboy) -> dict:
             "NamingScreenJoypadLoop": 0,
             "MenuJoypadLoop.loop": 0,
             "Toss_Sell_Loop.loop": 0,
+            "MoveScreenLoop.loop": 0,
             "PokeGear.loop": 0,
             "_total": 0
         },

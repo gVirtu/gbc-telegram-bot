@@ -593,14 +593,14 @@ def save_frames_as_avif(
 
     duration_ms = int(1000 / fps)
 
-    pil_frames = [Image.fromarray(frame) for frame in frames]
+    first = Image.fromarray(frames[0])
 
     buffer = BytesIO()
-    pil_frames[0].save(
+    first.save(
         buffer,
         format="AVIF",
         save_all=True,
-        append_images=pil_frames[1:],
+        append_images=(Image.fromarray(f) for f in frames[1:]),
         duration=duration_ms,
         loop=0,
         optimize=False,
@@ -667,8 +667,7 @@ async def save_frames_as_mp4_optimized(
     )
 
     for frame in frames:
-        img = Image.fromarray(frame)
-        process.stdin.write(np.array(img).tobytes())
+        process.stdin.write(frame.tobytes())
 
     process.stdin.close()
 

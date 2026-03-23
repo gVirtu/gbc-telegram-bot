@@ -452,7 +452,7 @@ class GameController:
             self.pyboy.tick()
         self._last_captured_audio = list(self._audio_buffer)
         self._audio_buffer = []
-        frames = list(self._frame_buffer)
+        frames = self._frame_buffer
         self._frame_buffer = []
         self._capture_tick_count = 0
         return frames

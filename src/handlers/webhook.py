@@ -306,6 +306,21 @@ class WebhookHandler:
             return True
         return chat_id in settings.allowed_chat_ids
 
+    def _is_shop_related_update(self, update: Update) -> bool:
+        """Return True only for shop-related messages/callbacks (exempt from allowlist in private chats)."""
+        if update.message and update.message.text:
+            text = update.message.text.strip()
+            if text.startswith("/start shop_"):
+                return True
+            command = text[1:].split()[0].split("@")[0] if text.startswith("/") else ""
+            if command == "shop":
+                return True
+        if update.callback_query and update.callback_query.data:
+            data = update.callback_query.data
+            if any(data.startswith(p) for p in ("shop_page_", "shop_buy_", "shop_cat_", "shop_back_")):
+                return True
+        return False
+
     async def process_update(self, update_data: dict) -> None:
         """Process a Telegram update."""
         try:
@@ -324,9 +339,11 @@ class WebhookHandler:
                     and update.callback_query.message.chat.type == "private"
                 )
             )
-            if not is_private and not self._is_chat_allowed(chat_id):
-                logger.warning(f"Ignored update from unauthorized chat {chat_id}")
-                return
+            # Shop deep-links/callbacks in private chats bypass the allowlist
+            if not (is_private and self._is_shop_related_update(update)):
+                if not self._is_chat_allowed(chat_id):
+                    logger.warning(f"Ignored update from unauthorized chat {chat_id}")
+                    return
 
             if update.callback_query:
                 await self._handle_callback_query(update)

@@ -849,12 +849,12 @@ def apply_reaction_overlay(
     slot_width = round(0.2 * frame_w)
     slot_x_positions = [slot_width * 4, slot_width * 3, slot_width * 2, slot_width, 0]
 
-    # Load font (same as sidebar)
+    # Load font (different from sidebar for legibility)
     font = None
-    font_path = Path(__file__).parent.parent.parent / "assets" / "fonts" / "unifont-17.0.04.otf"
+    font_path = Path(__file__).parent.parent.parent / "assets" / "fonts" / "OpenSans-Bold.ttf"
     try:
         from PIL import ImageFont
-        font = ImageFont.truetype(str(font_path), size=14)
+        font = ImageFont.truetype(str(font_path), size=16)
     except Exception:
         from PIL import ImageFont
         font = ImageFont.load_default()
@@ -901,14 +901,49 @@ def apply_reaction_overlay(
                     pil_frame = Image.fromarray(result[fi])
                     draw = ImageDraw.Draw(pil_frame)
 
-                    # Draw username above slot, centered
+                    # Measure username text
                     try:
                         bbox = draw.textbbox((0, 0), user_name, font=font)
                         text_w = bbox[2] - bbox[0]
+                        text_h = bbox[3] - bbox[1]
+                        text_top = bbox[1]  # bearing: visual top is this far below draw origin
                     except Exception:
                         text_w = len(user_name) * 7
-                    text_x = slot_x + (slot_width - text_w) // 2
-                    draw.text((text_x, 2), user_name, fill=(255, 255, 255), stroke_fill=(0, 0, 0), stroke_width=1, font=font, fontmode="1")
+                        text_h = 14
+                        text_top = 0
+
+                    max_text_w = slot_width - 4
+                    pad_x, pad_y = 3, 2
+                    text_y = 2
+
+                    if text_w > max_text_w and text_w > 0:
+                        # Render to temp image and scale down to fit slot width
+                        tmp_img = Image.new("RGBA", (text_w, text_h + 2), (0, 0, 0, 0))
+                        ImageDraw.Draw(tmp_img).text((0, -text_top), user_name, fill=(255, 255, 255, 255), font=font, fontmode="1")
+                        tmp_img = tmp_img.resize((max_text_w, text_h + 2), Image.Resampling.LANCZOS)
+                        actual_text_w = max_text_w
+                        use_tmp = True
+                    else:
+                        actual_text_w = text_w
+                        use_tmp = False
+
+                    text_x = slot_x + (slot_width - actual_text_w) // 2
+
+                    # Draw 80%-opacity rounded rect background behind username
+                    overlay = Image.new("RGBA", pil_frame.size, (0, 0, 0, 0))
+                    ImageDraw.Draw(overlay).rounded_rectangle(
+                        [text_x - pad_x, text_y - pad_y,
+                         text_x + actual_text_w + pad_x, text_y + text_h + pad_y],
+                        radius=3,
+                        fill=(0, 0, 0, 204),
+                    )
+                    pil_frame = Image.alpha_composite(pil_frame.convert("RGBA"), overlay).convert("RGB")
+
+                    # Draw username text (offset by top bearing so visual top aligns with rect)
+                    if use_tmp:
+                        pil_frame.paste(tmp_img, (text_x, text_y), tmp_img)
+                    else:
+                        ImageDraw.Draw(pil_frame).text((text_x, text_y - text_top), user_name, fill=(255, 255, 255), font=font, fontmode="1")
 
                     # Resize emoji to scaled size, centered in slot
                     emoji_size = max(1, int(slot_width * scale))

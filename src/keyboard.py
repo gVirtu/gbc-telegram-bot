@@ -101,8 +101,9 @@ def create_game_message_text(
 
     # Add recent inputs if available
     if recent_inputs:
+        gameplay_tip = translation_manager.get("game.gameplay_tip", chat_id, sequence_length=settings.max_sequence_length)
         activity_header = translation_manager.get("game.recent_activity", chat_id)
-        base_text += f"\n\n{activity_header}"
+        base_text += f"\n\n{gameplay_tip}\n\n{activity_header}"
         # Show most recent first (reversed)
         for inp in reversed(recent_inputs):
             user_name = inp["user_name"]

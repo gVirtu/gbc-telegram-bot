@@ -120,6 +120,7 @@
     "input_processing_error": "Error processing inputs! Try again later.",
     "default_message": "Your turn!",
     "queue_status": "{count} input{plural} in queue.",
+    "gameplay_tip": "💡 Tap the buttons below to play. *TIP*: For best results, tap up to {sequence_length} buttons in quick succession, then wait a moment for the game to update.",
     "recent_activity": "📖 *Recent Activity*:",
     "avatar_update_failed": "⚠️ Failed to update group avatar — make sure the bot has admin rights.",
     "avatar_updating": "Updating group photo..."

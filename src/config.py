@@ -132,7 +132,7 @@ class Settings(BaseSettings):
         description="Comma-separated list of delays in seconds for timelapse retries (empty = no retries)",
     )
     recap_part_file_size_threshold: int = Field(
-        default=10 * 1024 * 1024,
+        default=8 * 1024 * 1024,
         description="Max size in bytes before a recap file is split into a new part",
         ge=1,
     )

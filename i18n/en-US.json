@@ -226,7 +226,24 @@
       "name_tag_yellow": "Yellow Name Tag",
       "name_tag_magenta": "Magenta Name Tag",
       "name_tag_cyan": "Cyan Name Tag",
-      "react_joy": "React: 😂"
+      "react_joy": "React: 😂",
+      "react_clap": "React: 👏",
+      "react_clown": "React: 🤡",
+      "react_cry": "React: 😢",
+      "react_eyes": "React: 👀",
+      "react_fire": "React: 🔥",
+      "react_heart": "React: ❤️",
+      "react_mind_blown": "React: 🤯",
+      "react_moai": "React: 🗿",
+      "react_party_popper": "React: 🎉",
+      "react_pointing_down": "React: 👇",
+      "react_pointing_left": "React: 👈",
+      "react_pointing_right": "React: 👉",
+      "react_pointing_up": "React: 👆",
+      "react_poop": "React: 💩",
+      "react_skull": "React: 💀",
+      "react_sunglasses": "React: 😎",
+      "react_thumbs_up": "React: 👍"
     }
   }
 }

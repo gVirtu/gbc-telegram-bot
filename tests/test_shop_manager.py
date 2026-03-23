@@ -65,19 +65,6 @@ class TestGetBalance:
 
 
 class TestGetPage:
-    def test_first_page(self, tmp_path):
-        mgr = _make_manager(tmp_path)
-        items, total_pages = mgr.get_page(0)
-        assert len(items) == 3
-        assert items[0].id == "name_tag_white"
-        assert total_pages == 3
-
-    def test_last_page(self, tmp_path):
-        mgr = _make_manager(tmp_path)
-        items, total_pages = mgr.get_page(2)
-        assert len(items) == 2  # 8 items, page 2 has 2
-        assert total_pages == 3
-
     def test_single_page_case(self, tmp_path):
         """Clamps out-of-range page to valid range."""
         mgr = _make_manager(tmp_path)

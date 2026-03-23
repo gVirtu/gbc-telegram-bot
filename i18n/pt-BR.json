@@ -226,7 +226,24 @@
       "name_tag_yellow": "Tag de Nome Amarela",
       "name_tag_magenta": "Tag de Nome Magenta",
       "name_tag_cyan": "Tag de Nome Ciano",
-      "react_joy": "Reagir: 😂"
+      "react_joy": "Reagir: 😂",
+      "react_clap": "Reagir: 👏",
+      "react_clown": "Reagir: 🤡",
+      "react_cry": "Reagir: 😢",
+      "react_eyes": "Reagir: 👀",
+      "react_fire": "Reagir: 🔥",
+      "react_heart": "Reagir: ❤️",
+      "react_mind_blown": "Reagir: 🤯",
+      "react_moai": "Reagir: 🗿",
+      "react_party_popper": "Reagir: 🎉",
+      "react_pointing_down": "Reagir: 👇",
+      "react_pointing_left": "Reagir: 👈",
+      "react_pointing_right": "Reagir: 👉",
+      "react_pointing_up": "Reagir: 👆",
+      "react_poop": "Reagir: 💩",
+      "react_skull": "Reagir: 💀",
+      "react_sunglasses": "Reagir: 😎",
+      "react_thumbs_up": "Reagir: 👍"
     }
   }
 }

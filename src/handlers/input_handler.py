@@ -27,6 +27,7 @@ from src.models.game_state import ChatGameState, GameButton, GameSession, Modifi
 from src.models.input_queue import BufferedInput, PendingBuffer
 from src.utils.frame_utils import (  # noqa: F401 (needed for test patching)
     apply_overlay_composite,
+    apply_reaction_overlay,
     generate_tbc_frames,
     hex_to_rgb,
 )
@@ -608,6 +609,13 @@ class InputHandler:
         )
         num_tbc_frames = len(tbc_frames)
         all_frames = scaled_frames + tbc_frames
+
+        # 2.5. Pop queued reactions and composite onto game frames (before sidebar)
+        num_windows = len(all_frames) // (2 * capture_fps)
+        if num_windows > 0:
+            reactions = state_manager.pop_reactions(chat_id, limit=num_windows * 3)
+            if reactions:
+                all_frames = apply_reaction_overlay(all_frames, reactions, capture_fps)
 
         # 3. Composite overlay onto all frames (game + TBC share same final overlay state)
         # Pre-fetch user colors for sidebar rendering

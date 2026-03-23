@@ -101,4 +101,4 @@ class TestPurchaseReaction:
         row = conn.execute(
             "SELECT name_tag_color FROM user_player_profiles WHERE user_id = 1"
         ).fetchone()
-        assert row["name_tag_color"] == "#FF0000"
+        assert row["name_tag_color"] == "#FF8888"

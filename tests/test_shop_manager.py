@@ -181,7 +181,7 @@ class TestPurchase:
             "WHERE platform = ? AND user_id = ?;",
             ("telegram", 1),
         ).fetchone()
-        assert row["name_tag_color"] == "#FF0000"
+        assert row["name_tag_color"] == "#FF8888"
         assert row["total_score_spent"] == 5000
 
     def test_insufficient_funds(self, tmp_path):

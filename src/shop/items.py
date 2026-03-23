@@ -53,12 +53,12 @@ SHOP_CATEGORIES: list[ShopCategory] = [
         items_per_row=1,
         items=[
             ShopItem("name_tag_white",   "shop.items.name_tag_white",   0,    {"name_tag_color": "#FFFFFF"}),
-            ShopItem("name_tag_red",     "shop.items.name_tag_red",     5000, {"name_tag_color": "#FF0000"}),
-            ShopItem("name_tag_green",   "shop.items.name_tag_green",   5000, {"name_tag_color": "#00FF00"}),
-            ShopItem("name_tag_blue",    "shop.items.name_tag_blue",    5000, {"name_tag_color": "#0000FF"}),
-            ShopItem("name_tag_yellow",  "shop.items.name_tag_yellow",  5000, {"name_tag_color": "#FFFF00"}),
-            ShopItem("name_tag_magenta", "shop.items.name_tag_magenta", 5000, {"name_tag_color": "#FF00FF"}),
-            ShopItem("name_tag_cyan",    "shop.items.name_tag_cyan",    5000, {"name_tag_color": "#00FFFF"}),
+            ShopItem("name_tag_red",     "shop.items.name_tag_red",     5000, {"name_tag_color": "#FF8888"}),
+            ShopItem("name_tag_green",   "shop.items.name_tag_green",   5000, {"name_tag_color": "#88FF88"}),
+            ShopItem("name_tag_blue",    "shop.items.name_tag_blue",    5000, {"name_tag_color": "#8888FF"}),
+            ShopItem("name_tag_yellow",  "shop.items.name_tag_yellow",  5000, {"name_tag_color": "#FFFF88"}),
+            ShopItem("name_tag_magenta", "shop.items.name_tag_magenta", 5000, {"name_tag_color": "#FF88FF"}),
+            ShopItem("name_tag_cyan",    "shop.items.name_tag_cyan",    5000, {"name_tag_color": "#88FFFF"}),
         ],
     ),
     ShopCategory(

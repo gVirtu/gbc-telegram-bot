@@ -290,3 +290,39 @@ class TestPlayerProfileNameTagColor:
         profile = manager.get_player_profile("telegram", 1)
         assert profile is not None
         assert profile.name_tag_color == "#FFFFFF"
+
+
+class TestScoredInputCurrentStreak:
+    """Verify that score_input returns correct current_streak in ScoredInput."""
+
+    def test_new_player_scored_input_has_streak_1(self, manager):
+        _ensure_game_state(manager._conn, chat_id=99)
+        with patch("src.utils.scoring_manager.settings") as s:
+            s.player_input_max_score = 5
+            s.daily_streak_score_bonus = 10
+            result = manager.score_input("telegram", 99, 99, "a", "2026-01-01T00:00:00")
+        assert result.current_streak == 1
+
+    def test_next_day_scored_input_increments_streak(self, manager):
+        from datetime import date
+        _ensure_game_state(manager._conn, chat_id=100)
+        day1 = date(2026, 1, 1)
+        day2 = date(2026, 1, 2)
+        with patch("src.utils.scoring_manager.settings") as s:
+            s.player_input_max_score = 5
+            s.daily_streak_score_bonus = 10
+            with patch("src.utils.scoring_manager.datetime") as mock_dt:
+                mock_dt.now.return_value.date.return_value = day1
+                mock_dt.fromisoformat = datetime.fromisoformat
+                manager.score_input("telegram", 100, 100, "a", "2026-01-01T00:00:00")
+            with patch("src.utils.scoring_manager.datetime") as mock_dt:
+                mock_dt.now.return_value.date.return_value = day2
+                mock_dt.fromisoformat = datetime.fromisoformat
+                result = manager.score_input("telegram", 100, 100, "b", "2026-01-02T00:00:00")
+        assert result.current_streak == 2
+
+    def test_error_fallback_has_streak_0(self, manager):
+        """score_input fallback on error returns current_streak=0."""
+        with patch.object(manager, "_score_input_unsafe", side_effect=Exception("fail")):
+            result = manager.score_input("telegram", 1, 1, "a", "2026-01-01T00:00:00")
+        assert result.current_streak == 0

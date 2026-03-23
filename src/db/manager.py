@@ -386,9 +386,12 @@ class DatabaseManager:
         Ordered oldest-first (suitable for rendering bottom-up).
         """
         cursor = self.connection.execute(
-            """SELECT user_id, user_name, button, timestamp
-               FROM recent_inputs WHERE chat_id = ?
-               ORDER BY timestamp DESC LIMIT ?;""",
+            """SELECT ri.user_id, ri.user_name, ri.button, ri.timestamp,
+                      COALESCE(up.current_streak, 0) AS current_streak
+               FROM recent_inputs ri
+               LEFT JOIN user_player_profiles up ON ri.user_id = up.user_id
+               WHERE ri.chat_id = ?
+               ORDER BY ri.timestamp DESC LIMIT ?;""",
             (chat_id, limit)
         )
         rows = list(cursor.fetchall())
@@ -399,6 +402,7 @@ class DatabaseManager:
                 'user_name': row['user_name'],
                 'button': row['button'],
                 'timestamp': row['timestamp'],
+                'current_streak': row['current_streak'],
             }
             for row in rows
         ]

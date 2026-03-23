@@ -192,6 +192,7 @@ class ScoringManager:
             base_score=base_score,
             streak_bonus=streak_bonus,
             total_score=base_score + streak_bonus,
+            current_streak=current_streak,
         )
 
 

@@ -431,3 +431,53 @@ class TestRenderInputSidebarUserColors:
             self._make_inputs(), user_colors={"Bob": (255, 0, 0)}
         )
         assert sidebar is not None
+
+
+class TestRenderInputSidebarStreak:
+    """Tests for streak badge rendering in render_input_sidebar."""
+
+    def test_no_streak_field_no_crash(self):
+        """Entry without current_streak key renders without error."""
+        result = render_input_sidebar([{"user_name": "Foo", "button": "a"}])
+        assert result.shape == (432, 288, 3)
+        assert result.dtype.name == "uint8"
+
+    def test_streak_zero_no_badge(self):
+        """current_streak=0 renders like no streak (no badge)."""
+        result = render_input_sidebar([{"user_name": "Foo", "button": "a", "current_streak": 0}])
+        assert result.shape == (432, 288, 3)
+
+    def test_streak_one_no_badge(self):
+        """current_streak=1 renders without badge."""
+        result = render_input_sidebar([{"user_name": "Foo", "button": "a", "current_streak": 1}])
+        assert result.shape == (432, 288, 3)
+
+    def test_streak_greater_than_one_no_crash(self):
+        """current_streak=3 renders without crash and produces correct shape."""
+        result = render_input_sidebar([{"user_name": "John Doe", "button": "start", "current_streak": 3}])
+        assert result.shape == (432, 288, 3)
+        assert result.dtype.name == "uint8"
+
+    def test_streak_icon_missing_still_renders(self, tmp_path, monkeypatch):
+        """If streak_icon.png is absent, rendering still succeeds."""
+        import src.utils.frame_utils as fu
+        # Clear the cache so the monkeypatched path is evaluated
+        fu._streak_icon_cache.clear()
+        # Point assets dir to tmp_path (no streak_icon.png there)
+        monkeypatch.setattr(
+            fu,
+            "_load_streak_icon",
+            lambda h: None,
+        )
+        result = render_input_sidebar([{"user_name": "Bar", "button": "b", "current_streak": 5}])
+        assert result.shape == (432, 288, 3)
+
+    def test_multiple_entries_mixed_streaks(self):
+        """Multiple entries with mixed streak values render without crash."""
+        inputs = [
+            {"user_name": "Alice", "button": "a", "current_streak": 0},
+            {"user_name": "Bob", "button": "b", "current_streak": 7},
+            {"user_name": "Charlie", "button": "start"},
+        ]
+        result = render_input_sidebar(inputs)
+        assert result.shape == (432, 288, 3)

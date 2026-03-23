@@ -17,6 +17,7 @@ class ScoredInput:
         base_score: Points earned from input diversity window
         streak_bonus: Points earned from daily streak
         total_score: base_score + streak_bonus
+        current_streak: Current consecutive-day streak
     """
 
     platform: str
@@ -26,6 +27,7 @@ class ScoredInput:
     base_score: int
     streak_bonus: int
     total_score: int
+    current_streak: int = 0
 
 
 @dataclass

@@ -95,7 +95,7 @@ class TestGetRecentInputsForOverlay:
         results = db_manager.get_recent_inputs_for_overlay(chat_id=4)
         assert len(results) == 1
         row = results[0]
-        assert set(row.keys()) == {"user_id", "user_name", "button", "timestamp"}
+        assert set(row.keys()) == {"user_id", "user_name", "button", "timestamp", "current_streak"}
         assert row["button"] == "START"
         assert row["user_name"] == "Dave"
 
@@ -227,3 +227,37 @@ class TestSaveRecentInputsIsNoop:
             "SELECT COUNT(*) as cnt FROM recent_inputs WHERE chat_id = 10;"
         )
         assert cursor.fetchone()["cnt"] == 2
+
+
+class TestGetRecentInputsForOverlayStreak:
+    """Tests for streak JOIN in get_recent_inputs_for_overlay."""
+
+    def test_overlay_returns_streak_from_profile(self, db_manager):
+        """Row with matching user_player_profiles returns correct streak."""
+        _create_game_state(db_manager, chat_id=5)
+        db_manager.append_recent_input(
+            chat_id=5, user_id=42, user_name="Alice", button="a", timestamp=_ts(0)
+        )
+        # Insert player profile with streak=5
+        db_manager.connection.execute(
+            """INSERT INTO user_player_profiles
+               (platform, user_id, total_score_earned, total_score_spent,
+                current_streak, best_streak, best_streak_date, last_input_at)
+               VALUES ('telegram', 42, 0, 0, 5, 5, '2026-01-01', '2026-01-01T00:00:00');"""
+        )
+        db_manager.connection.commit()
+
+        rows = db_manager.get_recent_inputs_for_overlay(chat_id=5)
+        assert len(rows) == 1
+        assert rows[0]["current_streak"] == 5
+
+    def test_overlay_unmatched_user_gets_streak_zero(self, db_manager):
+        """Row without matching user_player_profiles gets current_streak=0."""
+        _create_game_state(db_manager, chat_id=6)
+        db_manager.append_recent_input(
+            chat_id=6, user_id=99, user_name="Bob", button="b", timestamp=_ts(0)
+        )
+
+        rows = db_manager.get_recent_inputs_for_overlay(chat_id=6)
+        assert len(rows) == 1
+        assert rows[0]["current_streak"] == 0

@@ -535,6 +535,7 @@ class InputHandler:
                 'button': bi.button.value,
                 'timestamp': bi.received_at.isoformat(),
                 'total_score': input_total_score,
+                'current_streak': scored.current_streak if input_total_score is not None else 0,
             }
             new_inputs_with_offsets.append((input_dict, frame_offset))
 

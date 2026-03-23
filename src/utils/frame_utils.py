@@ -19,6 +19,53 @@ from PIL import Image, ImageDraw
 
 logger = logging.getLogger(__name__)
 
+_streak_icon_cache: dict[int, Optional[Image.Image]] = {}
+
+
+def _load_streak_icon(height_px: int) -> Optional[Image.Image]:
+    if height_px not in _streak_icon_cache:
+        path = Path(__file__).parent.parent.parent / "assets" / "streak_icon.png"
+        if not path.exists():
+            _streak_icon_cache[height_px] = None
+        else:
+            icon = Image.open(path).convert("RGBA")
+            aspect = icon.width / icon.height
+            new_w = max(1, int(height_px * aspect))
+            _streak_icon_cache[height_px] = icon.resize((new_w, height_px), Image.Resampling.LANCZOS)
+    return _streak_icon_cache[height_px]
+
+
+def _paste_streak_icon(img: Image.Image, x: int, y: int, icon: Optional[Image.Image]) -> None:
+    if icon is None:
+        return
+    bg = Image.new("RGBA", icon.size, (0, 0, 0, 255))
+    composited = Image.alpha_composite(bg, icon).convert("RGB")
+    img.paste(composited, (x, y))
+
+
+def _draw_streak_badge(
+    draw: ImageDraw.ImageDraw,
+    img: Image.Image,
+    cx: int,
+    y: int,
+    streak_pre: str,
+    streak_pre_w: int,
+    streak_icon: Optional[Image.Image],
+    streak_icon_y_offset: int,
+    streak_icon_w: int,
+    streak_post: str,
+    streak_post_w: int,
+    font,
+) -> int:
+    """Draw the streak badge (pre-text, icon, post-text) starting at cx. Returns new cx."""
+    draw.text((cx, y), streak_pre, fill=(236, 138, 140), font=font, fontmode="1")
+    cx += streak_pre_w
+    _paste_streak_icon(img, cx, y + streak_icon_y_offset, streak_icon)
+    cx += streak_icon_w
+    draw.text((cx, y), streak_post, fill=(236, 138, 140), font=font, fontmode="1")
+    cx += streak_post_w
+    return cx
+
 
 def hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
     """Convert a hex color string to an RGB tuple.
@@ -214,6 +261,7 @@ def render_input_sidebar(
         button_char = BUTTON_CHARS.get(button_val, button_val)
         user_name = entry.get("user_name", "?")
         suffix = f": {button_char}"
+        streak = entry.get("current_streak", 0)
         color = user_colors.get(user_name, (255, 255, 255)) if user_colors else (255, 255, 255)
 
         # Measure username and suffix widths independently
@@ -229,7 +277,31 @@ def render_input_sidebar(
         except Exception:
             suffix_w = len(suffix) * 6
 
-        max_name_w = max(int(width * 0.8) - suffix_w, 1)
+        # Compute streak badge dimensions (shown when streak > 1)
+        streak_pre = ""
+        streak_post = ""
+        streak_icon = None
+        streak_pre_w = 0
+        streak_icon_w = 0
+        streak_icon_y_offset = 0
+        streak_post_w = 0
+        streak_total_w = 0
+
+        if streak > 1:
+            streak_pre = " "
+            streak_post = f"{streak}"
+            streak_icon = _load_streak_icon(16)
+            streak_icon_y_offset = 6
+            streak_icon_w = streak_icon.width if streak_icon is not None else 0
+            try:
+                streak_pre_w = draw.textbbox((0, 0), streak_pre, font=font)[2]
+                streak_post_w = draw.textbbox((0, 0), streak_post, font=font)[2]
+            except Exception:
+                streak_pre_w = len(streak_pre) * 6
+                streak_post_w = len(streak_post) * 6
+            streak_total_w = streak_pre_w + streak_icon_w + streak_post_w
+
+        max_name_w = max(int(width * 0.8) - streak_total_w - suffix_w, 1)
 
         if name_natural_w > max_name_w and name_natural_w > 0:
             # Compress username horizontally to fit within budget
@@ -237,19 +309,23 @@ def render_input_sidebar(
             tmp_draw = ImageDraw.Draw(tmp)
             tmp_draw.text((0, 0), user_name, fill=color, font=font, fontmode="1")
             tmp = tmp.resize((max_name_w, line_height), Image.Resampling.LANCZOS)
-            x = width - max_name_w - suffix_w - padding
+            x = width - max_name_w - streak_total_w - suffix_w - padding
             img.paste(tmp, (x, y))
-            draw.text((x + max_name_w, y), suffix, fill=(255, 255, 255), font=font, fontmode="1")
+            cx = x + max_name_w
         else:
-            full_text = f"{user_name}{suffix}"
-            try:
-                tb = draw.textbbox((0, 0), full_text, font=font)
-                text_w = tb[2] - tb[0]
-            except Exception:
-                text_w = len(full_text) * 6
-            x = width - text_w - padding
+            x = width - name_natural_w - streak_total_w - suffix_w - padding
             draw.text((x, y), user_name, fill=color, font=font, fontmode="1")
-            draw.text((x + name_natural_w, y), suffix, fill=(255, 255, 255), font=font, fontmode="1")
+            cx = x + name_natural_w
+
+        if streak > 1:
+            cx = _draw_streak_badge(
+                draw, img, cx, y,
+                streak_pre, streak_pre_w,
+                streak_icon, streak_icon_y_offset, 
+                streak_icon_w, streak_post, streak_post_w,
+                font,
+            )
+        draw.text((cx, y), suffix, fill=(255, 255, 255), font=font, fontmode="1")
 
         # Score label animation
         label_info = (active_labels or {}).get(original_index)

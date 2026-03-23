@@ -365,6 +365,9 @@ class WebhookHandler:
         @asynccontextmanager
         async def lifespan(app: FastAPI):
             """Manage application lifespan."""
+            # from src.utils import mem_trace
+            # mem_trace.start()
+
             logger.info("Starting up webhook handler...")
 
             # Initialize database (runs migrations)
@@ -485,6 +488,7 @@ class WebhookHandler:
 
             game_controller_manager.stop_all()
 
+            # mem_trace.stop()
             logger.info("Webhook handler shut down")
 
         app = FastAPI(

@@ -3,8 +3,10 @@
 import asyncio
 import pytest
 import numpy as np
+from io import BytesIO
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, Mock, patch, call
+from PIL import Image
 
 from src.handlers.commands import recap_command
 from src.tasks.timelapse_encoder import TimelapseEncoder, TimelapseJob
@@ -19,8 +21,13 @@ from src.db.manager import DatabaseManager
 
 @pytest.fixture
 def test_frames():
-    """Create a small list of test frames."""
-    return [np.full((144, 160, 3), i * 25, dtype=np.uint8) for i in range(5)]
+    """Create a small list of PNG-encoded test frames."""
+    frames = []
+    for i in range(5):
+        buf = BytesIO()
+        Image.fromarray(np.full((144, 160, 3), i * 25, dtype=np.uint8)).save(buf, format="PNG", optimize=False)
+        frames.append(buf.getvalue())
+    return frames
 
 
 @pytest.fixture

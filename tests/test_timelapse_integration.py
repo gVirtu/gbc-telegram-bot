@@ -3,9 +3,11 @@
 import pytest
 import asyncio
 import numpy as np
+from io import BytesIO
 from pathlib import Path
 from datetime import datetime
 from unittest.mock import Mock, patch, AsyncMock
+from PIL import Image
 
 from src.tasks.timelapse_encoder import TimelapseEncodingQueue, TimelapseEncoder
 from src.db.manager import DatabaseManager
@@ -23,12 +25,13 @@ def db_manager(tmp_path):
 
 @pytest.fixture
 def test_frames():
-    """Create test frames for timelapse."""
+    """Create test frames for timelapse (30 PNG-encoded frames, 144x160x3)."""
     frames = []
-    for i in range(30):  # 30 frames total
-        # Create frame with gradient pattern
-        frame = np.full((144, 160, 3), (i * 8) % 256, dtype=np.uint8)
-        frames.append(frame)
+    for i in range(30):
+        arr = np.full((144, 160, 3), (i * 8) % 256, dtype=np.uint8)
+        buf = BytesIO()
+        Image.fromarray(arr).save(buf, format="PNG", optimize=False)
+        frames.append(buf.getvalue())
     return frames
 
 
@@ -180,7 +183,7 @@ class TestTimelapseIntegration:
                 assert failed_dir.exists()
 
                 # Check that frames were saved
-                frame_files = list(failed_dir.glob("frame_*.npy"))
+                frame_files = list(failed_dir.glob("frame_*.png"))
                 assert len(frame_files) == len(test_frames)
 
                 # Check error log

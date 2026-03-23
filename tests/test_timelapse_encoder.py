@@ -2,9 +2,11 @@
 
 import pytest
 import numpy as np
+from io import BytesIO
 from pathlib import Path
 from datetime import datetime
 from unittest.mock import Mock, patch, AsyncMock
+from PIL import Image
 
 from src.tasks.timelapse_encoder import TimelapseEncoder, TimelapseJob
 from src.db.manager import DatabaseManager
@@ -27,12 +29,13 @@ def encoder(db_manager):
 
 @pytest.fixture
 def test_frames():
-    """Create test frames (10 frames, 144x160x3)."""
+    """Create test frames (10 PNG-encoded frames, 144x160x3)."""
     frames = []
     for i in range(10):
-        # Create frame with different color for each frame
-        frame = np.full((144, 160, 3), i * 25, dtype=np.uint8)
-        frames.append(frame)
+        arr = np.full((144, 160, 3), i * 25, dtype=np.uint8)
+        buf = BytesIO()
+        Image.fromarray(arr).save(buf, format="PNG", optimize=False)
+        frames.append(buf.getvalue())
     return frames
 
 
@@ -74,12 +77,11 @@ class TestTimelapseEncoder:
             failed_dir = tmp_path / "data" / "recaps" / "123" / "failed" / timestamp
             assert failed_dir.exists()
 
-            # Check frames were saved
+            # Check frames were saved as PNG files
             for i in range(len(test_frames)):
-                frame_path = failed_dir / f"frame_{i:05d}.npy"
+                frame_path = failed_dir / f"frame_{i:05d}.png"
                 assert frame_path.exists()
-                loaded = np.load(frame_path)
-                assert np.array_equal(loaded, test_frames[i])
+                assert frame_path.read_bytes() == test_frames[i]
 
             # Check error file
             error_path = failed_dir / "error.txt"

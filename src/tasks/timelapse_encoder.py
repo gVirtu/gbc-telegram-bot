@@ -31,7 +31,7 @@ class TimelapseJob:
     """A timelapse encoding job."""
 
     chat_id: int
-    frames: List[np.ndarray]
+    frames: List[bytes]  # PNG-encoded frames; decoded on demand during encoding
     timestamp: str  # ISO8601 timestamp
     audio_chunks: Optional[List[np.ndarray]] = None
     fps: int = 10
@@ -92,23 +92,22 @@ class TimelapseEncoder:
         return failed_dir
 
     async def _save_failed_frames(
-        self, chat_id: int, timestamp: str, frames: List[np.ndarray], error: Exception
+        self, chat_id: int, timestamp: str, frames: List[bytes], error: Exception
     ) -> None:
         """Save frames that failed to encode for later recovery.
 
         Args:
             chat_id: The Telegram chat ID
             timestamp: ISO8601 timestamp
-            frames: Frames that failed to encode
+            frames: PNG-encoded frames that failed to encode
             error: The error that occurred
         """
         try:
             failed_dir = self._get_failed_frames_path(chat_id, timestamp)
 
-            # Save each frame as numpy array
-            for i, frame in enumerate(frames):
-                frame_path = failed_dir / f"frame_{i:05d}.npy"
-                np.save(frame_path, frame)
+            for i, frame_bytes in enumerate(frames):
+                frame_path = failed_dir / f"frame_{i:05d}.png"
+                frame_path.write_bytes(frame_bytes)
 
             # Save error info
             error_path = failed_dir / "error.txt"
@@ -440,24 +439,31 @@ class TimelapseEncoder:
         backoff_delays = settings.timelapse_backoff_delays
         max_attempts = len(backoff_delays)
 
-        for attempt in range(max_attempts + 1):
-            try:
-                await self._do_encode_and_append(job)
-                return  # Success!
+        try:
+            for attempt in range(max_attempts + 1):
+                try:
+                    await self._do_encode_and_append(job)
+                    return  # Success!
 
-            except Exception as e:
-                logger.error(f"Encoding attempt {attempt + 1}/{max_attempts} failed: {e}")
+                except Exception as e:
+                    logger.error(f"Encoding attempt {attempt + 1}/{max_attempts} failed: {e}")
 
-                if attempt < max_attempts - 1:
-                    # Retry after backoff delay
-                    delay = backoff_delays[attempt]
-                    logger.info(f"Retrying in {delay}s...")
-                    await asyncio.sleep(delay)
-                else:
-                    # All attempts failed, save frames for recovery
-                    logger.error(f"All encoding attempts failed for chat {job.chat_id}")
-                    await self._save_failed_frames(job.chat_id, job.timestamp, job.frames, e)
-                    raise
+                    if attempt < max_attempts - 1:
+                        # Retry after backoff delay
+                        delay = backoff_delays[attempt]
+                        logger.info(f"Retrying in {delay}s...")
+                        await asyncio.sleep(delay)
+                    else:
+                        # All attempts failed, save frames for recovery
+                        logger.error(f"All encoding attempts failed for chat {job.chat_id}")
+                        await self._save_failed_frames(job.chat_id, job.timestamp, job.frames, e)
+                        raise
+        finally:
+            # Release frame arrays as soon as encoding is done (success or failure).
+            # Without this, the numpy arrays linger in the asyncio queue until the
+            # next job starts and the job object is garbage-collected.
+            job.frames = []
+            job.audio_chunks = None
 
     async def encode_job(self, job: TimelapseJob) -> None:
         """Encode a timelapse job.

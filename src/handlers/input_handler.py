@@ -8,11 +8,14 @@ multi-user batch animation.
 
 import asyncio
 import logging
+from io import BytesIO
 from typing import Optional
 from datetime import datetime, timedelta
 
 import numpy as np
 from PIL import Image
+
+# from src.utils import mem_trace
 
 from src.adapters.base import BotAdapter
 from src.config import settings
@@ -696,13 +699,20 @@ class InputHandler:
                             composited_frames[:-num_tbc_frames] if num_tbc_frames > 0 else composited_frames
                         )
                         if config.feature_flags.get("realtime_recaps"):
-                            timelapse_frames = frames_for_timelapse
+                            raw_timelapse = frames_for_timelapse
                             timelapse_audio = audio_chunks or None
                             timelapse_fps = 15
                         else:
-                            timelapse_frames = frames_for_timelapse[::settings.timelapse_frame_skip]
+                            raw_timelapse = frames_for_timelapse[::settings.timelapse_frame_skip]
                             timelapse_audio = None
                             timelapse_fps = 10
+                        buf = BytesIO()
+                        timelapse_frames = []
+                        for f in raw_timelapse:
+                            buf.seek(0)
+                            buf.truncate()
+                            Image.fromarray(f).save(buf, format="PNG", optimize=False)
+                            timelapse_frames.append(buf.getvalue())
                         timestamp = datetime.now().isoformat()
                         await timelapse_queue.enqueue(
                             chat_id,
@@ -741,6 +751,7 @@ class InputHandler:
                 logger.warning(f"Failed to auto-save for chat {chat_id}: {e}")
 
         logger.info(f"Completed batch processing for chat {chat_id}")
+        # mem_trace.snapshot(f"post-batch chat={chat_id} frames={len(buttons)}")
         return {"animation_duration": animation_duration_seconds}
 
     async def _update_group_avatar(self, chat_id: int, controller, adapter: BotAdapter, config) -> None:

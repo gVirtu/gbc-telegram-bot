@@ -610,20 +610,20 @@ def save_frames_as_avif(
 
 
 async def save_frames_as_mp4_optimized(
-    frames: list[np.ndarray],
+    frames: list[bytes],
     output_path: str,
     fps: int = 10,
     crf: int = 28,
     preset: str = "medium",
 ) -> None:
-    """Save a sequence of frames as an MP4 video with optimized compression.
+    """Save a sequence of PNG-encoded frames as an MP4 video with optimized compression.
 
     This function is designed for timelapse storage where better compression
     is preferred over encoding speed. Uses medium preset and CRF 28 for
     smaller file sizes compared to save_frames_as_mp4.
 
     Args:
-        frames: List of NumPy arrays (H, W, 3) in RGB format
+        frames: List of PNG-encoded frames (bytes); decoded one at a time during encoding
         output_path: Path where to save the MP4 file
         fps: Frames per second for the output video
         crf: Constant Rate Factor (quality, lower=better, 0-51)
@@ -642,7 +642,7 @@ async def save_frames_as_mp4_optimized(
     if not frames:
         raise ValueError("No frames provided")
 
-    first_frame = frames[0]
+    first_frame = np.array(Image.open(BytesIO(frames[0])))
     h, w = first_frame.shape[:2]
 
     cmd = [
@@ -666,8 +666,9 @@ async def save_frames_as_mp4_optimized(
         stderr=asyncio.subprocess.PIPE,
     )
 
-    for frame in frames:
-        process.stdin.write(frame.tobytes())
+    process.stdin.write(first_frame.tobytes())
+    for frame_bytes in frames[1:]:
+        process.stdin.write(np.array(Image.open(BytesIO(frame_bytes))).tobytes())
 
     process.stdin.close()
 
@@ -682,7 +683,7 @@ async def save_frames_as_mp4_optimized(
 
 
 async def save_frames_as_mp4_with_audio(
-    frames: list[np.ndarray],
+    frames: list[bytes],
     audio_chunks: list[np.ndarray],
     output_path: str,
     fps: int = 15,
@@ -696,7 +697,7 @@ async def save_frames_as_mp4_with_audio(
     a single MP4 with AAC audio track. Designed for realtime recap videos.
 
     Args:
-        frames: List of NumPy arrays (H, W, 3) in RGB format
+        frames: List of PNG-encoded frames (bytes); decoded one at a time during encoding
         audio_chunks: List of int8 ndarrays with shape (N, 2) - stereo audio
         output_path: Path where to save the MP4 file
         fps: Frames per second for the output video
@@ -713,7 +714,7 @@ async def save_frames_as_mp4_with_audio(
     if not frames:
         raise ValueError("No frames provided")
 
-    first_frame = frames[0]
+    first_frame = np.array(Image.open(BytesIO(frames[0])))
     h, w = first_frame.shape[:2]
 
     # Convert int8 stereo chunks to int16 PCM and write to temp file
@@ -781,9 +782,9 @@ async def save_frames_as_mp4_with_audio(
             stderr=asyncio.subprocess.PIPE,
         )
 
-        for frame in frames:
-            img = Image.fromarray(frame)
-            process.stdin.write(np.array(img).tobytes())
+        process.stdin.write(first_frame.tobytes())
+        for frame_bytes in frames[1:]:
+            process.stdin.write(np.array(Image.open(BytesIO(frame_bytes))).tobytes())
 
         process.stdin.close()
         stdout, stderr = await process.communicate()

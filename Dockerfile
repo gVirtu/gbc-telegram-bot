@@ -3,16 +3,25 @@ FROM python:3.11-slim-bookworm
 # Create non-root user first
 RUN groupadd -r appgroup && useradd -r -g appgroup -u 1000 appuser
 
-# Install runtime dependencies including ffmpeg
+# Install runtime dependencies including ffmpeg and jemalloc
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     libgl1-mesa-glx \
     libglib2.0-0 \
     git \
     build-essential \
+    libjemalloc2 \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean \
     && rm -rf /var/cache/apt/*
+
+# Use jemalloc instead of glibc malloc to reduce memory fragmentation.
+# glibc ptmalloc retains freed numpy array pages in per-thread arenas and
+# never returns them to the OS; jemalloc's size-class binning and aggressive
+# MADV_FREE/DONTNEED calls recover that memory after each batch.
+# Symlink to a fixed path so LD_PRELOAD works on both amd64 and arm64.
+RUN find /usr/lib -name "libjemalloc.so.2" -exec ln -sf {} /usr/local/lib/libjemalloc.so.2 \;
+ENV LD_PRELOAD=/usr/local/lib/libjemalloc.so.2
 
 WORKDIR /app
 
@@ -47,16 +56,6 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PORT=8000
 ENV WEB_CONCURRENCY=1
-
-# Reduce glibc malloc fragmentation. MALLOC_ARENA_MAX caps the number of
-# per-thread arenas (default: 8×nCPU); without this, freed numpy arrays leave
-# large holes in many arenas that glibc never returns to the OS.
-# MALLOC_MMAP_THRESHOLD_ / MALLOC_TRIM_THRESHOLD_ tell glibc to use mmap for
-# allocations above 128 KB (mmap'd memory IS returned to the OS on free) and
-# to trim the heap more aggressively between batches.
-ENV MALLOC_ARENA_MAX=2
-ENV MALLOC_MMAP_THRESHOLD_=131072
-ENV MALLOC_TRIM_THRESHOLD_=131072
 
 ENV DATA_DIR=/app/data
 ENV TBC_OVERLAY_PATH=/app/assets/to_be_continued.png

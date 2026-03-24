@@ -1265,7 +1265,7 @@ all = ["PyOpenAL", "glfw", "gym", "markdown", "pdoc3", "pyopengl"]
 type = "git"
 url = "https://github.com/gVirtu/PyBoy"
 reference = "HEAD"
-resolved_reference = "12bd1015647dcbf819550b57f4c07e7fe25c7f60"
+resolved_reference = "4377f7b2dbcfb3cb051f9ed61bcd105d2168bc81"
 
 [[package]]
 name = "pydantic"

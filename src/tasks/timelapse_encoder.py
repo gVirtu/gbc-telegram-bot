@@ -22,6 +22,7 @@ from src.utils.frame_utils import (
     save_frames_as_mp4_optimized,
     save_frames_as_mp4_with_audio,
 )
+from src.utils.priority_gate import wait_while_busy
 
 logger = logging.getLogger(__name__)
 
@@ -222,7 +223,7 @@ class TimelapseEncoder:
 
         try:
             # Encode frames to temporary file
-            await save_frames_as_mp4_optimized(frames, str(tmp_path), fps=fps)
+            await save_frames_as_mp4_optimized(frames, str(tmp_path), fps=fps, low_priority=True)
 
             # Atomically replace with final file
             os.replace(tmp_path, video_path)
@@ -253,7 +254,7 @@ class TimelapseEncoder:
         tmp_path = video_path.with_suffix(".tmp.mp4")
 
         try:
-            await save_frames_as_mp4_with_audio(frames, audio_chunks, str(tmp_path), fps=fps)
+            await save_frames_as_mp4_with_audio(frames, audio_chunks, str(tmp_path), fps=fps, low_priority=True)
             os.replace(tmp_path, video_path)
             logger.info(f"Created new realtime timelapse: {video_path}")
 
@@ -282,7 +283,7 @@ class TimelapseEncoder:
 
         try:
             # Encode new frames to segment
-            await save_frames_as_mp4_optimized(frames, str(segment_path), fps=fps)
+            await save_frames_as_mp4_optimized(frames, str(segment_path), fps=fps, low_priority=True)
 
             # Create concat demuxer list
             with open(concat_list_path, "w") as f:
@@ -307,6 +308,7 @@ class TimelapseEncoder:
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                preexec_fn=lambda: os.nice(19),
             )
 
             stdout, stderr = await process.communicate()
@@ -345,7 +347,7 @@ class TimelapseEncoder:
         output_path = video_path.with_suffix(".tmp.mp4")
 
         try:
-            await save_frames_as_mp4_with_audio(frames, audio_chunks, str(segment_path), fps=fps)
+            await save_frames_as_mp4_with_audio(frames, audio_chunks, str(segment_path), fps=fps, low_priority=True)
 
             with open(concat_list_path, "w") as f:
                 f.write(f"file '{video_path.absolute()}'\n")
@@ -362,6 +364,7 @@ class TimelapseEncoder:
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                preexec_fn=lambda: os.nice(19),
             )
 
             stdout, stderr = await process.communicate()
@@ -538,6 +541,8 @@ class TimelapseEncodingQueue:
                 job = await queue.get()
 
                 try:
+                    # Wait for input processing to finish before encoding
+                    await wait_while_busy(timeout=settings.timelapse_idle_wait_timeout)
                     # Encode the job
                     await self.encoder.encode_job(job)
                 except Exception as e:

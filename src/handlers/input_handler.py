@@ -35,6 +35,7 @@ from src.utils.frame_utils import (  # noqa: F401 (needed for test patching)
     hex_to_rgb,
 )
 from src.utils.mirror_utils import broadcast_game_update, get_leader_chat_id, is_media_only_mirror
+from src.utils.priority_gate import mark_busy, mark_idle
 from src.utils.scoring_manager import scoring_manager
 from src.utils.state_manager import state_manager
 
@@ -413,6 +414,7 @@ class InputHandler:
             self._processing.discard(chat_id)
             return
 
+        mark_busy()
         try:
             while True:
                 buffer = self._get_or_create_buffer(chat_id)
@@ -443,6 +445,7 @@ class InputHandler:
                 await asyncio.sleep(wait_time)
 
         finally:
+            mark_idle()
             self._processing.discard(chat_id)
             if session:
                 session.state.input_in_progress = False

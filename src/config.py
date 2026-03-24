@@ -131,6 +131,11 @@ class Settings(BaseSettings):
         default="1,2,4",
         description="Comma-separated list of delays in seconds for timelapse retries (empty = no retries)",
     )
+    timelapse_idle_wait_timeout: float = Field(
+        default=30.0,
+        description="Seconds the timelapse worker waits for input processing to finish before proceeding anyway (starvation protection)",
+        ge=1.0,
+    )
     recap_part_file_size_threshold: int = Field(
         default=8 * 1024 * 1024,
         description="Max size in bytes before a recap file is split into a new part",

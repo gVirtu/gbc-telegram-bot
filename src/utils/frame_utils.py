@@ -615,6 +615,7 @@ async def save_frames_as_mp4_optimized(
     fps: int = 10,
     crf: int = 28,
     preset: str = "medium",
+    low_priority: bool = False,
 ) -> None:
     """Save a sequence of PNG-encoded frames as an MP4 video with optimized compression.
 
@@ -659,11 +660,16 @@ async def save_frames_as_mp4_optimized(
         output_path,
     ]
 
+    kwargs = {}
+    if low_priority:
+        kwargs["preexec_fn"] = lambda: os.nice(19)
+
     process = await asyncio.create_subprocess_exec(
         *cmd,
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        **kwargs,
     )
 
     process.stdin.write(first_frame.tobytes())
@@ -690,6 +696,7 @@ async def save_frames_as_mp4_with_audio(
     crf: int = 28,
     preset: str = "medium",
     sample_rate: int = 48000,
+    low_priority: bool = False,
 ) -> None:
     """Save frames as MP4 with audio using FFmpeg.
 
@@ -775,11 +782,16 @@ async def save_frames_as_mp4_with_audio(
                 output_path,
             ]
 
+        kwargs = {}
+        if low_priority:
+            kwargs["preexec_fn"] = lambda: os.nice(19)
+
         process = await asyncio.create_subprocess_exec(
             *cmd,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            **kwargs,
         )
 
         process.stdin.write(first_frame.tobytes())

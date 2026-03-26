@@ -1216,7 +1216,7 @@ async def save_frames_as_avif_streaming(
         '-s', f'{w}x{h}',
         '-framerate', str(fps),
         '-i', 'pipe:0',
-        '-c:v', 'libaom-av1',
+        '-c:v', 'libsvtav1',
         '-cpu-used', '8',
         '-crf', str(crf),
         '-b:v', '0',

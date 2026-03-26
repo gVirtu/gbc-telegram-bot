@@ -12,7 +12,7 @@ import tempfile
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
-from typing import Callable, Optional, Tuple
+from typing import Callable, Iterable, List, Optional, Tuple
 
 import numpy as np
 from PIL import Image, ImageDraw
@@ -609,209 +609,6 @@ def save_frames_as_avif(
     return buffer
 
 
-async def save_frames_as_mp4_optimized(
-    frames: list[bytes],
-    output_path: str,
-    fps: int = 10,
-    crf: int = 28,
-    preset: str = "medium",
-    low_priority: bool = False,
-) -> None:
-    """Save a sequence of PNG-encoded frames as an MP4 video with optimized compression.
-
-    This function is designed for timelapse storage where better compression
-    is preferred over encoding speed. Uses medium preset and CRF 28 for
-    smaller file sizes compared to save_frames_as_mp4.
-
-    Args:
-        frames: List of PNG-encoded frames (bytes); decoded one at a time during encoding
-        output_path: Path where to save the MP4 file
-        fps: Frames per second for the output video
-        crf: Constant Rate Factor (quality, lower=better, 0-51)
-        preset: Encoding speed preset (medium for balanced compression)
-
-    Raises:
-        ValueError: If no frames provided
-        RuntimeError: If FFmpeg encoding fails
-
-    Example:
-        >>> frames = [create_empty_frame() for _ in range(5)]
-        >>> await save_frames_as_mp4_optimized(frames, "/tmp/output.mp4")
-    """
-    import asyncio
-
-    if not frames:
-        raise ValueError("No frames provided")
-
-    first_frame = np.array(Image.open(BytesIO(frames[0])))
-    h, w = first_frame.shape[:2]
-
-    cmd = [
-        'ffmpeg', '-y',
-        '-f', 'rawvideo',
-        '-pix_fmt', 'rgb24',
-        '-s', f'{w}x{h}',
-        '-framerate', str(fps),
-        '-i', 'pipe:0',
-        '-vcodec', 'libx264',
-        '-pix_fmt', 'yuv420p',
-        '-crf', str(crf),
-        '-preset', preset,
-        output_path,
-    ]
-
-    kwargs = {}
-    if low_priority:
-        kwargs["preexec_fn"] = lambda: os.nice(19)
-
-    process = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdin=asyncio.subprocess.PIPE,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-        **kwargs,
-    )
-
-    process.stdin.write(first_frame.tobytes())
-    for frame_bytes in frames[1:]:
-        process.stdin.write(np.array(Image.open(BytesIO(frame_bytes))).tobytes())
-
-    process.stdin.close()
-
-    # Wait for process to complete
-    stdout, stderr = await process.communicate()
-
-    if process.returncode != 0:
-        logger.error(f"FFmpeg encoding failed: {stderr.decode()}")
-        raise RuntimeError(f"FFmpeg encoding failed with return code {process.returncode}")
-
-    logger.debug(f"Encoded {len(frames)} frames to {output_path}")
-
-
-async def save_frames_as_mp4_with_audio(
-    frames: list[bytes],
-    audio_chunks: list[np.ndarray],
-    output_path: str,
-    fps: int = 15,
-    crf: int = 28,
-    preset: str = "medium",
-    sample_rate: int = 48000,
-    low_priority: bool = False,
-) -> None:
-    """Save frames as MP4 with audio using FFmpeg.
-
-    Encodes video frames (via stdin pipe) and audio (from PCM file) into
-    a single MP4 with AAC audio track. Designed for realtime recap videos.
-
-    Args:
-        frames: List of PNG-encoded frames (bytes); decoded one at a time during encoding
-        audio_chunks: List of int8 ndarrays with shape (N, 2) - stereo audio
-        output_path: Path where to save the MP4 file
-        fps: Frames per second for the output video
-        crf: Constant Rate Factor (quality, lower=better, 0-51)
-        preset: Encoding speed preset
-        sample_rate: Audio sample rate in Hz
-
-    Raises:
-        ValueError: If no frames provided
-        RuntimeError: If FFmpeg encoding fails
-    """
-    import asyncio
-
-    if not frames:
-        raise ValueError("No frames provided")
-
-    first_frame = np.array(Image.open(BytesIO(frames[0])))
-    h, w = first_frame.shape[:2]
-
-    # Convert int8 stereo chunks to int16 PCM and write to temp file
-    tmp_pcm = None
-    try:
-        if audio_chunks:
-            # Concatenate all audio chunks and convert int8 -> int16
-            combined = np.concatenate(audio_chunks, axis=0)  # shape (N, 2)
-            # Scale to int16 range and add triangular PDF dither to reduce
-            # quantization noise from the 8-bit source (lower 8 bits are
-            # otherwise always zero, causing audible stepping artifacts).
-            pcm_int16 = combined.astype(np.int16) << 8
-
-            dither = (
-                np.random.randint(-128, 129, pcm_int16.shape, dtype=np.int16)
-                + np.random.randint(-128, 129, pcm_int16.shape, dtype=np.int16)
-            ) // 2
-
-            pcm_int16 = np.clip(pcm_int16 + dither, -32768, 32767)
-
-            with tempfile.NamedTemporaryFile(suffix='.pcm', delete=False) as f:
-                tmp_pcm = f.name
-                f.write(pcm_int16.tobytes())
-
-        if tmp_pcm:
-            cmd = [
-                'ffmpeg', '-y',
-                '-f', 'rawvideo',
-                '-pix_fmt', 'rgb24',
-                '-s', f'{w}x{h}',
-                '-framerate', str(fps),
-                '-i', 'pipe:0',
-                '-f', 's16le',
-                '-ar', str(sample_rate),
-                '-ac', '2',
-                '-i', tmp_pcm,
-                '-c:v', 'libx264',
-                '-pix_fmt', 'yuv420p',
-                '-crf', str(crf),
-                '-af', 'highpass=f=40,lowpass=f=6500,aresample=32000',
-                '-preset', preset,
-                '-c:a', 'aac',
-                output_path,
-            ]
-        else:
-            cmd = [
-                'ffmpeg', '-y',
-                '-f', 'rawvideo',
-                '-pix_fmt', 'rgb24',
-                '-s', f'{w}x{h}',
-                '-framerate', str(fps),
-                '-i', 'pipe:0',
-                '-c:v', 'libx264',
-                '-pix_fmt', 'yuv420p',
-                '-crf', str(crf),
-                '-preset', preset,
-                '-an',
-                output_path,
-            ]
-
-        kwargs = {}
-        if low_priority:
-            kwargs["preexec_fn"] = lambda: os.nice(19)
-
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            **kwargs,
-        )
-
-        process.stdin.write(first_frame.tobytes())
-        for frame_bytes in frames[1:]:
-            process.stdin.write(np.array(Image.open(BytesIO(frame_bytes))).tobytes())
-
-        process.stdin.close()
-        stdout, stderr = await process.communicate()
-
-        if process.returncode != 0:
-            logger.error(f"FFmpeg encoding failed: {stderr.decode()}")
-            raise RuntimeError(f"FFmpeg encoding failed with return code {process.returncode}")
-
-        logger.debug(f"Encoded {len(frames)} frames with audio to {output_path}")
-
-    finally:
-        if tmp_pcm and os.path.exists(tmp_pcm):
-            os.remove(tmp_pcm)
-
-
 def generate_tbc_frames(
     base_frame: np.ndarray,
     duration_frames: int = 20,
@@ -1048,3 +845,407 @@ def apply_reaction_overlay(
                     result[fi] = np.array(pil_frame, dtype=np.uint8)
 
     return result
+
+
+def _make_reaction_frame_transform(
+    reactions: list,
+    capture_fps: int = 15,
+    frame_skip: int = 1,
+    asset_dir: Path = Path("./assets"),
+) -> Callable[[np.ndarray, int], np.ndarray]:
+    """Build a per-frame reaction overlay transform (streaming-friendly).
+
+    Equivalent to ``apply_reaction_overlay`` but returns a stateless callable
+    that composites reactions onto a single frame at a given logical frame index
+    instead of operating on a list. The ``frame_skip`` parameter divides all
+    timing so timelapse subsampling is handled correctly.
+
+    Args:
+        reactions: List of reaction dicts with ``reaction_type`` and ``user_name``.
+        capture_fps: Capture frames per second.
+        frame_skip: Subsampling factor (1 = no skip).
+        asset_dir: Directory containing ``reaction_<type>.png`` assets.
+
+    Returns:
+        Callable ``(frame, logical_index) -> composited_frame``.
+    """
+    if not reactions:
+        return lambda frame, index: frame
+
+    window_size_raw = 2 * capture_fps
+    window_reaction_capacity = 5
+    anim_total = 25
+    scale_up_frames = 5
+    hold_frames = 15
+    stagger_frames = 1
+
+    # Preload assets
+    assets: dict = {}
+    for r in reactions:
+        rt = r["reaction_type"]
+        if rt not in assets:
+            assets[rt] = _load_reaction_asset(rt, asset_dir)
+
+    # Precompute per-reaction animation schedule (in logical/output frame indices)
+    schedule = []
+    for i, reaction in enumerate(reactions):
+        w_idx = i // window_reaction_capacity
+        slot_idx = i % window_reaction_capacity
+        start_raw = w_idx * window_size_raw + slot_idx * stagger_frames
+        start_logical = start_raw // frame_skip
+        schedule.append({
+            "asset": assets.get(reaction["reaction_type"]),
+            "user_name": reaction.get("user_name", ""),
+            "start_frame": start_logical,
+            "slot_idx": slot_idx,
+        })
+
+    # Load font once
+    font = None
+    font_path = Path(__file__).parent.parent.parent / "assets" / "fonts" / "OpenSans-Bold.ttf"
+    try:
+        from PIL import ImageFont
+        font = ImageFont.truetype(str(font_path), size=16)
+    except Exception:
+        from PIL import ImageFont
+        font = ImageFont.load_default()
+
+    def transform(frame: np.ndarray, index: int) -> np.ndarray:
+        frame_w = frame.shape[1]
+        slot_width = round(0.2 * frame_w)
+        slot_x_positions = [slot_width * 4, slot_width * 3, slot_width * 2, slot_width, 0]
+
+        result = frame
+        copied = False
+
+        for entry in schedule:
+            frames_into = index - entry["start_frame"]
+            if frames_into < 0 or frames_into >= anim_total:
+                continue
+
+            asset = entry["asset"]
+            if asset is None:
+                continue
+
+            slot_x = slot_x_positions[entry["slot_idx"] % len(slot_x_positions)]
+            user_name = entry["user_name"]
+
+            # Compute scale
+            if frames_into < scale_up_frames:
+                scale = frames_into / 4
+            elif frames_into < scale_up_frames + hold_frames:
+                scale = 1.0
+            else:
+                scale = 1.0 - (frames_into - scale_up_frames - hold_frames) / 4
+
+            if scale <= 0:
+                continue
+
+            if not copied:
+                result = frame.copy()
+                copied = True
+
+            pil_frame = Image.fromarray(result)
+            draw = ImageDraw.Draw(pil_frame)
+
+            try:
+                bbox = draw.textbbox((0, 0), user_name, font=font)
+                text_w = bbox[2] - bbox[0]
+                text_h = bbox[3] - bbox[1]
+                text_top = bbox[1]
+            except Exception:
+                text_w = len(user_name) * 7
+                text_h = 14
+                text_top = 0
+
+            max_text_w = slot_width - 4
+            pad_x, pad_y = 3, 2
+            text_y = 2
+
+            if text_w > max_text_w and text_w > 0:
+                tmp_img = Image.new("RGBA", (text_w, text_h + 2), (0, 0, 0, 0))
+                ImageDraw.Draw(tmp_img).text((0, -text_top), user_name, fill=(255, 255, 255, 255), font=font, fontmode="1")
+                tmp_img = tmp_img.resize((max_text_w, text_h + 2), Image.Resampling.LANCZOS)
+                actual_text_w = max_text_w
+                use_tmp = True
+            else:
+                actual_text_w = text_w
+                use_tmp = False
+
+            text_x = slot_x + (slot_width - actual_text_w) // 2
+
+            overlay = Image.new("RGBA", pil_frame.size, (0, 0, 0, 0))
+            ImageDraw.Draw(overlay).rounded_rectangle(
+                [text_x - pad_x, text_y - pad_y,
+                 text_x + actual_text_w + pad_x, text_y + text_h + pad_y],
+                radius=3,
+                fill=(0, 0, 0, 204),
+            )
+            pil_frame = Image.alpha_composite(pil_frame.convert("RGBA"), overlay).convert("RGB")
+
+            if use_tmp:
+                pil_frame.paste(tmp_img, (text_x, text_y), tmp_img)
+            else:
+                ImageDraw.Draw(pil_frame).text((text_x, text_y - text_top), user_name, fill=(255, 255, 255), font=font, fontmode="1")
+
+            emoji_size = max(1, int(slot_width * scale))
+            resized = asset.resize((emoji_size, emoji_size), Image.Resampling.NEAREST)
+            emoji_x = slot_x + (slot_width - emoji_size) // 2
+            emoji_y = 20 + (slot_width - emoji_size) // 2
+            pil_frame.paste(resized, (emoji_x, emoji_y), resized)
+
+            result = np.array(pil_frame, dtype=np.uint8)
+
+        return result
+
+    return transform
+
+
+def build_timelapse_transform(
+    compositing_context: dict,
+) -> Callable[[np.ndarray, int], np.ndarray]:
+    """Build a per-frame transform for timelapse encoding from a compositing_context dict.
+
+    The returned transform scales each raw frame 3x, applies reactions and the
+    input sidebar, mirroring what the animation pass does but without TBC frames.
+    Frame offsets from ``new_inputs_with_offsets`` are divided by ``frame_skip``
+    so timing is correct after subsampling.
+
+    Args:
+        compositing_context: Dict as stored in ``timelapse_jobs.compositing_context``.
+
+    Returns:
+        Callable ``(raw_frame, logical_index) -> composited_frame``.
+    """
+    pre_existing = compositing_context.get("pre_existing_inputs", [])
+    raw_inputs = compositing_context.get("new_inputs_with_offsets", [])
+    frame_skip = compositing_context.get("frame_skip", 1)
+    capture_fps = compositing_context.get("capture_fps", 15)
+    reactions = compositing_context.get("reactions", [])
+    raw_user_colors = compositing_context.get("user_colors", {})
+
+    user_colors = {k: tuple(v) for k, v in raw_user_colors.items()}
+
+    # Adjust input frame offsets for subsampling
+    new_inputs_with_offsets = [(inp, off // max(frame_skip, 1)) for inp, off in raw_inputs]
+
+    sidebar_transform = _make_frame_transform(
+        pre_existing, new_inputs_with_offsets, capture_fps, user_colors=user_colors
+    )
+    reaction_transform = (
+        _make_reaction_frame_transform(reactions, capture_fps, frame_skip)
+        if reactions else None
+    )
+
+    def transform(raw_frame: np.ndarray, index: int) -> np.ndarray:
+        h, w = raw_frame.shape[:2]
+        scaled = np.array(Image.fromarray(raw_frame).resize(
+            (w * 3, h * 3), Image.Resampling.NEAREST
+        ))
+        if reaction_transform is not None:
+            scaled = reaction_transform(scaled, index)
+        return sidebar_transform(scaled)
+
+    return transform
+
+
+async def save_frames_as_mp4_streaming(
+    frames: Iterable[np.ndarray],
+    transform: Callable[[np.ndarray, int], np.ndarray],
+    output_path: str,
+    fps: int,
+    crf: int = 28,
+    preset: str = "medium",
+    audio_chunks: Optional[List[np.ndarray]] = None,
+    sample_rate: int = 48000,
+    low_priority: bool = False,
+) -> None:
+    """Encode a stream of raw frames into an MP4 file via FFmpeg rawvideo piping.
+
+    Each frame is passed through ``transform(frame, index)`` before being piped
+    to FFmpeg stdin. No intermediate list of composited frames is ever held in
+    memory; only one frame at a time is in flight.
+
+    Args:
+        frames: Iterable of raw numpy arrays (H, W, 3) in RGB format.
+        transform: Callable ``(frame, index) -> composited_frame``.  The
+            composited frame must have consistent shape across all frames.
+        output_path: Destination MP4 file path.
+        fps: Output frames per second.
+        crf: Constant Rate Factor (quality).
+        preset: FFmpeg encoding speed preset.
+        audio_chunks: Optional list of int8 stereo ``(N, 2)`` ndarrays for audio.
+        sample_rate: Audio sample rate in Hz (used when ``audio_chunks`` provided).
+        low_priority: If True, run FFmpeg with ``nice 19``.
+
+    Raises:
+        ValueError: If the frames iterable is empty.
+        RuntimeError: If FFmpeg encoding fails.
+    """
+    import asyncio
+
+    it = iter(frames)
+    try:
+        first_raw = next(it)
+    except StopIteration:
+        raise ValueError("No frames provided")
+
+    first = transform(first_raw, 0)
+    h, w = first.shape[:2]
+
+    tmp_pcm = None
+    try:
+        if audio_chunks:
+            combined = np.concatenate(audio_chunks, axis=0)
+            pcm_int16 = combined.astype(np.int16) << 8
+            dither = (
+                np.random.randint(-128, 129, pcm_int16.shape, dtype=np.int16)
+                + np.random.randint(-128, 129, pcm_int16.shape, dtype=np.int16)
+            ) // 2
+            pcm_int16 = np.clip(pcm_int16 + dither, -32768, 32767)
+            with tempfile.NamedTemporaryFile(suffix='.pcm', delete=False) as f:
+                tmp_pcm = f.name
+                f.write(pcm_int16.tobytes())
+
+        video_args = [
+            'ffmpeg', '-y',
+            '-f', 'rawvideo',
+            '-pix_fmt', 'rgb24',
+            '-s', f'{w}x{h}',
+            '-framerate', str(fps),
+            '-i', 'pipe:0',
+        ]
+
+        if tmp_pcm:
+            video_args += [
+                '-f', 's16le',
+                '-ar', str(sample_rate),
+                '-ac', '2',
+                '-i', tmp_pcm,
+            ]
+
+        encode_args = [
+            '-vcodec', 'libx264',
+            '-profile:v', 'baseline',
+            '-pix_fmt', 'yuv420p',
+            '-crf', str(crf),
+            '-preset', preset,
+        ]
+
+        if tmp_pcm:
+            encode_args += ['-c:a', 'aac', '-af', 'highpass=f=40,lowpass=f=6500,aresample=32000']
+        else:
+            encode_args += ['-an']
+
+        cmd = video_args + encode_args + [output_path]
+
+        kwargs: dict = {}
+        if low_priority:
+            kwargs['preexec_fn'] = lambda: os.nice(19)
+
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            **kwargs,
+        )
+
+        # Pipe first transformed frame
+        process.stdin.write(first.tobytes())
+
+        # Pipe remaining frames one at a time
+        for i, raw in enumerate(it, start=1):
+            transformed = transform(raw, i)
+            process.stdin.write(transformed.tobytes())
+
+        process.stdin.close()
+        _, stderr = await process.communicate()
+
+        if process.returncode != 0:
+            raise RuntimeError(f"FFmpeg streaming encode failed: {stderr.decode()}")
+
+        logger.debug(f"save_frames_as_mp4_streaming: wrote {output_path}")
+
+    finally:
+        if tmp_pcm and os.path.exists(tmp_pcm):
+            os.remove(tmp_pcm)
+
+
+async def save_frames_as_avif_streaming(
+    frames: Iterable[np.ndarray],
+    transform: Callable[[np.ndarray, int], np.ndarray],
+    output_path: str,
+    fps: int,
+    crf: int = 30,
+    low_priority: bool = False,
+) -> None:
+    """Encode a stream of raw frames into an animated AVIF file via FFmpeg.
+
+    Each frame is passed through ``transform(frame, index)`` before being piped
+    to FFmpeg stdin. No intermediate list of composited frames is ever held in
+    memory; only one frame at a time is in flight.
+
+    Args:
+        frames: Iterable of raw numpy arrays (H, W, 3) in RGB format.
+        transform: Callable ``(frame, index) -> composited_frame``.
+        output_path: Destination AVIF file path.
+        fps: Output frames per second.
+        crf: Constant Rate Factor (quality, lower = better).
+        low_priority: If True, run FFmpeg with ``nice 19``.
+
+    Raises:
+        ValueError: If the frames iterable is empty.
+        RuntimeError: If FFmpeg encoding fails.
+    """
+    import asyncio
+
+    it = iter(frames)
+    try:
+        first_raw = next(it)
+    except StopIteration:
+        raise ValueError("No frames provided")
+
+    first = transform(first_raw, 0)
+    h, w = first.shape[:2]
+
+    cmd = [
+        'ffmpeg', '-y',
+        '-f', 'rawvideo',
+        '-pix_fmt', 'rgb24',
+        '-s', f'{w}x{h}',
+        '-framerate', str(fps),
+        '-i', 'pipe:0',
+        '-c:v', 'libaom-av1',
+        '-cpu-used', '8',
+        '-crf', str(crf),
+        '-b:v', '0',
+        '-loop', '0',
+        output_path,
+    ]
+
+    kwargs: dict = {}
+    if low_priority:
+        kwargs['preexec_fn'] = lambda: os.nice(19)
+
+    process = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        **kwargs,
+    )
+
+    process.stdin.write(first.tobytes())
+
+    for i, raw in enumerate(it, start=1):
+        transformed = transform(raw, i)
+        process.stdin.write(transformed.tobytes())
+
+    process.stdin.close()
+    _, stderr = await process.communicate()
+
+    if process.returncode != 0:
+        raise RuntimeError(f"FFmpeg AVIF encode failed: {stderr.decode()}")
+
+    logger.debug(f"save_frames_as_avif_streaming: wrote {output_path}")

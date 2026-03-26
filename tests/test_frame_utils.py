@@ -7,9 +7,12 @@ import hashlib
 
 import numpy as np
 import pytest
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
 from PIL import Image
 
 from src.utils.frame_utils import (
+    _make_reaction_frame_transform,
     create_empty_frame,
     frame_to_png,
     frames_equal,
@@ -18,6 +21,7 @@ from src.utils.frame_utils import (
     render_input_sidebar,
     save_frames_as_mp4,
     save_frames_as_avif,
+    save_frames_as_mp4_streaming,
 )
 
 
@@ -481,3 +485,292 @@ class TestRenderInputSidebarStreak:
         ]
         result = render_input_sidebar(inputs)
         assert result.shape == (432, 288, 3)
+
+
+class TestMakeReactionFrameTransform:
+    """Tests for _make_reaction_frame_transform."""
+
+    def _frame(self, h=432, w=480):
+        return np.zeros((h, w, 3), dtype=np.uint8)
+
+    def test_no_reactions_returns_identity(self):
+        """Empty reaction list returns a transform that passes the frame through unchanged."""
+        fn = _make_reaction_frame_transform([], capture_fps=15, frame_skip=1)
+        frame = self._frame()
+        result = fn(frame, 0)
+        assert result is frame
+
+    def test_returns_callable(self):
+        """With reactions, a callable is returned."""
+        reactions = [{"reaction_type": "heart", "user_name": "Alice"}]
+        fn = _make_reaction_frame_transform(reactions, capture_fps=15, frame_skip=1)
+        assert callable(fn)
+
+    def test_frame_outside_animation_window_unchanged(self):
+        """A frame whose index falls outside all reaction animation windows is returned as-is."""
+        reactions = [{"reaction_type": "heart", "user_name": "Alice"}]
+        fn = _make_reaction_frame_transform(reactions, capture_fps=15, frame_skip=1)
+        frame = self._frame()
+        # start_frame is 0; anim_total is 25 — frame 100 is outside the window
+        result = fn(frame, 100)
+        # No copy should have been made (identity or equal)
+        assert np.array_equal(result, frame)
+
+    def test_frame_inside_animation_window_is_copied(self, tmp_path):
+        """A frame index inside the reaction window produces a copy (original untouched)."""
+        # Write a tiny fake reaction asset so the asset load succeeds
+        asset_path = tmp_path / "reaction_heart.png"
+        Image.fromarray(np.full((32, 32, 4), 200, dtype=np.uint8)).save(str(asset_path))
+
+        reactions = [{"reaction_type": "heart", "user_name": "Alice"}]
+        fn = _make_reaction_frame_transform(
+            reactions, capture_fps=15, frame_skip=1, asset_dir=tmp_path
+        )
+        frame = self._frame()
+        original = frame.copy()
+        result = fn(frame, 10)  # inside the 0..24 window
+        # Original frame should not be mutated
+        assert np.array_equal(frame, original)
+        # Result is a separate array
+        assert result is not frame
+
+    def test_frame_skip_delays_start(self):
+        """With frame_skip=2, reaction start frame is halved so the window shifts."""
+        reactions = [{"reaction_type": "heart", "user_name": "Alice"}]
+        fn_skip1 = _make_reaction_frame_transform(reactions, capture_fps=30, frame_skip=1)
+        fn_skip2 = _make_reaction_frame_transform(reactions, capture_fps=30, frame_skip=2)
+        frame = self._frame()
+
+        # At logical index 0 both should be in-window (start_frame <= 0 for first reaction)
+        # The schedule start_raw for first reaction is 0 in both cases; start_logical = 0 // skip
+        result_skip1 = fn_skip1(frame, 0)
+        result_skip2 = fn_skip2(frame, 0)
+        # Both operate on index 0, within window — both return the frame (asset may be None)
+        assert result_skip1 is not None
+        assert result_skip2 is not None
+
+    def test_multiple_reactions_all_processed(self, tmp_path):
+        """Multiple reactions each get their own schedule entry."""
+        for rtype in ("heart", "star"):
+            asset_path = tmp_path / f"reaction_{rtype}.png"
+            Image.fromarray(np.full((32, 32, 4), 150, dtype=np.uint8)).save(str(asset_path))
+
+        reactions = [
+            {"reaction_type": "heart", "user_name": "Alice"},
+            {"reaction_type": "star", "user_name": "Bob"},
+        ]
+        fn = _make_reaction_frame_transform(
+            reactions, capture_fps=15, frame_skip=1, asset_dir=tmp_path
+        )
+        # Should return a callable without error
+        frame = self._frame()
+        result = fn(frame, 5)
+        assert result is not None
+
+    def test_missing_asset_does_not_crash(self, tmp_path):
+        """If the reaction asset file is missing, the frame is returned without modification."""
+        reactions = [{"reaction_type": "nonexistent_type", "user_name": "X"}]
+        fn = _make_reaction_frame_transform(
+            reactions, capture_fps=15, frame_skip=1, asset_dir=tmp_path
+        )
+        frame = self._frame()
+        result = fn(frame, 5)
+        # No crash, frame returned
+        assert np.array_equal(result, frame)
+
+
+class TestSaveFramesAsMp4Streaming:
+    """Tests for save_frames_as_mp4_streaming."""
+
+    def _frames(self, count=3, h=144, w=160):
+        return [np.full((h, w, 3), i * 40, dtype=np.uint8) for i in range(count)]
+
+    def _identity_transform(self, frame, index):
+        return frame
+
+    @pytest.mark.asyncio
+    async def test_raises_on_empty_frames(self, tmp_path):
+        """ValueError is raised when frames iterable is empty."""
+        with pytest.raises(ValueError, match="No frames"):
+            await save_frames_as_mp4_streaming(
+                iter([]), self._identity_transform, str(tmp_path / "out.mp4"), fps=10
+            )
+
+    @pytest.mark.asyncio
+    async def test_transform_called_once_per_frame(self, tmp_path):
+        """Transform is called exactly once per frame."""
+        frames = self._frames(4)
+        call_indices = []
+
+        def counting_transform(frame, index):
+            call_indices.append(index)
+            return frame
+
+        async def fake_subprocess(*cmd, **kwargs):
+            proc = MagicMock()
+            proc.stdin = MagicMock()
+            proc.returncode = 0
+            proc.communicate = AsyncMock(return_value=(b"", b""))
+            return proc
+
+        with patch("asyncio.create_subprocess_exec", side_effect=fake_subprocess):
+            await save_frames_as_mp4_streaming(
+                iter(frames), counting_transform, str(tmp_path / "out.mp4"), fps=10
+            )
+
+        assert call_indices == list(range(4))
+
+    @pytest.mark.asyncio
+    async def test_ffmpeg_command_includes_an_without_audio(self, tmp_path):
+        """Without audio_chunks, FFmpeg command includes -an."""
+        captured_cmd = []
+
+        async def fake_subprocess(*cmd, **kwargs):
+            captured_cmd.extend(cmd)
+            proc = MagicMock()
+            proc.stdin = MagicMock()
+            proc.returncode = 0
+            proc.communicate = AsyncMock(return_value=(b"", b""))
+            return proc
+
+        with patch("asyncio.create_subprocess_exec", side_effect=fake_subprocess):
+            await save_frames_as_mp4_streaming(
+                iter(self._frames()), self._identity_transform,
+                str(tmp_path / "out.mp4"), fps=10
+            )
+
+        assert "-an" in captured_cmd
+        assert "-c:a" not in captured_cmd
+
+    @pytest.mark.asyncio
+    async def test_ffmpeg_command_includes_audio_flags_with_audio(self, tmp_path):
+        """With audio_chunks, FFmpeg command includes PCM input and -c:a aac."""
+        captured_cmd = []
+
+        async def fake_subprocess(*cmd, **kwargs):
+            captured_cmd.extend(cmd)
+            proc = MagicMock()
+            proc.stdin = MagicMock()
+            proc.returncode = 0
+            proc.communicate = AsyncMock(return_value=(b"", b""))
+            return proc
+
+        audio_chunks = [np.zeros((100, 2), dtype=np.int8) for _ in range(3)]
+
+        with patch("asyncio.create_subprocess_exec", side_effect=fake_subprocess):
+            await save_frames_as_mp4_streaming(
+                iter(self._frames()), self._identity_transform,
+                str(tmp_path / "out.mp4"), fps=10,
+                audio_chunks=audio_chunks,
+            )
+
+        assert "-f" in captured_cmd
+        f_indices = [i for i, v in enumerate(captured_cmd) if v == "-f"]
+        assert any(captured_cmd[i + 1] == "s16le" for i in f_indices)
+        assert "-c:a" in captured_cmd
+        aac_idx = captured_cmd.index("-c:a")
+        assert captured_cmd[aac_idx + 1] == "aac"
+        assert "-an" not in captured_cmd
+
+    @pytest.mark.asyncio
+    async def test_audio_pcm_temp_file_cleaned_up(self, tmp_path):
+        """Temporary PCM file is deleted after encoding, even on success."""
+        created_pcm = []
+
+        original_NamedTemporaryFile = __import__('tempfile').NamedTemporaryFile
+
+        def tracking_ntf(**kwargs):
+            f = original_NamedTemporaryFile(**kwargs)
+            if kwargs.get('suffix') == '.pcm':
+                created_pcm.append(f.name)
+            return f
+
+        async def fake_subprocess(*cmd, **kwargs):
+            proc = MagicMock()
+            proc.stdin = MagicMock()
+            proc.returncode = 0
+            proc.communicate = AsyncMock(return_value=(b"", b""))
+            return proc
+
+        audio_chunks = [np.zeros((50, 2), dtype=np.int8)]
+
+        with patch("tempfile.NamedTemporaryFile", side_effect=tracking_ntf):
+            with patch("asyncio.create_subprocess_exec", side_effect=fake_subprocess):
+                await save_frames_as_mp4_streaming(
+                    iter(self._frames()), self._identity_transform,
+                    str(tmp_path / "out.mp4"), fps=10,
+                    audio_chunks=audio_chunks,
+                )
+
+        # All created PCM temp files should have been deleted
+        import os
+        for pcm_path in created_pcm:
+            assert not os.path.exists(pcm_path)
+
+    @pytest.mark.asyncio
+    async def test_raises_on_ffmpeg_nonzero_return(self, tmp_path):
+        """RuntimeError is raised when FFmpeg returns non-zero exit code."""
+        async def fake_subprocess(*cmd, **kwargs):
+            proc = MagicMock()
+            proc.stdin = MagicMock()
+            proc.returncode = 1
+            proc.communicate = AsyncMock(return_value=(b"", b"encode error"))
+            return proc
+
+        with patch("asyncio.create_subprocess_exec", side_effect=fake_subprocess):
+            with pytest.raises(RuntimeError, match="FFmpeg streaming encode failed"):
+                await save_frames_as_mp4_streaming(
+                    iter(self._frames()), self._identity_transform,
+                    str(tmp_path / "out.mp4"), fps=10
+                )
+
+    @pytest.mark.asyncio
+    async def test_low_priority_sets_preexec_fn(self, tmp_path):
+        """low_priority=True passes preexec_fn to subprocess."""
+        captured_kwargs = {}
+
+        async def fake_subprocess(*cmd, **kwargs):
+            captured_kwargs.update(kwargs)
+            proc = MagicMock()
+            proc.stdin = MagicMock()
+            proc.returncode = 0
+            proc.communicate = AsyncMock(return_value=(b"", b""))
+            return proc
+
+        with patch("asyncio.create_subprocess_exec", side_effect=fake_subprocess):
+            await save_frames_as_mp4_streaming(
+                iter(self._frames()), self._identity_transform,
+                str(tmp_path / "out.mp4"), fps=10, low_priority=True
+            )
+
+        assert "preexec_fn" in captured_kwargs
+
+    @pytest.mark.asyncio
+    async def test_output_dimensions_derived_from_transform(self, tmp_path):
+        """FFmpeg -s argument reflects the output shape from the transform."""
+        captured_cmd = []
+
+        async def fake_subprocess(*cmd, **kwargs):
+            captured_cmd.extend(cmd)
+            proc = MagicMock()
+            proc.stdin = MagicMock()
+            proc.returncode = 0
+            proc.communicate = AsyncMock(return_value=(b"", b""))
+            return proc
+
+        # Transform doubles the width
+        def doubling_transform(frame, index):
+            from PIL import Image
+            h, w = frame.shape[:2]
+            return np.array(Image.fromarray(frame).resize((w * 2, h)))
+
+        frames = [np.zeros((144, 160, 3), dtype=np.uint8)]
+
+        with patch("asyncio.create_subprocess_exec", side_effect=fake_subprocess):
+            await save_frames_as_mp4_streaming(
+                iter(frames), doubling_transform,
+                str(tmp_path / "out.mp4"), fps=10
+            )
+
+        s_idx = captured_cmd.index("-s")
+        assert captured_cmd[s_idx + 1] == "320x144"  # 160*2 x 144

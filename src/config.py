@@ -184,6 +184,11 @@ class Settings(BaseSettings):
         ge=0,
         description="Bonus points awarded per streak day for playing on consecutive days",
     )
+    timelapse_done_job_retention_days: int = Field(
+        default=1,
+        description="Delete 'done' timelapse jobs older than this many days (0 = disabled)",
+        ge=0,
+    )
 
     # Sequence input settings
     max_sequence_length: int = Field(

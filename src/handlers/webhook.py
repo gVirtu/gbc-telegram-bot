@@ -433,6 +433,9 @@ class WebhookHandler:
             timelapse_encoder.timelapse_queue = timelapse_encoder.TimelapseEncodingQueue(state_manager)
             logger.info("Timelapse encoding queue initialized")
 
+            # Startup recovery: reset stuck jobs, clean orphaned folders, resume workers
+            await timelapse_encoder.timelapse_queue.startup_recovery()
+
             # Start daily backup task
             from src.tasks.backup_task import run_backup_loop
             from src.utils.backup_manager import BackupManager

@@ -4,7 +4,7 @@ import os
 import pytest
 import numpy as np
 from io import BytesIO
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "test_token")
 os.environ.setdefault("WEBHOOK_URL", "https://test.example.com")
@@ -669,14 +669,14 @@ class TestProcessBatchEdgeCases:
 
     @pytest.mark.asyncio
     async def test_timelapse_queue_enqueued_when_not_none(self):
-        """Lines 490-495: timelapse_queue is not None → frames enqueued."""
+        """timelapse_queue is not None → insert_timelapse_job + trigger_worker called."""
         handler = _handler()
         handler._sessions[123456] = _session()
         adapter = _make_adapter()
         controller = _mock_controller_for_batch()
 
         mock_timelapse_queue = MagicMock()
-        mock_timelapse_queue.enqueue = AsyncMock()
+        mock_timelapse_queue.trigger_worker = Mock()
 
         with patch("src.handlers.input_handler.game_controller_manager") as mock_gcm, \
              patch("src.handlers.input_handler.state_manager") as mock_sm, \
@@ -684,28 +684,31 @@ class TestProcessBatchEdgeCases:
              patch("src.handlers.input_handler.generate_tbc_frames", return_value=[]), \
              patch("src.handlers.input_handler.apply_overlay_composite", return_value=[np.zeros((432, 768, 3), dtype=np.uint8)]), \
              patch("src.tasks.timelapse_encoder.timelapse_queue", mock_timelapse_queue), \
+             patch("src.handlers.input_handler._save_raw_frames_sync"), \
              patch("src.handlers.input_handler.settings") as mock_s:
             mock_gcm.get_or_create_controller = AsyncMock(return_value=controller)
             mock_sm.get_or_create_chat_config.return_value = ChatConfig(
                 chat_id=123456, modifier_states={}, auto_save_enabled=False
             )
+            mock_sm.insert_timelapse_job = Mock(return_value=1)
             _base_settings_patch(mock_s)
 
             batch = [BufferedInput(user_id=1, user_name="Alice", button=GameButton.A)]
             await handler._process_batch(123456, 789, batch, adapter)
 
-        mock_timelapse_queue.enqueue.assert_awaited_once()
+        mock_sm.insert_timelapse_job.assert_called_once()
+        mock_timelapse_queue.trigger_worker.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_timelapse_enqueue_failure_is_swallowed(self):
-        """Lines 496-497: timelapse enqueue raises → swallowed as warning."""
+        """timelapse job insertion raises → swallowed as warning."""
         handler = _handler()
         handler._sessions[123456] = _session()
         adapter = _make_adapter()
         controller = _mock_controller_for_batch()
 
         mock_timelapse_queue = MagicMock()
-        mock_timelapse_queue.enqueue = AsyncMock(side_effect=Exception("encoding failed"))
+        mock_timelapse_queue.trigger_worker = Mock(side_effect=Exception("queue error"))
 
         with patch("src.handlers.input_handler.game_controller_manager") as mock_gcm, \
              patch("src.handlers.input_handler.state_manager") as mock_sm, \
@@ -713,11 +716,13 @@ class TestProcessBatchEdgeCases:
              patch("src.handlers.input_handler.generate_tbc_frames", return_value=[]), \
              patch("src.handlers.input_handler.apply_overlay_composite", return_value=[np.zeros((432, 768, 3), dtype=np.uint8)]), \
              patch("src.tasks.timelapse_encoder.timelapse_queue", mock_timelapse_queue), \
+             patch("src.handlers.input_handler._save_raw_frames_sync"), \
              patch("src.handlers.input_handler.settings") as mock_s:
             mock_gcm.get_or_create_controller = AsyncMock(return_value=controller)
             mock_sm.get_or_create_chat_config.return_value = ChatConfig(
                 chat_id=123456, modifier_states={}, auto_save_enabled=False
             )
+            mock_sm.insert_timelapse_job = Mock(return_value=1)
             _base_settings_patch(mock_s)
 
             batch = [BufferedInput(user_id=1, user_name="Alice", button=GameButton.A)]

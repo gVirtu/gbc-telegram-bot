@@ -1,6 +1,7 @@
 
 import asyncio
 import pytest
+import numpy as np
 from io import BytesIO
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -31,6 +32,10 @@ async def test_auto_save_on_input(mock_adapter):
                     mock_controller.save_state.return_value = b"save_data"
                     mock_controller.begin_hooks.return_value = {}
                     mock_controller.get_modifier_specs.return_value = []
+                    mock_controller.end_capture.return_value = [np.zeros((144, 160, 3), dtype=np.uint8)]
+                    mock_controller.get_frame.return_value = np.zeros((144, 160, 3), dtype=np.uint8)
+                    mock_controller.get_frame_as_png.return_value = b"\x89PNG"
+                    mock_controller.get_last_captured_audio.return_value = None
                     mock_game_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
 
                     # Execute input processing
@@ -66,6 +71,10 @@ async def test_no_auto_save_when_disabled(mock_adapter):
                     mock_controller = MagicMock()
                     mock_controller.begin_hooks.return_value = {}
                     mock_controller.get_modifier_specs.return_value = []
+                    mock_controller.end_capture.return_value = [np.zeros((144, 160, 3), dtype=np.uint8)]
+                    mock_controller.get_frame.return_value = np.zeros((144, 160, 3), dtype=np.uint8)
+                    mock_controller.get_frame_as_png.return_value = b"\x89PNG"
+                    mock_controller.get_last_captured_audio.return_value = None
                     mock_game_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
 
                     # Execute input processing

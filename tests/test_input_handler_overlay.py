@@ -9,7 +9,7 @@ import pytest
 import numpy as np
 from datetime import datetime
 from io import BytesIO
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, call, patch
 
 # Set environment variables before importing
 os.environ["TELEGRAM_BOT_TOKEN"] = "test_token"
@@ -105,8 +105,8 @@ class TestProcessBatchAppendsRecentInput:
             assert "b" in buttons_called
 
 
-class TestProcessBatchCallsApplyOverlayComposite:
-    """Test that _process_batch calls apply_overlay_composite with the correct args."""
+class TestProcessBatchCallsFrameTransform:
+    """Test that _process_batch passes pre_existing_inputs to _make_frame_transform."""
 
     @pytest.fixture
     def handler(self):
@@ -118,10 +118,10 @@ class TestProcessBatchCallsApplyOverlayComposite:
         return h
 
     @pytest.mark.asyncio
-    async def test_apply_overlay_composite_called_with_pre_existing(
+    async def test_make_frame_transform_called_with_pre_existing(
         self, handler, mock_adapter
     ):
-        """apply_overlay_composite is called with the pre_existing_inputs from the DB."""
+        """_make_frame_transform is called with the pre_existing_inputs from the DB."""
         pre_existing = [
             {"user_id": 99, "user_name": "Old", "button": "up", "timestamp": "2026-01-01T00:00:00"},
         ]
@@ -134,7 +134,7 @@ class TestProcessBatchCallsApplyOverlayComposite:
              patch("src.handlers.input_handler.state_manager") as mock_sm, \
              patch("src.handlers.input_handler.broadcast_game_update", new_callable=AsyncMock), \
              patch("src.handlers.input_handler.generate_tbc_frames", return_value=[]), \
-             patch("src.handlers.input_handler.apply_overlay_composite", return_value=[]) as mock_composite, \
+             patch("src.handlers.input_handler._make_frame_transform", return_value=lambda f: f) as mock_mft, \
              patch("src.handlers.input_handler.settings") as mock_settings:
 
             mock_settings.input_hold_frames = 10
@@ -152,28 +152,28 @@ class TestProcessBatchCallsApplyOverlayComposite:
 
             await handler._process_batch(123456, 789, batch, mock_adapter)
 
-            mock_composite.assert_called_once()
-            call_args = mock_composite.call_args
-            assert call_args[0][1] == pre_existing  # second positional arg
+            mock_mft.assert_called_once()
+            call_args = mock_mft.call_args
+            assert call_args[0][0] == pre_existing  # first positional arg
 
 
     @pytest.mark.asyncio
     async def test_timelapse_enqueue_receives_no_overlay_params(
         self, handler, mock_adapter
     ):
-        """timelapse_queue.enqueue is called without pre_existing_inputs or new_inputs_with_offsets."""
+        """trigger_worker is called and insert_timelapse_job has no overlay params in compositing_context."""
         batch = _make_batch([(GameButton.A, 1, "Alice")])
         mock_controller = _make_mock_controller()
         mock_config = _make_mock_config(feature_flags={"realtime_recaps": True})
-        mock_enqueue = AsyncMock()
         mock_tq = MagicMock()
-        mock_tq.enqueue = mock_enqueue
+        mock_tq.trigger_worker = Mock()
 
         with patch("src.handlers.input_handler.game_controller_manager") as mock_mgr, \
              patch("src.handlers.input_handler.state_manager") as mock_sm, \
              patch("src.handlers.input_handler.broadcast_game_update", new_callable=AsyncMock), \
              patch("src.handlers.input_handler.generate_tbc_frames", return_value=[]), \
              patch("src.handlers.input_handler.apply_overlay_composite", return_value=[np.zeros((432, 768, 3), dtype=np.uint8)]), \
+             patch("src.handlers.input_handler._save_raw_frames_sync"), \
              patch("src.handlers.input_handler.settings") as mock_settings, \
              patch("src.tasks.timelapse_encoder.timelapse_queue", mock_tq):
 
@@ -189,13 +189,12 @@ class TestProcessBatchCallsApplyOverlayComposite:
             mock_sm.get_or_create_chat_config.return_value = mock_config
             mock_sm.get_recent_inputs_for_overlay.return_value = []
             mock_sm.append_recent_input.return_value = None
+            mock_sm.insert_timelapse_job = Mock(return_value=1)
 
             await handler._process_batch(123456, 789, batch, mock_adapter)
 
-            mock_enqueue.assert_called_once()
-            call_kwargs = mock_enqueue.call_args.kwargs
-            assert "pre_existing_inputs" not in call_kwargs
-            assert "new_inputs_with_offsets" not in call_kwargs
+            mock_tq.trigger_worker.assert_called_once()
+            mock_sm.insert_timelapse_job.assert_called_once()
 
 
 class TestProcessBatchPreExistingCappedAt30:
@@ -240,7 +239,7 @@ class TestProcessBatchPreExistingCappedAt30:
             mock_sm.get_recent_inputs_for_overlay.return_value = []
             mock_sm.append_recent_input.return_value = None
 
-            with patch("src.tasks.timelapse_encoder.timelapse_queue"):
+            with patch("src.tasks.timelapse_encoder.timelapse_queue"),                  patch("src.handlers.input_handler._save_raw_frames_sync"):
                 await handler._process_batch(123456, 789, batch, mock_adapter)
 
             mock_sm.get_recent_inputs_for_overlay.assert_called_once_with(123456, limit=30)

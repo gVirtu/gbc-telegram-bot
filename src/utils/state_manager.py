@@ -9,13 +9,17 @@ The migration from JSON files to SQLite was performed by migrate_to_sqlite.py.
 
 from __future__ import annotations
 
+import json
 import logging
+import os
+import shutil
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
 from src.config import settings
 from src.db import DatabaseManager
-from src.models.game_state import SaveSlotInfo
+from src.models.game_state import SaveSlotInfo, TimelapseJobRow
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +129,165 @@ class StateManager(DatabaseManager):
         
         max_slot = max(auto_saves)
         return (max_slot + 1) % max_slots
+
+
+    # ==================== Timelapse Jobs ====================
+
+    def insert_timelapse_job(
+        self,
+        chat_id: str,
+        folder_path: str,
+        timestamp: str,
+        fps: int,
+        compositing_context: dict,
+    ) -> int:
+        """Insert a new pending timelapse job and return its ID.
+
+        Args:
+            chat_id: Chat ID as string.
+            folder_path: Absolute path to the folder containing .npy frame files.
+            timestamp: ISO8601 timestamp of the batch capture.
+            fps: Output FPS for the timelapse video.
+            compositing_context: Dict with frame/sidebar/reaction data.
+
+        Returns:
+            The new row's ID.
+        """
+        now = datetime.utcnow().isoformat()
+        sql = """
+            INSERT INTO timelapse_jobs
+                (chat_id, folder_path, timestamp, fps, compositing_context, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)
+        """
+        cursor = self.connection.execute(
+            sql, (str(chat_id), folder_path, timestamp, fps, json.dumps(compositing_context), now, now)
+        )
+        self.connection.commit()
+        return cursor.lastrowid
+
+    def fetch_next_pending_job(self, chat_id: str) -> Optional[TimelapseJobRow]:
+        """Fetch the oldest pending timelapse job for a chat, or None.
+
+        Args:
+            chat_id: Chat ID as string.
+
+        Returns:
+            TimelapseJobRow or None if no pending jobs exist.
+        """
+        sql = """
+            SELECT * FROM timelapse_jobs
+            WHERE chat_id = ? AND status = 'pending'
+            ORDER BY created_at ASC
+            LIMIT 1
+        """
+        cursor = self.connection.execute(sql, (str(chat_id),))
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        ctx = json.loads(row['compositing_context'])
+        return TimelapseJobRow(
+            id=row['id'],
+            chat_id=row['chat_id'],
+            folder_path=row['folder_path'],
+            timestamp=row['timestamp'],
+            fps=row['fps'],
+            compositing_context=ctx,
+            frame_count=ctx.get('frame_count', 0),
+            status=row['status'],
+            created_at=row['created_at'],
+            updated_at=row['updated_at'],
+        )
+
+    def update_job_status(self, job_id: int, status: str) -> None:
+        """Update the status of a timelapse job.
+
+        Args:
+            job_id: DB row ID.
+            status: New status string ('pending', 'processing', 'done', 'failed').
+        """
+        now = datetime.utcnow().isoformat()
+        self.connection.execute(
+            "UPDATE timelapse_jobs SET status = ?, updated_at = ? WHERE id = ?",
+            (status, now, job_id),
+        )
+        self.connection.commit()
+
+    def reset_stuck_jobs(self) -> int:
+        """Reset all 'processing' jobs back to 'pending' (crash recovery).
+
+        Returns:
+            Number of rows reset.
+        """
+        now = datetime.utcnow().isoformat()
+        cursor = self.connection.execute(
+            "UPDATE timelapse_jobs SET status = 'pending', updated_at = ? WHERE status = 'processing'",
+            (now,),
+        )
+        self.connection.commit()
+        count = cursor.rowcount
+        if count > 0:
+            logger.info(f"reset_stuck_jobs: reset {count} stuck timelapse job(s) to pending")
+        return count
+
+    def prune_done_jobs(self, older_than_days: int) -> int:
+        """Delete 'done' timelapse jobs whose updated_at is older than the threshold.
+
+        Returns:
+            Number of rows deleted.
+        """
+        if older_than_days <= 0:
+            return 0
+        cutoff = (datetime.utcnow() - timedelta(days=older_than_days)).isoformat()
+        cursor = self.connection.execute(
+            "DELETE FROM timelapse_jobs WHERE status = 'done' AND updated_at < ?",
+            (cutoff,),
+        )
+        self.connection.commit()
+        count = cursor.rowcount
+        if count > 0:
+            logger.info(f"prune_done_jobs: deleted {count} done timelapse job(s) older than {older_than_days}d")
+        return count
+
+    def get_chats_with_pending_jobs(self) -> list:
+        """Return a list of distinct chat_ids that have pending timelapse jobs."""
+        cursor = self.connection.execute(
+            "SELECT DISTINCT chat_id FROM timelapse_jobs WHERE status = 'pending'"
+        )
+        return [row['chat_id'] for row in cursor.fetchall()]
+
+    def cleanup_orphaned_folders(self) -> int:
+        """Delete frame folders under data/frames/ that have no DB row.
+
+        A folder is considered orphaned when it was written during a crash
+        before the DB row could be inserted, making it unrecoverable.
+
+        Returns:
+            Number of folders deleted.
+        """
+        frames_root = settings.data_dir / "frames"
+        if not frames_root.exists():
+            return 0
+
+        # Collect all known folder paths from DB
+        cursor = self.connection.execute("SELECT folder_path FROM timelapse_jobs")
+        known_paths = {row['folder_path'] for row in cursor.fetchall()}
+
+        deleted = 0
+        for chat_dir in frames_root.iterdir():
+            if not chat_dir.is_dir():
+                continue
+            for job_dir in chat_dir.iterdir():
+                if not job_dir.is_dir():
+                    continue
+                if str(job_dir) not in known_paths:
+                    try:
+                        shutil.rmtree(job_dir)
+                        deleted += 1
+                        logger.info(f"cleanup_orphaned_folders: removed {job_dir}")
+                    except Exception as e:
+                        logger.warning(f"cleanup_orphaned_folders: failed to remove {job_dir}: {e}")
+
+        return deleted
 
 
 # Singleton instance for convenience (lazy-loaded)

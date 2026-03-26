@@ -7,10 +7,11 @@ configuration, and save slots.
 import json
 import shutil
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
-from src.models.game_state import ChatConfig, ChatGameState, GameButton, SaveSlotInfo
+from src.models.game_state import ChatConfig, ChatGameState, GameButton, SaveSlotInfo, TimelapseJobRow
 from src.utils.state_manager import StateManager
 
 
@@ -357,11 +358,189 @@ class TestErrorHandling:
         # Create initial state
         state1 = ChatGameState(chat_id=123456, message_id=100)
         manager.save_game_state(state1)
-        
+
         # Update with new state
         state2 = ChatGameState(chat_id=123456, message_id=200)
         manager.save_game_state(state2)
-        
+
         # Should have new values
         loaded = manager.load_game_state(123456)
         assert loaded.message_id == 200
+
+
+class TestTimelapseJobMethods:
+    """Tests for timelapse job CRUD methods on StateManager."""
+
+    @pytest.fixture
+    def manager(self, tmp_path):
+        return StateManager(data_dir=tmp_path)
+
+    def _ctx(self, frame_count=10):
+        return {
+            "frame_count": frame_count,
+            "frame_skip": 1,
+            "capture_fps": 15,
+            "timelapse_fps": 10,
+            "pre_existing_inputs": [],
+            "new_inputs_with_offsets": [],
+            "reactions": [],
+            "user_colors": {},
+        }
+
+    # ── insert_timelapse_job ──────────────────────────────────────────────────
+
+    def test_insert_returns_int_id(self, manager, tmp_path):
+        job_id = manager.insert_timelapse_job("123", "/frames/a", "2026-01-01T00:00:00", 10, self._ctx())
+        assert isinstance(job_id, int)
+        assert job_id >= 1
+
+    def test_insert_stores_pending_status(self, manager, tmp_path):
+        manager.insert_timelapse_job("123", "/frames/a", "2026-01-01T00:00:00", 10, self._ctx())
+        job = manager.fetch_next_pending_job("123")
+        assert job is not None
+        assert job.status == "pending"
+
+    def test_insert_round_trips_compositing_context(self, manager, tmp_path):
+        ctx = self._ctx(frame_count=42)
+        manager.insert_timelapse_job("123", "/frames/a", "2026-01-01T00:00:00", 10, ctx)
+        job = manager.fetch_next_pending_job("123")
+        assert job.compositing_context["frame_count"] == 42
+        assert job.frame_count == 42
+
+    def test_insert_multiple_jobs_same_chat(self, manager, tmp_path):
+        manager.insert_timelapse_job("123", "/frames/a", "2026-01-01T00:00:00", 10, self._ctx())
+        manager.insert_timelapse_job("123", "/frames/b", "2026-01-01T00:01:00", 10, self._ctx())
+        # Both should exist as pending
+        assert len(manager.get_chats_with_pending_jobs()) == 1
+
+    # ── fetch_next_pending_job ────────────────────────────────────────────────
+
+    def test_fetch_returns_none_when_empty(self, manager):
+        assert manager.fetch_next_pending_job("999") is None
+
+    def test_fetch_returns_oldest_first(self, manager):
+        manager.insert_timelapse_job("123", "/frames/old", "2026-01-01T10:00:00", 10, self._ctx())
+        manager.insert_timelapse_job("123", "/frames/new", "2026-01-01T10:01:00", 10, self._ctx())
+        job = manager.fetch_next_pending_job("123")
+        assert job.folder_path == "/frames/old"
+
+    def test_fetch_ignores_other_chats(self, manager):
+        manager.insert_timelapse_job("456", "/frames/other", "2026-01-01T00:00:00", 10, self._ctx())
+        assert manager.fetch_next_pending_job("123") is None
+
+    def test_fetch_ignores_non_pending_jobs(self, manager):
+        job_id = manager.insert_timelapse_job("123", "/frames/a", "2026-01-01T00:00:00", 10, self._ctx())
+        manager.update_job_status(job_id, "done")
+        assert manager.fetch_next_pending_job("123") is None
+
+    # ── update_job_status ─────────────────────────────────────────────────────
+
+    def test_update_status_to_processing(self, manager):
+        job_id = manager.insert_timelapse_job("123", "/frames/a", "2026-01-01T00:00:00", 10, self._ctx())
+        manager.update_job_status(job_id, "processing")
+        # Job is no longer "pending", so fetch returns None
+        assert manager.fetch_next_pending_job("123") is None
+
+    def test_update_status_to_done(self, manager):
+        job_id = manager.insert_timelapse_job("123", "/frames/a", "2026-01-01T00:00:00", 10, self._ctx())
+        manager.update_job_status(job_id, "done")
+        assert manager.fetch_next_pending_job("123") is None
+
+    def test_update_status_to_failed(self, manager):
+        job_id = manager.insert_timelapse_job("123", "/frames/a", "2026-01-01T00:00:00", 10, self._ctx())
+        manager.update_job_status(job_id, "failed")
+        assert manager.fetch_next_pending_job("123") is None
+
+    # ── reset_stuck_jobs ──────────────────────────────────────────────────────
+
+    def test_reset_stuck_jobs_returns_count(self, manager):
+        job_id = manager.insert_timelapse_job("123", "/frames/a", "2026-01-01T00:00:00", 10, self._ctx())
+        manager.update_job_status(job_id, "processing")
+        count = manager.reset_stuck_jobs()
+        assert count == 1
+
+    def test_reset_stuck_jobs_makes_processing_pending_again(self, manager):
+        job_id = manager.insert_timelapse_job("123", "/frames/a", "2026-01-01T00:00:00", 10, self._ctx())
+        manager.update_job_status(job_id, "processing")
+        manager.reset_stuck_jobs()
+        job = manager.fetch_next_pending_job("123")
+        assert job is not None
+        assert job.status == "pending"
+
+    def test_reset_stuck_jobs_ignores_done_and_failed(self, manager):
+        id1 = manager.insert_timelapse_job("123", "/frames/a", "2026-01-01T00:00:00", 10, self._ctx())
+        id2 = manager.insert_timelapse_job("123", "/frames/b", "2026-01-01T00:01:00", 10, self._ctx())
+        manager.update_job_status(id1, "done")
+        manager.update_job_status(id2, "failed")
+        count = manager.reset_stuck_jobs()
+        assert count == 0
+
+    def test_reset_stuck_jobs_zero_when_none_stuck(self, manager):
+        manager.insert_timelapse_job("123", "/frames/a", "2026-01-01T00:00:00", 10, self._ctx())
+        assert manager.reset_stuck_jobs() == 0
+
+    # ── get_chats_with_pending_jobs ───────────────────────────────────────────
+
+    def test_get_chats_empty_when_no_jobs(self, manager):
+        assert manager.get_chats_with_pending_jobs() == []
+
+    def test_get_chats_returns_distinct_chat_ids(self, manager):
+        manager.insert_timelapse_job("123", "/frames/a", "2026-01-01T00:00:00", 10, self._ctx())
+        manager.insert_timelapse_job("123", "/frames/b", "2026-01-01T00:01:00", 10, self._ctx())
+        manager.insert_timelapse_job("456", "/frames/c", "2026-01-01T00:00:00", 10, self._ctx())
+        chats = manager.get_chats_with_pending_jobs()
+        assert sorted(chats) == ["123", "456"]
+
+    def test_get_chats_excludes_non_pending(self, manager):
+        job_id = manager.insert_timelapse_job("123", "/frames/a", "2026-01-01T00:00:00", 10, self._ctx())
+        manager.update_job_status(job_id, "done")
+        manager.insert_timelapse_job("456", "/frames/b", "2026-01-01T00:00:00", 10, self._ctx())
+        chats = manager.get_chats_with_pending_jobs()
+        assert chats == ["456"]
+
+    # ── cleanup_orphaned_folders ──────────────────────────────────────────────
+
+    def test_cleanup_returns_zero_when_no_frames_dir(self, manager, tmp_path):
+        with patch("src.utils.state_manager.settings") as mock_settings:
+            mock_settings.data_dir = tmp_path
+            count = manager.cleanup_orphaned_folders()
+        assert count == 0
+
+    def test_cleanup_deletes_folder_with_no_db_row(self, manager, tmp_path):
+        orphan = tmp_path / "frames" / "123" / "20260101_orphan"
+        orphan.mkdir(parents=True)
+        (orphan / "frame_000000.npy").write_bytes(b"fake")
+
+        with patch("src.utils.state_manager.settings") as mock_settings:
+            mock_settings.data_dir = tmp_path
+            count = manager.cleanup_orphaned_folders()
+
+        assert count == 1
+        assert not orphan.exists()
+
+    def test_cleanup_preserves_folder_with_db_row(self, manager, tmp_path):
+        folder = tmp_path / "frames" / "123" / "20260101_known"
+        folder.mkdir(parents=True)
+        manager.insert_timelapse_job("123", str(folder), "2026-01-01T00:00:00", 10, self._ctx())
+
+        with patch("src.utils.state_manager.settings") as mock_settings:
+            mock_settings.data_dir = tmp_path
+            count = manager.cleanup_orphaned_folders()
+
+        assert count == 0
+        assert folder.exists()
+
+    def test_cleanup_deletes_only_orphans(self, manager, tmp_path):
+        known = tmp_path / "frames" / "123" / "20260101_known"
+        known.mkdir(parents=True)
+        orphan = tmp_path / "frames" / "123" / "20260101_orphan"
+        orphan.mkdir(parents=True)
+        manager.insert_timelapse_job("123", str(known), "2026-01-01T00:00:00", 10, self._ctx())
+
+        with patch("src.utils.state_manager.settings") as mock_settings:
+            mock_settings.data_dir = tmp_path
+            count = manager.cleanup_orphaned_folders()
+
+        assert count == 1
+        assert known.exists()
+        assert not orphan.exists()

@@ -9,8 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch, call
 from PIL import Image
 
 from src.handlers.commands import recap_command
-from src.tasks.timelapse_encoder import TimelapseEncoder, TimelapseJob
-from src.utils.frame_utils import save_frames_as_mp4_with_audio
+from src.tasks.timelapse_encoder import TimelapseEncoder
 from src.db.manager import DatabaseManager
 
 
@@ -68,204 +67,14 @@ def make_ctx(mock_adapter, args=None, chat_id=123):
 # ---------------------------------------------------------------------------
 
 
-class TestSaveFramesAsMp4WithAudio:
-    """Tests for the save_frames_as_mp4_with_audio function."""
-
-    @pytest.mark.asyncio
-    async def test_with_audio_uses_audio_ffmpeg_flags(self, test_frames, test_audio_chunks, tmp_path):
-        """When audio_chunks is non-empty, FFmpeg command should include -f s16le and -c:a aac."""
-        output_path = str(tmp_path / "out.mp4")
-        captured_cmd = []
-
-        async def fake_subprocess(*cmd, **kwargs):
-            captured_cmd.extend(cmd)
-            proc = MagicMock()
-            proc.stdin = MagicMock()
-            proc.stdin.write = MagicMock()
-            proc.returncode = 0
-            proc.communicate = AsyncMock(return_value=(b"", b""))
-            return proc
-
-        with patch("asyncio.create_subprocess_exec", side_effect=fake_subprocess):
-            await save_frames_as_mp4_with_audio(test_frames, test_audio_chunks, output_path)
-
-        assert "-f" in captured_cmd
-        idx_f = [i for i, v in enumerate(captured_cmd) if v == "-f"]
-        # There should be at least one '-f s16le' pair
-        assert any(captured_cmd[i + 1] == "s16le" for i in idx_f)
-        assert "-c:a" in captured_cmd
-        aac_idx = captured_cmd.index("-c:a")
-        assert captured_cmd[aac_idx + 1] == "aac"
-
-    @pytest.mark.asyncio
-    async def test_without_audio_uses_an_flag(self, test_frames, tmp_path):
-        """When audio_chunks is empty, FFmpeg command should include -an."""
-        output_path = str(tmp_path / "out.mp4")
-        captured_cmd = []
-
-        async def fake_subprocess(*cmd, **kwargs):
-            captured_cmd.extend(cmd)
-            proc = MagicMock()
-            proc.stdin = MagicMock()
-            proc.stdin.write = MagicMock()
-            proc.returncode = 0
-            proc.communicate = AsyncMock(return_value=(b"", b""))
-            return proc
-
-        with patch("asyncio.create_subprocess_exec", side_effect=fake_subprocess):
-            await save_frames_as_mp4_with_audio(test_frames, [], output_path)
-
-        assert "-an" in captured_cmd
-        assert "-c:a" not in captured_cmd
-        assert "s16le" not in captured_cmd
-
-
 # ---------------------------------------------------------------------------
 # Tests for TimelapseEncoder._do_encode_and_append routing
 # ---------------------------------------------------------------------------
 
 
-class TestTimelapseEncoderRouting:
-    """Tests that _do_encode_and_append routes to the correct method."""
-
-    @pytest.mark.asyncio
-    async def test_routes_to_realtime_when_audio_chunks_present(self, encoder, test_frames, test_audio_chunks, tmp_path):
-        """When audio_chunks is non-empty, _create_new_realtime_timelapse should be called."""
-        with patch("src.tasks.timelapse_encoder.settings") as mock_settings:
-            mock_settings.data_dir = tmp_path / "data"
-
-            with patch.object(encoder, "_create_new_realtime_timelapse", new_callable=AsyncMock) as mock_rt:
-                with patch.object(encoder, "_create_new_timelapse", new_callable=AsyncMock) as mock_regular:
-                    with patch.object(encoder, "_update_recap_metadata", new_callable=AsyncMock):
-                        with patch("fcntl.flock"):
-                            job = TimelapseJob(
-                                chat_id=123,
-                                frames=test_frames,
-                                timestamp="2026-03-12T10:00:00",
-                                audio_chunks=test_audio_chunks,
-                                fps=15,
-                            )
-                            await encoder._do_encode_and_append(job)
-
-            mock_rt.assert_called_once()
-            mock_regular.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_routes_to_regular_when_audio_chunks_none(self, encoder, test_frames, tmp_path):
-        """When audio_chunks is None, _create_new_timelapse should be called."""
-        with patch("src.tasks.timelapse_encoder.settings") as mock_settings:
-            mock_settings.data_dir = tmp_path / "data"
-
-            with patch.object(encoder, "_create_new_realtime_timelapse", new_callable=AsyncMock) as mock_rt:
-                with patch.object(encoder, "_create_new_timelapse", new_callable=AsyncMock) as mock_regular:
-                    with patch.object(encoder, "_update_recap_metadata", new_callable=AsyncMock):
-                        with patch("fcntl.flock"):
-                            job = TimelapseJob(
-                                chat_id=123,
-                                frames=test_frames,
-                                timestamp="2026-03-12T10:00:00",
-                                audio_chunks=None,
-                                fps=10,
-                            )
-                            await encoder._do_encode_and_append(job)
-
-            mock_regular.assert_called_once()
-            mock_rt.assert_not_called()
-
-
 # ---------------------------------------------------------------------------
 # Direct tests for _create_new_realtime_timelapse and _append_realtime_frames
 # ---------------------------------------------------------------------------
-
-
-class TestRealtimeTimelapseEncoding:
-    """Direct tests for the realtime timelapse encoding methods."""
-
-    @pytest.mark.asyncio
-    async def test_create_new_realtime_timelapse_creates_file(self, encoder, test_frames, test_audio_chunks, tmp_path):
-        """_create_new_realtime_timelapse should call save_frames_as_mp4_with_audio and atomically place the file."""
-        video_path = tmp_path / "20260312_rt.mp4"
-
-        async def fake_encode(frames, audio_chunks, path, fps=15, **kwargs):
-            Path(path).write_bytes(b"fake rt video")
-
-        with patch("src.tasks.timelapse_encoder.save_frames_as_mp4_with_audio", side_effect=fake_encode):
-            await encoder._create_new_realtime_timelapse(video_path, test_frames, test_audio_chunks, fps=15)
-
-        assert video_path.exists()
-        assert video_path.read_bytes() == b"fake rt video"
-
-    @pytest.mark.asyncio
-    async def test_create_new_realtime_timelapse_cleans_up_tmp_on_error(self, encoder, test_frames, test_audio_chunks, tmp_path):
-        """_create_new_realtime_timelapse should delete the .tmp.mp4 file if encoding fails."""
-        video_path = tmp_path / "20260312_rt.mp4"
-        tmp_path_expected = video_path.with_suffix(".tmp.mp4")
-
-        async def failing_encode(frames, audio_chunks, path, fps=15, **kwargs):
-            Path(path).write_bytes(b"partial")
-            raise RuntimeError("encode failed")
-
-        with patch("src.tasks.timelapse_encoder.save_frames_as_mp4_with_audio", side_effect=failing_encode):
-            with pytest.raises(RuntimeError):
-                await encoder._create_new_realtime_timelapse(video_path, test_frames, test_audio_chunks, fps=15)
-
-        assert not tmp_path_expected.exists()
-
-    @pytest.mark.asyncio
-    async def test_append_realtime_frames_concatenates(self, encoder, test_frames, test_audio_chunks, tmp_path):
-        """_append_realtime_frames should encode a segment and concat it to the existing video."""
-        video_path = tmp_path / "20260312_rt.mp4"
-        video_path.write_bytes(b"existing video")
-
-        async def fake_encode(frames, audio_chunks, path, fps=15, **kwargs):
-            Path(path).write_bytes(b"new segment")
-
-        mock_process = MagicMock()
-        mock_process.returncode = 0
-        mock_process.communicate = AsyncMock(return_value=(b"", b""))
-
-        async def fake_subprocess(*cmd, **kwargs):
-            # Simulate ffmpeg concat: write concatenated content to output path
-            output = cmd[-1]
-            Path(output).write_bytes(b"existing videonew segment")
-            return mock_process
-
-        with patch("src.tasks.timelapse_encoder.save_frames_as_mp4_with_audio", side_effect=fake_encode):
-            with patch("asyncio.create_subprocess_exec", side_effect=fake_subprocess):
-                await encoder._append_realtime_frames(video_path, test_frames, test_audio_chunks, fps=15)
-
-        assert video_path.exists()
-        assert video_path.read_bytes() == b"existing videonew segment"
-
-    @pytest.mark.asyncio
-    async def test_append_realtime_frames_cleans_up_temp_files(self, encoder, test_frames, test_audio_chunks, tmp_path):
-        """_append_realtime_frames should clean up segment and concat list files after completion."""
-        video_path = tmp_path / "20260312_rt.mp4"
-        video_path.write_bytes(b"existing video")
-
-        async def fake_encode(frames, audio_chunks, path, fps=15, **kwargs):
-            Path(path).write_bytes(b"new segment")
-
-        mock_process = MagicMock()
-        mock_process.returncode = 0
-        mock_process.communicate = AsyncMock(return_value=(b"", b""))
-
-        created_files = []
-
-        async def fake_subprocess(*cmd, **kwargs):
-            output = cmd[-1]
-            Path(output).write_bytes(b"concatenated")
-            return mock_process
-
-        with patch("src.tasks.timelapse_encoder.save_frames_as_mp4_with_audio", side_effect=fake_encode):
-            with patch("asyncio.create_subprocess_exec", side_effect=fake_subprocess):
-                await encoder._append_realtime_frames(video_path, test_frames, test_audio_chunks, fps=15)
-
-        # No segment or concat list temp files should remain
-        assert not any(tmp_path.glob("segment_rt_*.mp4"))
-        assert not any(tmp_path.glob("concat_rt_*.txt"))
-        assert not video_path.with_suffix(".tmp.mp4").exists()
-        assert video_path.exists()
 
 
 # ---------------------------------------------------------------------------
@@ -437,3 +246,4 @@ class TestTimelapseEncoderSplitLogic:
 
         result = await encoder._get_current_part_number(123, "20260312", False)
         assert result == 2
+

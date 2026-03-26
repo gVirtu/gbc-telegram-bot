@@ -2,6 +2,7 @@
 
 import asyncio
 from io import BytesIO
+import numpy as np
 from unittest.mock import AsyncMock, MagicMock, patch, call
 
 import pytest
@@ -216,9 +217,13 @@ class TestProcessBatchMirrorBroadcast:
         session = _make_session(leader_id, 100)
         handler._sessions[leader_id] = session
 
+        _frame = np.zeros((144, 160, 3), dtype=np.uint8)
         mock_controller = MagicMock()
         mock_controller.save_state.return_value = b"state"
-        mock_controller.get_frame.return_value = MagicMock()
+        mock_controller.get_frame.return_value = _frame
+        mock_controller.get_frame_as_png.return_value = b"\x89PNG"
+        mock_controller.end_capture.return_value = [_frame]
+        mock_controller.get_last_captured_audio.return_value = None
         mock_controller.get_modifier_specs.return_value = []
         mock_controller.begin_hooks.return_value = {}
         mock_controller.end_hooks.return_value = None
@@ -232,13 +237,13 @@ class TestProcessBatchMirrorBroadcast:
             patch("src.handlers.input_handler.game_controller_manager") as mock_gcm,
             patch("src.handlers.input_handler.state_manager") as mock_sm,
             patch("src.handlers.input_handler.generate_tbc_frames", return_value=[]),
-            patch("src.handlers.input_handler.apply_overlay_composite", return_value=[MagicMock()]),
             patch("src.handlers.input_handler.create_game_message_text", return_value="caption"),
         ):
             mock_gcm.get_or_create_controller = AsyncMock(return_value=mock_controller)
             mock_sm.get_or_create_chat_config.return_value = ChatConfig(chat_id=leader_id)
             mock_sm.get_mirror_chat_ids.return_value = [20, 30]
             mock_sm.find_next_auto_save_slot.return_value = 0
+            mock_sm.insert_timelapse_job = MagicMock(return_value=1)
             mock_bcast = AsyncMock()
 
             with patch("src.handlers.input_handler.broadcast_game_update", mock_bcast):
@@ -255,9 +260,13 @@ class TestProcessBatchMirrorBroadcast:
         session = _make_session(leader_id, 100)
         handler._sessions[leader_id] = session
 
+        _frame = np.zeros((144, 160, 3), dtype=np.uint8)
         mock_controller = MagicMock()
         mock_controller.save_state.return_value = b"state"
-        mock_controller.get_frame.return_value = MagicMock()
+        mock_controller.get_frame.return_value = _frame
+        mock_controller.get_frame_as_png.return_value = b"\x89PNG"
+        mock_controller.end_capture.return_value = [_frame]
+        mock_controller.get_last_captured_audio.return_value = None
         mock_controller.get_modifier_specs.return_value = []
         mock_controller.begin_hooks.return_value = {}
         mock_controller.end_hooks.return_value = None
@@ -270,13 +279,13 @@ class TestProcessBatchMirrorBroadcast:
             patch("src.handlers.input_handler.game_controller_manager") as mock_gcm,
             patch("src.handlers.input_handler.state_manager") as mock_sm,
             patch("src.handlers.input_handler.generate_tbc_frames", return_value=[]),
-            patch("src.handlers.input_handler.apply_overlay_composite", return_value=[MagicMock()]),
             patch("src.handlers.input_handler.create_game_message_text", return_value="caption"),
         ):
             mock_gcm.get_or_create_controller = AsyncMock(return_value=mock_controller)
             mock_sm.get_or_create_chat_config.return_value = ChatConfig(chat_id=leader_id)
             mock_sm.get_mirror_chat_ids.return_value = []
             mock_sm.find_next_auto_save_slot.return_value = 0
+            mock_sm.insert_timelapse_job = MagicMock(return_value=1)
 
             mock_bcast = AsyncMock()
             with patch("src.handlers.input_handler.broadcast_game_update", mock_bcast):

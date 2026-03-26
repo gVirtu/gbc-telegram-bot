@@ -365,6 +365,35 @@ class GameSession:
         return idle_time > timeout_seconds
 
 
+@dataclass
+class TimelapseJobRow:
+    """A timelapse encoding job persisted in the database.
+
+    Attributes:
+        id: Database row ID
+        chat_id: Chat ID (as string, matching DB TEXT type)
+        folder_path: Absolute path to the folder containing .npy frame files
+        timestamp: ISO8601 timestamp of when the batch was captured
+        fps: Output frames per second for the timelapse video
+        compositing_context: Deserialized JSON dict with frame/sidebar/reaction data
+        frame_count: Total raw captured frames (from compositing_context["frame_count"])
+        status: 'pending', 'processing', 'done', or 'failed'
+        created_at: ISO8601 creation timestamp
+        updated_at: ISO8601 last-update timestamp
+    """
+
+    id: int
+    chat_id: str
+    folder_path: str
+    timestamp: str
+    fps: int
+    compositing_context: dict
+    frame_count: int
+    status: str
+    created_at: str
+    updated_at: str
+
+
 # Button layout for inline keyboard (3x3 grid with Start/Select at bottom)
 BUTTON_LAYOUT = [
     [GameButton.SELECT, GameButton.UP, GameButton.START],

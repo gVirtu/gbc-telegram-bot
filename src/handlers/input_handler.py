@@ -8,9 +8,12 @@ multi-user batch animation.
 
 import asyncio
 import logging
-from io import BytesIO
-from typing import Optional
+import os
+import uuid
 from datetime import datetime, timedelta
+from io import BytesIO
+from pathlib import Path
+from typing import Optional
 
 import numpy as np
 from PIL import Image
@@ -29,8 +32,11 @@ from src.keyboard import (
 from src.models.game_state import ChatGameState, GameButton, GameSession, ModifierButtonSpec
 from src.models.input_queue import BufferedInput, PendingBuffer
 from src.utils.frame_utils import (  # noqa: F401 (needed for test patching)
+    _make_frame_transform,
+    _make_reaction_frame_transform,
     apply_overlay_composite,
     apply_reaction_overlay,
+    build_timelapse_transform,
     generate_tbc_frames,
     hex_to_rgb,
 )
@@ -49,6 +55,28 @@ def _should_update_avatar(config) -> bool:
     if config.last_avatar_update_at is None:
         return True
     return datetime.utcnow() - config.last_avatar_update_at >= AVATAR_UPDATE_INTERVAL
+
+
+def _save_raw_frames_sync(
+    frames: list,
+    folder: Path,
+    audio_chunks=None,
+) -> None:
+    """Write raw numpy frames and optional audio to disk (blocking, run in executor).
+
+    Creates ``folder`` if needed, then writes ``frame_000000.npy``, …,
+    ``frame_N.npy`` and, if ``audio_chunks`` is provided, ``audio.npz``.
+
+    Args:
+        frames: List of raw (unscaled) numpy arrays from ``controller.end_capture()``.
+        folder: Destination directory path.
+        audio_chunks: Optional list of int8 stereo audio ndarrays.
+    """
+    folder.mkdir(parents=True, exist_ok=True)
+    for i, frame in enumerate(frames):
+        np.save(str(folder / f"frame_{i:06d}.npy"), frame)
+    if audio_chunks:
+        np.savez(str(folder / "audio.npz"), *audio_chunks)
 
 
 class InputHandlerError(Exception):
@@ -598,8 +626,8 @@ class InputHandler:
 
         logger.info(f"Animation completed for chat {chat_id} in {animation_frames} frames")
 
-        frames = controller.end_capture()
-        logger.info(f"[MEM] frames={len(frames)}, approx_raw_MB={len(frames)*69/1024:.1f}")
+        raw_frames = controller.end_capture()
+        logger.info(f"[MEM] raw_frames={len(raw_frames)}, approx_raw_MB={len(raw_frames)*69/1024:.1f}")
         audio_chunks = controller.get_last_captured_audio()
         controller.end_hooks(hook_context)
 
@@ -610,36 +638,28 @@ class InputHandler:
             await self._send_error_message(chat_id, error_msg, adapter)
             return {"animation_duration": None}
 
-        # 1. Scale raw frames 3x
-        scaled_frames = [
-            np.array(Image.fromarray(f).resize(
-                (f.shape[1] * 3, f.shape[0] * 3), Image.Resampling.NEAREST
-            ))
-            for f in frames
-        ]
-        del frames  # release raw frames before compositing
-        logger.info(f"[MEM] scaled_frames approx MB={len(scaled_frames)*622/1024:.1f}")
-
-        # 2. Generate TBC from the last 3x-scaled game frame (no overlay yet)
+        # 1. Generate TBC from last raw frame (scaled 3x)
+        last_raw = raw_frames[-1] if raw_frames else np.array(controller.get_frame())
+        last_raw_h, last_raw_w = last_raw.shape[:2]
+        last_scaled = np.array(Image.fromarray(last_raw).resize(
+            (last_raw_w * 3, last_raw_h * 3), Image.Resampling.NEAREST
+        ))
         tbc_frames = generate_tbc_frames(
-            scaled_frames[-1] if scaled_frames else controller.get_frame(),
+            last_scaled,
             overlay_path=settings.tbc_overlay_path,
             duration_frames=settings.tbc_duration_frames,
             max_width_percent=0.7,
         )
         num_tbc_frames = len(tbc_frames)
-        all_frames = scaled_frames + tbc_frames
-        del scaled_frames, tbc_frames  # release before compositing allocates composited_frames
+        num_raw_frames = len(raw_frames)
 
-        # 2.5. Pop queued reactions and composite onto game frames (before sidebar)
-        num_windows = len(all_frames) // (2 * capture_fps)
+        # 2. Pop queued reactions (before building transforms so they can be stored)
+        reactions = []
+        num_windows = (num_raw_frames + num_tbc_frames) // (2 * capture_fps)
         if num_windows > 0:
             reactions = state_manager.pop_reactions(chat_id, limit=num_windows * 3)
-            if reactions:
-                all_frames = apply_reaction_overlay(all_frames, reactions, capture_fps)
 
-        # 3. Composite overlay onto all frames (game + TBC share same final overlay state)
-        # Pre-fetch user colors for sidebar rendering
+        # 3. Pre-fetch user colors for sidebar rendering
         user_colors: dict = {}
         for inp_dict, _ in new_inputs_with_offsets:
             uid = inp_dict.get("user_id")
@@ -656,14 +676,31 @@ class InputHandler:
                 if profile:
                     user_colors[uname] = hex_to_rgb(profile.name_tag_color)
 
-        composited_frames = apply_overlay_composite(
-            all_frames, pre_existing_inputs_for_overlay, new_inputs_with_offsets, capture_fps,
+        # 4. Build streaming animation transform
+        #    Raw frames (index < num_raw_frames): scale 3x + reactions + sidebar
+        #    TBC frames (index >= num_raw_frames): already scaled, sidebar only
+        reaction_transform_fn = (
+            _make_reaction_frame_transform(reactions, capture_fps, frame_skip=1)
+            if reactions else None
+        )
+        sidebar_transform_fn = _make_frame_transform(
+            pre_existing_inputs_for_overlay, new_inputs_with_offsets, capture_fps,
             user_colors=user_colors,
         )
-        del all_frames  # release scaled frames now that composited_frames is built
-        logger.info(f"[MEM] composited_frames approx MB={len(composited_frames)*972/1024:.1f}")
 
-        animation_duration_seconds = len(composited_frames) / capture_fps
+        def animation_transform(frame: np.ndarray, index: int) -> np.ndarray:
+            if index < num_raw_frames:
+                h, w = frame.shape[:2]
+                scaled = np.array(Image.fromarray(frame).resize(
+                    (w * 3, h * 3), Image.Resampling.NEAREST
+                ))
+                if reaction_transform_fn is not None:
+                    scaled = reaction_transform_fn(scaled, index)
+            else:
+                scaled = frame  # TBC frames are already 3x-scaled
+            return sidebar_transform_fn(scaled)
+
+        animation_duration_seconds = (num_raw_frames + num_tbc_frames) / capture_fps
 
         recent = state_manager._load_recent_inputs(chat_id)
         pending_count = self._get_or_create_buffer(chat_id).total_buttons()
@@ -675,13 +712,15 @@ class InputHandler:
             chat_id=chat_id,
         )
 
-        if composited_frames:
-            logger.info(f"Generating animation with {len(composited_frames)} frames for chat {chat_id}")
+        if raw_frames:
+            logger.info(f"Streaming animation encode: {num_raw_frames} raw + {num_tbc_frames} TBC frames for chat {chat_id}")
+
             try:
-                # Broadcast to chat and mirrors (chat_id is always the leader here)
+                # 5+6. Encode and broadcast animation to chat and mirrors
                 try:
                     await broadcast_game_update(
-                        chat_id, caption, composited_frames, capture_fps, modifier_specs
+                        chat_id, caption, raw_frames, tbc_frames,
+                        capture_fps, modifier_specs, animation_transform,
                     )
                 except Exception as e:
                     logger.warning(f"Failed to broadcast game update for chat {chat_id}: {e}")
@@ -692,41 +731,59 @@ class InputHandler:
                         self._update_group_avatar(chat_id, controller, adapter, config)
                     )
 
-                # Enqueue timelapse encoding for leader only (non-blocking)
+                # 7. Persist raw frames to disk and enqueue DB timelapse job
                 from src.tasks.timelapse_encoder import timelapse_queue
-                from datetime import datetime
 
                 if timelapse_queue is not None:
                     try:
-                        frames_for_timelapse = (
-                            composited_frames[:-num_tbc_frames] if num_tbc_frames > 0 else composited_frames
-                        )
                         if config.feature_flags.get("realtime_recaps"):
-                            raw_timelapse = frames_for_timelapse
-                            timelapse_audio = audio_chunks or None
+                            frame_skip = 1
                             timelapse_fps = 15
+                            timelapse_audio = audio_chunks or None
                         else:
-                            raw_timelapse = frames_for_timelapse[::settings.timelapse_frame_skip]
-                            timelapse_audio = None
+                            frame_skip = settings.timelapse_frame_skip
                             timelapse_fps = 10
-                        buf = BytesIO()
-                        timelapse_frames = []
-                        for f in raw_timelapse:
-                            buf.seek(0)
-                            buf.truncate()
-                            Image.fromarray(f).save(buf, format="PNG", optimize=False)
-                            timelapse_frames.append(buf.getvalue())
-                        timestamp = datetime.now().isoformat()
-                        await timelapse_queue.enqueue(
-                            chat_id,
-                            timelapse_frames,
-                            timestamp,
-                            audio_chunks=timelapse_audio,
-                            fps=timelapse_fps,
+                            timelapse_audio = None
+
+                        compositing_context = {
+                            "frame_count": num_raw_frames,
+                            "frame_skip": frame_skip,
+                            "capture_fps": capture_fps,
+                            "timelapse_fps": timelapse_fps,
+                            "pre_existing_inputs": pre_existing_inputs_for_overlay,
+                            "new_inputs_with_offsets": [
+                                [inp_d, off] for inp_d, off in new_inputs_with_offsets
+                            ],
+                            "reactions": list(reactions),
+                            "user_colors": {k: list(v) for k, v in user_colors.items()},
+                        }
+
+                        ts_str = datetime.now().strftime('%Y%m%d_%H%M%S')
+                        uid_str = uuid.uuid4().hex[:8]
+                        folder = (
+                            settings.data_dir / "frames" / str(chat_id) / f"{ts_str}_{uid_str}"
                         )
-                        logger.debug(f"Enqueued {len(timelapse_frames)} frames for timelapse encoding (chat {chat_id})")
+
+                        loop = asyncio.get_event_loop()
+                        await loop.run_in_executor(
+                            None, _save_raw_frames_sync, raw_frames, folder, timelapse_audio
+                        )
+
+                        timestamp = datetime.now().isoformat()
+                        state_manager.insert_timelapse_job(
+                            chat_id=str(chat_id),
+                            folder_path=str(folder),
+                            timestamp=timestamp,
+                            fps=timelapse_fps,
+                            compositing_context=compositing_context,
+                        )
+                        timelapse_queue.trigger_worker(str(chat_id))
+                        logger.debug(
+                            f"Timelapse job queued for chat {chat_id} "
+                            f"({num_raw_frames} raw frames, skip={frame_skip})"
+                        )
                     except Exception as e:
-                        logger.warning(f"Failed to enqueue timelapse for chat {chat_id}: {e}")
+                        logger.warning(f"Failed to queue timelapse for chat {chat_id}: {e}")
 
             except Exception as e:
                 logger.error(f"Failed to generate animation for chat {chat_id}: {e}")
@@ -735,6 +792,10 @@ class InputHandler:
                     await adapter.edit_game_message(chat_id, message_id, caption, input_keyboard, png_buffer, media_type="photo")
                 except Exception as e2:
                     logger.error(f"Fallback failed for chat {chat_id}: {e2}")
+            finally:
+                # Explicit release: raw frames no longer needed after disk write
+                del raw_frames
+                del audio_chunks
 
         # Auto-save if enabled
         config = state_manager.get_or_create_chat_config(chat_id)

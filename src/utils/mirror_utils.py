@@ -8,15 +8,23 @@ the leader's game controller.
 from __future__ import annotations
 
 import logging
+import os
+import tempfile
+import time
 from io import BytesIO
-from typing import Optional
+from itertools import chain
+from typing import Callable, Optional
+
+import numpy as np
 
 from src.adapters.base import get_adapter
 from src.game import game_controller_manager
 from src.utils.state_manager import state_manager
 from src.utils.frame_utils import (  # noqa: F401 (needed for test patching)
     save_frames_as_mp4,
-    save_frames_as_avif
+    save_frames_as_avif,
+    save_frames_as_mp4_streaming,
+    save_frames_as_avif_streaming,
 )
 from src.utils.media_cache import save_last_animation
 
@@ -65,34 +73,97 @@ def is_media_only_mirror(chat_id: int) -> bool:
 async def broadcast_game_update(
     leader_chat_id: int,
     caption: str,
-    frames: list,
+    raw_frames: list,
+    tbc_frames: list,
     capture_fps: int,
     modifier_specs: list,
+    animation_transform: Callable[[np.ndarray, int], np.ndarray],
 ) -> None:
     """Send/edit game message in leader + all mirrors.
 
-    For each target chat:
-    - If the chat already has a message_id, edits that message with the new
-      animation/photo.
-    - If the chat has no message_id yet (first broadcast), sends a new message
-      seeded with the current game frame.
+    Encodes the needed animation formats (MP4 and/or AVIF) at most once each,
+    reusing cached buffers for all targets that share the same format.
 
     Args:
         leader_chat_id: The leader chat ID (game state owner)
         caption: Message caption text
-        frames: List of game frames
+        raw_frames: Unscaled raw numpy frame arrays from the emulator
+        tbc_frames: Pre-scaled "to be continued" numpy frame arrays
         capture_fps: Capture FPS
         modifier_specs: List of ModifierButtonSpec for keyboard building
+        animation_transform: Callable ``(frame, index) -> composited_frame``
     """
     from src.models.game_state import ChatGameState
 
     mirror_ids = state_manager.get_mirror_chat_ids(leader_chat_id)
     all_targets = [leader_chat_id] + mirror_ids
-    media_buffers_per_type = {
-        "animation": None,
-        "avif": None
-    }
 
+    # 1. Pre-scan: which formats do active targets need?
+    needed_formats: set[str] = set()
+    for target_id in all_targets:
+        if target_id != leader_chat_id and is_media_only_mirror(target_id):
+            continue
+        config = state_manager.get_or_create_chat_config(target_id)
+        adapter = get_adapter(config.platform)
+        if adapter is not None:
+            needed_formats.add(adapter.preferred_animation_format)
+
+    # 2. Encode each needed format once
+    media_buffers_per_type: dict[str, Optional[BytesIO]] = {"animation": None, "avif": None}
+
+    if "animation" in needed_formats and raw_frames:
+        tmp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp_f:
+                tmp_path = tmp_f.name
+            frame_count = len(raw_frames) + len(tbc_frames)
+            logger.info(f"MP4 encode start: chat={leader_chat_id} frames={frame_count} fps={capture_fps}")
+            t0 = time.monotonic()
+            await save_frames_as_mp4_streaming(
+                chain(raw_frames, tbc_frames),
+                animation_transform,
+                tmp_path,
+                fps=capture_fps,
+                crf=28,
+                preset="ultrafast",
+            )
+            elapsed = time.monotonic() - t0
+            with open(tmp_path, "rb") as f:
+                media_buffers_per_type["animation"] = BytesIO(f.read())
+            size_kb = media_buffers_per_type["animation"].getbuffer().nbytes // 1024
+            logger.info(f"MP4 encode done: chat={leader_chat_id} elapsed={elapsed:.2f}s size={size_kb}KB")
+        except Exception as e:
+            logger.error(f"MP4 encode failed for chat {leader_chat_id}: {e}")
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                os.remove(tmp_path)
+
+    if "avif" in needed_formats and raw_frames:
+        tmp_avif_path = None
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".avif", delete=False) as tmp_f:
+                tmp_avif_path = tmp_f.name
+            frame_count = len(raw_frames) + len(tbc_frames)
+            logger.info(f"AVIF encode start: chat={leader_chat_id} frames={frame_count} fps={capture_fps}")
+            t0 = time.monotonic()
+            await save_frames_as_avif_streaming(
+                chain(raw_frames, tbc_frames),
+                animation_transform,
+                tmp_avif_path,
+                fps=capture_fps,
+            )
+            elapsed = time.monotonic() - t0
+            with open(tmp_avif_path, "rb") as f:
+                media_buffers_per_type["avif"] = BytesIO(f.read())
+            size_kb = media_buffers_per_type["avif"].getbuffer().nbytes // 1024
+            logger.info(f"AVIF encode done: chat={leader_chat_id} elapsed={elapsed:.2f}s size={size_kb}KB")
+        except Exception as e:
+            logger.error(f"AVIF encode failed for chat {leader_chat_id}: {e}")
+        finally:
+            if tmp_avif_path and os.path.exists(tmp_avif_path):
+                os.remove(tmp_avif_path)
+
+    # 3. Broadcast loop
     for target_id in all_targets:
         if target_id != leader_chat_id and is_media_only_mirror(target_id):
             logger.debug(f"Skipping media-only mirror {target_id} in broadcast_game_update")
@@ -104,15 +175,11 @@ async def broadcast_game_update(
             continue
 
         anim_format = adapter.preferred_animation_format
-        
-        if anim_format == "avif":
-            media_buffer = media_buffers_per_type["avif"] or save_frames_as_avif(frames, fps=capture_fps)
-            media_buffers_per_type["avif"] = media_buffer
-            media_type = "avif"
-        else:
-            media_buffer = media_buffers_per_type["animation"] or save_frames_as_mp4(frames, fps=capture_fps)
-            media_buffers_per_type["animation"] = media_buffer
-            media_type = "animation"
+        media_buffer = media_buffers_per_type.get(anim_format)
+        media_type = anim_format
+        if media_buffer is None:
+            logger.warning(f"No encoded buffer for format {anim_format!r}, skipping {target_id}")
+            continue
         media_buffer.seek(0)
 
         logger.info(f"Broadcasting game update to chat {target_id} on platform {config.platform}")

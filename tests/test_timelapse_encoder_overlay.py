@@ -9,44 +9,7 @@ import numpy as np
 
 os.environ.setdefault("PYTEST_CURRENT_TEST", "1")
 
-from src.tasks.timelapse_encoder import TimelapseJob, TimelapseEncodingQueue, TimelapseEncoder
-
-
-def test_timelapse_job_has_no_overlay_fields():
-    """TimelapseJob no longer has pre_existing_inputs or new_inputs_with_offsets."""
-    frames = [np.zeros((288, 512, 3), dtype=np.uint8)]
-    job = TimelapseJob(
-        chat_id=1,
-        frames=frames,
-        timestamp="2026-03-21T12:00:00",
-    )
-    assert not hasattr(job, "pre_existing_inputs")
-    assert not hasattr(job, "new_inputs_with_offsets")
-
-
-@pytest.mark.asyncio
-async def test_enqueue_does_not_accept_overlay_params():
-    """enqueue() no longer accepts pre_existing_inputs or new_inputs_with_offsets."""
-    from unittest.mock import MagicMock
-    import asyncio
-
-    db_manager = MagicMock()
-    queue = TimelapseEncodingQueue(db_manager)
-    frames = [np.zeros((288, 512, 3), dtype=np.uint8)]
-
-    # Should raise TypeError if the removed params are passed
-    with pytest.raises(TypeError):
-        await queue.enqueue(
-            chat_id=42,
-            frames=frames,
-            timestamp="2026-03-21T12:00:00",
-            pre_existing_inputs=[],
-        )
-
-    # Cancel any started worker
-    for worker in queue._workers.values():
-        worker.cancel()
-    await asyncio.gather(*queue._workers.values(), return_exceptions=True)
+from src.tasks.timelapse_encoder import TimelapseEncodingQueue, TimelapseEncoder
 
 
 def test_video_path_uses_recap_prefix(tmp_path, monkeypatch):
@@ -85,7 +48,6 @@ def test_apply_overlay_composite_applies_sidebar():
     original_height = frames[0].shape[0]
     result = apply_overlay_composite(frames, pre, [])
 
-    # result is the same list mutated in-place, so compare against saved originals
     assert result[0].shape[1] > original_width
     assert result[0].shape[0] >= original_height
 

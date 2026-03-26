@@ -1,138 +1,53 @@
 """Timelapse encoding queue and worker for daily recap videos.
 
 This module provides background encoding of gameplay frames into daily
-timelapse MP4 files. Encoding happens asynchronously to avoid blocking
-the main bot flow.
+timelapse MP4 files.  Jobs are persisted in the ``timelapse_jobs`` SQLite
+table so they survive crashes and restarts.  Raw numpy frames are stored on
+disk under ``data/frames/{chat_id}/{folder}/`` and read lazily by the worker,
+keeping peak memory to a minimum.
 """
 
 import asyncio
 import fcntl
 import logging
 import os
-from dataclasses import dataclass
+import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Optional
 
 import numpy as np
 
 from src.config import settings
 from src.db.manager import DatabaseManager
-from src.utils.frame_utils import (
-    save_frames_as_mp4_optimized,
-    save_frames_as_mp4_with_audio,
-)
+from src.models.game_state import TimelapseJobRow
+from src.utils.frame_utils import build_timelapse_transform, save_frames_as_mp4_streaming
 from src.utils.priority_gate import wait_while_busy
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class TimelapseJob:
-    """A timelapse encoding job."""
-
-    chat_id: int
-    frames: List[bytes]  # PNG-encoded frames; decoded on demand during encoding
-    timestamp: str  # ISO8601 timestamp
-    audio_chunks: Optional[List[np.ndarray]] = None
-    fps: int = 10
-
 
 
 class TimelapseEncoder:
     """Handles encoding frames into daily timelapse videos."""
 
     def __init__(self, db_manager: DatabaseManager):
-        """Initialize the encoder.
-
-        Args:
-            db_manager: Database manager for metadata updates
-        """
         self.db_manager = db_manager
 
+    # ------------------------------------------------------------------ paths
+
     def _get_video_path(self, chat_id: int, date: str) -> Path:
-        """Get the path to a daily timelapse video.
-
-        Args:
-            chat_id: The Telegram chat ID
-            date: Date in YYYYMMDD format
-
-        Returns:
-            Path to the timelapse video file
-        """
         recap_dir = settings.data_dir / "recaps" / str(chat_id)
         recap_dir.mkdir(parents=True, exist_ok=True)
         return recap_dir / f"recap_{date}.mp4"
 
     def _get_rt_video_path(self, chat_id: int, date: str) -> Path:
-        """Get the path to a daily realtime timelapse video.
-
-        Args:
-            chat_id: The Telegram chat ID
-            date: Date in YYYYMMDD format
-
-        Returns:
-            Path to the realtime timelapse video file
-        """
         recap_dir = settings.data_dir / "recaps" / str(chat_id)
         recap_dir.mkdir(parents=True, exist_ok=True)
         return recap_dir / f"recap_{date}_rt.mp4"
 
-    def _get_failed_frames_path(self, chat_id: int, timestamp: str) -> Path:
-        """Get the path to save failed frames.
-
-        Args:
-            chat_id: The Telegram chat ID
-            timestamp: ISO8601 timestamp
-
-        Returns:
-            Path to directory for failed frames
-        """
-        failed_dir = settings.data_dir / "recaps" / str(chat_id) / "failed" / timestamp
-        failed_dir.mkdir(parents=True, exist_ok=True)
-        return failed_dir
-
-    async def _save_failed_frames(
-        self, chat_id: int, timestamp: str, frames: List[bytes], error: Exception
-    ) -> None:
-        """Save frames that failed to encode for later recovery.
-
-        Args:
-            chat_id: The Telegram chat ID
-            timestamp: ISO8601 timestamp
-            frames: PNG-encoded frames that failed to encode
-            error: The error that occurred
-        """
-        try:
-            failed_dir = self._get_failed_frames_path(chat_id, timestamp)
-
-            for i, frame_bytes in enumerate(frames):
-                frame_path = failed_dir / f"frame_{i:05d}.png"
-                frame_path.write_bytes(frame_bytes)
-
-            # Save error info
-            error_path = failed_dir / "error.txt"
-            with open(error_path, "w") as f:
-                f.write(f"Timestamp: {timestamp}\n")
-                f.write(f"Error: {str(error)}\n")
-                f.write(f"Frame count: {len(frames)}\n")
-
-            logger.info(f"Saved {len(frames)} failed frames to {failed_dir}")
-
-        except Exception as e:
-            logger.error(f"Failed to save failed frames: {e}")
+    # ------------------------------------------------------------------ metadata
 
     async def _get_current_part_number(self, chat_id: int, date: str, is_rt: bool) -> int:
-        """Get the current (highest) part number for a chat/date/is_rt combination.
-
-        Args:
-            chat_id: The Telegram chat ID
-            date: Date in YYYYMMDD format
-            is_rt: Whether this is a realtime recap
-
-        Returns:
-            Highest part_number, or 1 if no rows exist yet
-        """
         parts = await self.db_manager.get_recap_parts(chat_id, date, is_rt)
         if not parts:
             return 1
@@ -144,26 +59,13 @@ class TimelapseEncoder:
         date: str,
         video_path: Path,
         frame_count: int,
+        fps: int = 15,
         is_rt: bool = False,
         current_part_number: int = 1,
     ) -> None:
-        """Update database with recap metadata.
-
-        Args:
-            chat_id: The Telegram chat ID
-            date: Date in YYYYMMDD format
-            video_path: Path to the video file
-            frame_count: Number of frames encoded
-            is_rt: Whether this is a realtime recap
-            current_part_number: Part number to upsert
-        """
         try:
             file_size = video_path.stat().st_size
-
-            # Estimate duration from file size and typical bitrate
-            # With 15 FPS and our encoding settings, estimate
-            duration_sec = frame_count / 15
-
+            duration_sec = frame_count / max(fps, 1)
             await self.db_manager.upsert_recap_metadata(
                 chat_id=chat_id,
                 date=date,
@@ -173,7 +75,6 @@ class TimelapseEncoder:
                 part_number=current_part_number,
                 is_rt=is_rt,
             )
-
         except Exception as e:
             logger.error(f"Failed to update recap metadata: {e}")
 
@@ -198,156 +99,65 @@ class TimelapseEncoder:
             return
         if video_path.stat().st_size <= settings.recap_part_file_size_threshold:
             return
-
         suffix = "_rt" if is_rt else ""
         part_path = video_path.parent / f"recap_{date}_part{current_part_number}{suffix}.mp4"
         os.rename(video_path, part_path)
         await self.db_manager.split_recap_part(chat_id, date, current_part_number, is_rt)
         logger.info(f"Split recap for chat {chat_id}, date {date} into part {current_part_number}")
 
-    async def _create_new_timelapse(
+    # ------------------------------------------------------------------ encoding helpers
+
+    async def _create_new_timelapse_streaming(
         self,
         video_path: Path,
-        frames: List[np.ndarray],
-        fps: int = 10,
-    ) -> None:
-        """Create a new daily timelapse video.
-
-        Args:
-            video_path: Path to save the video
-            frames: Frames to encode
-            fps: Frames per second
-        """
-        # Create temporary file
-        tmp_path = video_path.with_suffix(".tmp.mp4")
-
-        try:
-            # Encode frames to temporary file
-            await save_frames_as_mp4_optimized(frames, str(tmp_path), fps=fps, low_priority=True)
-
-            # Atomically replace with final file
-            os.replace(tmp_path, video_path)
-
-            logger.info(f"Created new timelapse: {video_path}")
-
-        except Exception as e:
-            # Clean up temporary file on error
-            if tmp_path.exists():
-                tmp_path.unlink()
-            raise
-
-    async def _create_new_realtime_timelapse(
-        self,
-        video_path: Path,
-        frames: List[np.ndarray],
-        audio_chunks: List[np.ndarray],
+        frame_gen,
+        transform,
         fps: int,
+        audio_chunks=None,
     ) -> None:
-        """Create a new realtime timelapse video with audio.
-
-        Args:
-            video_path: Path to save the video
-            frames: Frames to encode
-            audio_chunks: Audio chunks to include
-            fps: Frames per second
-        """
         tmp_path = video_path.with_suffix(".tmp.mp4")
-
         try:
-            await save_frames_as_mp4_with_audio(frames, audio_chunks, str(tmp_path), fps=fps, low_priority=True)
+            await save_frames_as_mp4_streaming(
+                frame_gen,
+                transform,
+                str(tmp_path),
+                fps=fps,
+                crf=28,
+                preset="medium",
+                audio_chunks=audio_chunks,
+                low_priority=True,
+            )
             os.replace(tmp_path, video_path)
-            logger.info(f"Created new realtime timelapse: {video_path}")
-
+            logger.info(f"Created new timelapse: {video_path}")
         except Exception:
             if tmp_path.exists():
                 tmp_path.unlink()
             raise
 
-    async def _append_frames(
+    async def _append_frames_streaming(
         self,
         video_path: Path,
-        frames: List[np.ndarray],
-        fps: int = 10,
-    ) -> None:
-        """Append frames to an existing timelapse video.
-
-        Args:
-            video_path: Path to existing video
-            frames: Frames to append
-            fps: Frames per second
-        """
-        # Create temporary segment file
-        segment_path = video_path.parent / f"segment_{datetime.now().timestamp()}.mp4"
-        concat_list_path = video_path.parent / f"concat_{datetime.now().timestamp()}.txt"
-        output_path = video_path.with_suffix(".tmp.mp4")
-
-        try:
-            # Encode new frames to segment
-            await save_frames_as_mp4_optimized(frames, str(segment_path), fps=fps, low_priority=True)
-
-            # Create concat demuxer list
-            with open(concat_list_path, "w") as f:
-                f.write(f"file '{video_path.absolute()}'\n")
-                f.write(f"file '{segment_path.absolute()}'\n")
-
-            # Concatenate videos using FFmpeg
-            cmd = [
-                "ffmpeg",
-                "-f",
-                "concat",
-                "-safe",
-                "0",
-                "-i",
-                str(concat_list_path),
-                "-c",
-                "copy",
-                str(output_path),
-            ]
-
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                preexec_fn=lambda: os.nice(19),
-            )
-
-            stdout, stderr = await process.communicate()
-
-            if process.returncode != 0:
-                raise RuntimeError(f"FFmpeg concat failed: {stderr.decode()}")
-
-            # Atomically replace original with concatenated video
-            os.replace(output_path, video_path)
-
-            logger.info(f"Appended {len(frames)} frames to {video_path}")
-
-        finally:
-            # Clean up temporary files
-            for path in [segment_path, concat_list_path, output_path]:
-                if path.exists():
-                    path.unlink()
-
-    async def _append_realtime_frames(
-        self,
-        video_path: Path,
-        frames: List[np.ndarray],
-        audio_chunks: List[np.ndarray],
+        frame_gen,
+        transform,
         fps: int,
+        audio_chunks=None,
     ) -> None:
-        """Append frames with audio to an existing realtime timelapse video.
-
-        Args:
-            video_path: Path to existing video
-            frames: Frames to append
-            audio_chunks: Audio chunks to include
-            fps: Frames per second
-        """
-        segment_path = video_path.parent / f"segment_rt_{datetime.now().timestamp()}.mp4"
-        concat_list_path = video_path.parent / f"concat_rt_{datetime.now().timestamp()}.txt"
+        ts = datetime.now().timestamp()
+        segment_path = video_path.parent / f"segment_{ts}.mp4"
+        concat_list_path = video_path.parent / f"concat_{ts}.txt"
         output_path = video_path.with_suffix(".tmp.mp4")
 
         try:
-            await save_frames_as_mp4_with_audio(frames, audio_chunks, str(segment_path), fps=fps, low_priority=True)
+            await save_frames_as_mp4_streaming(
+                frame_gen,
+                transform,
+                str(segment_path),
+                fps=fps,
+                crf=28,
+                preset="medium",
+                audio_chunks=audio_chunks,
+                low_priority=True,
+            )
 
             with open(concat_list_path, "w") as f:
                 f.write(f"file '{video_path.absolute()}'\n")
@@ -359,51 +169,70 @@ class TimelapseEncoder:
                 "-c", "copy",
                 str(output_path),
             ]
-
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 preexec_fn=lambda: os.nice(19),
             )
-
-            stdout, stderr = await process.communicate()
-
+            _, stderr = await process.communicate()
             if process.returncode != 0:
                 raise RuntimeError(f"FFmpeg concat failed: {stderr.decode()}")
 
             os.replace(output_path, video_path)
-            logger.info(f"Appended {len(frames)} frames to realtime timelapse {video_path}")
+            logger.info(f"Appended frames to {video_path}")
 
         finally:
-            for path in [segment_path, concat_list_path, output_path]:
-                if path.exists():
-                    path.unlink()
+            for p in [segment_path, concat_list_path, output_path]:
+                if Path(p).exists():
+                    Path(p).unlink()
 
-    async def _do_encode_and_append(self, job: "TimelapseJob") -> None:
-        """Encode frames and append to daily timelapse.
+    # ------------------------------------------------------------------ main encode
+
+    async def _do_encode_and_append(self, job: TimelapseJobRow) -> None:
+        """Encode frames from disk and append to the daily timelapse file.
 
         Args:
-            job: The timelapse job to encode
+            job: The timelapse job row with folder_path and compositing_context.
         """
-        chat_id = job.chat_id
-
-        frames = job.frames
-
-        timestamp = job.timestamp
-        audio_chunks = job.audio_chunks
+        chat_id = int(job.chat_id)
+        ctx = job.compositing_context
+        frame_skip = ctx.get("frame_skip", 1)
+        frame_count = job.frame_count
         fps = job.fps
 
-        # Get date from timestamp (server local timezone)
-        dt = datetime.fromisoformat(timestamp)
+        dt = datetime.fromisoformat(job.timestamp)
         date = dt.strftime("%Y%m%d")
 
-        if audio_chunks:
-            video_path = self._get_rt_video_path(chat_id, date)
-        else:
-            video_path = self._get_video_path(chat_id, date)
+        folder = Path(job.folder_path)
 
-        # Acquire file lock to prevent concurrent access
+        # Load audio if present
+        audio_chunks = None
+        audio_path = folder / "audio.npz"
+        if audio_path.exists():
+            try:
+                npz = np.load(str(audio_path))
+                audio_chunks = [npz[k] for k in sorted(npz.files, key=lambda k: int(k.split('_')[1]))]
+            except Exception as e:
+                logger.warning(f"Failed to load audio for job {job.id}: {e}")
+
+        is_rt = bool(audio_chunks)
+        video_path = self._get_rt_video_path(chat_id, date) if is_rt else self._get_video_path(chat_id, date)
+
+        # Build per-frame transform from stored compositing context
+        transform = build_timelapse_transform(ctx)
+
+        # Frame generator: reads lazily from disk, applying frame_skip
+        def make_frame_gen():
+            for i in range(0, frame_count, max(frame_skip, 1)):
+                frame_path = folder / f"frame_{i:06d}.npy"
+                try:
+                    yield np.load(str(frame_path))
+                except Exception as e:
+                    logger.warning(f"Failed to load frame {frame_path}: {e}")
+
+        actual_frame_count = len(range(0, frame_count, max(frame_skip, 1)))
+
         lock_path = video_path.with_suffix(".lock")
         lock_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -412,20 +241,19 @@ class TimelapseEncoder:
                 fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
 
                 if video_path.exists():
-                    if audio_chunks:
-                        await self._append_realtime_frames(video_path, frames, audio_chunks, fps)
-                    else:
-                        await self._append_frames(video_path, frames, fps)
+                    await self._append_frames_streaming(
+                        video_path, make_frame_gen(), transform, fps, audio_chunks
+                    )
                 else:
-                    if audio_chunks:
-                        await self._create_new_realtime_timelapse(video_path, frames, audio_chunks, fps)
-                    else:
-                        await self._create_new_timelapse(video_path, frames, fps)
+                    await self._create_new_timelapse_streaming(
+                        video_path, make_frame_gen(), transform, fps, audio_chunks
+                    )
 
-                is_rt = bool(audio_chunks)
-                current_part_number = await self._get_current_part_number(chat_id, date, is_rt)
-                await self._update_recap_metadata(chat_id, date, video_path, len(frames), is_rt, current_part_number)
-                await self._check_and_split_if_needed(chat_id, date, video_path, is_rt, current_part_number)
+                current_part = await self._get_current_part_number(chat_id, date, is_rt)
+                await self._update_recap_metadata(
+                    chat_id, date, video_path, actual_frame_count, fps, is_rt, current_part
+                )
+                await self._check_and_split_if_needed(chat_id, date, video_path, is_rt, current_part)
 
             finally:
                 fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
@@ -433,150 +261,137 @@ class TimelapseEncoder:
         if lock_path.exists():
             lock_path.unlink()
 
-    async def _encode_with_retry(self, job: "TimelapseJob") -> None:
-        """Encode frames with retry logic.
+    async def _encode_with_retry(self, job: TimelapseJobRow) -> None:
+        """Encode a timelapse job with retry/backoff logic.
 
         Args:
-            job: The timelapse job to encode
+            job: The timelapse job to encode.
         """
         backoff_delays = settings.timelapse_backoff_delays
         max_attempts = len(backoff_delays)
 
-        try:
-            for attempt in range(max_attempts + 1):
-                try:
-                    await self._do_encode_and_append(job)
-                    return  # Success!
-
-                except Exception as e:
-                    logger.error(f"Encoding attempt {attempt + 1}/{max_attempts} failed: {e}")
-
-                    if attempt < max_attempts - 1:
-                        # Retry after backoff delay
-                        delay = backoff_delays[attempt]
-                        logger.info(f"Retrying in {delay}s...")
-                        await asyncio.sleep(delay)
-                    else:
-                        # All attempts failed, save frames for recovery
-                        logger.error(f"All encoding attempts failed for chat {job.chat_id}")
-                        await self._save_failed_frames(job.chat_id, job.timestamp, job.frames, e)
-                        raise
-        finally:
-            # Release frame arrays as soon as encoding is done (success or failure).
-            # Without this, the numpy arrays linger in the asyncio queue until the
-            # next job starts and the job object is garbage-collected.
-            job.frames = []
-            job.audio_chunks = None
-
-    async def encode_job(self, job: TimelapseJob) -> None:
-        """Encode a timelapse job.
-
-        Args:
-            job: The timelapse job to encode
-        """
-        await self._encode_with_retry(job)
+        for attempt in range(max_attempts + 1):
+            try:
+                await self._do_encode_and_append(job)
+                return  # success
+            except Exception as e:
+                logger.error(f"Timelapse encode attempt {attempt + 1}/{max_attempts} for job {job.id}: {e}")
+                if attempt < max_attempts - 1:
+                    delay = backoff_delays[attempt]
+                    logger.info(f"Retrying job {job.id} in {delay}s...")
+                    await asyncio.sleep(delay)
+                else:
+                    logger.error(
+                        f"All encode attempts failed for job {job.id} "
+                        f"(chat {job.chat_id}). Frames at: {job.folder_path}"
+                    )
+                    raise
 
 
 class TimelapseEncodingQueue:
-    """Manages per-chat encoding queues and workers."""
+    """DB-driven per-chat timelapse encoding queue.
+
+    Instead of an in-memory asyncio.Queue, pending jobs are persisted in the
+    ``timelapse_jobs`` table.  A lightweight worker task is created per chat
+    whenever new work arrives; it drains all pending jobs and exits.  Only one
+    worker runs per chat at a time (tracked by ``_active``).
+    """
 
     def __init__(self, db_manager: DatabaseManager):
-        """Initialize the encoding queue.
-
-        Args:
-            db_manager: Database manager for metadata updates
-        """
         self.db_manager = db_manager
         self.encoder = TimelapseEncoder(db_manager)
-        self._queues: Dict[int, asyncio.Queue] = {}
-        self._workers: Dict[int, asyncio.Task] = {}
+        self._active: set = set()  # chat_id strings with a running worker task
+        self._prune_task: asyncio.Task | None = None
 
-    async def enqueue(
-        self,
-        chat_id: int,
-        frames: List[np.ndarray],
-        timestamp: str,
-        audio_chunks: Optional[List[np.ndarray]] = None,
-        fps: int = 10,
-    ) -> None:
-        """Enqueue frames for encoding.
+    # ------------------------------------------------------------------ public API
+
+    def trigger_worker(self, chat_id) -> None:
+        """Schedule a worker for ``chat_id`` if one is not already running.
+
+        Safe to call from any async context; creates an asyncio task internally.
 
         Args:
-            chat_id: The Telegram chat ID
-            frames: Frames to encode
-            timestamp: ISO8601 timestamp
-            audio_chunks: Optional audio chunks
-            fps: Frames per second
+            chat_id: Chat ID (int or str).
         """
-        # Create queue and worker for chat if not exists
-        if chat_id not in self._queues:
-            self._queues[chat_id] = asyncio.Queue()
-            self._workers[chat_id] = asyncio.create_task(self._worker(chat_id))
+        cid = str(chat_id)
+        if cid in self._active:
+            return
+        asyncio.create_task(self._run_worker(cid))
 
-        # Add job to queue
-        job = TimelapseJob(
-            chat_id=chat_id,
-            frames=frames,
-            timestamp=timestamp,
-            audio_chunks=audio_chunks,
-            fps=fps,
-        )
-        await self._queues[chat_id].put(job)
+    async def _run_prune_loop(self) -> None:
+        """Prune done jobs once immediately, then every 24 hours."""
+        from src.utils.state_manager import state_manager
+        while True:
+            try:
+                state_manager.prune_done_jobs(settings.timelapse_done_job_retention_days)
+            except Exception:
+                logger.exception("Error during timelapse job pruning")
+            await asyncio.sleep(86400)
 
-        logger.debug(f"Enqueued timelapse job for chat {chat_id}, queue size: {self._queues[chat_id].qsize()}")
+    async def startup_recovery(self) -> None:
+        """Reset stuck jobs and resume workers for all chats with pending work.
 
-    async def _worker(self, chat_id: int) -> None:
-        """Sequential worker for a chat's encoding queue.
+        Must be called once during application startup after DB initialisation.
+        """
+        from src.utils.state_manager import state_manager
+        state_manager.reset_stuck_jobs()
+        state_manager.cleanup_orphaned_folders()
+        for chat_id in state_manager.get_chats_with_pending_jobs():
+            self.trigger_worker(chat_id)
+        self._prune_task = asyncio.create_task(self._run_prune_loop())
+        logger.info("TimelapseEncodingQueue startup recovery complete")
+
+    async def shutdown(self) -> None:
+        """Wait (up to 30 s) for active workers to finish, then return."""
+        logger.info("Shutting down timelapse encoding queue...")
+        if self._prune_task and not self._prune_task.done():
+            self._prune_task.cancel()
+            try:
+                await self._prune_task
+            except asyncio.CancelledError:
+                pass
+        deadline = asyncio.get_event_loop().time() + 30.0
+        while self._active and asyncio.get_event_loop().time() < deadline:
+            await asyncio.sleep(0.5)
+        if self._active:
+            logger.warning(f"Shutdown timeout; active workers: {self._active}")
+        logger.info("Timelapse encoding queue shutdown complete")
+
+    # ------------------------------------------------------------------ worker
+
+    async def _run_worker(self, chat_id: str) -> None:
+        """Drain all pending jobs for ``chat_id`` sequentially.
 
         Args:
-            chat_id: The Telegram chat ID
+            chat_id: Chat ID string.
         """
-        logger.info(f"Started timelapse worker for chat {chat_id}")
-
-        queue = self._queues[chat_id]
-
+        self._active.add(chat_id)
+        logger.info(f"Timelapse worker started for chat {chat_id}")
         try:
+            from src.utils.state_manager import state_manager
             while True:
-                # Get next job from queue
-                job = await queue.get()
+                job = state_manager.fetch_next_pending_job(chat_id)
+                if job is None:
+                    break
 
+                state_manager.update_job_status(job.id, 'processing')
                 try:
                     # Wait for input processing to finish before encoding
                     await wait_while_busy(timeout=settings.timelapse_idle_wait_timeout)
-                    # Encode the job
-                    await self.encoder.encode_job(job)
+                    await self.encoder._encode_with_retry(job)
+                    state_manager.update_job_status(job.id, 'done')
+                    # Clean up frame folder after successful encode
+                    folder = Path(job.folder_path)
+                    if folder.exists():
+                        shutil.rmtree(folder)
+                        logger.debug(f"Deleted frame folder: {folder}")
                 except Exception as e:
-                    logger.error(f"Failed to encode timelapse job for chat {chat_id}: {e}")
-                finally:
-                    # Mark job as done
-                    queue.task_done()
-
-        except asyncio.CancelledError:
-            logger.info(f"Timelapse worker for chat {chat_id} cancelled")
-            raise
-
-    async def shutdown(self) -> None:
-        """Gracefully shutdown all workers."""
-        logger.info("Shutting down timelapse encoding queue...")
-
-        # Wait for all queues to be empty (with timeout to avoid hanging)
-        try:
-            await asyncio.wait_for(
-                asyncio.gather(*[queue.join() for queue in self._queues.values()]),
-                timeout=30.0
-            )
-        except asyncio.TimeoutError:
-            logger.warning("Timeout waiting for timelapse queues to empty, forcing shutdown")
-
-        # Cancel all workers
-        for chat_id, worker in self._workers.items():
-            worker.cancel()
-
-        # Wait for all workers to finish
-        await asyncio.gather(*self._workers.values(), return_exceptions=True)
-
-        logger.info("Timelapse encoding queue shutdown complete")
+                    logger.error(f"Failed to encode timelapse job {job.id} for chat {chat_id}: {e}")
+                    state_manager.update_job_status(job.id, 'failed')
+        finally:
+            self._active.discard(chat_id)
+            logger.info(f"Timelapse worker finished for chat {chat_id}")
 
 
-# Global instance (initialized in webhook.py)
+# Global instance (initialised in webhook.py lifespan)
 timelapse_queue: Optional[TimelapseEncodingQueue] = None

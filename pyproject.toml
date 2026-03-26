@@ -1,6 +1,6 @@
 [project]
 name = "gbc-telegram-bot"
-version = "2.3.0"
+version = "2.3.1"
 description = "Telegram/Discord bot for playing GBC games via crowdsourced input"
 requires-python = ">=3.11"
 

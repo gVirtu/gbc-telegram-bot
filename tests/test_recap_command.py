@@ -60,7 +60,7 @@ class TestGifCommand:
         """Test /gif loads from local cache when file_id is None."""
         from io import BytesIO
         ctx = make_ctx(mock_adapter)
-        mock_adapter.preferred_animation_format = "animation"
+        mock_adapter.preferred_animation_format = "mp4"
         cached_buf = BytesIO(b"cached_video_data")
 
         with patch('src.handlers.commands.get_input_handler') as mock_get_handler:
@@ -73,7 +73,7 @@ class TestGifCommand:
             with patch('src.handlers.commands.load_last_animation', return_value=cached_buf) as mock_load:
                 await gif_command(ctx)
 
-                mock_load.assert_called_once_with(123, "animation")
+                mock_load.assert_called_once_with(123, "mp4")
                 mock_adapter.send_animation.assert_called_once_with(
                     chat_id=123,
                     animation=cached_buf,
@@ -85,7 +85,7 @@ class TestGifCommand:
         """Test /gif falls back to local cache when file_id send raises."""
         from io import BytesIO
         ctx = make_ctx(mock_adapter)
-        mock_adapter.preferred_animation_format = "animation"
+        mock_adapter.preferred_animation_format = "mp4"
         cached_buf = BytesIO(b"cached_video_data")
 
         with patch('src.handlers.commands.get_input_handler') as mock_get_handler:
@@ -109,7 +109,7 @@ class TestGifCommand:
     async def test_gif_error_when_no_file_id_and_no_cache(self, mock_adapter):
         """Test /gif sends error message when file_id is None and cache is empty."""
         ctx = make_ctx(mock_adapter)
-        mock_adapter.preferred_animation_format = "animation"
+        mock_adapter.preferred_animation_format = "mp4"
 
         with patch('src.handlers.commands.get_input_handler') as mock_get_handler:
             mock_session = Mock()
@@ -131,7 +131,7 @@ class TestGifCommand:
     async def test_gif_error_when_expired_file_id_and_no_cache(self, mock_adapter):
         """Test /gif sends error message when file_id expired and cache is empty."""
         ctx = make_ctx(mock_adapter)
-        mock_adapter.preferred_animation_format = "animation"
+        mock_adapter.preferred_animation_format = "mp4"
 
         with patch('src.handlers.commands.get_input_handler') as mock_get_handler:
             mock_session = Mock()
@@ -155,7 +155,7 @@ class TestGifCommand:
         """Test /gif for a mirror chat resolves to leader's cache."""
         from io import BytesIO
         ctx = make_ctx(mock_adapter, chat_id=200)
-        mock_adapter.preferred_animation_format = "animation"
+        mock_adapter.preferred_animation_format = "mp4"
         cached_buf = BytesIO(b"leader_video_data")
 
         with patch('src.handlers.commands.get_leader_chat_id', return_value=100) as mock_leader:
@@ -170,7 +170,7 @@ class TestGifCommand:
                     await gif_command(ctx)
 
                     mock_leader.assert_called_once_with(200)
-                    mock_load.assert_called_once_with(100, "animation")
+                    mock_load.assert_called_once_with(100, "mp4")
 
 
 class TestRecapCommand:

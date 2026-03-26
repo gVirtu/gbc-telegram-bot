@@ -18,13 +18,13 @@ def get_media_cache_dir(chat_id: int) -> Path:
     return settings.data_dir / "media" / str(chat_id)
 
 
-def save_last_animation(chat_id: int, media_buffer: BytesIO, media_type: str = "animation") -> None:
+def save_last_animation(chat_id: int, media_buffer: BytesIO, media_type: str = "mp4") -> None:
     """Save the last animation to local cache.
     
     Args:
         chat_id: The chat ID
         media_buffer: The media bytes buffer
-        media_type: "animation" for mp4, "avif" for avif
+        media_type: "mp4" for mp4, "avif" for avif
     """
     cache_dir = get_media_cache_dir(chat_id)
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -38,12 +38,12 @@ def save_last_animation(chat_id: int, media_buffer: BytesIO, media_type: str = "
     logger.debug(f"Saved last animation to {file_path}")
 
 
-def load_last_animation(chat_id: int, media_type: str = "animation") -> Optional[BytesIO]:
+def load_last_animation(chat_id: int, media_type: str = "mp4") -> Optional[BytesIO]:
     """Load the last animation from local cache.
     
     Args:
         chat_id: The chat ID
-        media_type: "animation" for mp4, "avif" for avif
+        media_type: "mp4" for mp4, "avif" for avif
         
     Returns:
         BytesIO with the media content, or None if not found

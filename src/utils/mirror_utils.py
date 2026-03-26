@@ -109,9 +109,9 @@ async def broadcast_game_update(
             needed_formats.add(adapter.preferred_animation_format)
 
     # 2. Encode each needed format once
-    media_buffers_per_type: dict[str, Optional[BytesIO]] = {"animation": None, "avif": None}
+    media_buffers_per_type: dict[str, Optional[BytesIO]] = {"mp4": None, "avif": None}
 
-    if "animation" in needed_formats and raw_frames:
+    if "mp4" in needed_formats and raw_frames:
         tmp_path = None
         try:
             with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp_f:
@@ -129,8 +129,8 @@ async def broadcast_game_update(
             )
             elapsed = time.monotonic() - t0
             with open(tmp_path, "rb") as f:
-                media_buffers_per_type["animation"] = BytesIO(f.read())
-            size_kb = media_buffers_per_type["animation"].getbuffer().nbytes // 1024
+                media_buffers_per_type["mp4"] = BytesIO(f.read())
+            size_kb = media_buffers_per_type["mp4"].getbuffer().nbytes // 1024
             logger.info(f"MP4 encode done: chat={leader_chat_id} elapsed={elapsed:.2f}s size={size_kb}KB")
         except Exception as e:
             logger.error(f"MP4 encode failed for chat {leader_chat_id}: {e}")

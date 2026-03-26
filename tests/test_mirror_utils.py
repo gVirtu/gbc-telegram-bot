@@ -81,7 +81,7 @@ class TestIsMediaOnlyMirror:
 # broadcast_game_update
 # ---------------------------------------------------------------------------
 
-def _make_mock_adapter(platform="telegram", anim_format="animation"):
+def _make_mock_adapter(platform="telegram", anim_format="mp4"):
     adapter = MagicMock()
     adapter.platform = platform
     adapter.preferred_animation_format = anim_format
@@ -135,7 +135,7 @@ class TestBroadcastGameUpdate:
         mock_adapter.edit_game_message.assert_called_once()
         call = mock_adapter.edit_game_message.call_args
         assert call.args[0] == leader_id
-        assert call.kwargs.get("media_type") == "animation" or call.args[-1] == "animation"
+        assert call.kwargs.get("media_type") == "mp4" or call.args[-1] == "mp4"
 
     async def test_broadcasts_to_leader_and_mirrors(self):
         leader_id = 10
@@ -342,7 +342,7 @@ class TestBroadcastGameUpdate:
         """When Telegram + Discord targets exist, MP4 and AVIF are each encoded once."""
         leader_id = 10
         mirror_id = 20
-        telegram_adapter = _make_mock_adapter(platform="telegram", anim_format="animation")
+        telegram_adapter = _make_mock_adapter(platform="telegram", anim_format="mp4")
         discord_adapter = _make_mock_adapter(platform="discord", anim_format="avif")
         leader_state = ChatGameState(chat_id=leader_id, message_id=50)
         mirror_state = ChatGameState(chat_id=mirror_id, message_id=60)
@@ -378,7 +378,7 @@ class TestBroadcastGameUpdate:
         """A failed MP4 encode logs an error but does not prevent AVIF from being sent."""
         leader_id = 10
         mirror_id = 20
-        telegram_adapter = _make_mock_adapter(platform="telegram", anim_format="animation")
+        telegram_adapter = _make_mock_adapter(platform="telegram", anim_format="mp4")
         discord_adapter = _make_mock_adapter(platform="discord", anim_format="avif")
         leader_config = ChatConfig(chat_id=leader_id, platform="telegram")
         mirror_config = ChatConfig(chat_id=mirror_id, platform="discord")

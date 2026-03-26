@@ -69,7 +69,7 @@ class TelegramAdapter(BotAdapter):
     ) -> Optional[str]:
         file_id = None
         try:
-            if media_type == "animation":
+            if media_type == "mp4":
                 media_bytes.name = f"animation_{int(time.time())}.mp4"
                 media = InputMediaAnimation(
                     media=media_bytes,
@@ -90,7 +90,7 @@ class TelegramAdapter(BotAdapter):
                 reply_markup=keyboard,
             )
 
-            if media_type == "animation" and message and message.animation:
+            if media_type == "mp4" and message and message.animation:
                 file_id = message.animation.file_id
         except TelegramError as e:
             logger.warning(f"Failed to edit media for chat {chat_id}: {e}")

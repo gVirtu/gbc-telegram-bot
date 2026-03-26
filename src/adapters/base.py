@@ -86,7 +86,7 @@ class BotAdapter(ABC):
             text: New caption/message text
             keyboard: Platform-specific keyboard object
             media_bytes: BytesIO containing image or animation data
-            media_type: "photo" or "animation"
+            media_type: "photo" / "mp4" / "avif"
 
         Returns:
             file_id string if available (Telegram caching), None otherwise

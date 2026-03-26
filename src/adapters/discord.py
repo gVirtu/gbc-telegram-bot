@@ -477,7 +477,7 @@ class DiscordAdapter(BotAdapter):
         else:
             data = media_bytes
 
-        if media_type == "animation":
+        if media_type == "mp4":
             ext = "mp4"
         elif media_type == "avif":
             ext = "avif"

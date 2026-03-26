@@ -21,8 +21,8 @@ class TestSaveLastAnimation:
         content = b"fake_mp4_content"
         with patch("src.utils.media_cache.settings") as mock_settings:
             mock_settings.data_dir = tmp_path
-            save_last_animation(1, BytesIO(content), media_type="animation")
-            result = load_last_animation(1, media_type="animation")
+            save_last_animation(1, BytesIO(content), media_type="mp4")
+            result = load_last_animation(1, media_type="mp4")
         assert result is not None
         assert result.read() == content
 
@@ -38,14 +38,14 @@ class TestSaveLastAnimation:
     def test_load_missing_returns_none(self, tmp_path):
         with patch("src.utils.media_cache.settings") as mock_settings:
             mock_settings.data_dir = tmp_path
-            result = load_last_animation(999, media_type="animation")
+            result = load_last_animation(999, media_type="mp4")
         assert result is None
 
     def test_save_overwrites_existing(self, tmp_path):
         with patch("src.utils.media_cache.settings") as mock_settings:
             mock_settings.data_dir = tmp_path
-            save_last_animation(3, BytesIO(b"first"), media_type="animation")
-            save_last_animation(3, BytesIO(b"second"), media_type="animation")
-            result = load_last_animation(3, media_type="animation")
+            save_last_animation(3, BytesIO(b"first"), media_type="mp4")
+            save_last_animation(3, BytesIO(b"second"), media_type="mp4")
+            result = load_last_animation(3, media_type="mp4")
         assert result is not None
         assert result.read() == b"second"

@@ -1135,7 +1135,7 @@ async def save_frames_as_mp4_streaming(
         if tmp_pcm:
             encode_args += ['-c:a', 'aac', '-af', 'highpass=f=40,lowpass=f=6500,aresample=32000']
         else:
-            encode_args += ['-an']
+            encode_args += ['-an', '-movflags', '+faststart', '-metadata:s:v:0', 'loop=0']
 
         cmd = video_args + encode_args + [output_path]
 
@@ -1177,7 +1177,7 @@ async def save_frames_as_avif_streaming(
     transform: Callable[[np.ndarray, int], np.ndarray],
     output_path: str,
     fps: int,
-    crf: int = 30,
+    crf: int = 63,
     low_priority: bool = False,
 ) -> None:
     """Encode a stream of raw frames into an animated AVIF file via FFmpeg.
@@ -1216,8 +1216,12 @@ async def save_frames_as_avif_streaming(
         '-s', f'{w}x{h}',
         '-framerate', str(fps),
         '-i', 'pipe:0',
-        '-c:v', 'libsvtav1',
+        '-c:v', 'libaom-av1',
+        '-usage', 'realtime',
         '-cpu-used', '8',
+        '-row-mt', '1',
+        '-lag-in-frames', '0',
+        '-threads', '1',
         '-crf', str(crf),
         '-b:v', '0',
         '-loop', '0',

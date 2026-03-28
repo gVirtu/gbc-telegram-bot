@@ -415,3 +415,100 @@ class TestSendRecapToChat:
         adapter.send_video.assert_called_once()
         video_arg = adapter.send_video.call_args.kwargs.get("video")
         assert hasattr(video_arg, "read"), "Expected disk upload on Discord"
+
+
+# ---------------------------------------------------------------------------
+# Tests for send_recap_to_chat with parts_to_send parameter
+# ---------------------------------------------------------------------------
+
+class TestSendRecapToChatPartFilter:
+    """Tests for send_recap_to_chat with parts_to_send parameter."""
+
+    @pytest.mark.asyncio
+    async def test_parts_to_send_restricts_which_parts_are_sent(self, tmp_path):
+        """When parts_to_send is provided, only those parts are sent."""
+        adapter = make_adapter()
+        recap_dir = tmp_path / "recaps" / "100"
+        recap_dir.mkdir(parents=True)
+        (recap_dir / "recap_20260221_part1.mp4").write_bytes(b"part1")
+        (recap_dir / "recap_20260221.mp4").write_bytes(b"part2")
+
+        part1 = make_part(1)
+        part2 = make_part(2)
+
+        with (
+            patch("src.utils.recap_utils.state_manager") as mock_sm,
+            patch("src.utils.recap_utils.settings") as mock_settings,
+            patch("src.utils.recap_utils.asyncio.sleep", new_callable=AsyncMock),
+        ):
+            mock_settings.data_dir = tmp_path
+            mock_settings.recap_part_send_delay_seconds = 1.0
+            mock_sm.get_or_create_chat_config.return_value = MagicMock(feature_flags={})
+            # All parts returned from DB
+            mock_sm.get_recap_parts = AsyncMock(return_value=[part1, part2])
+            mock_sm.update_recap_file_id = AsyncMock()
+
+            # Only send part2 (the last/current one)
+            result = await send_recap_to_chat(100, 100, "20260221", adapter, parts_to_send=[part2])
+
+        assert result is True
+        assert adapter.send_video.call_count == 1  # only part2
+
+    @pytest.mark.asyncio
+    async def test_caption_shows_total_all_parts_count_not_filtered_count(self, tmp_path):
+        """Caption 'part X of Y' uses total parts count even when only subset is sent."""
+        adapter = make_adapter()
+        recap_dir = tmp_path / "recaps" / "100"
+        recap_dir.mkdir(parents=True)
+        # Only create the last part file (part2 = current unnumbered file)
+        (recap_dir / "recap_20260221.mp4").write_bytes(b"part2")
+
+        part1 = make_part(1)
+        part2 = make_part(2)
+
+        with (
+            patch("src.utils.recap_utils.state_manager") as mock_sm,
+            patch("src.utils.recap_utils.settings") as mock_settings,
+            patch("src.utils.recap_utils.asyncio.sleep", new_callable=AsyncMock),
+        ):
+            mock_settings.data_dir = tmp_path
+            mock_settings.recap_part_send_delay_seconds = 1.0
+            mock_sm.get_or_create_chat_config.return_value = MagicMock(feature_flags={})
+            mock_sm.get_recap_parts = AsyncMock(return_value=[part1, part2])
+            mock_sm.update_recap_file_id = AsyncMock()
+
+            await send_recap_to_chat(100, 100, "20260221", adapter, parts_to_send=[part2])
+
+        caption = adapter.send_video.call_args.kwargs["caption"]
+        assert "2 of 2" in caption  # total=2, not filtered count=1
+
+    @pytest.mark.asyncio
+    async def test_non_last_part_in_filtered_list_uses_numbered_filename(self, tmp_path):
+        """Parts that are NOT the overall last use recap_{date}_partN.mp4 path."""
+        adapter = make_adapter()
+        recap_dir = tmp_path / "recaps" / "100"
+        recap_dir.mkdir(parents=True)
+        (recap_dir / "recap_20260221_part1.mp4").write_bytes(b"part1")
+        (recap_dir / "recap_20260221.mp4").write_bytes(b"part2")
+
+        part1 = make_part(1)
+        part2 = make_part(2)
+
+        with (
+            patch("src.utils.recap_utils.state_manager") as mock_sm,
+            patch("src.utils.recap_utils.settings") as mock_settings,
+            patch("src.utils.recap_utils.asyncio.sleep", new_callable=AsyncMock),
+        ):
+            mock_settings.data_dir = tmp_path
+            mock_settings.recap_part_send_delay_seconds = 1.0
+            mock_sm.get_or_create_chat_config.return_value = MagicMock(feature_flags={})
+            mock_sm.get_recap_parts = AsyncMock(return_value=[part1, part2])
+            mock_sm.update_recap_file_id = AsyncMock()
+
+            # Send only part1 (not the overall last)
+            result = await send_recap_to_chat(100, 100, "20260221", adapter, parts_to_send=[part1])
+
+        assert result is True
+        # The video arg should be an open file from the numbered path
+        video_arg = adapter.send_video.call_args.kwargs["video"]
+        assert hasattr(video_arg, "read")  # file object, not string

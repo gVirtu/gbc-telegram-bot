@@ -191,12 +191,16 @@ class TestTimelapseEncoderSplitLogic:
         video_path = tmp_path / "recap_20260312.mp4"
         video_path.write_bytes(b"x" * 100)
 
+        mock_task = MagicMock()
+
         with patch("src.tasks.timelapse_encoder.settings") as mock_settings:
             mock_settings.recap_part_file_size_threshold = 50  # very low threshold
 
             with patch.object(encoder.db_manager, "split_recap_part", new_callable=AsyncMock) as mock_split:
-                with patch("src.tasks.timelapse_encoder.asyncio.create_task"):
-                    await encoder._check_and_split_if_needed(123, "20260312", video_path, False, 1)
+                with patch("src.tasks.timelapse_encoder.asyncio.create_task", return_value=mock_task):
+                    with patch("src.tasks.timelapse_encoder.auto_send_split_recap_part", new_callable=AsyncMock) as mock_fn:
+                        mock_fn.return_value = None
+                        await encoder._check_and_split_if_needed(123, "20260312", video_path, False, 1)
 
         part_path = tmp_path / "recap_20260312_part1.mp4"
         assert part_path.exists()
@@ -209,12 +213,16 @@ class TestTimelapseEncoderSplitLogic:
         video_path = tmp_path / "recap_20260312_rt.mp4"
         video_path.write_bytes(b"x" * 100)
 
+        mock_task = MagicMock()
+
         with patch("src.tasks.timelapse_encoder.settings") as mock_settings:
             mock_settings.recap_part_file_size_threshold = 50
 
             with patch.object(encoder.db_manager, "split_recap_part", new_callable=AsyncMock) as mock_split:
-                with patch("src.tasks.timelapse_encoder.asyncio.create_task"):
-                    await encoder._check_and_split_if_needed(123, "20260312", video_path, True, 2)
+                with patch("src.tasks.timelapse_encoder.asyncio.create_task", return_value=mock_task):
+                    with patch("src.tasks.timelapse_encoder.auto_send_split_recap_part", new_callable=AsyncMock) as mock_fn:
+                        mock_fn.return_value = None
+                        await encoder._check_and_split_if_needed(123, "20260312", video_path, True, 2)
 
         part_path = tmp_path / "recap_20260312_part2_rt.mp4"
         assert part_path.exists()

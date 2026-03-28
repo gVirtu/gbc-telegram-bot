@@ -251,3 +251,11 @@ class TestRecapFileDatabase:
         record = await db_manager.get_recap_file(123, "20260221")
         assert record is not None
         assert record.part_number == 2
+
+
+class TestAutoSentAtMigration:
+    def test_auto_sent_at_column_exists_after_migration(self, db_manager):
+        """After DB init, recap_files has an auto_sent_at column."""
+        cursor = db_manager.connection.execute("PRAGMA table_info(recap_files);")
+        cols = [row["name"] for row in cursor.fetchall()]
+        assert "auto_sent_at" in cols

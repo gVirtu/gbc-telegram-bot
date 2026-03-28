@@ -259,3 +259,13 @@ class TestAutoSentAtMigration:
         cursor = db_manager.connection.execute("PRAGMA table_info(recap_files);")
         cols = [row["name"] for row in cursor.fetchall()]
         assert "auto_sent_at" in cols
+
+    @pytest.mark.asyncio
+    async def test_get_recap_parts_returns_auto_sent_at_field(self, db_manager):
+        """get_recap_parts returns RecapFileRecord with auto_sent_at attribute."""
+        parts = await db_manager.get_recap_parts(123, "20260101", False)
+        # If no parts yet, just check that when we add one, it has auto_sent_at
+        await db_manager.upsert_recap_metadata(123, "20260101", 10, 1.0, 500)
+        parts = await db_manager.get_recap_parts(123, "20260101", False)
+        assert hasattr(parts[0], "auto_sent_at")
+        assert parts[0].auto_sent_at is None  # not yet marked

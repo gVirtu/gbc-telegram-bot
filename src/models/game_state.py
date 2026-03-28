@@ -283,6 +283,7 @@ class RecapFileRecord:
         file_size_bytes: File size in bytes
         created_at: When this recap was first created
         updated_at: When this recap was last updated
+        auto_sent_at: When this recap was automatically sent (None if not yet sent)
     """
 
     chat_id: int
@@ -295,6 +296,7 @@ class RecapFileRecord:
     file_size_bytes: int = 0
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    auto_sent_at: Optional[datetime] = None
 
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
@@ -309,6 +311,7 @@ class RecapFileRecord:
             "file_size_bytes": self.file_size_bytes,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "auto_sent_at": self.auto_sent_at.isoformat() if self.auto_sent_at else None,
         }
 
     @classmethod
@@ -325,6 +328,7 @@ class RecapFileRecord:
             file_size_bytes=data.get("file_size_bytes", 0),
             created_at=datetime.fromisoformat(data["created_at"]) if data.get("created_at") else None,
             updated_at=datetime.fromisoformat(data["updated_at"]) if data.get("updated_at") else None,
+            auto_sent_at=datetime.fromisoformat(data["auto_sent_at"]) if data.get("auto_sent_at") else None,
         )
 
 

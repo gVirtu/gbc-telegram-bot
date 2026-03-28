@@ -23,6 +23,7 @@ from src.db.manager import DatabaseManager
 from src.models.game_state import TimelapseJobRow
 from src.utils.frame_utils import build_timelapse_transform, save_frames_as_mp4_streaming
 from src.utils.priority_gate import wait_while_busy
+from src.utils.recap_utils import auto_send_split_recap_part
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +105,9 @@ class TimelapseEncoder:
         os.rename(video_path, part_path)
         await self.db_manager.split_recap_part(chat_id, date, current_part_number, is_rt)
         logger.info(f"Split recap for chat {chat_id}, date {date} into part {current_part_number}")
+        asyncio.create_task(
+            auto_send_split_recap_part(chat_id, date, current_part_number, is_rt)
+        )
 
     # ------------------------------------------------------------------ encoding helpers
 

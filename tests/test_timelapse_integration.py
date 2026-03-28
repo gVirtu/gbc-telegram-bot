@@ -233,8 +233,40 @@ class TestTimelapseIntegration:
         with patch("src.tasks.timelapse_encoder.settings") as mock_settings:
             mock_settings.recap_part_file_size_threshold = 100
             with patch.object(encoder.db_manager, "split_recap_part", new_callable=AsyncMock) as mock_split:
-                await encoder._check_and_split_if_needed(123, "20260221", video_path, False, 1)
+                with patch("src.tasks.timelapse_encoder.asyncio.create_task"):
+                    await encoder._check_and_split_if_needed(123, "20260221", video_path, False, 1)
 
         assert (tmp_path / "recap_20260221_part1.mp4").exists()
         assert not video_path.exists()
         mock_split.assert_called_once_with(123, "20260221", 1, False)
+
+    @pytest.mark.asyncio
+    async def test_split_logic_fires_auto_send_task(self, db_manager, tmp_path):
+        """_check_and_split_if_needed creates an asyncio task for auto_send_split_recap_part on split."""
+        encoder = TimelapseEncoder(db_manager)
+        await db_manager.upsert_recap_metadata(123, "20260221", 100, 10.0, 50000)
+        video_path = tmp_path / "recap_20260221.mp4"
+        video_path.write_bytes(b"x" * 200)
+
+        with patch("src.tasks.timelapse_encoder.settings") as mock_settings:
+            mock_settings.recap_part_file_size_threshold = 100
+            with patch.object(encoder.db_manager, "split_recap_part", new_callable=AsyncMock):
+                with patch("src.tasks.timelapse_encoder.asyncio.create_task") as mock_create_task:
+                    with patch("src.tasks.timelapse_encoder.auto_send_split_recap_part"):
+                        await encoder._check_and_split_if_needed(123, "20260221", video_path, False, 1)
+
+        mock_create_task.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_split_logic_no_task_when_below_threshold(self, db_manager, tmp_path):
+        """No asyncio task created when file is below threshold (no split)."""
+        encoder = TimelapseEncoder(db_manager)
+        video_path = tmp_path / "recap_20260221.mp4"
+        video_path.write_bytes(b"x" * 50)
+
+        with patch("src.tasks.timelapse_encoder.settings") as mock_settings:
+            mock_settings.recap_part_file_size_threshold = 10 * 1024 * 1024
+            with patch("src.tasks.timelapse_encoder.asyncio.create_task") as mock_create_task:
+                await encoder._check_and_split_if_needed(123, "20260221", video_path, False, 1)
+
+        mock_create_task.assert_not_called()

@@ -195,7 +195,8 @@ class TestTimelapseEncoderSplitLogic:
             mock_settings.recap_part_file_size_threshold = 50  # very low threshold
 
             with patch.object(encoder.db_manager, "split_recap_part", new_callable=AsyncMock) as mock_split:
-                await encoder._check_and_split_if_needed(123, "20260312", video_path, False, 1)
+                with patch("src.tasks.timelapse_encoder.asyncio.create_task"):
+                    await encoder._check_and_split_if_needed(123, "20260312", video_path, False, 1)
 
         part_path = tmp_path / "recap_20260312_part1.mp4"
         assert part_path.exists()
@@ -212,7 +213,8 @@ class TestTimelapseEncoderSplitLogic:
             mock_settings.recap_part_file_size_threshold = 50
 
             with patch.object(encoder.db_manager, "split_recap_part", new_callable=AsyncMock) as mock_split:
-                await encoder._check_and_split_if_needed(123, "20260312", video_path, True, 2)
+                with patch("src.tasks.timelapse_encoder.asyncio.create_task"):
+                    await encoder._check_and_split_if_needed(123, "20260312", video_path, True, 2)
 
         part_path = tmp_path / "recap_20260312_part2_rt.mp4"
         assert part_path.exists()

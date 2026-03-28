@@ -3,7 +3,11 @@ FROM python:3.11-slim-bookworm
 # Create non-root user first
 RUN groupadd -r appgroup && useradd -r -g appgroup -u 1000 appuser
 
-# Install runtime dependencies including ffmpeg and jemalloc
+# Add debian sid repository with low priority, to grab a newer libaom3
+RUN echo "deb http://deb.debian.org/debian sid main" > /etc/apt/sources.list.d/sid.list && \
+    printf "Package: *\nPin: release n=sid\nPin-Priority: 10\n" > /etc/apt/preferences.d/sid.pref
+
+# Install runtime dependencies including ffmpeg and jemalloc, then pull libaom3 from sid
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     libgl1-mesa-glx \
@@ -11,6 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     build-essential \
     libjemalloc2 \
+    && apt-get install -y --no-install-recommends -t sid libaom3 \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean \
     && rm -rf /var/cache/apt/*

@@ -10,6 +10,8 @@ os.environ.setdefault("TELEGRAM_BOT_TOKEN", "test_token")
 os.environ.setdefault("WEBHOOK_URL", "https://test.example.com")
 os.environ.setdefault("WEBHOOK_SECRET", "test_secret_1234567890")
 
+from unittest.mock import ANY
+
 from src.tasks.recap_broadcaster import _run_broadcast_cycle, run_recap_broadcast_loop
 from src.utils.recap_utils import send_recap_to_chat
 
@@ -76,7 +78,7 @@ class TestGetLeadersWithFlag:
 class TestRunBroadcastCycle:
     @pytest.mark.asyncio
     async def test_skips_silently_when_no_recap_file(self, tmp_path):
-        """If the recap mp4 doesn't exist for a leader, skip without sending."""
+        """If get_unsent_recap_parts returns empty, skip without sending."""
         with (
             patch("src.tasks.recap_broadcaster.state_manager") as mock_sm,
             patch("src.tasks.recap_broadcaster.settings") as mock_settings,
@@ -86,11 +88,13 @@ class TestRunBroadcastCycle:
         ):
             mock_settings.data_dir = tmp_path
             mock_sm.get_leaders_with_flag.return_value = [100]
+            mock_sm.get_unsent_recap_parts = AsyncMock(return_value=[])
             mock_sm.get_mirror_chat_ids.return_value = []
-            mock_sm.get_or_create_chat_config.return_value = MagicMock(platform="telegram")
+            mock_sm.get_or_create_chat_config.return_value = MagicMock(
+                platform="telegram", feature_flags={}
+            )
             mock_get_adapter.return_value = make_adapter()
 
-            # No file on disk
             await _run_broadcast_cycle()
 
             mock_send.assert_not_called()
@@ -98,14 +102,6 @@ class TestRunBroadcastCycle:
     @pytest.mark.asyncio
     async def test_excludes_media_only_mirrors(self, tmp_path):
         """Media-only mirror chats should not receive the recap broadcast."""
-        recap_dir = tmp_path / "recaps" / "100"
-        recap_dir.mkdir(parents=True)
-
-        # We need to know yesterday's date to create the file
-        from datetime import datetime, timedelta
-        yesterday = (datetime.utcnow() - timedelta(days=1)).strftime("%Y%m%d")
-        (recap_dir / f"recap_{yesterday}.mp4").write_bytes(b"fake video")
-
         with (
             patch("src.tasks.recap_broadcaster.state_manager") as mock_sm,
             patch("src.tasks.recap_broadcaster.settings") as mock_settings,
@@ -116,10 +112,14 @@ class TestRunBroadcastCycle:
         ):
             mock_settings.data_dir = tmp_path
             mock_sm.get_leaders_with_flag.return_value = [100]
+            mock_sm.get_unsent_recap_parts = AsyncMock(return_value=[make_part(1)])
             mock_sm.get_mirror_chat_ids.return_value = [200, 300]
             # 200 is media-only, 300 is not
             mock_media_only.side_effect = lambda cid: cid == 200
-            mock_sm.get_or_create_chat_config.return_value = MagicMock(platform="telegram")
+            mock_sm.get_or_create_chat_config.return_value = MagicMock(
+                platform="telegram", feature_flags={}
+            )
+            mock_sm.mark_recap_part_auto_sent = AsyncMock()
             mock_get_adapter.return_value = make_adapter()
             mock_send.return_value = True
 
@@ -137,13 +137,6 @@ class TestRunBroadcastCycle:
     @pytest.mark.asyncio
     async def test_send_success_triggers_resume(self, tmp_path):
         """Successful recap send should trigger resume_game for that chat."""
-        from datetime import datetime, timedelta
-        yesterday = (datetime.utcnow() - timedelta(days=1)).strftime("%Y%m%d")
-
-        recap_dir = tmp_path / "recaps" / "100"
-        recap_dir.mkdir(parents=True)
-        (recap_dir / f"recap_{yesterday}.mp4").write_bytes(b"fake video")
-
         with (
             patch("src.tasks.recap_broadcaster.state_manager") as mock_sm,
             patch("src.tasks.recap_broadcaster.settings") as mock_settings,
@@ -154,8 +147,12 @@ class TestRunBroadcastCycle:
         ):
             mock_settings.data_dir = tmp_path
             mock_sm.get_leaders_with_flag.return_value = [100]
+            mock_sm.get_unsent_recap_parts = AsyncMock(return_value=[make_part(1)])
             mock_sm.get_mirror_chat_ids.return_value = []
-            mock_sm.get_or_create_chat_config.return_value = MagicMock(platform="telegram")
+            mock_sm.get_or_create_chat_config.return_value = MagicMock(
+                platform="telegram", feature_flags={}
+            )
+            mock_sm.mark_recap_part_auto_sent = AsyncMock()
             adapter = make_adapter()
             mock_get_adapter.return_value = adapter
             mock_send.return_value = True
@@ -171,13 +168,6 @@ class TestRunBroadcastCycle:
     @pytest.mark.asyncio
     async def test_send_failure_skips_resume(self, tmp_path):
         """Failed recap send should not trigger resume_game."""
-        from datetime import datetime, timedelta
-        yesterday = (datetime.utcnow() - timedelta(days=1)).strftime("%Y%m%d")
-
-        recap_dir = tmp_path / "recaps" / "100"
-        recap_dir.mkdir(parents=True)
-        (recap_dir / f"recap_{yesterday}.mp4").write_bytes(b"fake video")
-
         with (
             patch("src.tasks.recap_broadcaster.state_manager") as mock_sm,
             patch("src.tasks.recap_broadcaster.settings") as mock_settings,
@@ -188,8 +178,12 @@ class TestRunBroadcastCycle:
         ):
             mock_settings.data_dir = tmp_path
             mock_sm.get_leaders_with_flag.return_value = [100]
+            mock_sm.get_unsent_recap_parts = AsyncMock(return_value=[make_part(1)])
             mock_sm.get_mirror_chat_ids.return_value = []
-            mock_sm.get_or_create_chat_config.return_value = MagicMock(platform="telegram")
+            mock_sm.get_or_create_chat_config.return_value = MagicMock(
+                platform="telegram", feature_flags={}
+            )
+            mock_sm.mark_recap_part_auto_sent = AsyncMock()
             mock_get_adapter.return_value = make_adapter()
             mock_send.return_value = False
 
@@ -512,3 +506,133 @@ class TestSendRecapToChatPartFilter:
         # The video arg should be an open file from the numbered path
         video_arg = adapter.send_video.call_args.kwargs["video"]
         assert hasattr(video_arg, "read")  # file object, not string
+
+
+# ---------------------------------------------------------------------------
+# Tests for _run_broadcast_cycle with unsent parts
+# ---------------------------------------------------------------------------
+
+class TestRunBroadcastCycleUnsentParts:
+
+    @pytest.mark.asyncio
+    async def test_skips_leader_when_all_parts_already_auto_sent(self, tmp_path):
+        """If all parts for a leader have auto_sent_at set, skip that leader entirely."""
+        with (
+            patch("src.tasks.recap_broadcaster.state_manager") as mock_sm,
+            patch("src.tasks.recap_broadcaster.settings") as mock_settings,
+            patch("src.tasks.recap_broadcaster.send_recap_to_chat") as mock_send,
+            patch("src.tasks.recap_broadcaster.get_input_handler"),
+        ):
+            mock_settings.data_dir = tmp_path
+            mock_sm.get_leaders_with_flag.return_value = [100]
+            # get_unsent_recap_parts returns empty (all already sent)
+            mock_sm.get_unsent_recap_parts = AsyncMock(return_value=[])
+            mock_sm.get_or_create_chat_config.return_value = MagicMock(
+                platform="telegram", feature_flags={}
+            )
+
+            await _run_broadcast_cycle()
+
+            mock_send.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_sends_only_unsent_parts_not_all_parts(self, tmp_path):
+        """Broadcaster passes pre-filtered unsent_parts to send_recap_to_chat."""
+        from unittest.mock import Mock
+        unsent_part = Mock()
+        unsent_part.part_number = 2
+
+        with (
+            patch("src.tasks.recap_broadcaster.state_manager") as mock_sm,
+            patch("src.tasks.recap_broadcaster.settings") as mock_settings,
+            patch("src.tasks.recap_broadcaster.get_adapter") as mock_get_adapter,
+            patch("src.tasks.recap_broadcaster.is_media_only_mirror", return_value=False),
+            patch("src.tasks.recap_broadcaster.send_recap_to_chat") as mock_send,
+            patch("src.tasks.recap_broadcaster.get_input_handler") as mock_get_handler,
+        ):
+            mock_settings.data_dir = tmp_path
+            mock_sm.get_leaders_with_flag.return_value = [100]
+            mock_sm.get_unsent_recap_parts = AsyncMock(return_value=[unsent_part])
+            mock_sm.get_mirror_chat_ids.return_value = []
+            mock_sm.get_or_create_chat_config.return_value = MagicMock(
+                platform="telegram", feature_flags={}
+            )
+            mock_sm.mark_recap_part_auto_sent = AsyncMock()
+            mock_get_adapter.return_value = make_adapter()
+            mock_send.return_value = True
+            mock_handler = MagicMock()
+            mock_handler.resume_game = AsyncMock()
+            mock_get_handler.return_value = mock_handler
+
+            await _run_broadcast_cycle()
+
+            # parts_to_send kwarg should be the unsent list
+            call_kwargs = mock_send.call_args.kwargs
+            assert call_kwargs.get("parts_to_send") == [unsent_part]
+
+    @pytest.mark.asyncio
+    async def test_marks_auto_sent_after_all_recipients(self, tmp_path):
+        """After all recipients handled, mark_recap_part_auto_sent called for each unsent part."""
+        from unittest.mock import Mock
+        unsent_part = Mock()
+        unsent_part.part_number = 1
+        unsent_part.is_rt = False
+
+        with (
+            patch("src.tasks.recap_broadcaster.state_manager") as mock_sm,
+            patch("src.tasks.recap_broadcaster.settings") as mock_settings,
+            patch("src.tasks.recap_broadcaster.get_adapter") as mock_get_adapter,
+            patch("src.tasks.recap_broadcaster.is_media_only_mirror", return_value=False),
+            patch("src.tasks.recap_broadcaster.send_recap_to_chat") as mock_send,
+            patch("src.tasks.recap_broadcaster.get_input_handler") as mock_get_handler,
+        ):
+            mock_settings.data_dir = tmp_path
+            mock_sm.get_leaders_with_flag.return_value = [100]
+            mock_sm.get_unsent_recap_parts = AsyncMock(return_value=[unsent_part])
+            mock_sm.get_mirror_chat_ids.return_value = [200]
+            mock_sm.get_or_create_chat_config.return_value = MagicMock(
+                platform="telegram", feature_flags={}
+            )
+            mock_sm.mark_recap_part_auto_sent = AsyncMock()
+            mock_get_adapter.return_value = make_adapter()
+            mock_send.return_value = True
+            mock_handler = MagicMock()
+            mock_handler.resume_game = AsyncMock()
+            mock_get_handler.return_value = mock_handler
+
+            await _run_broadcast_cycle()
+
+            # Both recipients sent, then ONE mark call
+            assert mock_send.call_count == 2  # leader + mirror
+            mock_sm.mark_recap_part_auto_sent.assert_called_once_with(100, ANY, 1, False)
+
+    @pytest.mark.asyncio
+    async def test_does_not_mark_when_send_fails(self, tmp_path):
+        """auto_sent_at not marked if all sends fail."""
+        from unittest.mock import Mock
+        unsent_part = Mock()
+        unsent_part.part_number = 1
+        unsent_part.is_rt = False
+
+        with (
+            patch("src.tasks.recap_broadcaster.state_manager") as mock_sm,
+            patch("src.tasks.recap_broadcaster.settings") as mock_settings,
+            patch("src.tasks.recap_broadcaster.get_adapter") as mock_get_adapter,
+            patch("src.tasks.recap_broadcaster.is_media_only_mirror", return_value=False),
+            patch("src.tasks.recap_broadcaster.send_recap_to_chat") as mock_send,
+            patch("src.tasks.recap_broadcaster.get_input_handler"),
+        ):
+            mock_settings.data_dir = tmp_path
+            mock_sm.get_leaders_with_flag.return_value = [100]
+            mock_sm.get_unsent_recap_parts = AsyncMock(return_value=[unsent_part])
+            mock_sm.get_mirror_chat_ids.return_value = []
+            mock_sm.get_or_create_chat_config.return_value = MagicMock(
+                platform="telegram", feature_flags={}
+            )
+            mock_sm.mark_recap_part_auto_sent = AsyncMock()
+            mock_get_adapter.return_value = make_adapter()
+            mock_send.return_value = False
+
+            await _run_broadcast_cycle()
+
+            mock_sm.mark_recap_part_auto_sent.assert_not_called()

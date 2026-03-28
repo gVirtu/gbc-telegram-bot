@@ -37,22 +37,24 @@ async def run_recap_broadcast_loop() -> None:
 
 
 async def _run_broadcast_cycle() -> None:
-    """Run one broadcast cycle: send yesterday's recap to all opted-in chats."""
+    """Run one broadcast cycle: send unsent recap parts to all opted-in chats."""
     yesterday = (datetime.utcnow() - timedelta(days=1)).strftime("%Y%m%d")
     leader_ids = state_manager.get_leaders_with_flag("auto_send_recaps")
     logger.info(f"Recap broadcast cycle: {len(leader_ids)} opted-in leader(s) for date {yesterday}")
 
     for leader_id in leader_ids:
-        video_path = settings.data_dir / "recaps" / str(leader_id) / f"recap_{yesterday}.mp4"
-        rt_video_path = settings.data_dir / "recaps" / str(leader_id) / f"recap_{yesterday}_rt.mp4"
+        leader_config = state_manager.get_or_create_chat_config(leader_id)
+        is_rt = leader_config.feature_flags.get("realtime_recaps", False)
 
-        if not video_path.exists() and not rt_video_path.exists():
-            logger.debug(f"No recap file for leader {leader_id}, date {yesterday}; skipping")
+        unsent_parts = await state_manager.get_unsent_recap_parts(leader_id, yesterday, is_rt)
+        if not unsent_parts:
+            logger.debug(f"No unsent recap parts for leader {leader_id}, date {yesterday}; skipping")
             continue
 
         mirror_ids = state_manager.get_mirror_chat_ids(leader_id)
         recipients = [leader_id] + [m for m in mirror_ids if not is_media_only_mirror(m)]
 
+        any_sent = False
         for chat_id in recipients:
             config = state_manager.get_or_create_chat_config(chat_id)
             adapter = get_adapter(config.platform)
@@ -60,11 +62,18 @@ async def _run_broadcast_cycle() -> None:
                 logger.warning(f"No adapter for platform '{config.platform}' (chat {chat_id}); skipping")
                 continue
 
-            success = await send_recap_to_chat(chat_id, leader_id, yesterday, adapter)
+            success = await send_recap_to_chat(
+                chat_id, leader_id, yesterday, adapter, parts_to_send=unsent_parts
+            )
             if success:
+                any_sent = True
                 try:
                     await get_input_handler().resume_game(chat_id, adapter)
                 except Exception:
                     logger.exception(f"Failed to resume game for chat {chat_id} after recap broadcast")
             else:
                 logger.warning(f"Failed to send recap to chat {chat_id} (leader {leader_id}), date {yesterday}")
+
+        if any_sent:
+            for part in unsent_parts:
+                await state_manager.mark_recap_part_auto_sent(leader_id, yesterday, part.part_number, is_rt)

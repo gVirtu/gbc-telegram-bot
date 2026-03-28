@@ -152,18 +152,6 @@ class Settings(BaseSettings):
         ge=1,
         le=10,
     )
-    backup_hour: int = Field(
-        default=0,
-        ge=0,
-        le=23,
-        description="Hour (UTC) to run daily backup (BACKUP_HOUR env var)",
-    )
-    backup_minute: int = Field(
-        default=0,
-        ge=0,
-        le=59,
-        description="Minute (UTC) to run daily backup (BACKUP_MINUTE env var)",
-    )
     backup_retention_days: int = Field(
         default=30,
         ge=1,

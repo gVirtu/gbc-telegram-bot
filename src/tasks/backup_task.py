@@ -1,7 +1,8 @@
 """Async backup loop task.
 
-Runs daily backups at the configured UTC time. On startup, runs a cycle
-immediately so any chat that missed today's backup gets one right away.
+Runs hourly backups at the top of each hour. On startup, sleeps until the next
+top-of-hour before beginning the regular loop. create_backup() handles per-chat
+noop logic internally (skips if no activity in the past 60 minutes).
 """
 
 import asyncio
@@ -14,29 +15,26 @@ logger = logging.getLogger(__name__)
 
 
 async def run_backup_loop(backup_manager: BackupManager, settings) -> None:
-    """Async loop: run backups at configured UTC time, then once per day.
+    """Async loop: run backups at the top of each hour.
 
-    On startup runs a cycle immediately, then sleeps until the next
-    configured time before repeating.
+    On startup, sleeps until the next top-of-hour, then loops every 3600s.
     """
-    # Startup cycle: back up any active chats that lack today's backup
-    await _run_backup_cycle(backup_manager)
+    # Startup: sleep until next top-of-hour
+    now = datetime.utcnow()
+    next_hour = (now + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
+    sleep_seconds = (next_hour - now).total_seconds()
+    logger.debug(f"First backup cycle in {sleep_seconds:.0f}s at {next_hour.isoformat()}Z")
+
+    try:
+        await asyncio.sleep(sleep_seconds)
+    except asyncio.CancelledError:
+        logger.info("Backup loop cancelled during startup sleep")
+        raise
 
     while True:
         try:
-            now = datetime.utcnow()
-            next_run = now.replace(
-                hour=settings.backup_hour,
-                minute=settings.backup_minute,
-                second=0,
-                microsecond=0,
-            )
-            if next_run <= now:
-                next_run += timedelta(days=1)
-            sleep_seconds = (next_run - now).total_seconds()
-            logger.debug(f"Next backup cycle in {sleep_seconds:.0f}s at {next_run.isoformat()}Z")
-            await asyncio.sleep(sleep_seconds)
             await _run_backup_cycle(backup_manager)
+            await asyncio.sleep(3600)
         except asyncio.CancelledError:
             logger.info("Backup loop cancelled")
             raise

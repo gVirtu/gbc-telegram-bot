@@ -353,16 +353,29 @@ async def load_command(ctx: CommandContext) -> None:
         await ctx.adapter.send_text(chat_id, choose_msg)
         return
 
-    # Check for "backup YYYYMMDD" syntax
+    # Check for "backup YYYYMMDD" or "backup YYYYMMDD:HH" syntax
     if ctx.args[0].lower() == "backup":
         if len(ctx.args) < 2:
             usage_msg = translation_manager.get("commands.load.backup_usage", chat_id)
             await ctx.adapter.send_text(chat_id, usage_msg)
             return
         date_str = ctx.args[1]
-        try:
-            datetime.strptime(date_str, "%Y%m%d")
-        except ValueError:
+        # Validate: accept YYYYMMDD or YYYYMMDD:HH
+        if ":" in date_str:
+            parts = date_str.split(":", 1)
+            valid = len(parts) == 2 and len(parts[0]) == 8 and len(parts[1]) == 2
+            if valid:
+                try:
+                    datetime.strptime(date_str, "%Y%m%d:%H")
+                except ValueError:
+                    valid = False
+        else:
+            valid = True
+            try:
+                datetime.strptime(date_str, "%Y%m%d")
+            except ValueError:
+                valid = False
+        if not valid:
             error_msg = translation_manager.get("commands.load.backup_invalid_date", chat_id)
             await ctx.adapter.send_text(chat_id, error_msg)
             return

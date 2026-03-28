@@ -31,31 +31,41 @@ def _make_backup_manager(tmp_path: Path):
     return BackupManager(mock_state_manager, mock_game_mgr, mock_settings)
 
 
+def _mock_recent_activity(bm, count: int = 1):
+    """Configure state_manager to report `count` recent inputs."""
+    mock_cursor = MagicMock()
+    mock_cursor.fetchone.return_value = {"cnt": count}
+    bm._state_manager.connection.execute.return_value = mock_cursor
+
+
 class TestCreateBackup:
     @pytest.mark.asyncio
     async def test_create_backup_writes_file(self, tmp_path):
         bm = _make_backup_manager(tmp_path)
+        _mock_recent_activity(bm, count=5)
         mock_controller = MagicMock()
         mock_controller.save_state.return_value = b"game_state_bytes"
         bm._game_controller_manager.get_or_create_controller = AsyncMock(
             return_value=mock_controller
         )
 
-        today = datetime.utcnow().strftime("%Y%m%d")
+        now = datetime.utcnow()
+        hour_str = now.strftime("%Y%m%d_%H")
         result = await bm.create_backup(chat_id=111)
 
         assert result is True
-        expected = tmp_path / "backups" / "111" / f"backup_{today}.state"
+        expected = tmp_path / "backups" / "111" / f"backup_{hour_str}.state"
         assert expected.exists()
         assert expected.read_bytes() == b"game_state_bytes"
 
     @pytest.mark.asyncio
     async def test_create_backup_skips_if_exists(self, tmp_path):
         bm = _make_backup_manager(tmp_path)
-        today = datetime.utcnow().strftime("%Y%m%d")
+        now = datetime.utcnow()
+        hour_str = now.strftime("%Y%m%d_%H")
         backup_dir = tmp_path / "backups" / "222"
         backup_dir.mkdir(parents=True)
-        existing = backup_dir / f"backup_{today}.state"
+        existing = backup_dir / f"backup_{hour_str}.state"
         existing.write_bytes(b"old_data")
 
         mock_controller = MagicMock()
@@ -67,37 +77,88 @@ class TestCreateBackup:
         result = await bm.create_backup(chat_id=222)
 
         assert result is True
-        # File should not have been overwritten
         assert existing.read_bytes() == b"old_data"
+        bm._game_controller_manager.get_or_create_controller.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_create_backup_noop_when_no_recent_activity(self, tmp_path):
+        """create_backup should skip (return True) when no activity in past 60 min."""
+        bm = _make_backup_manager(tmp_path)
+        _mock_recent_activity(bm, count=0)
+        mock_controller = MagicMock()
+        bm._game_controller_manager.get_or_create_controller = AsyncMock(
+            return_value=mock_controller
+        )
+
+        result = await bm.create_backup(chat_id=123)
+
+        assert result is True
         bm._game_controller_manager.get_or_create_controller.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_create_backup_returns_false_if_no_controller(self, tmp_path):
         bm = _make_backup_manager(tmp_path)
+        _mock_recent_activity(bm, count=3)
         bm._game_controller_manager.get_or_create_controller = AsyncMock(return_value=None)
 
         result = await bm.create_backup(chat_id=333)
 
         assert result is False
-        # No file should exist
         backup_dir = tmp_path / "backups" / "333"
         assert not any(backup_dir.glob("*.state")) if backup_dir.exists() else True
 
+    @pytest.mark.asyncio
+    async def test_create_backup_queries_recent_inputs_for_60_minutes(self, tmp_path):
+        """Verify the noop guard queries recent_inputs with -60 minutes window."""
+        bm = _make_backup_manager(tmp_path)
+        _mock_recent_activity(bm, count=0)
+
+        await bm.create_backup(chat_id=999)
+
+        call_args = bm._state_manager.connection.execute.call_args
+        sql = call_args[0][0]
+        assert "recent_inputs" in sql
+        assert "-60 minutes" in sql
+        params = call_args[0][1]
+        assert params == (999,)
+
 
 class TestLoadBackup:
-    def test_load_backup_returns_bytes(self, tmp_path):
+    def test_load_backup_yyyymmdd_returns_latest_hour(self, tmp_path):
         bm = _make_backup_manager(tmp_path)
         backup_dir = tmp_path / "backups" / "444"
         backup_dir.mkdir(parents=True)
-        (backup_dir / "backup_20260101.state").write_bytes(b"saved_bytes")
+        (backup_dir / "backup_20260101_00.state").write_bytes(b"hour_00")
+        (backup_dir / "backup_20260101_14.state").write_bytes(b"hour_14")
+        (backup_dir / "backup_20260101_08.state").write_bytes(b"hour_08")
 
         result = bm.load_backup(chat_id=444, date_str="20260101")
 
-        assert result == b"saved_bytes"
+        assert result == b"hour_14"
 
-    def test_load_backup_returns_none_for_missing(self, tmp_path):
+    def test_load_backup_yyyymmdd_hh_exact(self, tmp_path):
+        bm = _make_backup_manager(tmp_path)
+        backup_dir = tmp_path / "backups" / "445"
+        backup_dir.mkdir(parents=True)
+        (backup_dir / "backup_20260101_08.state").write_bytes(b"hour_08")
+        (backup_dir / "backup_20260101_14.state").write_bytes(b"hour_14")
+
+        result = bm.load_backup(chat_id=445, date_str="20260101:08")
+
+        assert result == b"hour_08"
+
+    def test_load_backup_returns_none_for_missing_day(self, tmp_path):
         bm = _make_backup_manager(tmp_path)
         result = bm.load_backup(chat_id=555, date_str="20260101")
+        assert result is None
+
+    def test_load_backup_returns_none_for_missing_exact_hour(self, tmp_path):
+        bm = _make_backup_manager(tmp_path)
+        backup_dir = tmp_path / "backups" / "556"
+        backup_dir.mkdir(parents=True)
+        (backup_dir / "backup_20260101_14.state").write_bytes(b"hour_14")
+
+        result = bm.load_backup(chat_id=556, date_str="20260101:08")
         assert result is None
 
 
@@ -106,12 +167,12 @@ class TestListBackups:
         bm = _make_backup_manager(tmp_path)
         backup_dir = tmp_path / "backups" / "666"
         backup_dir.mkdir(parents=True)
-        for date in ["20260301", "20260101", "20260201"]:
-            (backup_dir / f"backup_{date}.state").write_bytes(b"data")
+        for name in ["backup_20260301_00.state", "backup_20260101_14.state", "backup_20260201_08.state"]:
+            (backup_dir / name).write_bytes(b"data")
 
         result = bm.list_backups(chat_id=666)
 
-        assert result == ["20260101", "20260201", "20260301"]
+        assert result == ["20260101:14", "20260201:08", "20260301:00"]
 
     def test_list_backups_empty_when_no_dir(self, tmp_path):
         bm = _make_backup_manager(tmp_path)
@@ -122,12 +183,13 @@ class TestListBackups:
         bm = _make_backup_manager(tmp_path)
         backup_dir = tmp_path / "backups" / "888"
         backup_dir.mkdir(parents=True)
-        (backup_dir / "backup_20260101.state").write_bytes(b"data")
+        (backup_dir / "backup_20260101_00.state").write_bytes(b"data")
         (backup_dir / "other_file.txt").write_bytes(b"noise")
+        (backup_dir / "backup_20260101.state").write_bytes(b"old_daily_format")
 
         result = bm.list_backups(chat_id=888)
 
-        assert result == ["20260101"]
+        assert result == ["20260101:00"]
 
 
 class TestPurgeOldBackups:
@@ -136,19 +198,18 @@ class TestPurgeOldBackups:
         backup_dir = tmp_path / "backups" / "999"
         backup_dir.mkdir(parents=True)
 
-        # Create one very old backup and one recent one
         cutoff = datetime.utcnow() - timedelta(days=31)
         old_date = cutoff.strftime("%Y%m%d")
         today = datetime.utcnow().strftime("%Y%m%d")
 
-        (backup_dir / f"backup_{old_date}.state").write_bytes(b"old")
-        (backup_dir / f"backup_{today}.state").write_bytes(b"new")
+        (backup_dir / f"backup_{old_date}_00.state").write_bytes(b"old")
+        (backup_dir / f"backup_{today}_00.state").write_bytes(b"new")
 
         deleted = bm.purge_old_backups(chat_id=999)
 
         assert deleted == 1
-        assert not (backup_dir / f"backup_{old_date}.state").exists()
-        assert (backup_dir / f"backup_{today}.state").exists()
+        assert not (backup_dir / f"backup_{old_date}_00.state").exists()
+        assert (backup_dir / f"backup_{today}_00.state").exists()
 
     def test_purge_old_backups_returns_zero_for_missing_dir(self, tmp_path):
         bm = _make_backup_manager(tmp_path)
@@ -160,14 +221,27 @@ class TestPurgeOldBackups:
         backup_dir = tmp_path / "backups" / "1111"
         backup_dir.mkdir(parents=True)
 
-        # Recent backup — within retention window
         recent = (datetime.utcnow() - timedelta(days=1)).strftime("%Y%m%d")
-        (backup_dir / f"backup_{recent}.state").write_bytes(b"recent")
+        (backup_dir / f"backup_{recent}_12.state").write_bytes(b"recent")
 
         deleted = bm.purge_old_backups(chat_id=1111)
 
         assert deleted == 0
-        assert (backup_dir / f"backup_{recent}.state").exists()
+        assert (backup_dir / f"backup_{recent}_12.state").exists()
+
+    def test_purge_old_backups_purges_multiple_hours_same_day(self, tmp_path):
+        bm = _make_backup_manager(tmp_path)
+        backup_dir = tmp_path / "backups" / "2222"
+        backup_dir.mkdir(parents=True)
+
+        cutoff = datetime.utcnow() - timedelta(days=31)
+        old_date = cutoff.strftime("%Y%m%d")
+        (backup_dir / f"backup_{old_date}_00.state").write_bytes(b"old_h0")
+        (backup_dir / f"backup_{old_date}_12.state").write_bytes(b"old_h12")
+
+        deleted = bm.purge_old_backups(chat_id=2222)
+
+        assert deleted == 2
 
 
 class TestGetActiveChatIds:

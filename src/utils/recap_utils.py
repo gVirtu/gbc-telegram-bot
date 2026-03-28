@@ -3,10 +3,18 @@
 import asyncio
 import logging
 
+from src.adapters.base import get_adapter
 from src.config import settings
+from src.utils.mirror_utils import is_media_only_mirror
 from src.utils.state_manager import state_manager
 
 logger = logging.getLogger(__name__)
+
+
+def get_input_handler():
+    """Lazy import wrapper to avoid circular imports."""
+    from src.handlers.input_handler import get_input_handler as _get
+    return _get()
 
 
 async def send_recap_to_chat(
@@ -100,3 +108,68 @@ async def send_recap_to_chat(
             await asyncio.sleep(settings.recap_part_send_delay_seconds)
 
     return sent_any
+
+
+async def auto_send_split_recap_part(
+    leader_id: int,
+    date_str: str,
+    part_number: int,
+    is_rt: bool,
+) -> None:
+    """Auto-send a finalized split recap part to leader + non-media-only mirrors.
+
+    Called when TimelapseEncoder finalizes a part during a split. Checks the
+    auto_send_recaps feature flag, sends the specific finalized part to all
+    recipients, resumes the game for successful sends, and marks auto_sent_at
+    on the part record once at least one send succeeded.
+
+    Args:
+        leader_id: Leader chat ID that owns the recap files
+        date_str: Date in YYYYMMDD format
+        part_number: The part number that was just finalized (split out)
+        is_rt: Whether this is a realtime recap
+    """
+    leader_config = state_manager.get_or_create_chat_config(leader_id)
+    if not leader_config.feature_flags.get("auto_send_recaps", False):
+        return
+
+    all_parts = await state_manager.get_recap_parts(leader_id, date_str, is_rt)
+    target_parts = [p for p in all_parts if p.part_number == part_number]
+
+    if not target_parts:
+        logger.warning(
+            f"No DB record for part {part_number} of leader {leader_id} on {date_str}; skipping auto-send"
+        )
+        return
+
+    mirror_ids = state_manager.get_mirror_chat_ids(leader_id)
+    recipients = [leader_id] + [m for m in mirror_ids if not is_media_only_mirror(m)]
+
+    any_sent = False
+    for chat_id in recipients:
+        config = state_manager.get_or_create_chat_config(chat_id)
+        adapter = get_adapter(config.platform)
+        if adapter is None:
+            logger.warning(
+                f"No adapter for platform '{config.platform}' (chat {chat_id}); skipping split auto-send"
+            )
+            continue
+
+        success = await send_recap_to_chat(
+            chat_id, leader_id, date_str, adapter, parts_to_send=target_parts
+        )
+        if success:
+            any_sent = True
+            try:
+                await get_input_handler().resume_game(chat_id, adapter)
+            except Exception:
+                logger.exception(
+                    f"Failed to resume game for chat {chat_id} after split recap auto-send"
+                )
+        else:
+            logger.warning(
+                f"Failed to auto-send split recap part {part_number} to chat {chat_id} (leader {leader_id})"
+            )
+
+    if any_sent:
+        await state_manager.mark_recap_part_auto_sent(leader_id, date_str, part_number, is_rt)

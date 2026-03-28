@@ -896,6 +896,7 @@ class DatabaseManager:
                 file_size_bytes=row['file_size_bytes'],
                 created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else None,
                 updated_at=datetime.fromisoformat(row['updated_at']) if row['updated_at'] else None,
+                auto_sent_at=datetime.fromisoformat(row['auto_sent_at']) if row['auto_sent_at'] else None,
             )
             for row in rows
         ]
@@ -933,6 +934,58 @@ class DatabaseManager:
         )
         self.connection.commit()
         logger.debug(f"Split recap for chat {chat_id}, date {date}: part {current_part_number} -> {next_part}, is_rt={is_rt}")
+
+    async def mark_recap_part_auto_sent(
+        self,
+        chat_id: int,
+        date: str,
+        part_number: int,
+        is_rt: bool,
+    ) -> None:
+        """Mark a recap part as auto-sent by setting auto_sent_at timestamp."""
+        now = datetime.utcnow().isoformat()
+        self.connection.execute(
+            "UPDATE recap_files SET auto_sent_at = ? WHERE chat_id = ? AND date = ? AND part_number = ? AND is_rt = ?;",
+            (now, chat_id, date, part_number, is_rt),
+        )
+        self.connection.commit()
+        logger.debug(
+            f"Marked recap part {part_number} as auto-sent for chat {chat_id}, date {date}, is_rt={is_rt}"
+        )
+
+    async def get_unsent_recap_parts(
+        self,
+        chat_id: int,
+        date: str,
+        is_rt: bool,
+    ) -> list:
+        """Get recap parts not yet auto-sent (auto_sent_at IS NULL), ordered by part_number."""
+        from src.models.game_state import RecapFileRecord
+
+        sql = """
+        SELECT * FROM recap_files
+        WHERE chat_id = ? AND date = ? AND is_rt = ? AND auto_sent_at IS NULL
+        ORDER BY part_number ASC;
+        """
+        cursor = self.connection.execute(sql, (chat_id, date, is_rt))
+        rows = cursor.fetchall()
+
+        return [
+            RecapFileRecord(
+                chat_id=row['chat_id'],
+                date=row['date'],
+                part_number=row['part_number'],
+                is_rt=bool(row['is_rt']),
+                file_id=row['file_id'],
+                frame_count=row['frame_count'],
+                duration_sec=row['duration_sec'],
+                file_size_bytes=row['file_size_bytes'],
+                created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else None,
+                updated_at=datetime.fromisoformat(row['updated_at']) if row['updated_at'] else None,
+                auto_sent_at=datetime.fromisoformat(row['auto_sent_at']) if row['auto_sent_at'] else None,
+            )
+            for row in rows
+        ]
 
     # ==================== Reaction Queue ====================
 

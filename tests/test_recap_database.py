@@ -269,3 +269,32 @@ class TestAutoSentAtMigration:
         parts = await db_manager.get_recap_parts(123, "20260101", False)
         assert hasattr(parts[0], "auto_sent_at")
         assert parts[0].auto_sent_at is None  # not yet marked
+
+    @pytest.mark.asyncio
+    async def test_mark_recap_part_auto_sent_sets_timestamp(self, db_manager):
+        """mark_recap_part_auto_sent sets auto_sent_at to a non-null value."""
+        await db_manager.upsert_recap_metadata(123, "20260101", 10, 1.0, 500)
+        await db_manager.mark_recap_part_auto_sent(123, "20260101", 1, False)
+        parts = await db_manager.get_recap_parts(123, "20260101", False)
+        assert parts[0].auto_sent_at is not None
+
+    @pytest.mark.asyncio
+    async def test_get_unsent_recap_parts_excludes_sent(self, db_manager):
+        """get_unsent_recap_parts returns only parts where auto_sent_at IS NULL."""
+        await db_manager.upsert_recap_metadata(123, "20260101", 10, 1.0, 500, part_number=1)
+        await db_manager.split_recap_part(123, "20260101", 1, False)
+        await db_manager.upsert_recap_metadata(123, "20260101", 10, 1.0, 500, part_number=2)
+        # Mark part 1 as auto-sent
+        await db_manager.mark_recap_part_auto_sent(123, "20260101", 1, False)
+        unsent = await db_manager.get_unsent_recap_parts(123, "20260101", False)
+        assert len(unsent) == 1
+        assert unsent[0].part_number == 2
+
+    @pytest.mark.asyncio
+    async def test_get_unsent_recap_parts_returns_all_when_none_sent(self, db_manager):
+        """get_unsent_recap_parts returns all parts when none have been auto-sent."""
+        await db_manager.upsert_recap_metadata(123, "20260101", 10, 1.0, 500, part_number=1)
+        await db_manager.split_recap_part(123, "20260101", 1, False)
+        await db_manager.upsert_recap_metadata(123, "20260101", 10, 1.0, 500, part_number=2)
+        unsent = await db_manager.get_unsent_recap_parts(123, "20260101", False)
+        assert len(unsent) == 2

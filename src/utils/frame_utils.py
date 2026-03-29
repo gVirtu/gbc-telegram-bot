@@ -1177,7 +1177,7 @@ async def save_frames_as_avif_streaming(
     transform: Callable[[np.ndarray, int], np.ndarray],
     output_path: str,
     fps: int,
-    crf: int = 63,
+    crf: int = 45,
     low_priority: bool = False,
 ) -> None:
     """Encode a stream of raw frames into an animated AVIF file via FFmpeg.
@@ -1208,7 +1208,7 @@ async def save_frames_as_avif_streaming(
 
     first = transform(first_raw, 0)
     h, w = first.shape[:2]
-
+    
     cmd = [
         'ffmpeg', '-y',
         '-f', 'rawvideo',
@@ -1216,12 +1216,17 @@ async def save_frames_as_avif_streaming(
         '-s', f'{w}x{h}',
         '-framerate', str(fps),
         '-i', 'pipe:0',
+        '-an',
+        '-vf', 'format=yuv420p',
         '-c:v', 'libaom-av1',
         '-usage', 'realtime',
+        '-deadline', 'realtime',
         '-cpu-used', '8',
-        '-row-mt', '1',
         '-lag-in-frames', '0',
         '-threads', '1',
+        '-row-mt', '0',
+        '-tile-columns', '0',
+        '-tile-rows', '0',
         '-crf', str(crf),
         '-b:v', '0',
         '-loop', '0',

@@ -3,20 +3,37 @@ FROM python:3.11-slim-bookworm
 # Create non-root user first
 RUN groupadd -r appgroup && useradd -r -g appgroup -u 1000 appuser
 
-# Add debian sid repository with low priority, to grab a newer libaom3
-RUN echo "deb http://deb.debian.org/debian sid main" > /etc/apt/sources.list.d/sid.list && \
-    printf "Package: *\nPin: release n=sid\nPin-Priority: 10\n" > /etc/apt/preferences.d/sid.pref
-
-# Install runtime dependencies including ffmpeg and jemalloc, then pull libaom3 from sid
+# Install runtime dependencies and build tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg \
     libgl1-mesa-glx \
     libglib2.0-0 \
-    git \
-    build-essential \
     libjemalloc2 \
-    && apt-get install -y --no-install-recommends -t sid libaom3 \
-    && rm -rf /var/lib/apt/lists/* \
+    build-essential \
+    cmake \
+    git \
+    nasm \
+    yasm \
+    pkg-config \
+    ninja-build \
+    libx264-dev \
+    && \
+    # Build SVT-AV1 v4.1.0 from source
+    git clone --depth 1 -b v4.1.0 https://gitlab.com/AOMediaCodec/SVT-AV1.git /tmp/SVT-AV1 && \
+    cd /tmp/SVT-AV1/Build && \
+    cmake .. -G"Ninja" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local -DBUILD_SHARED_LIBS=OFF -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF -DSVT_AV1_LTO=OFF && \
+    ninja -j$(nproc) && \
+    ninja install && \
+    # Build FFmpeg from source
+    git clone --depth 1 -b release/8.1 https://github.com/FFmpeg/FFmpeg.git /tmp/FFmpeg && \
+    cd /tmp/FFmpeg && \
+    ./configure --prefix=/usr/local --enable-gpl --enable-libsvtav1 --enable-libx264 --pkg-config-flags="--static" && \
+    make -j$(nproc) && \
+    make install && \
+    # Clean up build tools and temporary files to keep image size small
+    rm -rf /tmp/SVT-AV1 /tmp/FFmpeg && \
+    apt-get remove -y cmake nasm yasm pkg-config ninja-build && \
+    apt-get autoremove -y && \
+    rm -rf /var/lib/apt/lists/* \
     && apt-get clean \
     && rm -rf /var/cache/apt/*
 

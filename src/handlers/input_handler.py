@@ -642,7 +642,7 @@ class InputHandler:
         last_raw = raw_frames[-1] if raw_frames else np.array(controller.get_frame())
         last_raw_h, last_raw_w = last_raw.shape[:2]
         last_scaled = np.array(Image.fromarray(last_raw).resize(
-            (last_raw_w * 3, last_raw_h * 3), Image.Resampling.NEAREST
+            (last_raw_w * 2, last_raw_h * 2), Image.Resampling.NEAREST
         ))
         tbc_frames = generate_tbc_frames(
             last_scaled,
@@ -681,19 +681,20 @@ class InputHandler:
         #    Raw frames (index < num_raw_frames): scale 3x + reactions + sidebar
         #    TBC frames (index >= num_raw_frames): already scaled, sidebar only
         reaction_transform_fn = (
-            _make_reaction_frame_transform(reactions, capture_fps, frame_skip=1)
+            _make_reaction_frame_transform(reactions, capture_fps, scale=2, frame_skip=1)
             if reactions else None
         )
         sidebar_transform_fn = _make_frame_transform(
             pre_existing_inputs_for_overlay, new_inputs_with_offsets, capture_fps,
             user_colors=user_colors,
+            scale=2
         )
 
         def animation_transform(frame: np.ndarray, index: int) -> np.ndarray:
             if index < num_raw_frames:
                 h, w = frame.shape[:2]
                 scaled = np.array(Image.fromarray(frame).resize(
-                    (w * 3, h * 3), Image.Resampling.NEAREST
+                    (w * 2, h * 2), Image.Resampling.NEAREST
                 ))
                 if reaction_transform_fn is not None:
                     scaled = reaction_transform_fn(scaled, index)

@@ -198,8 +198,9 @@ def create_empty_frame(
 
 def render_input_sidebar(
     inputs: list,
-    width: int = 288,
-    height: int = 432,
+    base_width: int = 96,
+    base_height: int = 144,
+    scale: int = 3,
     active_labels: Optional[dict] = None,
     user_colors: Optional[dict] = None,
 ) -> np.ndarray:
@@ -213,6 +214,7 @@ def render_input_sidebar(
         inputs: List of dicts with keys: user_name, button (string value)
         width: Width of the sidebar in pixels
         height: Height of the sidebar in pixels
+        scale: Multiplier for sidebar elements
         active_labels: Optional dict mapping input index → (x_offset_px, alpha_0_to_1)
             for animated "+score" labels. None means no labels.
 
@@ -231,6 +233,8 @@ def render_input_sidebar(
         "wait": "…",
     }
 
+    width=base_width*scale
+    height=base_height*scale
     img = Image.new("RGB", (width, height), color=(0, 0, 0))
     draw = ImageDraw.Draw(img)
 
@@ -239,15 +243,15 @@ def render_input_sidebar(
     font_path = Path(__file__).parent.parent.parent / "assets" / "fonts" / "unifont-17.0.04.otf"
     try:
         from PIL import ImageFont
-        font = ImageFont.truetype(str(font_path), size=27)
-        label_font = ImageFont.truetype(str(font_path), size=18)
+        font = ImageFont.truetype(str(font_path), size=9*scale)
+        label_font = ImageFont.truetype(str(font_path), size=6*scale)
     except Exception:
         from PIL import ImageFont
         font = ImageFont.load_default()
         label_font = ImageFont.load_default()
 
-    line_height = 30
-    padding = 6
+    line_height = 10*scale
+    padding = 2*scale
     y = height - line_height - padding  # start from bottom
 
     # Render inputs bottom-up (most recent at bottom)
@@ -290,8 +294,8 @@ def render_input_sidebar(
         if streak > 1:
             streak_pre = " "
             streak_post = f"{streak}"
-            streak_icon = _load_streak_icon(16)
-            streak_icon_y_offset = 6
+            streak_icon = _load_streak_icon(5*scale)
+            streak_icon_y_offset = 2*scale
             streak_icon_w = streak_icon.width if streak_icon is not None else 0
             try:
                 streak_pre_w = draw.textbbox((0, 0), streak_pre, font=font)[2]
@@ -339,8 +343,8 @@ def render_input_sidebar(
                 lw = lbbox[2] - lbbox[0]
             except Exception:
                 lw = len(label_text) * 5
-            gap_x = 6
-            gap_y = 6
+            gap_x = 2*scale
+            gap_y = 2*scale
 
             lx = x + x_off - lw - gap_x
             ly = y + gap_y
@@ -394,6 +398,7 @@ def _make_frame_transform(
     pre_existing: list,
     new_inputs_with_offsets: list,
     capture_fps: int = 15,
+    scale: int = 3,
     user_colors: Optional[dict] = None,
 ) -> Callable[[np.ndarray], np.ndarray]:
     """Build a stateful per-frame transform that composites the input sidebar.
@@ -405,6 +410,8 @@ def _make_frame_transform(
         pre_existing: Input dicts already visible at frame 0.
         new_inputs_with_offsets: List of (input_dict, frame_offset) pairs.
         capture_fps: Capture frames per second (used for label animation duration).
+        scale: Scale factor for the sidebar.
+        
 
     Returns:
         A callable ``transform(frame) -> composited_frame``.
@@ -436,7 +443,7 @@ def _make_frame_transform(
                     if state["current_inputs"][ci] is inp_dict:
                         translation_t = frames_since / max((score_label_animation_duration//2) - 1, 1)
                         translation_ease = 1.0 - (1.0 - translation_t) ** 2  # quadratic ease-out
-                        x_offset = -10.0 * translation_ease
+                        x_offset = -4.0 * scale * translation_ease
 
                         alpha_t = frames_since / max(score_label_animation_duration - 1, 1)
                         alpha_ease = 1.0 - (1.0 - alpha_t) ** 2  # quadratic ease-out
@@ -445,7 +452,7 @@ def _make_frame_transform(
                         active_labels[ci] = (x_offset, alpha)
                         break
 
-        sidebar = render_input_sidebar(state["current_inputs"], active_labels=active_labels, user_colors=user_colors)
+        sidebar = render_input_sidebar(state["current_inputs"], active_labels=active_labels, user_colors=user_colors, scale=scale)
         return composite_overlay(frame, sidebar)
 
     return transform
@@ -855,6 +862,7 @@ def apply_reaction_overlay(
 def _make_reaction_frame_transform(
     reactions: list,
     capture_fps: int = 15,
+    scale: int = 3,
     frame_skip: int = 1,
     asset_dir: Path = Path("./assets"),
 ) -> Callable[[np.ndarray, int], np.ndarray]:
@@ -910,7 +918,7 @@ def _make_reaction_frame_transform(
     font_path = Path(__file__).parent.parent.parent / "assets" / "fonts" / "OpenSans-Bold.ttf"
     try:
         from PIL import ImageFont
-        font = ImageFont.truetype(str(font_path), size=16)
+        font = ImageFont.truetype(str(font_path), size=5 * scale)
     except Exception:
         from PIL import ImageFont
         font = ImageFont.load_default()

@@ -9,7 +9,7 @@ from src.utils.frame_utils import composite_overlay, render_input_sidebar, _make
 class TestRenderInputSidebar:
     def test_render_input_sidebar_empty_inputs(self):
         """Empty list should return a black image with correct shape."""
-        result = render_input_sidebar([], width=192, height=288)
+        result = render_input_sidebar([], base_width=192, base_height=288, scale=1)
         assert result.shape == (288, 192, 3)
         assert result.dtype == np.uint8
         # All pixels below the date should be black (0, 0, 0)
@@ -19,7 +19,7 @@ class TestRenderInputSidebar:
     def test_render_input_sidebar_single_input(self):
         """One input renders text, so non-black pixels should be present."""
         inputs = [{"user_name": "Alice", "button": "left"}]
-        result = render_input_sidebar(inputs, width=192, height=288)
+        result = render_input_sidebar(inputs, base_width=192, base_height=288, scale=1)
         assert result.shape == (288, 192, 3)
         # Should have some white (non-zero) pixels from the rendered text
         region = result[24:, :, :]
@@ -28,7 +28,7 @@ class TestRenderInputSidebar:
     def test_render_input_sidebar_overflow_stops_at_top(self):
         """With 100+ inputs, image height should still be 288 (no overflow)."""
         inputs = [{"user_name": f"User{i}", "button": "a"} for i in range(150)]
-        result = render_input_sidebar(inputs, width=192, height=288)
+        result = render_input_sidebar(inputs, base_width=192, base_height=288, scale=1)
         assert result.shape == (288, 192, 3)
 
     def test_render_input_sidebar_button_chars(self):
@@ -47,7 +47,7 @@ class TestRenderInputSidebar:
         }
         for button_val, expected_char in button_map.items():
             inputs = [{"user_name": "User", "button": button_val}]
-            result = render_input_sidebar(inputs, width=192, height=288)
+            result = render_input_sidebar(inputs, base_width=192, base_height=288, scale=1)
             assert result.shape == (288, 192, 3), f"Wrong shape for button '{button_val}'"
             # Non-black pixels should be present (text rendered)
             region = result[24:, :, :]

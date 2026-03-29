@@ -612,6 +612,7 @@ def save_frames_as_avif(
 def generate_tbc_frames(
     base_frame: np.ndarray,
     duration_frames: int = 20,
+    end_hold_frames: int = 20,
     overlay_path: Path = Path("./assets/to_be_continued.png"),
     max_width_percent: float = 0.7,
 ) -> list[np.ndarray]:
@@ -662,6 +663,10 @@ def generate_tbc_frames(
 
             frame = np.array(frame_image)
             frames.append(frame)
+
+        last_frame = frames[-1]
+        for _ in range(end_hold_frames):
+            frames.append(last_frame)
 
     except Exception as e:
         logger.error(f"Error generating TBC frames: {e}")

@@ -299,23 +299,23 @@ class TestGenerateTbcFrames:
         base_frame = create_empty_frame()
         result = generate_tbc_frames(base_frame)
         assert isinstance(result, list)
-        assert len(result) == 20  # default duration
+        assert len(result) == 40  # default duration x2 (due to end hold frames)
 
     def test_generate_tbc_frames_uses_custom_duration(self):
         """Test that generate_tbc_frames respects custom duration."""
         from src.utils.frame_utils import generate_tbc_frames
         from src.utils.frame_utils import create_empty_frame
         base_frame = create_empty_frame()
-        result = generate_tbc_frames(base_frame, duration_frames=10)
-        assert len(result) == 10
+        result = generate_tbc_frames(base_frame, duration_frames=10, end_hold_frames=5)
+        assert len(result) == 15
 
     def test_generate_tbc_frames_preserves_shape(self):
         """Test that generated frames have same shape as base frame."""
         from src.utils.frame_utils import generate_tbc_frames
         from src.utils.frame_utils import create_empty_frame
         base_frame = create_empty_frame(width=160, height=144)
-        frames = generate_tbc_frames(base_frame, duration_frames=5)
-        assert len(frames) == 5
+        frames = generate_tbc_frames(base_frame, duration_frames=5, end_hold_frames=5)
+        assert len(frames) == 10
         for f in frames:
             assert f.shape == base_frame.shape
 

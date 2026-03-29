@@ -258,7 +258,8 @@ class TimelapseEncoder:
                     chat_id, date, video_path, actual_frame_count, fps, is_rt, current_part
                 )
                 await self._check_and_split_if_needed(chat_id, date, video_path, is_rt, current_part)
-
+            except Exception as e:
+                logger.error(f"Failed to encode timelapse for chat {chat_id}, date {date}: {e}")
             finally:
                 fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 

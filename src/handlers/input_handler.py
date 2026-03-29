@@ -286,7 +286,7 @@ class InputHandler:
 
         # Signal drain or reset debounce timer (keyed to leader)
         drain_event = self._get_or_create_drain_event(leader_id)
-        if buffer.total_buttons() >= settings.max_sequence_length:
+        if (buffer.total_buttons() >= settings.max_sequence_length) or (button == GameButton.WAIT):
             drain_event.set()
         else:
             # Cancel existing timer and start a fresh one
@@ -648,6 +648,7 @@ class InputHandler:
             last_scaled,
             overlay_path=settings.tbc_overlay_path,
             duration_frames=settings.tbc_duration_frames,
+            end_hold_frames=settings.tbc_duration_frames,
             max_width_percent=0.7,
         )
         num_tbc_frames = len(tbc_frames)

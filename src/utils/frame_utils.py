@@ -1221,7 +1221,7 @@ async def save_frames_as_avif_streaming(
 
     first = transform(first_raw, 0)
     h, w = first.shape[:2]
-    
+
     cmd = [
         'ffmpeg', '-y',
         '-f', 'rawvideo',
@@ -1231,20 +1231,39 @@ async def save_frames_as_avif_streaming(
         '-i', 'pipe:0',
         '-an',
         '-vf', 'format=yuv420p',
-        '-c:v', 'libaom-av1',
-        '-usage', 'realtime',
-        '-deadline', 'realtime',
-        '-cpu-used', '8',
-        '-lag-in-frames', '0',
-        '-threads', '1',
-        '-row-mt', '0',
-        '-tile-columns', '0',
-        '-tile-rows', '0',
+        '-c:v', 'libsvtav1',
+        '-preset', '13',
         '-crf', str(crf),
-        '-b:v', '0',
+        '-svtav1-params',
+        'rtc=1:tune=1:pred-struct=1:hierarchical-levels=2:lookahead=0:scd=0:enable-overlays=0:fast-decode=1:film-grain=0:enable-tpl-la=0:enable-dlf=0:enable-cdef=0:enable-restoration=0:tile-columns=0:tile-rows=0',
+        '-threads', '1',
         '-loop', '0',
         output_path,
     ]
+    
+    # cmd = [
+    #     'ffmpeg', '-y',
+    #     '-f', 'rawvideo',
+    #     '-pix_fmt', 'rgb24',
+    #     '-s', f'{w}x{h}',
+    #     '-framerate', str(fps),
+    #     '-i', 'pipe:0',
+    #     '-an',
+    #     '-vf', 'format=yuv420p',
+    #     '-c:v', 'libaom-av1',
+    #     '-usage', 'realtime',
+    #     '-deadline', 'realtime',
+    #     '-cpu-used', '8',
+    #     '-lag-in-frames', '0',
+    #     '-threads', '1',
+    #     '-row-mt', '0',
+    #     '-tile-columns', '0',
+    #     '-tile-rows', '0',
+    #     '-crf', str(crf),
+    #     '-b:v', '0',
+    #     '-loop', '0',
+    #     output_path,
+    # ]
 
     kwargs: dict = {}
     if low_priority:

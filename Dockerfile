@@ -1,5 +1,7 @@
 FROM python:3.11-slim-bookworm
 
+ARG TARGETARCH
+
 # Create non-root user first
 RUN groupadd -r appgroup && useradd -r -g appgroup -u 1000 appuser
 
@@ -17,17 +19,36 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ninja-build \
     libx264-dev \
     && \
+    if [ "$TARGETARCH" = "amd64" ]; then \
+    export CFLAGS="-O3" && \
+    export CXXFLAGS="-O3" && \
+    export LDFLAGS="-Wl,--no-keep-memory" && \
+    export CMAKE_LTO="-DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF -DSVT_AV1_LTO=OFF" && \
+    export FFMPEG_LTO=""; \
+    elif [ "$TARGETARCH" = "arm64" ]; then \
+    export CFLAGS="-O3" && \
+    export CXXFLAGS="-O3" && \
+    export LDFLAGS="-Wl,--no-keep-memory" && \
+    export CMAKE_LTO="-DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF -DSVT_AV1_LTO=OFF" && \
+    export FFMPEG_LTO=""; \
+    else \
+    export CMAKE_LTO="-DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF -DSVT_AV1_LTO=OFF" && \
+    export FFMPEG_LTO=""; \
+    fi && \
+    # Cap build jobs to prevent LTO out-of-memory errors
+    BUILD_JOBS=$(nproc) && \
+    if [ "$BUILD_JOBS" -gt 4 ]; then BUILD_JOBS=4; fi && \
     # Build SVT-AV1 v4.1.0 from source
     git clone --depth 1 -b v4.1.0 https://gitlab.com/AOMediaCodec/SVT-AV1.git /tmp/SVT-AV1 && \
     cd /tmp/SVT-AV1/Build && \
-    cmake .. -G"Ninja" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local -DBUILD_SHARED_LIBS=OFF -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF -DSVT_AV1_LTO=OFF && \
-    ninja -j$(nproc) && \
+    cmake .. -G"Ninja" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local -DBUILD_SHARED_LIBS=ON $CMAKE_LTO && \
+    ninja -j$BUILD_JOBS && \
     ninja install && \
     # Build FFmpeg from source
     git clone --depth 1 -b release/8.1 https://github.com/FFmpeg/FFmpeg.git /tmp/FFmpeg && \
     cd /tmp/FFmpeg && \
-    ./configure --prefix=/usr/local --enable-gpl --enable-libsvtav1 --enable-libx264 --pkg-config-flags="--static" && \
-    make -j$(nproc) && \
+    ./configure --prefix=/usr/local --enable-gpl --enable-libsvtav1 --enable-libx264 --pkg-config-flags="" $FFMPEG_LTO --extra-cflags="$CFLAGS" --extra-cxxflags="$CXXFLAGS" --extra-ldflags="$LDFLAGS" && \
+    make -j$BUILD_JOBS && \
     make install && \
     # Clean up build tools and temporary files to keep image size small
     rm -rf /tmp/SVT-AV1 /tmp/FFmpeg && \

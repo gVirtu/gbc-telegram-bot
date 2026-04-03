@@ -102,6 +102,7 @@ class GameController:
         self.pyboy: Optional[PyBoy] = None
         self._initialized = False
         self._modifier_module: Optional[ModuleType] = None
+        self._status_bar_module: Optional[ModuleType] = None
         self._capturing: bool = False
         self._capture_interval: int = 1
         self._capture_tick_count: int = 0
@@ -160,6 +161,7 @@ class GameController:
             # Load game-specific hooks based on cartridge title
             self._hook_module = self._load_hook_module(self.pyboy.cartridge_title)
             self._modifier_module = self._load_modifier_module(self.pyboy.cartridge_title)
+            self._status_bar_module = self._load_status_bar_module(self.pyboy.cartridge_title)
             logger.info(f"Game '{self.pyboy.cartridge_title}' initialized successfully for chat {self.chat_id}")
             
         except Exception as e:
@@ -220,6 +222,45 @@ class GameController:
             return module
         except ImportError:
             logger.debug(f"No modifier module found for: {cartridge_title}")
+            return None
+
+    def _load_status_bar_module(self, cartridge_title: str) -> Optional[ModuleType]:
+        """Dynamically load status bar module for a cartridge.
+
+        Args:
+            cartridge_title: PyBoy cartridge title (e.g., "PKPCRYSTAL")
+
+        Returns:
+            Module if found, None otherwise
+        """
+        if not cartridge_title:
+            return None
+
+        module_name = f"src.game_status_bars.{cartridge_title.lower()}"
+
+        try:
+            import importlib
+            module = importlib.import_module(module_name)
+            logger.debug(f"Loaded status bar module: {module_name}")
+            return module
+        except ImportError:
+            logger.debug(f"No status bar module found for: {cartridge_title}")
+            return None
+
+    def get_status_bar_data(self) -> Optional[dict]:
+        """Get status bar data from the game-specific module.
+
+        Returns:
+            Dict of status bar data, or None if no module exists.
+        """
+        if self._status_bar_module is None:
+            return None
+        if not hasattr(self._status_bar_module, "get_status_bar_data"):
+            return None
+        try:
+            return self._status_bar_module.get_status_bar_data(self.pyboy)
+        except Exception as e:
+            logger.warning(f"Failed to get status bar data: {e}")
             return None
 
     def get_modifier_specs(self) -> list[ModifierButtonSpec]:
@@ -510,6 +551,7 @@ class GameController:
             self._initialized = False
             self._hook_module = None
             self._modifier_module = None
+            self._status_bar_module = None
     
     def __del__(self):
         """Destructor to ensure emulator is stopped."""

@@ -105,12 +105,12 @@ class TestApplyOverlayComposite:
         assert len(result) == 5
 
     def test_output_shape_is_composited(self):
-        """Each output frame has sidebar width added (288×320 → 288×512)."""
+        """Each output frame has sidebar width added and status bar height (16*scale=48 at scale=3)."""
         from src.utils.frame_utils import apply_overlay_composite
         frames = [np.zeros((432, 480, 3), dtype=np.uint8) for _ in range(3)]
         result = apply_overlay_composite(frames, [], [])
         for f in result:
-            assert f.shape == (432, 768, 3)
+            assert f.shape == (480, 768, 3)  # 432 game+sidebar + 48 status bar (16*3)
 
     def test_sidebar_empty_before_offset(self):
         """Sidebar area is all-black on frames before an input's offset."""
@@ -123,8 +123,9 @@ class TestApplyOverlayComposite:
         result = apply_overlay_composite(frames, [], [(new_input, 2)])
 
         # Before offset: sidebar (columns 320+) below date row should be black
-        assert not np.any(result[0][24:, 480:, :] > 10)
-        assert not np.any(result[1][24:, 480:, :] > 10)
+        # Restrict to rows 24:432 to exclude the status bar strip at the bottom
+        assert not np.any(result[0][24:432, 480:, :] > 10)
+        assert not np.any(result[1][24:432, 480:, :] > 10)
 
     def test_sidebar_has_text_at_and_after_offset(self):
         """Sidebar area has white pixels on the frame where input arrives."""
@@ -156,7 +157,8 @@ class TestApplyOverlayComposite:
         result = apply_overlay_composite(frames, [], [(input_a, 1), (input_b, 3)])
 
         def sidebar_white_pixel_count(f):
-            return int(np.sum(f[24:, 480:, :] > 10))
+            # Restrict to sidebar rows only (exclude the status bar strip at the bottom)
+            return int(np.sum(f[24:432, 480:, :] > 10))
 
         count_0 = sidebar_white_pixel_count(result[0])
         count_1 = sidebar_white_pixel_count(result[1])
@@ -188,7 +190,7 @@ class TestScoreLabels:
         # Render with no new inputs — pre-existing get no label
         result = apply_overlay_composite(frames, pre, [], capture_fps=5)
         # We can't easily test label absence vs text presence, but just verify it renders
-        assert result[0].shape == (432, 768, 3)
+        assert result[0].shape == (480, 768, 3)  # 432 + 48 status bar
 
     def test_label_at_frame_0_alpha_is_1(self):
         """At frame 0 (frames_since=0): ease=0, alpha=1.0, x_offset=0."""
@@ -238,8 +240,8 @@ class TestScoreLabels:
         # inp_a at frame 0, inp_b at frame 2
         result = apply_overlay_composite(frames, [], [(inp_a, 0), (inp_b, 2)], capture_fps=capture_fps)
         # Frame 2: both inputs visible, both labels active
-        assert result[2].shape == (432, 768, 3)
+        assert result[2].shape == (480, 768, 3)  # 432 + 48 status bar
         # Frame 0: only inp_a visible, inp_a label active
-        assert result[0].shape == (432, 768, 3)
+        assert result[0].shape == (480, 768, 3)  # 432 + 48 status bar
         # Frame capture_fps + 1: both inputs visible but labels have expired
-        assert result[capture_fps + 1].shape == (432, 768, 3)
+        assert result[capture_fps + 1].shape == (480, 768, 3)  # 432 + 48 status bar

@@ -61,7 +61,9 @@ def test_apply_overlay_composite_adds_inputs_at_offset():
     result = apply_overlay_composite(frames, [], [(new_input, 2)])
 
     def sidebar_has_white(f):
-        return bool(np.any(f[24:, 320:, :] > 10))
+        # Restrict to sidebar rows only (exclude the status bar strip at the bottom).
+        # Sidebar is 144*3=432 tall regardless of frame height; status bar starts at row 432.
+        return bool(np.any(f[24:432, 320:, :] > 10))
 
     assert not sidebar_has_white(result[0])
     assert not sidebar_has_white(result[1])

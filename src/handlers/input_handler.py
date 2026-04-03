@@ -39,6 +39,7 @@ from src.utils.frame_utils import (  # noqa: F401 (needed for test patching)
     build_timelapse_transform,
     generate_tbc_frames,
     hex_to_rgb,
+    render_status_bar,
 )
 from src.utils.mirror_utils import broadcast_game_update, get_leader_chat_id, is_media_only_mirror
 from src.utils.priority_gate import mark_busy, mark_idle
@@ -517,6 +518,9 @@ class InputHandler:
 
         logger.info(f"Executing batch of {len(buttons)} buttons for chat {chat_id} (modifier_states={modifier_states})")
 
+        # Read game-specific status bar data before capture starts
+        status_bar_data = controller.get_status_bar_data()
+
         # Animation capture settings - GameBoy runs at 60fps, capture at 15fps
         game_fps = 60
         capture_fps = 15
@@ -706,10 +710,12 @@ class InputHandler:
                 if reaction_transform_fn is not None:
                     scaled = reaction_transform_fn(scaled, index)
             else:
-                scaled = frame  # TBC frames are already 3x-scaled
-            return sidebar_transform_fn(scaled)
+                scaled = frame  # TBC frames are already 2x-scaled
+            composited = sidebar_transform_fn(scaled)
+            status_bar = render_status_bar(status_bar_data, composited.shape[1], scale=2)
+            return np.vstack([composited, status_bar])
 
-        animation_duration_seconds = (num_raw_frames + num_tbc_frames) / capture_fps
+        animation_duration_seconds = num_raw_frames / capture_fps
 
         recent = state_manager._load_recent_inputs(chat_id)
         pending_count = self._get_or_create_buffer(chat_id).total_buttons()
@@ -765,6 +771,7 @@ class InputHandler:
                             ],
                             "reactions": list(reactions),
                             "user_colors": {k: list(v) for k, v in user_colors.items()},
+                            "status_bar_data": status_bar_data,
                         }
 
                         ts_str = datetime.now().strftime('%Y%m%d_%H%M%S')

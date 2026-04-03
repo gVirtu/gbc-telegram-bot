@@ -774,3 +774,66 @@ class TestSaveFramesAsMp4Streaming:
 
         s_idx = captured_cmd.index("-s")
         assert captured_cmd[s_idx + 1] == "320x144"  # 160*2 x 144
+
+
+class TestRenderStatusBar:
+    """Tests for render_status_bar()."""
+
+    def test_shape_with_none_data_scale3(self):
+        """Returns correct shape (48, 768, 3) when data is None at scale=3."""
+        import numpy as np
+        from src.utils.frame_utils import render_status_bar
+
+        result = render_status_bar(None, width=768, scale=3)
+
+        assert result.shape == (48, 768, 3)
+        assert result.dtype == np.uint8
+
+    def test_shape_with_none_data_scale2(self):
+        """Returns correct shape (32, 512, 3) when data is None at scale=2."""
+        import numpy as np
+        from src.utils.frame_utils import render_status_bar
+
+        result = render_status_bar(None, width=512, scale=2)
+
+        assert result.shape == (32, 512, 3)
+
+    def test_blank_strip_when_data_none(self):
+        """Returns a dark strip when data is None (no text rendered)."""
+        import numpy as np
+        from src.utils.frame_utils import render_status_bar
+
+        result = render_status_bar(None, width=768, scale=3)
+
+        # Should be a uniform dark color — no bright pixels
+        assert result.max() < 50
+
+    def test_shape_with_pkpcrystal_data(self):
+        """Returns correct shape when given valid pkpcrystal data dict."""
+        import numpy as np
+        from src.utils.frame_utils import render_status_bar
+
+        data = {
+            "map_group": 3,
+            "map_number": 7,
+            "party": [155, 158, 152, 0, 0, 0],
+        }
+        result = render_status_bar(data, width=768, scale=3)
+
+        assert result.shape == (48, 768, 3)
+        assert result.dtype == np.uint8
+
+    def test_has_white_pixels_with_data(self):
+        """Status bar with valid data contains white text pixels."""
+        import numpy as np
+        from src.utils.frame_utils import render_status_bar
+
+        data = {
+            "map_group": 3,
+            "map_number": 7,
+            "party": [155, 158, 152, 0, 0, 0],
+        }
+        result = render_status_bar(data, width=768, scale=3)
+
+        # Should have some bright (text) pixels
+        assert result.max() > 200

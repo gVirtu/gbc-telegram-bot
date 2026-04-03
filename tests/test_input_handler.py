@@ -204,6 +204,124 @@ class TestButtonPressHandling:
                     assert drain_event is not None
                     assert drain_event.is_set()
 
+    @pytest.mark.asyncio
+    async def test_wait_button_cancels_existing_timer(self, handler, mock_adapter):
+        """WAIT press must cancel any in-flight debounce timer."""
+        with patch("src.handlers.input_handler.state_manager") as mock_state:
+            mock_state.save_game_state.return_value = None
+            with patch("src.handlers.input_handler.settings") as mock_settings:
+                mock_settings.max_sequence_length = 10
+                mock_settings.maximum_inputs_per_animation = 8
+                mock_settings.input_buffer_seconds = 5.0
+                mock_settings.max_queue_size = 50
+                mock_settings.input_hold_frames = 10
+                mock_settings.animation_duration = 1
+                mock_settings.sequence_delay_seconds = 0.1
+                mock_settings.tbc_overlay_path = MagicMock()
+                mock_settings.tbc_duration_frames = 0
+                mock_settings.timelapse_frame_skip = 1
+
+                handler._sessions[123456] = GameSession(
+                    chat_id=123456,
+                    state=ChatGameState(chat_id=123456, message_id=789)
+                )
+
+                # Plant a fake in-flight timer task
+                fake_timer = asyncio.ensure_future(asyncio.sleep(100))
+                handler._buffer_tasks[123456] = fake_timer
+
+                with patch("src.handlers.input_handler.asyncio.create_task", side_effect=lambda coro, **kw: coro.close()):
+                    await handler.handle_button_press(
+                        callback_data="wait",
+                        chat_id=123456,
+                        message_id=789,
+                        user_id=1,
+                        user_name="Alice",
+                        adapter=mock_adapter,
+                        raw=MagicMock(),
+                    )
+
+                # cancelling() > 0 means cancel() was called; cancelled() is True after the loop runs
+                assert fake_timer.cancelling() > 0 or fake_timer.cancelled()
+
+    @pytest.mark.asyncio
+    async def test_max_sequence_length_cancels_existing_timer(self, handler, mock_adapter):
+        """Hitting max_sequence_length must cancel any in-flight debounce timer."""
+        with patch("src.handlers.input_handler.state_manager") as mock_state:
+            mock_state.save_game_state.return_value = None
+            with patch("src.handlers.input_handler.settings") as mock_settings:
+                mock_settings.max_sequence_length = 2
+                mock_settings.maximum_inputs_per_animation = 8
+                mock_settings.input_buffer_seconds = 5.0
+                mock_settings.max_queue_size = 50
+                mock_settings.input_hold_frames = 10
+                mock_settings.animation_duration = 1
+                mock_settings.sequence_delay_seconds = 0.1
+                mock_settings.tbc_overlay_path = MagicMock()
+                mock_settings.tbc_duration_frames = 0
+                mock_settings.timelapse_frame_skip = 1
+
+                handler._sessions[123456] = GameSession(
+                    chat_id=123456,
+                    state=ChatGameState(chat_id=123456, message_id=789)
+                )
+                handler._pending_buffers[123456] = PendingBuffer(max_size=50)
+                handler._pending_buffers[123456].add(1, "Alice", GameButton.A)
+
+                # Plant a fake in-flight timer task
+                fake_timer = asyncio.ensure_future(asyncio.sleep(100))
+                handler._buffer_tasks[123456] = fake_timer
+
+                with patch("src.handlers.input_handler.asyncio.create_task", side_effect=lambda coro, **kw: coro.close()):
+                    await handler.handle_button_press(
+                        callback_data="b",
+                        chat_id=123456,
+                        message_id=789,
+                        user_id=1,
+                        user_name="Alice",
+                        adapter=mock_adapter,
+                        raw=MagicMock(),
+                    )
+
+                assert fake_timer.cancelling() > 0 or fake_timer.cancelled()
+
+    @pytest.mark.asyncio
+    async def test_drain_event_cleared_after_processing_loop_exits(self, handler, mock_adapter):
+        """drain_event must be clear after the processing loop finishes."""
+        with patch("src.handlers.input_handler.state_manager") as mock_state:
+            mock_state.save_game_state.return_value = None
+            with patch("src.handlers.input_handler.settings") as mock_settings:
+                mock_settings.max_sequence_length = 10
+                mock_settings.maximum_inputs_per_animation = 8
+                mock_settings.input_buffer_seconds = 0.01
+                mock_settings.max_queue_size = 50
+                mock_settings.input_hold_frames = 10
+                mock_settings.animation_duration = 1
+                mock_settings.sequence_delay_seconds = 0.1
+                mock_settings.tbc_overlay_path = MagicMock()
+                mock_settings.tbc_duration_frames = 0
+                mock_settings.timelapse_frame_skip = 1
+                mock_settings.min_update_interval_seconds = 0
+
+                handler._sessions[123456] = GameSession(
+                    chat_id=123456,
+                    state=ChatGameState(chat_id=123456, message_id=789)
+                )
+
+                with patch.object(handler, "_process_batch", new_callable=AsyncMock) as mock_batch:
+                    mock_batch.return_value = {"animation_duration": 0}
+
+                    # Add a button and fire the drain event immediately
+                    handler._pending_buffers[123456] = PendingBuffer(max_size=50)
+                    handler._pending_buffers[123456].add(1, "Alice", GameButton.A)
+                    drain_event = handler._get_or_create_drain_event(123456)
+                    drain_event.set()
+
+                    # Run the processing loop to completion
+                    await handler._process_queue_loop(123456, 789, mock_adapter)
+
+                    assert not drain_event.is_set()
+
 
 class TestStartGame:
     """Test starting a new game."""

@@ -286,13 +286,13 @@ class InputHandler:
 
         # Signal drain or reset debounce timer (keyed to leader)
         drain_event = self._get_or_create_drain_event(leader_id)
+        # Always cancel any existing debounce timer first
+        existing_task = self._buffer_tasks.get(leader_id)
+        if existing_task and not existing_task.done():
+            existing_task.cancel()
         if (buffer.total_buttons() >= settings.max_sequence_length) or (button == GameButton.WAIT):
             drain_event.set()
         else:
-            # Cancel existing timer and start a fresh one
-            existing_task = self._buffer_tasks.get(leader_id)
-            if existing_task and not existing_task.done():
-                existing_task.cancel()
             self._buffer_tasks[leader_id] = asyncio.create_task(
                 self._run_buffer_timer(leader_id)
             )
@@ -473,6 +473,13 @@ class InputHandler:
                 await asyncio.sleep(wait_time)
 
         finally:
+            # Cancel any pending debounce timer and clear stale drain signal
+            existing_task = self._buffer_tasks.get(chat_id)
+            if existing_task and not existing_task.done():
+                existing_task.cancel()
+            drain_event = self._drain_events.get(chat_id)
+            if drain_event:
+                drain_event.clear()
             mark_idle()
             self._processing.discard(chat_id)
             if session:

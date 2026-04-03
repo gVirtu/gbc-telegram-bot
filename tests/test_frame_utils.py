@@ -830,8 +830,7 @@ class TestRenderStatusBar:
         from src.game_status_bars.pkpcrystal import render_status_bar as pkp_render
 
         data = {
-            "map_group": 3,
-            "map_number": 7,
+            "map_name": "Test",
             "party": [155, 158, 152, 0, 0, 0],
         }
         result = render_status_bar(data, width=768, scale=3, render_fn=pkp_render)

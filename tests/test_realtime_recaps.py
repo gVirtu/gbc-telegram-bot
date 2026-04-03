@@ -198,8 +198,7 @@ class TestTimelapseEncoderSplitLogic:
 
             with patch.object(encoder.db_manager, "split_recap_part", new_callable=AsyncMock) as mock_split:
                 with patch("src.tasks.timelapse_encoder.asyncio.create_task", return_value=mock_task):
-                    with patch("src.tasks.timelapse_encoder.auto_send_split_recap_part", new_callable=AsyncMock) as mock_fn:
-                        mock_fn.return_value = None
+                    with patch("src.tasks.timelapse_encoder.auto_send_split_recap_part", new_callable=MagicMock):
                         await encoder._check_and_split_if_needed(123, "20260312", video_path, False, 1)
 
         part_path = tmp_path / "recap_20260312_part1.mp4"
@@ -220,8 +219,7 @@ class TestTimelapseEncoderSplitLogic:
 
             with patch.object(encoder.db_manager, "split_recap_part", new_callable=AsyncMock) as mock_split:
                 with patch("src.tasks.timelapse_encoder.asyncio.create_task", return_value=mock_task):
-                    with patch("src.tasks.timelapse_encoder.auto_send_split_recap_part", new_callable=AsyncMock) as mock_fn:
-                        mock_fn.return_value = None
+                    with patch("src.tasks.timelapse_encoder.auto_send_split_recap_part", new_callable=MagicMock):
                         await encoder._check_and_split_if_needed(123, "20260312", video_path, True, 2)
 
         part_path = tmp_path / "recap_20260312_part2_rt.mp4"

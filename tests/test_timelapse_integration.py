@@ -234,7 +234,8 @@ class TestTimelapseIntegration:
             mock_settings.recap_part_file_size_threshold = 100
             with patch.object(encoder.db_manager, "split_recap_part", new_callable=AsyncMock) as mock_split:
                 with patch("src.tasks.timelapse_encoder.asyncio.create_task"):
-                    await encoder._check_and_split_if_needed(123, "20260221", video_path, False, 1)
+                    with patch("src.tasks.timelapse_encoder.auto_send_split_recap_part", new_callable=MagicMock):
+                        await encoder._check_and_split_if_needed(123, "20260221", video_path, False, 1)
 
         assert (tmp_path / "recap_20260221_part1.mp4").exists()
         assert not video_path.exists()
@@ -253,9 +254,7 @@ class TestTimelapseIntegration:
             with patch.object(encoder.db_manager, "split_recap_part", new_callable=AsyncMock):
                 with patch("src.tasks.timelapse_encoder.asyncio.create_task") as mock_create_task:
                     mock_create_task.return_value = MagicMock()
-                    # Mock the function as an AsyncMock with return_value to avoid coroutine creation
-                    with patch("src.tasks.timelapse_encoder.auto_send_split_recap_part", new_callable=AsyncMock) as mock_fn:
-                        mock_fn.return_value = None
+                    with patch("src.tasks.timelapse_encoder.auto_send_split_recap_part", new_callable=MagicMock):
                         await encoder._check_and_split_if_needed(123, "20260221", video_path, False, 1)
 
         mock_create_task.assert_called_once()
@@ -270,8 +269,7 @@ class TestTimelapseIntegration:
         with patch("src.tasks.timelapse_encoder.settings") as mock_settings:
             mock_settings.recap_part_file_size_threshold = 10 * 1024 * 1024
             with patch("src.tasks.timelapse_encoder.asyncio.create_task") as mock_create_task:
-                with patch("src.tasks.timelapse_encoder.auto_send_split_recap_part", new_callable=AsyncMock) as mock_fn:
-                    mock_fn.return_value = None
+                with patch("src.tasks.timelapse_encoder.auto_send_split_recap_part", new_callable=MagicMock):
                     await encoder._check_and_split_if_needed(123, "20260221", video_path, False, 1)
 
         mock_create_task.assert_not_called()

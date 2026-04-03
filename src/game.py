@@ -263,6 +263,17 @@ class GameController:
             logger.warning(f"Failed to get status bar data: {e}")
             return None
 
+    def get_status_bar_render_fn(self):
+        """Get the game-specific status bar render function.
+
+        Returns:
+            Callable ``(img, data, scale) -> None`` from the status bar module,
+            or None if no module or function exists.
+        """
+        if self._status_bar_module is None:
+            return None
+        return getattr(self._status_bar_module, "render_status_bar", None)
+
     def get_modifier_specs(self) -> list[ModifierButtonSpec]:
         """Get the modifier button specs for the loaded game.
 

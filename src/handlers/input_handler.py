@@ -700,6 +700,7 @@ class InputHandler:
             user_colors=user_colors,
             scale=2
         )
+        status_bar_render_fn = controller.get_status_bar_render_fn()
 
         def animation_transform(frame: np.ndarray, index: int) -> np.ndarray:
             if index < num_raw_frames:
@@ -712,7 +713,7 @@ class InputHandler:
             else:
                 scaled = frame  # TBC frames are already 2x-scaled
             composited = sidebar_transform_fn(scaled)
-            status_bar = render_status_bar(status_bar_data, composited.shape[1], scale=2)
+            status_bar = render_status_bar(status_bar_data, composited.shape[1], scale=2, render_fn=status_bar_render_fn)
             return np.vstack([composited, status_bar])
 
         animation_duration_seconds = num_raw_frames / capture_fps
@@ -772,6 +773,7 @@ class InputHandler:
                             "reactions": list(reactions),
                             "user_colors": {k: list(v) for k, v in user_colors.items()},
                             "status_bar_data": status_bar_data,
+                            "cartridge_title": controller.pyboy.cartridge_title if controller.pyboy else None,
                         }
 
                         ts_str = datetime.now().strftime('%Y%m%d_%H%M%S')

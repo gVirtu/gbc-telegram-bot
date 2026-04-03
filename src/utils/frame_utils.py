@@ -458,13 +458,15 @@ def _make_frame_transform(
     return transform
 
 
-def render_status_bar(data: Optional[dict], width: int, scale: int) -> np.ndarray:
+def render_status_bar(data: Optional[dict], width: int, scale: int, render_fn: Optional[Callable] = None) -> np.ndarray:
     """Render a status bar strip for the given game data.
 
     Args:
-        data: Status bar data dict (e.g. with map_group/map_number/party), or None.
+        data: Status bar data dict, or None.
         width: Total pixel width of the output strip (should match composite width).
         scale: Rendering scale factor (e.g. 2 for animation, 3 for timelapse).
+        render_fn: Optional callable ``(img, data, scale) -> None`` that draws
+            game-specific content on the PIL Image in-place.
 
     Returns:
         NumPy array of shape (16*scale, width, 3) uint8.
@@ -473,28 +475,8 @@ def render_status_bar(data: Optional[dict], width: int, scale: int) -> np.ndarra
     bg_color = (30, 30, 30)
     img = Image.new("RGB", (width, height), bg_color)
 
-    if data is not None and "map_group" in data and "map_number" in data and "party" in data:
-        from PIL import ImageFont
-        draw = ImageDraw.Draw(img)
-        party = data["party"]
-        party_str = " ".join(str(s) for s in party)
-        text = f"Map: {data['map_group']}/{data['map_number']}   Party: {party_str}"
-
-        font_size = max(8, 8 * scale)
-        font_path = Path(__file__).parent.parent.parent / "assets" / "fonts" / "unifont-17.0.04.otf"
-        try:
-            font = ImageFont.truetype(str(font_path), size=font_size)
-        except Exception:
-            font = ImageFont.load_default()
-
-        pad = scale * 4
-        try:
-            bbox = draw.textbbox((0, 0), text, font=font)
-            text_h = bbox[3] - bbox[1]
-        except Exception:
-            text_h = font_size
-        y = max(0, (height - text_h) // 2)
-        draw.text((pad, y), text, fill=(255, 255, 255), font=font, fontmode="1")
+    if render_fn is not None and data is not None:
+        render_fn(img, data, scale)
 
     return np.array(img, dtype=np.uint8)
 
@@ -507,6 +489,7 @@ def apply_overlay_composite(
     user_colors: Optional[dict] = None,
     status_bar_data: Optional[dict] = None,
     scale: int = 3,
+    status_bar_render_fn: Optional[Callable] = None,
 ) -> list[np.ndarray]:
     """Composite the input sidebar onto a sequence of already-scaled frames.
 
@@ -522,6 +505,7 @@ def apply_overlay_composite(
         capture_fps: Capture frames per second (used for score label animation duration).
         status_bar_data: Optional game-state dict for status bar rendering.
         scale: Rendering scale factor (used for status bar height).
+        status_bar_render_fn: Optional game-specific render callable passed to render_status_bar.
 
     Returns:
         List of composited frames, each wider by the sidebar width (H, W+sidebar, 3),
@@ -533,7 +517,7 @@ def apply_overlay_composite(
     # generations simultaneously.
     for i in range(len(frames)):
         composited = transform(frames[i])
-        status_bar = render_status_bar(status_bar_data, composited.shape[1], scale)
+        status_bar = render_status_bar(status_bar_data, composited.shape[1], scale, render_fn=status_bar_render_fn)
         frames[i] = np.vstack([composited, status_bar])
     return frames
 
@@ -1101,6 +1085,16 @@ def build_timelapse_transform(
 
     status_bar_data = compositing_context.get("status_bar_data")
 
+    cartridge_title = compositing_context.get("cartridge_title")
+    status_bar_render_fn = None
+    if cartridge_title:
+        try:
+            import importlib
+            m = importlib.import_module(f"src.game_status_bars.{cartridge_title.lower()}")
+            status_bar_render_fn = getattr(m, "render_status_bar", None)
+        except ImportError:
+            pass
+
     def transform(raw_frame: np.ndarray, index: int) -> np.ndarray:
         h, w = raw_frame.shape[:2]
         scaled = np.array(Image.fromarray(raw_frame).resize(
@@ -1109,7 +1103,7 @@ def build_timelapse_transform(
         if reaction_transform is not None:
             scaled = reaction_transform(scaled, index)
         composited = sidebar_transform(scaled)
-        status_bar = render_status_bar(status_bar_data, composited.shape[1], scale=3)
+        status_bar = render_status_bar(status_bar_data, composited.shape[1], scale=3, render_fn=status_bar_render_fn)
         return np.vstack([composited, status_bar])
 
     return transform

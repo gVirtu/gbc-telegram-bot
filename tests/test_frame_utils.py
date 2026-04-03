@@ -824,16 +824,17 @@ class TestRenderStatusBar:
         assert result.dtype == np.uint8
 
     def test_has_white_pixels_with_data(self):
-        """Status bar with valid data contains white text pixels."""
+        """Status bar with valid data and a render_fn contains white text pixels."""
         import numpy as np
         from src.utils.frame_utils import render_status_bar
+        from src.game_status_bars.pkpcrystal import render_status_bar as pkp_render
 
         data = {
             "map_group": 3,
             "map_number": 7,
             "party": [155, 158, 152, 0, 0, 0],
         }
-        result = render_status_bar(data, width=768, scale=3)
+        result = render_status_bar(data, width=768, scale=3, render_fn=pkp_render)
 
         # Should have some bright (text) pixels
         assert result.max() > 200

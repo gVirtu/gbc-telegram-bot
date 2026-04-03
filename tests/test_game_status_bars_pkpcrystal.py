@@ -10,6 +10,7 @@ class TestPkpcrystalGetStatusBarData:
     def _make_pyboy(self, memory: dict):
         """Create a mock pyboy with the given memory dict."""
         mock = MagicMock()
+        mock.symbol_lookup.side_effect = lambda sym: sym
         mock.memory.__getitem__.side_effect = memory.__getitem__
         return mock
 

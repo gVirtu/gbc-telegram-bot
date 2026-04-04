@@ -156,7 +156,8 @@ class TestIntegration:
 
         controller = GameController(123456, rom_path=rom_path, sym_path=None)
 
-        with patch("src.game.PyBoy") as mock_pyboy_class:
+        with patch("src.game.PyBoy") as mock_pyboy_class, \
+             patch("src.game_status_bars.pkpcrystal.init"):
             mock_instance = MagicMock()
             mock_instance.cartridge_title = "PKPCRYSTAL"
             mock_frame = np.zeros((144, 160, 3), dtype=np.uint8)
@@ -252,7 +253,8 @@ class TestModifierModuleLoading:
         rom_path.write_bytes(b"rom data")
         controller = GameController(123456, rom_path=rom_path, sym_path=None)
 
-        with patch("src.game.PyBoy") as mock_pyboy_class:
+        with patch("src.game.PyBoy") as mock_pyboy_class, \
+             patch("src.game_status_bars.pkpcrystal.init"):
             mock_instance = MagicMock()
             mock_instance.cartridge_title = "PKPCRYSTAL"
             mock_frame = np.zeros((144, 160, 3), dtype=np.uint8)

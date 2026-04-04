@@ -5,6 +5,46 @@ from typing import Any
 
 from PIL import Image, ImageDraw
 
+from src.utils.lz import Decompressed
+from src.utils.gbc_graphics import decode_2bpp, read_mini_palette
+
+
+def init(pyboy) -> None:
+    """Extract ROM assets once at startup. Skips if already done."""
+    out = Path("assets/dynamic/pkpcrystal/minis/151.png")
+    if out.exists():
+        return
+    out.parent.mkdir(parents=True, exist_ok=True)
+    _extract_mini_sprite(pyboy, "ChikoritaMini", pokemon_index=152, out_path=out)
+
+
+def _extract_mini_sprite(pyboy, symbol: str, pokemon_index: int, out_path: Path) -> None:
+    """Read a mini sprite from ROM and save it as a 16×32 RGBA PNG.
+
+    Mini sprites are 16×32 pixels (8 tiles of 8×8), stored as LZ-compressed
+    2bpp data. 512 bytes is safely larger than any compressed mini; Decompressed
+    self-terminates at 0xFF.
+    """
+    # 1. Read raw LZ-compressed 2bpp from ROM
+    bank, addr = pyboy.symbol_lookup(symbol)
+    raw = bytes(pyboy.memory[bank, addr:addr + 512])
+
+    # 2. Decompress (Crystal LZ — Decompressed is the decompressor, not Compressed)
+    decompressed = bytes(Decompressed(raw).output)
+
+    # 3. Decode 2bpp → 16×32 pixel index grid
+    pixels = decode_2bpp(decompressed, width=16, height=32)
+
+    # 4. Read 4-color GBC palette from ROM
+    palette = read_mini_palette(pyboy, pokemon_index)
+
+    # 5. Render and save
+    img = Image.new("RGBA", (16, 32))
+    for y, row in enumerate(pixels):
+        for x, idx in enumerate(row):
+            img.putpixel((x, y), palette[idx])
+    img.save(str(out_path))
+
 
 def render_status_bar(img: Image.Image, data: dict, scale: int) -> None:
     """Draw map/party text on the status bar image in-place.

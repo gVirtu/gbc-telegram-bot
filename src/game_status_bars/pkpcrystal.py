@@ -39,13 +39,19 @@ def _extract_mini_sprite(pyboy, symbol: str, pokemon_index: int, out_path: Path)
     # 2. Decompress (Crystal LZ — Decompressed is the decompressor, not Compressed)
     decompressed = bytes(Decompressed(raw).output)
 
-    # 3. Decode 2bpp → 16×32 pixel index grid
+    # 3. Pad to tile-aligned size — the encoder omits trailing zero bytes when
+    #    the last tile row(s) are fully transparent.
+    needed = (16 // 8) * (32 // 8) * 16  # tiles_x * tiles_y * bytes_per_tile
+    if len(decompressed) < needed:
+        decompressed = decompressed + bytes(needed - len(decompressed))
+
+    # 4. Decode 2bpp → 16×32 pixel index grid
     pixels = decode_2bpp(decompressed, width=16, height=32)
 
-    # 4. Read 4-color GBC palette from ROM
+    # 5. Read 4-color GBC palette from ROM
     palette = read_mini_palette(pyboy, pokemon_index)
 
-    # 5. Render and save
+    # 6. Render and save
     img = Image.new("RGBA", (16, 32))
     for y, row in enumerate(pixels):
         for x, idx in enumerate(row):

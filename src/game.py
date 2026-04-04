@@ -162,6 +162,8 @@ class GameController:
             self._hook_module = self._load_hook_module(self.pyboy.cartridge_title)
             self._modifier_module = self._load_modifier_module(self.pyboy.cartridge_title)
             self._status_bar_module = self._load_status_bar_module(self.pyboy.cartridge_title)
+            if self._status_bar_module and hasattr(self._status_bar_module, 'init'):
+                self._status_bar_module.init(self.pyboy)
             logger.info(f"Game '{self.pyboy.cartridge_title}' initialized successfully for chat {self.chat_id}")
             
         except Exception as e:

@@ -51,6 +51,9 @@ def test_extract_mini_sprite_saves_rgba_png(tmp_path):
         from src.game_status_bars.pkpcrystal import _extract_mini_sprite
         _extract_mini_sprite(pyboy, "ChikoritaMini", pokemon_index=152, out_path=out_path)
 
+        mock_decode.assert_called_once_with(bytes([0] * 128), width=16, height=32)
+        mock_pal.assert_called_once_with(pyboy, 152)
+
     assert out_path.exists()
     img = Image.open(out_path)
     assert img.size == (16, 32)

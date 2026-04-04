@@ -1,5 +1,7 @@
 """Tests for GBC graphics decoding utilities."""
-from src.utils.gbc_graphics import decode_2bpp, gbc_color_to_rgba
+from unittest.mock import MagicMock
+
+from src.utils.gbc_graphics import decode_2bpp, gbc_color_to_rgba, read_mini_palette
 
 
 class TestDecode2bpp:
@@ -65,10 +67,6 @@ class TestGbcColorToRgba:
 
     def test_alpha_always_255(self):
         assert gbc_color_to_rgba(0x1234)[3] == 255
-
-
-from unittest.mock import MagicMock
-from src.utils.gbc_graphics import read_mini_palette
 
 
 class TestReadMiniPalette:

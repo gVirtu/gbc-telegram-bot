@@ -73,7 +73,11 @@ def read_mini_palette(pyboy, pokemon_index: int) -> list[tuple[int, int, int, in
     pp_bank, pp_addr = pyboy.symbol_lookup("MonPalettePointers")
     pal_base = pp_addr + (pal_index - 1) * 8
 
-    colors: list[tuple[int, int, int, int]] = [(0, 0, 0, 0)]  # color 0 = transparent
+    # GBC OBJ sprites: palette index 0 is always the transparent/background color.
+    # We hardcode it as fully transparent regardless of the ROM value.
+    # The ROM palette block stores 4 × 2-byte colors; we read entries at offsets
+    # 0, 2, 4 (ROM colors 0-2) as our display colors 1-3, leaving ROM color 3 unused.
+    colors: list[tuple[int, int, int, int]] = [(0, 0, 0, 0)]  # index 0 = transparent
     for i in range(1, 4):
         lo = pyboy.memory[pp_bank, pal_base + (i - 1) * 2]
         hi = pyboy.memory[pp_bank, pal_base + (i - 1) * 2 + 1]

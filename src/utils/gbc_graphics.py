@@ -1,0 +1,82 @@
+"""GBC graphics decoding utilities for ROM sprite extraction."""
+
+from __future__ import annotations
+
+
+def decode_2bpp(data: bytes, width: int, height: int) -> list[list[int]]:
+    """Decode 2bpp GBC tile data into a 2D grid of palette indices (0–3).
+
+    GBC tiles are 8×8 pixels. Each row is 2 bytes:
+      lo: LSB of each pixel's palette index
+      hi: MSB of each pixel's palette index
+    pixel_index = ((hi >> (7-col)) & 1) << 1 | ((lo >> (7-col)) & 1)
+    Tiles are arranged left-to-right, then top-to-bottom.
+    """
+    tiles_x = width // 8
+    tiles_y = height // 8
+    grid = [[0] * width for _ in range(height)]
+    tile_idx = 0
+    for ty in range(tiles_y):
+        for tx in range(tiles_x):
+            base = tile_idx * 16
+            for row in range(8):
+                lo = data[base + row * 2]
+                hi = data[base + row * 2 + 1]
+                for col in range(8):
+                    bit = 7 - col
+                    idx = ((hi >> bit) & 1) << 1 | ((lo >> bit) & 1)
+                    grid[ty * 8 + row][tx * 8 + col] = idx
+            tile_idx += 1
+    return grid
+
+
+def gbc_color_to_rgba(color15: int) -> tuple[int, int, int, int]:
+    """Convert a 15-bit GBC RGB555 value to an RGBA tuple (alpha=255).
+
+    GBC format: 0bbbbbgggggrrrrr
+      bits  0–4: red
+      bits  5–9: green
+      bits 10–14: blue
+    Each 5-bit channel is scaled to 8-bit: (c * 255) // 31.
+    """
+    r = (color15 & 0x1F) * 255 // 31
+    g = ((color15 >> 5) & 0x1F) * 255 // 31
+    b = ((color15 >> 10) & 0x1F) * 255 // 31
+    return (r, g, b, 255)
+
+
+def read_mini_palette(pyboy, pokemon_index: int) -> list[tuple[int, int, int, int]]:
+    """Read a Pokemon's 4-color GBC palette from ROM.
+
+    Reads the palette index from OverworldMonIconColors, then fetches
+    GBC RGB555 colors from MonPalettePointers.
+
+    Args:
+        pyboy: PyBoy instance with symbols loaded.
+        pokemon_index: National Dex number (1-based, e.g. 152 for Chikorita).
+
+    Returns:
+        4 RGBA tuples. Index 0 is always transparent (alpha=0).
+
+    Note:
+        If "MonPalettePointers" is not the correct symbol name in your ROM,
+        grep the disassembly:
+          grep -r "MonPalette\|OBJPalette" roms/polishedcrystal/data --include="*.asm" -il
+        Then update the symbol name below.
+    """
+    # Read 1-encoded palette index for this Pokemon (2 bytes per entry, use first byte)
+    oc_bank, oc_addr = pyboy.symbol_lookup("OverworldMonIconColors")
+    pal_index = pyboy.memory[oc_bank, oc_addr + (pokemon_index - 1) * 2]
+
+    # Fetch 8 bytes of GBC palette data: 4 colors × 2 bytes little-endian RGB555
+    # pal_index is 1-encoded → subtract 1 for 0-based table offset
+    pp_bank, pp_addr = pyboy.symbol_lookup("MonPalettePointers")
+    pal_base = pp_addr + (pal_index - 1) * 8
+
+    colors: list[tuple[int, int, int, int]] = [(0, 0, 0, 0)]  # color 0 = transparent
+    for i in range(1, 4):
+        lo = pyboy.memory[pp_bank, pal_base + (i - 1) * 2]
+        hi = pyboy.memory[pp_bank, pal_base + (i - 1) * 2 + 1]
+        colors.append(gbc_color_to_rgba(lo | (hi << 8)))
+
+    return colors

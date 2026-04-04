@@ -9,6 +9,8 @@ A rundown of Pokemon Crystal's compression scheme:
 Control commands occupy bits 5-7.
 Bits 0-4 serve as the first parameter <n> for each command.
 """
+# Note: only the Decompressed class is used in this project.
+# Compressed and helpers are retained as a verbatim port from the disassembly tooling.
 lz_commands = {
     'literal':   0, # n values for n bytes
     'iterate':   1, # one value for n bytes

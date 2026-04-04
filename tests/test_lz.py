@@ -20,5 +20,11 @@ def test_blank_command():
     assert list(Decompressed(data).output) == [0x00, 0x00]
 
 
+def test_alternate_command():
+    # cmd=2 (alternate), n=4: byte = (2<<5)|(4-1) = 0x43, then 2 alt bytes, then 0xFF
+    data = bytes([0x43, 0xAA, 0xBB, 0xFF])
+    assert list(Decompressed(data).output) == [0xAA, 0xBB, 0xAA, 0xBB]
+
+
 def test_empty_stream():
     assert list(Decompressed(bytes([0xFF])).output) == []

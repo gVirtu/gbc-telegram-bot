@@ -71,3 +71,6 @@ Thumbs.db
 
 # Docker
 docker-compose.override.yml
+
+# Runtime-generated assets
+assets/dynamic/

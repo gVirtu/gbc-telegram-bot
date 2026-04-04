@@ -34,7 +34,18 @@ def _extract_mini_sprite(pyboy, symbol: str, pokemon_index: int, out_path: Path)
     file_offset = bank * 0x4000 + (addr % 0x4000)
     with open(pyboy.gamerom, "rb") as f:
         f.seek(file_offset)
-        raw = f.read(512)
+        raw = bytearray(f.read(512))
+
+    # Known compression artifact in polishedcrystal.gbc: byte 40 of ChikoritaMini
+    # is 0x41 (Crystal LZ alternate:2 → 2 bytes) but should be 0x43 (alternate:4
+    # → 4 bytes [7F 40 7F 40]). Without this patch the decompressed output is 2
+    # bytes short and the bottom half of the sprite has shifted/wrong pixels.
+    _LZ_PATCHES = {
+        "ChikoritaMini": {40: 0x43},
+    }
+    for offset, value in _LZ_PATCHES.get(symbol, {}).items():
+        raw[offset] = value
+    raw = bytes(raw)
 
     # 2. Decompress (Crystal LZ — Decompressed is the decompressor, not Compressed)
     decompressed = bytes(Decompressed(raw).output)

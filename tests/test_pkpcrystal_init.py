@@ -35,7 +35,7 @@ def test_extract_mini_sprite_saves_rgba_png(tmp_path):
 
     pyboy = MagicMock()
     pyboy.symbol_lookup.return_value = (5, 0x4000)
-    pyboy.memory.__getitem__ = MagicMock(return_value=bytes(512))
+    pyboy.memory.__getitem__ = MagicMock(return_value=0)
 
     with patch("src.game_status_bars.pkpcrystal.Decompressed") as MockLZ, \
          patch("src.game_status_bars.pkpcrystal.decode_2bpp") as mock_decode, \

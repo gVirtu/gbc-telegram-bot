@@ -25,9 +25,11 @@ def _extract_mini_sprite(pyboy, symbol: str, pokemon_index: int, out_path: Path)
     2bpp data. 512 bytes is safely larger than any compressed mini; Decompressed
     self-terminates at 0xFF.
     """
-    # 1. Read raw LZ-compressed 2bpp from ROM
+    # 1. Read raw LZ-compressed 2bpp from ROM byte-by-byte.
+    # Slice reads (memory[bank, addr:addr+N]) don't reliably respect the bank
+    # parameter in all PyBoy versions — individual reads do.
     bank, addr = pyboy.symbol_lookup(symbol)
-    raw = bytes(pyboy.memory[bank, addr:addr + 512])
+    raw = bytes(pyboy.memory[bank, addr + i] for i in range(512))
 
     # 2. Decompress (Crystal LZ — Decompressed is the decompressor, not Compressed)
     decompressed = bytes(Decompressed(raw).output)

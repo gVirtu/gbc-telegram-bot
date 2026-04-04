@@ -1,5 +1,4 @@
 """Tests for pkpcrystal.init() and _extract_mini_sprite()."""
-import pytest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 from PIL import Image
@@ -33,9 +32,12 @@ def test_init_calls_extract_when_missing(tmp_path):
 def test_extract_mini_sprite_saves_rgba_png(tmp_path):
     out_path = tmp_path / "151.png"
 
+    rom_file = tmp_path / "game.gbc"
+    rom_file.write_bytes(bytes(0x4000 * 6 + 512))  # enough fake ROM data
+
     pyboy = MagicMock()
     pyboy.symbol_lookup.return_value = (5, 0x4000)
-    pyboy.memory.__getitem__ = MagicMock(return_value=0)
+    pyboy.gamerom = str(rom_file)
 
     with patch("src.game_status_bars.pkpcrystal.Decompressed") as MockLZ, \
          patch("src.game_status_bars.pkpcrystal.decode_2bpp") as mock_decode, \

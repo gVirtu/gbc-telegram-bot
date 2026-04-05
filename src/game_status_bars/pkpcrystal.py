@@ -1,12 +1,14 @@
 """Status bar data provider for Polished Crystal (PKPCRYSTAL)."""
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from PIL import Image, ImageDraw
 
 from src.utils.lz import Decompressed
 from src.utils.gbc_graphics import decode_1bpp, decode_2bpp, read_mini_palette
+
+_pokemon_icon_asset_cache: dict[int, Optional["Image.Image"]] = {}
 
 
 def init(pyboy) -> None:
@@ -22,18 +24,16 @@ def init(pyboy) -> None:
         mini_mask_addr = _read_u16(pyboy, ptrs_bank, base_addr + 3)
 
         palette = read_mini_palette(pyboy, i + 1)
-        mask_palette = [(0, 0, 0, 0), (0, 0, 0, 255)]
 
-        out_path = out_dir / f"{i}.png"
-        mask_out_path = out_dir / f"{i}_mask.png"
+        out_path = out_dir / f"{i + 1}.png"
         # if out_path.exists():
         #     continue
 
-        _extract_mini_sprite(pyboy, mini_bank, mini_addr, palette, out_path=out_path)
-        _extract_mask_sprite(pyboy, mini_bank, mini_mask_addr, mask_palette, out_path=mask_out_path)
+        mask = _extract_mask_sprite(pyboy, mini_bank, mini_mask_addr)
+        _extract_mini_sprite(pyboy, mini_bank, mini_addr, palette, mask, out_path=out_path)
 
 
-def _extract_mini_sprite(pyboy, bank: int, addr: int, palette: list[tuple[int, int, int, int]], out_path: Path) -> None:
+def _extract_mini_sprite(pyboy, bank: int, addr: int, palette: list[tuple[int, int, int, int]], mask: list[list[int]], out_path: Path) -> None:
     """Read a mini sprite from ROM and save it as a 16×32 RGBA PNG.
 
     Mini sprites are 16×32 pixels (8 tiles of 8×8), stored as LZ-compressed
@@ -69,11 +69,14 @@ def _extract_mini_sprite(pyboy, bank: int, addr: int, palette: list[tuple[int, i
     img = Image.new("RGBA", (16, 32))
     for y, row in enumerate(pixels):
         for x, idx in enumerate(row):
-            img.putpixel((x, y), palette[idx])
+            color = palette[idx]
+            if mask[y][x] == 0:
+                color = (color[0], color[1], color[2], 0)
+            img.putpixel((x, y), color)
     img.save(str(out_path))
 
 
-def _extract_mask_sprite(pyboy, bank: int, addr: int, palette: list[tuple[int, int, int, int]], out_path: Path) -> None:
+def _extract_mask_sprite(pyboy, bank: int, addr: int) -> None:
     """Read a mini mask sprite from ROM and save it as a 16x32 RGBA PNG."""
     file_offset = bank * 0x4000 + (addr % 0x4000)
     with open(pyboy.gamerom, "rb") as f:
@@ -86,13 +89,13 @@ def _extract_mask_sprite(pyboy, bank: int, addr: int, palette: list[tuple[int, i
     if len(decompressed) < needed:
         decompressed = decompressed + bytes(needed - len(decompressed))
 
-    pixels = decode_1bpp(decompressed, width=16, height=32)
+    return decode_1bpp(decompressed, width=16, height=32)
 
-    img = Image.new("RGBA", (16, 32))
-    for y, row in enumerate(pixels):
-        for x, idx in enumerate(row):
-            img.putpixel((x, y), palette[idx])
-    img.save(str(out_path))
+    # img = Image.new("RGBA", (16, 32))
+    # for y, row in enumerate(pixels):
+    #     for x, idx in enumerate(row):
+    #         img.putpixel((x, y), palette[idx])
+    # img.save(str(out_path))
 
 
 def render_status_bar(img: Image.Image, data: dict, scale: int) -> None:
@@ -110,8 +113,8 @@ def render_status_bar(img: Image.Image, data: dict, scale: int) -> None:
 
     draw = ImageDraw.Draw(img)
     party = data["party"]
-    party_str = " ".join(str(s) for s in party)
-    text = f"@ {data['map_name']}   Party: {party_str}"
+
+    text = f"@ {data['map_name']}"
 
     font_size = max(8, 8 * scale)
     font_path = Path(__file__).parent.parent.parent / "assets" / "fonts" / "unifont-17.0.04.otf"
@@ -129,6 +132,54 @@ def render_status_bar(img: Image.Image, data: dict, scale: int) -> None:
         text_h = font_size
     y = max(0, (height - text_h) // 2)
     draw.text((pad, y), text, fill=(255, 255, 255), font=font, fontmode="1")
+    
+    render_party(img, party, scale)
+
+    
+def render_party(img: Image.Image, party: list[dict], scale: int):
+    start_x = 128
+    y = 1 * scale
+
+    for i, pokemon in enumerate(party):
+        print(pokemon)
+        species = pokemon["species"]
+        if species == 0:
+            continue
+
+        x = start_x + i * (16 * scale)
+        asset = _load_pokemon_asset(species)
+
+        if asset:
+            resized_asset = asset.resize((12 * scale, 12 * scale), resample=Image.Resampling.LANCZOS)
+            img.paste(resized_asset, (x, y), resized_asset)
+            
+        # Draw hp bar
+        hp_percent = pokemon["hp"] / pokemon["max_hp"]
+        hp_bar_width = 12 * scale
+        hp_bar_height = 1 * scale
+        hp_bar_x = x
+        hp_bar_y = y + 12 * scale
+        
+        draw = ImageDraw.Draw(img)
+        
+        draw.rectangle([hp_bar_x, hp_bar_y, hp_bar_x + hp_bar_width, hp_bar_y + hp_bar_height], fill=(0, 0, 0))
+        if hp_percent > 0:
+            draw.rectangle([hp_bar_x, hp_bar_y, hp_bar_x + hp_bar_width * hp_percent, hp_bar_y + hp_bar_height], fill=(0, 255, 0))
+        
+
+def _load_pokemon_asset(species_id: int) -> Optional["Image.Image"]:
+    """Load and cache pokemon PNG (RGBA). Returns None if missing."""
+    if species_id in _pokemon_icon_asset_cache:
+        return _pokemon_icon_asset_cache[species_id]
+
+    asset_path = f"assets/dynamic/pkpcrystal/minis/{species_id}.png"
+    if not Path(asset_path).exists():
+        logger.warning(f"Pokémon icon asset not found: {asset_path}")
+        _pokemon_icon_asset_cache[species_id] = None
+        return None
+    img = Image.open(asset_path).crop((0, 0, 16, 16)).convert("RGBA")
+    _pokemon_icon_asset_cache[species_id] = img
+    return img
 
 
 def get_status_bar_data(pyboy) -> dict[str, Any]:
@@ -144,12 +195,13 @@ def get_status_bar_data(pyboy) -> dict[str, Any]:
     return {
         "map_name": map_name,
         "party": [
-            _symbol_read_u8(pyboy, "wPartyMon1Species"),
-            _symbol_read_u8(pyboy, "wPartyMon2Species"),
-            _symbol_read_u8(pyboy, "wPartyMon3Species"),
-            _symbol_read_u8(pyboy, "wPartyMon4Species"),
-            _symbol_read_u8(pyboy, "wPartyMon5Species"),
-            _symbol_read_u8(pyboy, "wPartyMon6Species"),
+            {
+                "species": _symbol_read_u8(pyboy, f"wPartyMon{i}Species"),
+                "ext_species": _symbol_read_u8(pyboy, f"wPartyMon{i}ExtSpecies"),
+                "hp": _symbol_read_u16le(pyboy, f"wPartyMon{i}HP"),
+                "max_hp": _symbol_read_u16le(pyboy, f"wPartyMon{i}MaxHP"),
+                "exp": _symbol_read_u24le(pyboy, f"wPartyMon{i}Exp"),
+            } for i in range(1, 7)
         ],
     }
 
@@ -180,9 +232,25 @@ def _get_map_name(pyboy):
 def _symbol_read_u8(pyboy, symbol: str) -> int:
     return pyboy.memory[pyboy.symbol_lookup(symbol)]
 
+def _symbol_read_u16le(pyboy, symbol: str) -> int:
+    bank, addr = pyboy.symbol_lookup(symbol)
+    return _read_u16le(pyboy, bank, addr)
+
+def _symbol_read_u24le(pyboy, symbol: str) -> int:
+    bank, addr = pyboy.symbol_lookup(symbol)
+    return _read_u24le(pyboy, bank, addr)
+
 def _read_u16(pyboy, bank, addr):
     [lo, hi] = pyboy.memory[bank, addr:addr+2]
     return lo | (hi << 8)
+
+def _read_u16le(pyboy, bank, addr):
+    [hi, lo] = pyboy.memory[bank, addr:addr+2]
+    return lo | (hi << 8)
+
+def _read_u24le(pyboy, bank, addr):
+    [hi, mi, lo] = pyboy.memory[bank, addr:addr+3]
+    return lo | (mi << 8) | (hi << 16)
 
 def _decode_text(pyboy, bank, addr):
     text = []

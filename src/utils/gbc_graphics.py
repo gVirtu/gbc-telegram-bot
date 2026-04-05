@@ -3,6 +3,29 @@
 from __future__ import annotations
 
 
+def decode_1bpp(data: bytes, width: int, height: int) -> list[list[int]]:
+    """Decode 1bpp GB tile data into a 2D grid of palette indices (0-1).
+
+    GB 1bpp tiles are 8x8 pixels. Each row is 1 byte, with bit 7 as the
+    leftmost pixel and bit 0 as the rightmost pixel. Tiles are arranged
+    left-to-right, then top-to-bottom.
+    """
+    tiles_x = width // 8
+    tiles_y = height // 8
+    grid = [[0] * width for _ in range(height)]
+    tile_idx = 0
+    for ty in range(tiles_y):
+        for tx in range(tiles_x):
+            base = tile_idx * 8
+            for row in range(8):
+                byte = data[base + row]
+                for col in range(8):
+                    bit = 7 - col
+                    grid[ty * 8 + row][tx * 8 + col] = (byte >> bit) & 1
+            tile_idx += 1
+    return grid
+
+
 def decode_2bpp(data: bytes, width: int, height: int) -> list[list[int]]:
     """Decode 2bpp GBC tile data into a 2D grid of palette indices (0–3).
 

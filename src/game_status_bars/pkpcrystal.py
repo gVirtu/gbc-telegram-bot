@@ -6,7 +6,7 @@ from typing import Any
 from PIL import Image, ImageDraw
 
 from src.utils.lz import Decompressed
-from src.utils.gbc_graphics import decode_2bpp, read_mini_palette
+from src.utils.gbc_graphics import decode_1bpp, decode_2bpp, read_mini_palette
 
 
 def init(pyboy) -> None:
@@ -15,21 +15,25 @@ def init(pyboy) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     ptrs_bank, ptrs_base_addr = pyboy.symbol_lookup("MiniIconPointers")
-    table_width = 7
-    
     for i in range(0, 393):
         base_addr = ptrs_base_addr + (i * 7)
         mini_bank = pyboy.memory[ptrs_bank, base_addr]
         mini_addr = _read_u16(pyboy, ptrs_bank, base_addr + 1)
-        
+        mini_mask_addr = _read_u16(pyboy, ptrs_bank, base_addr + 3)
+
+        palette = read_mini_palette(pyboy, i + 1)
+        mask_palette = [(0, 0, 0, 0), (0, 0, 0, 255)]
+
         out_path = out_dir / f"{i}.png"
+        mask_out_path = out_dir / f"{i}_mask.png"
         # if out_path.exists():
         #     continue
 
-        _extract_mini_sprite(pyboy, mini_bank, mini_addr, pokemon_index=i+1, out_path=out_path)
+        _extract_mini_sprite(pyboy, mini_bank, mini_addr, palette, out_path=out_path)
+        _extract_mask_sprite(pyboy, mini_bank, mini_mask_addr, mask_palette, out_path=mask_out_path)
 
 
-def _extract_mini_sprite(pyboy, bank: int, addr: int, pokemon_index: int, out_path: Path) -> None:
+def _extract_mini_sprite(pyboy, bank: int, addr: int, palette: list[tuple[int, int, int, int]], out_path: Path) -> None:
     """Read a mini sprite from ROM and save it as a 16×32 RGBA PNG.
 
     Mini sprites are 16×32 pixels (8 tiles of 8×8), stored as LZ-compressed
@@ -61,10 +65,29 @@ def _extract_mini_sprite(pyboy, bank: int, addr: int, pokemon_index: int, out_pa
     # 4. Decode 2bpp → 16×32 pixel index grid
     pixels = decode_2bpp(decompressed, width=16, height=32)
 
-    # 5. Read 4-color GBC palette from ROM
-    palette = read_mini_palette(pyboy, pokemon_index)
-
     # 6. Render and save
+    img = Image.new("RGBA", (16, 32))
+    for y, row in enumerate(pixels):
+        for x, idx in enumerate(row):
+            img.putpixel((x, y), palette[idx])
+    img.save(str(out_path))
+
+
+def _extract_mask_sprite(pyboy, bank: int, addr: int, palette: list[tuple[int, int, int, int]], out_path: Path) -> None:
+    """Read a mini mask sprite from ROM and save it as a 16x32 RGBA PNG."""
+    file_offset = bank * 0x4000 + (addr % 0x4000)
+    with open(pyboy.gamerom, "rb") as f:
+        f.seek(file_offset)
+        raw = bytes(f.read(512))
+
+    decompressed = bytes(Decompressed(raw).output)
+
+    needed = (16 // 8) * (32 // 8) * 8  # tiles_x * tiles_y * bytes_per_tile
+    if len(decompressed) < needed:
+        decompressed = decompressed + bytes(needed - len(decompressed))
+
+    pixels = decode_1bpp(decompressed, width=16, height=32)
+
     img = Image.new("RGBA", (16, 32))
     for y, row in enumerate(pixels):
         for x, idx in enumerate(row):

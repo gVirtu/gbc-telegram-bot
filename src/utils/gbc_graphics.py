@@ -48,8 +48,9 @@ def gbc_color_to_rgba(color15: int) -> tuple[int, int, int, int]:
 def read_mini_palette(pyboy, pokemon_index: int) -> list[tuple[int, int, int, int]]:
     """Read a Pokemon's 4-color GBC palette from ROM.
 
-    Reads the palette index from OverworldMonIconColors, then fetches
-    GBC RGB555 colors from MonPalettePointers.
+    Follows Polished Crystal's logic for a plain,
+    non-shiny species entry. For plain-form species, the palette table
+    index collapses to the base species slot in PokemonPalettes.
 
     Args:
         pyboy: PyBoy instance with symbols loaded.
@@ -58,29 +59,15 @@ def read_mini_palette(pyboy, pokemon_index: int) -> list[tuple[int, int, int, in
     Returns:
         4 RGBA tuples. Index 0 is always transparent (alpha=0).
 
-    Note:
-        If "MonPalettePointers" is not the correct symbol name in your ROM,
-        grep the disassembly:
-          grep -r "MonPalette\|OBJPalette" roms/polishedcrystal/data --include="*.asm" -il
-        Then update the symbol name below.
     """
-    # Read 1-encoded palette index for this Pokemon (2 bytes per entry, use first byte)
-    oc_bank, oc_addr = pyboy.symbol_lookup("OverworldMonIconColors")
-    pal_index = pyboy.memory[oc_bank, oc_addr + (pokemon_index - 1) * 2]
+    pp_bank, pp_addr = pyboy.symbol_lookup("PokemonPalettes")
+    pal_base = pp_addr + (pokemon_index) * 8
 
-    # Fetch 8 bytes of GBC palette data: 4 colors × 2 bytes little-endian RGB555
-    # pal_index is 1-encoded → subtract 1 for 0-based table offset
-    pp_bank, pp_addr = pyboy.symbol_lookup("MonPalettePointers")
-    pal_base = pp_addr + (pal_index - 1) * 8
-
-    # GBC OBJ sprites: palette index 0 is always the transparent/background color.
-    # We hardcode it as fully transparent regardless of the ROM value.
-    # The ROM palette block stores 4 × 2-byte colors; we read entries at offsets
-    # 0, 2, 4 (ROM colors 0-2) as our display colors 1-3, leaving ROM color 3 unused.
-    colors: list[tuple[int, int, int, int]] = [(0, 0, 0, 0)]  # index 0 = transparent
-    for i in range(1, 4):
-        lo = pyboy.memory[pp_bank, pal_base + (i - 1) * 2]
-        hi = pyboy.memory[pp_bank, pal_base + (i - 1) * 2 + 1]
+    colors: list[tuple[int, int, int, int]] = [(255, 255, 255, 255)]  # index 0 = white, index 1 = black
+    for i in range(0, 2):
+        lo = pyboy.memory[pp_bank, pal_base + (i * 2)]
+        hi = pyboy.memory[pp_bank, pal_base + (i * 2) + 1]
         colors.append(gbc_color_to_rgba(lo | (hi << 8)))
+    colors.append((0, 0, 0, 255))
 
     return colors

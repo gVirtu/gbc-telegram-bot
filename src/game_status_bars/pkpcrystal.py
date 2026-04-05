@@ -11,14 +11,25 @@ from src.utils.gbc_graphics import decode_2bpp, read_mini_palette
 
 def init(pyboy) -> None:
     """Extract ROM assets once at startup. Skips if already done."""
-    out = Path("assets/dynamic/pkpcrystal/minis/151.png")
-    if out.exists():
-        return
-    out.parent.mkdir(parents=True, exist_ok=True)
-    _extract_mini_sprite(pyboy, "ChikoritaMini", pokemon_index=152, out_path=out)
+    out_dir = Path("assets/dynamic/pkpcrystal/minis")
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    ptrs_bank, ptrs_base_addr = pyboy.symbol_lookup("MiniIconPointers")
+    table_width = 7
+    
+    for i in range(0, 393):
+        base_addr = ptrs_base_addr + (i * 7)
+        mini_bank = pyboy.memory[ptrs_bank, base_addr]
+        mini_addr = _read_u16(pyboy, ptrs_bank, base_addr + 1)
+        
+        out_path = out_dir / f"{i}.png"
+        # if out_path.exists():
+        #     continue
+
+        _extract_mini_sprite(pyboy, mini_bank, mini_addr, pokemon_index=i+1, out_path=out_path)
 
 
-def _extract_mini_sprite(pyboy, symbol: str, pokemon_index: int, out_path: Path) -> None:
+def _extract_mini_sprite(pyboy, bank: int, addr: int, pokemon_index: int, out_path: Path) -> None:
     """Read a mini sprite from ROM and save it as a 16×32 RGBA PNG.
 
     Mini sprites are 16×32 pixels (8 tiles of 8×8), stored as LZ-compressed
@@ -30,7 +41,7 @@ def _extract_mini_sprite(pyboy, symbol: str, pokemon_index: int, out_path: Path)
     # emulated address space and may not reliably return data from a specific
     # ROM bank when that bank isn't currently mapped. Reading the file
     # directly is unambiguous: file_offset = bank * 0x4000 + (addr % 0x4000).
-    bank, addr = pyboy.symbol_lookup(symbol)
+
     file_offset = bank * 0x4000 + (addr % 0x4000)
     with open(pyboy.gamerom, "rb") as f:
         f.seek(file_offset)

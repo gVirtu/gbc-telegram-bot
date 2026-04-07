@@ -2,13 +2,31 @@
 
 from pathlib import Path
 from typing import Any, Optional
+from enum import Enum
+import math
+import bisect
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 from src.utils.lz import Decompressed
 from src.utils.gbc_graphics import decode_1bpp, decode_2bpp, read_mini_palette
 
 _pokemon_icon_asset_cache: dict[int, Optional["Image.Image"]] = {}
+_held_item_icon_cache: dict[int, Optional[Image.Image]] = {}
+
+
+class GrowthRate(Enum):
+    MEDIUM_FAST = 0
+    MEDIUM_SLOW = 1
+    FAST = 2
+    SLOW = 3
+
+EXP_PER_LEVEL = {
+    GrowthRate.MEDIUM_FAST: [math.floor(n**3) for n in range(1, 101)],
+    GrowthRate.MEDIUM_SLOW: [(math.floor(((6/5) * (n**3)) - (15 * (n**2)) + (100 * n) - 140)) for n in range(1, 101)],
+    GrowthRate.FAST: [math.floor((4 * (n**3)) / 5) for n in range(1, 101)],
+    GrowthRate.SLOW: [math.floor((5 * (n**3)) / 4) for n in range(1, 101)],
+}
 
 
 def init(pyboy) -> None:
@@ -109,12 +127,10 @@ def render_status_bar(img: Image.Image, data: dict, scale: int) -> None:
     if "map_name" not in data or "party" not in data:
         return
 
-    from PIL import ImageFont
-
     draw = ImageDraw.Draw(img)
     party = data["party"]
 
-    text = f"@ {data['map_name']}"
+    text = f"{data['map_name']}"
 
     font_size = max(8, 8 * scale)
     font_path = Path(__file__).parent.parent.parent / "assets" / "fonts" / "unifont-17.0.04.otf"
@@ -137,35 +153,68 @@ def render_status_bar(img: Image.Image, data: dict, scale: int) -> None:
 
     
 def render_party(img: Image.Image, party: list[dict], scale: int):
-    start_x = 128
+    draw = ImageDraw.Draw(img)
+
+    start_x = 82 * scale
     y = 1 * scale
+    
+    font_size = max(5, 5 * scale)
+    font_path = Path(__file__).parent.parent.parent / "assets" / "fonts" / "unifont-17.0.04.otf"
+    try:
+        font = ImageFont.truetype(str(font_path), size=font_size)
+    except Exception:
+        font = ImageFont.load_default()
+        
+    held_item_icon = _load_held_item_icon(4 * scale)
 
     for i, pokemon in enumerate(party):
-        print(pokemon)
         species = pokemon["species"]
         if species == 0:
             continue
 
-        x = start_x + i * (16 * scale)
+        x = start_x + i * (22 * scale)
         asset = _load_pokemon_asset(species)
 
         if asset:
-            resized_asset = asset.resize((12 * scale, 12 * scale), resample=Image.Resampling.LANCZOS)
-            img.paste(resized_asset, (x, y), resized_asset)
+            resized_asset = asset.resize((10 * scale, 10 * scale), resample=Image.Resampling.LANCZOS)
+            img.paste(resized_asset, (x + 5 * scale, y), resized_asset)
             
-        # Draw hp bar
-        hp_percent = pokemon["hp"] / pokemon["max_hp"]
-        hp_bar_width = 12 * scale
-        hp_bar_height = 1 * scale
-        hp_bar_x = x
-        hp_bar_y = y + 12 * scale
+        level = pokemon['level']
+        level_label = f"L{level}" if 9 < level < 100 else f"L0{level}" if level < 10 else "MAX"
+        draw.text((x, y + 10 * scale), level_label, fill=(255, 255, 255), font=font, fontmode="1")
         
-        draw = ImageDraw.Draw(img)
+        status = _get_status_text(pokemon['status'])
+        draw.text((x + 13 * scale, y + 6 * scale), status, fill=(255, 255, 255), font=font, fontmode="1")
         
-        draw.rectangle([hp_bar_x, hp_bar_y, hp_bar_x + hp_bar_width, hp_bar_y + hp_bar_height], fill=(0, 0, 0))
-        if hp_percent > 0:
-            draw.rectangle([hp_bar_x, hp_bar_y, hp_bar_x + hp_bar_width * hp_percent, hp_bar_y + hp_bar_height], fill=(0, 255, 0))
+        hp_percent = pokemon["hp"] / max(pokemon["max_hp"], 1)
+        hp_color = (0, 184, 0) if hp_percent > 0.5 else (248, 168, 0) if hp_percent > 0.2 else (248, 0, 0)
+
+        _draw_bar(draw, x + 9 * scale, y + 12 * scale, 10 * scale, 1 * scale, hp_percent, hp_color)
+        _draw_bar(draw, x + 9 * scale, y + 14 * scale, 10 * scale, 1 * scale, pokemon["exp_percent"], (32, 136, 248))
         
+        if pokemon["item"] > 0:
+            img.paste(held_item_icon, (x, y + 6 * scale), held_item_icon)
+            
+            
+def _draw_bar(draw: ImageDraw.ImageDraw, x: int, y: int, width: int, height: int, percent: float, color: tuple[int, int, int]):
+    draw.rectangle([x - 1, y - 1, x + width + 1, y + height + 1], fill=(0, 0, 0))
+
+    if percent > 0:
+        draw.rectangle([x, y, x + width * percent, y + height], fill=color)
+        
+        
+def _load_held_item_icon(height_px: int) -> Optional[Image.Image]:
+    if height_px not in _held_item_icon_cache:
+        path = f"assets/pkpcrystal/held_item.png"
+        if not Path(path).exists():
+            _held_item_icon_cache[height_px] = None
+        else:
+            icon = Image.open(path).convert("RGBA")
+            aspect = icon.width / icon.height
+            new_w = max(1, int(height_px * aspect))
+            _held_item_icon_cache[height_px] = icon.resize((new_w, height_px), Image.Resampling.LANCZOS)
+    return _held_item_icon_cache[height_px]
+
 
 def _load_pokemon_asset(species_id: int) -> Optional["Image.Image"]:
     """Load and cache pokemon PNG (RGBA). Returns None if missing."""
@@ -182,6 +231,23 @@ def _load_pokemon_asset(species_id: int) -> Optional["Image.Image"]:
     return img
 
 
+def _get_status_text(value: int) -> str:
+    if value == 0:
+        return ''
+    elif value & 0x07:
+        return 'SLP'
+    elif value & 0x08:
+        return 'PSN'
+    elif value & 0x10:
+        return 'BRN'
+    elif value & 0x20:
+        return 'FRZ'
+    elif value & 0x40:
+        return 'PAR'
+    elif value & 0x80:
+        return 'TOX'
+
+
 def get_status_bar_data(pyboy) -> dict[str, Any]:
     """Read game memory to build status bar data.
 
@@ -192,24 +258,54 @@ def get_status_bar_data(pyboy) -> dict[str, Any]:
         Dict with map_group, map_number, and party species IDs.
     """
     map_name = _get_map_name(pyboy)
+    party = []
+    
+    for i in range(1, 7):
+        species = _symbol_read_u8(pyboy, f"wPartyMon{i}Species")
+        
+        if species == 0:
+            continue
+        
+        growth_rate = _get_growth_rate(pyboy, species)
+        total_exp = _symbol_read_u24le(pyboy, f"wPartyMon{i}Exp")
+        current_level = _get_level_from_exp(growth_rate, total_exp)
+        current_level_exp = EXP_PER_LEVEL[growth_rate][current_level - 1] if current_level > 1 else 0
+        next_level_at = EXP_PER_LEVEL[growth_rate][current_level] if current_level < 100 else total_exp
+        total_level_exp = next_level_at - current_level_exp
+        exp_percent = (total_exp - current_level_exp) / max(total_level_exp, 1)
+
+        party.append({
+            "species": _symbol_read_u8(pyboy, f"wPartyMon{i}Species"),
+            "ext_species": _symbol_read_u8(pyboy, f"wPartyMon{i}ExtSpecies"),
+            "hp": _symbol_read_u16le(pyboy, f"wPartyMon{i}HP"),
+            "max_hp": _symbol_read_u16le(pyboy, f"wPartyMon{i}MaxHP"),
+            "item": _symbol_read_u8(pyboy, f"wPartyMon{i}Item"),
+            "status": _symbol_read_u8(pyboy, f"wPartyMon{i}Status"),
+            "level": current_level,
+            "exp_percent": exp_percent,
+        })
+
     return {
         "map_name": map_name,
-        "party": [
-            {
-                "species": _symbol_read_u8(pyboy, f"wPartyMon{i}Species"),
-                "ext_species": _symbol_read_u8(pyboy, f"wPartyMon{i}ExtSpecies"),
-                "hp": _symbol_read_u16le(pyboy, f"wPartyMon{i}HP"),
-                "max_hp": _symbol_read_u16le(pyboy, f"wPartyMon{i}MaxHP"),
-                "exp": _symbol_read_u24le(pyboy, f"wPartyMon{i}Exp"),
-            } for i in range(1, 7)
-        ],
+        "party": party
     }
+    
+def _get_growth_rate(pyboy, species: int) -> GrowthRate:
+    base_data_bank, base_data_addr = pyboy.symbol_lookup("BaseData")
+    base_data_width = 0x22
+    growth_rate_offset = 0x10
+    growth_rate = pyboy.memory[base_data_bank, base_data_addr + (species - 1) * base_data_width + growth_rate_offset]
+
+    return GrowthRate(growth_rate)
+
+def _get_level_from_exp(growth_rate: GrowthRate, total_exp: int) -> int:
+    return bisect.bisect_right(EXP_PER_LEVEL[growth_rate], total_exp)
 
 def _get_map_name(pyboy):
     cur_landmark = _symbol_read_u8(pyboy, "wCurLandmark")
     
     if cur_landmark == 255:
-        return 'N/A'
+        return '???'
 
     bank, landmarks_base_addr = pyboy.symbol_lookup("Landmarks")
     

@@ -94,3 +94,17 @@ def read_mini_palette(pyboy, pokemon_index: int) -> list[tuple[int, int, int, in
     colors.append((0, 0, 0, 255))
 
     return colors
+
+
+def read_badge_palette(pyboy, bank: int, addr: int, badge_index: int) -> list[tuple[int, int, int, int]]:
+    pal_base = addr + (badge_index) * 8
+
+    colors: list[tuple[int, int, int, int]] = [(255, 255, 255, 255)]  # index 0 = white, index 1 = black
+    for i in range(0, 2):
+        lo = pyboy.memory[bank, pal_base + (i * 2)]
+        hi = pyboy.memory[bank, pal_base + (i * 2) + 1]
+        colors.append(gbc_color_to_rgba(lo | (hi << 8)))
+    colors.append((0, 0, 0, 255))
+
+    return colors
+    

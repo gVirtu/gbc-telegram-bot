@@ -198,7 +198,7 @@ def create_empty_frame(
 
 def render_input_sidebar(
     inputs: list,
-    base_width: int = 96,
+    base_width: int = 124,
     base_height: int = 144,
     scale: int = 3,
     active_labels: Optional[dict] = None,

@@ -5,14 +5,19 @@ from typing import Any, Optional
 from enum import Enum
 import math
 import bisect
+import logging
 
 from PIL import Image, ImageDraw, ImageFont
 
 from src.utils.lz import Decompressed
-from src.utils.gbc_graphics import decode_1bpp, decode_2bpp, read_mini_palette
+from src.utils.gbc_graphics import decode_1bpp, decode_2bpp, read_mini_palette, read_badge_palette
+
+logger = logging.getLogger(__name__)
 
 _pokemon_icon_asset_cache: dict[int, Optional["Image.Image"]] = {}
-_held_item_icon_cache: dict[int, Optional[Image.Image]] = {}
+_icon_cache: dict[tuple[str, int], Optional[Image.Image]] = {}
+_badge_asset_cache: dict[tuple[str, int], Optional["Image.Image"]] = {}
+_unifont_cache: dict[int, Optional[ImageFont.ImageFont]] = {}
 
 
 class GrowthRate(Enum):
@@ -31,9 +36,14 @@ EXP_PER_LEVEL = {
 
 def init(pyboy) -> None:
     """Extract ROM assets once at startup. Skips if already done."""
-    out_dir = Path("assets/dynamic/pkpcrystal/minis")
-    out_dir.mkdir(parents=True, exist_ok=True)
+    out_dir = Path("assets/dynamic/pkpcrystal")
+    
+    # Prepare directories
+    (out_dir / "minis").mkdir(parents=True, exist_ok=True)
+    (out_dir / "badges" / "johto").mkdir(parents=True, exist_ok=True)
+    (out_dir / "badges" / "kanto").mkdir(parents=True, exist_ok=True)
 
+    # Extract pokemon minis
     ptrs_bank, ptrs_base_addr = pyboy.symbol_lookup("MiniIconPointers")
     for i in range(0, 393):
         base_addr = ptrs_base_addr + (i * 7)
@@ -43,12 +53,32 @@ def init(pyboy) -> None:
 
         palette = read_mini_palette(pyboy, i + 1)
 
-        out_path = out_dir / f"{i + 1}.png"
+        out_path = out_dir / "minis" / f"{i + 1}.png"
         # if out_path.exists():
         #     continue
 
         mask = _extract_mask_sprite(pyboy, mini_bank, mini_mask_addr)
         _extract_mini_sprite(pyboy, mini_bank, mini_addr, palette, mask, out_path=out_path)
+
+    # Extract trainer card badges
+    johto_badges_bank, johto_badges_bank_base_addr = pyboy.symbol_lookup("BadgeGFX")
+    kanto_badges_bank, kanto_badges_bank_base_addr = pyboy.symbol_lookup("BadgeGFX2")
+    
+    johto_badge_palettes_bank, johto_badge_palettes_addr = pyboy.symbol_lookup("JohtoBadgePalettes")
+    kanto_badge_palettes_bank, kanto_badge_palettes_addr = pyboy.symbol_lookup("KantoBadgePalettes")
+    
+    johto_badge_gfx = _extract_badge_gfx(pyboy, johto_badges_bank, johto_badges_bank_base_addr)
+    kanto_badge_gfx = _extract_badge_gfx(pyboy, kanto_badges_bank, kanto_badges_bank_base_addr)
+    
+    for i in range(0, 8):
+        johto_palette = read_badge_palette(pyboy, johto_badge_palettes_bank, johto_badge_palettes_addr, i)
+        kanto_palette = read_badge_palette(pyboy, kanto_badge_palettes_bank, kanto_badge_palettes_addr, i)
+        
+        johto_out_path = out_dir / "badges" / "johto" / f"{i + 1}.png"
+        kanto_out_path = out_dir / "badges" / "kanto" / f"{i + 1}.png"
+
+        _save_badge_sprite(johto_badge_gfx, johto_palette, i, out_path=johto_out_path)
+        _save_badge_sprite(kanto_badge_gfx, kanto_palette, i, out_path=kanto_out_path)
 
 
 def _extract_mini_sprite(pyboy, bank: int, addr: int, palette: list[tuple[int, int, int, int]], mask: list[list[int]], out_path: Path) -> None:
@@ -109,12 +139,81 @@ def _extract_mask_sprite(pyboy, bank: int, addr: int) -> None:
 
     return decode_1bpp(decompressed, width=16, height=32)
 
-    # img = Image.new("RGBA", (16, 32))
-    # for y, row in enumerate(pixels):
-    #     for x, idx in enumerate(row):
-    #         img.putpixel((x, y), palette[idx])
-    # img.save(str(out_path))
 
+def _extract_badge_gfx(pyboy, bank: int, addr: int) -> None:
+    """Reads a badge spritesheet from ROM and return its piexls.
+
+    Badges are 16×176 pixels (22 tiles of 8×8), stored as LZ-compressed
+    2bpp data. BadgeGFX has 531 bytes and BadgeGFX2 has 447 bytes, so reading 531 is safe; 
+    Decompressed self-terminates at 0xFF.
+    """
+
+    file_offset = bank * 0x4000 + (addr % 0x4000)
+    with open(pyboy.gamerom, "rb") as f:
+        f.seek(file_offset)
+        raw = bytearray(f.read(531))
+
+    raw = bytes(raw)
+
+    decompressed = bytes(Decompressed(raw).output)
+
+    needed = (16 // 8) * (176 // 8) * 16  # tiles_x * tiles_y * bytes_per_tile
+    if len(decompressed) < needed:
+        decompressed = decompressed + bytes(needed - len(decompressed))
+
+    return decode_2bpp(decompressed, width=16, height=176)
+
+
+def _save_badge_sprite(pixels: list[list[int]], palette: list[tuple[int, int, int, int]], badge_index: int, out_path: Path) -> None:
+    pixels_cropped = pixels[badge_index * 16 : (badge_index + 1) * 16]
+    palette.append((0, 0, 0, 0))
+    
+    _floodfill_transparency(pixels_cropped)
+    
+    img = Image.new("RGBA", (16, 16))
+    for y, row in enumerate(pixels_cropped):
+        for x, idx in enumerate(row):
+            color = palette[idx]
+            img.putpixel((x, y), color)
+    img.save(str(out_path))
+    
+    
+def _floodfill_transparency(pixels: list[list[int]]) -> None:
+    """
+    Flood-fills white pixels (idx 0) from the corners of the grid to be transparent (idx -1).
+    """
+    height = len(pixels)
+    width = len(pixels[0])
+    
+    visited = set()
+    queue = [
+        (0, 0), 
+        (0, width >> 1), 
+        (0, width - 1), 
+        (height >> 1, 0), 
+        (height - 1, 0), 
+        (height - 1, width >> 1), 
+        (height - 1, width - 1),
+        (height >> 1, width - 1),
+    ]
+    
+    while queue:
+        y, x = queue.pop(0)
+        if (y, x) in visited:
+            continue
+        visited.add((y, x))
+        
+        if pixels[y][x] == 0:
+            pixels[y][x] = -1
+            if y > 0:
+                queue.append((y - 1, x))
+            if y < height - 1:
+                queue.append((y + 1, x))
+            if x > 0:
+                queue.append((y, x - 1))
+            if x < width - 1:
+                queue.append((y, x + 1))    
+    
 
 def render_status_bar(img: Image.Image, data: dict, scale: int) -> None:
     """Draw map/party text on the status bar image in-place.
@@ -129,15 +228,14 @@ def render_status_bar(img: Image.Image, data: dict, scale: int) -> None:
 
     draw = ImageDraw.Draw(img)
     party = data["party"]
+    pack = data["pack"]
+    johto_badges = data["johto_badges"]
+    kanto_badges = data["kanto_badges"]
 
     text = f"{data['map_name']}"
 
     font_size = max(8, 8 * scale)
-    font_path = Path(__file__).parent.parent.parent / "assets" / "fonts" / "unifont-17.0.04.otf"
-    try:
-        font = ImageFont.truetype(str(font_path), size=font_size)
-    except Exception:
-        font = ImageFont.load_default()
+    font = _load_unifont(font_size)
 
     pad = scale * 4
     height = img.height
@@ -150,6 +248,8 @@ def render_status_bar(img: Image.Image, data: dict, scale: int) -> None:
     draw.text((pad, y), text, fill=(255, 255, 255), font=font, fontmode="1")
     
     render_party(img, party, scale)
+    render_pack_counts(img, pack, scale)
+    render_badges(img, johto_badges, kanto_badges, scale)
 
     
 def render_party(img: Image.Image, party: list[dict], scale: int):
@@ -158,14 +258,10 @@ def render_party(img: Image.Image, party: list[dict], scale: int):
     start_x = 82 * scale
     y = 1 * scale
     
-    font_size = max(5, 5 * scale)
-    font_path = Path(__file__).parent.parent.parent / "assets" / "fonts" / "unifont-17.0.04.otf"
-    try:
-        font = ImageFont.truetype(str(font_path), size=font_size)
-    except Exception:
-        font = ImageFont.load_default()
+    font_size = max(7, 7 * scale)
+    font = _load_unifont(font_size)
         
-    held_item_icon = _load_held_item_icon(4 * scale)
+    held_item_icon = _load_icon("held_item", 4 * scale)
 
     for i, pokemon in enumerate(party):
         species = pokemon["species"]
@@ -179,18 +275,18 @@ def render_party(img: Image.Image, party: list[dict], scale: int):
             resized_asset = asset.resize((10 * scale, 10 * scale), resample=Image.Resampling.LANCZOS)
             img.paste(resized_asset, (x + 5 * scale, y), resized_asset)
             
-        level = pokemon['level']
-        level_label = f"L{level}" if 9 < level < 100 else f"L0{level}" if level < 10 else "MAX"
-        draw.text((x, y + 10 * scale), level_label, fill=(255, 255, 255), font=font, fontmode="1")
-        
         status = _get_status_text(pokemon['status'])
         draw.text((x + 13 * scale, y + 6 * scale), status, fill=(255, 255, 255), font=font, fontmode="1")
         
         hp_percent = pokemon["hp"] / max(pokemon["max_hp"], 1)
         hp_color = (0, 184, 0) if hp_percent > 0.5 else (248, 168, 0) if hp_percent > 0.2 else (248, 0, 0)
 
-        _draw_bar(draw, x + 9 * scale, y + 12 * scale, 10 * scale, 1 * scale, hp_percent, hp_color)
-        _draw_bar(draw, x + 9 * scale, y + 14 * scale, 10 * scale, 1 * scale, pokemon["exp_percent"], (32, 136, 248))
+        _draw_bar(draw, x + 10 * scale, y + 12 * scale, 9 * scale, 1 * scale, hp_percent, hp_color)
+        _draw_bar(draw, x + 10 * scale, y + 14 * scale, 9 * scale, 1 * scale, pokemon["exp_percent"], (32, 136, 248))
+        
+        level = pokemon['level']
+        level_label = f"L{level}" if 9 < level < 100 else f"L0{level}" if level < 10 else "MAX"
+        draw.text((x - 1 * scale, y + 8.5 * scale), level_label, fill=(255, 255, 255), font=font, fontmode="1")
         
         if pokemon["item"] > 0:
             img.paste(held_item_icon, (x, y + 6 * scale), held_item_icon)
@@ -203,17 +299,30 @@ def _draw_bar(draw: ImageDraw.ImageDraw, x: int, y: int, width: int, height: int
         draw.rectangle([x, y, x + width * percent, y + height], fill=color)
         
         
-def _load_held_item_icon(height_px: int) -> Optional[Image.Image]:
-    if height_px not in _held_item_icon_cache:
-        path = f"assets/pkpcrystal/held_item.png"
+def _load_icon(name: str, height_px: int) -> Optional[Image.Image]:
+    if (name, height_px) not in _icon_cache:
+        path = f"assets/pkpcrystal/{name}.png"
         if not Path(path).exists():
-            _held_item_icon_cache[height_px] = None
+            _icon_cache[(name, height_px)] = None
         else:
             icon = Image.open(path).convert("RGBA")
             aspect = icon.width / icon.height
             new_w = max(1, int(height_px * aspect))
-            _held_item_icon_cache[height_px] = icon.resize((new_w, height_px), Image.Resampling.LANCZOS)
-    return _held_item_icon_cache[height_px]
+            _icon_cache[(name, height_px)] = icon.resize((new_w, height_px), Image.Resampling.LANCZOS)
+    return _icon_cache[(name, height_px)]
+
+
+def _load_unifont(height_px: int) -> Optional[ImageFont.ImageFont]:
+    if height_px not in _unifont_cache:
+        path = f"assets/fonts/unifont-17.0.04.otf"
+        if not Path(path).exists():
+            _unifont_cache[height_px] = None
+        else:
+            try:
+                _unifont_cache[height_px] = ImageFont.truetype(str(path), size=height_px)
+            except Exception:
+                _unifont_cache[height_px] = ImageFont.load_default()
+    return _unifont_cache[height_px]
 
 
 def _load_pokemon_asset(species_id: int) -> Optional["Image.Image"]:
@@ -228,6 +337,21 @@ def _load_pokemon_asset(species_id: int) -> Optional["Image.Image"]:
         return None
     img = Image.open(asset_path).crop((0, 0, 16, 16)).convert("RGBA")
     _pokemon_icon_asset_cache[species_id] = img
+    return img
+
+
+def _load_badge_asset(region: str, badge_id: int) -> Optional["Image.Image"]:
+    """Load and cache a badge PNG (RGBA). Returns None if missing."""
+    if (region, badge_id) in _badge_asset_cache:
+        return _badge_asset_cache[(region, badge_id)]
+
+    asset_path = f"assets/dynamic/pkpcrystal/badges/{region}/{badge_id}.png"
+    if not Path(asset_path).exists():
+        logger.warning(f"Badge asset not found: {asset_path}")
+        _badge_asset_cache[(region, badge_id)] = None
+        return None
+    img = Image.open(asset_path).crop((0, 0, 16, 16)).convert("RGBA")
+    _badge_asset_cache[(region, badge_id)] = img
     return img
 
 
@@ -246,6 +370,61 @@ def _get_status_text(value: int) -> str:
         return 'PAR'
     elif value & 0x80:
         return 'TOX'
+    
+    
+def render_pack_counts(img: Image.Image, pack: dict, scale: int):
+    start_x = 214 * scale
+    
+    font_size = max(7, 7 * scale)
+    font = _load_unifont(font_size)
+
+    icons = {
+        "items": _load_icon("pack_items", 5 * scale),
+        "meds": _load_icon("pack_meds", 5 * scale),
+        "balls": _load_icon("pack_balls", 5 * scale),
+        "berries": _load_icon("pack_berries", 5 * scale)
+    }
+    
+    categories = ["items", "meds", "balls", "berries"]
+    draw = ImageDraw.Draw(img)
+    
+    for i, category in enumerate(categories):
+        x = start_x + i * (9 * scale)
+        y = 1 * scale
+        
+        icon = icons[category]
+
+        if icon:
+            img.paste(icon, (x + (2 * scale), y), icon)
+            
+        count = pack[f'{category}_count']
+        label = str(count)
+        
+        try:
+            bbox = draw.textbbox((0, 0), label, font=font)
+            text_w = bbox[2] - bbox[0]
+        except Exception:
+            text_w = font_size
+
+        draw.text((int(x + (4.5 * scale) - (text_w / 2)), y + 7 * scale), label, fill=(255, 255, 255), font=font, fontmode="1")
+    
+
+def render_badges(img: Image.Image, johto_badges: int, kanto_badges: int, scale: int):
+    start_x = 252 * scale
+    
+    badges = johto_badges if kanto_badges == 0 else kanto_badges
+    region = "johto" if kanto_badges == 0 else "kanto"
+    
+    for i in range(0, 8):
+        x = start_x + (i % 4) * (8 * scale)
+        y = (i // 4) * (8 * scale)
+        asset = _load_badge_asset(region, i + 1)
+
+        if asset:
+            has_badge = (badges >> i) & 1
+            resized_asset = asset.resize((8 * scale, 8 * scale), resample=Image.Resampling.LANCZOS)
+            blank = Image.new("RGBA", (8 * scale, 8 * scale), (0, 0, 0, 0))
+            img.paste(resized_asset if has_badge else blank, (x, y), resized_asset)
 
 
 def get_status_bar_data(pyboy) -> dict[str, Any]:
@@ -287,7 +466,15 @@ def get_status_bar_data(pyboy) -> dict[str, Any]:
 
     return {
         "map_name": map_name,
-        "party": party
+        "party": party,
+        "johto_badges": _symbol_read_u8(pyboy, "wJohtoBadges"),
+        "kanto_badges": _symbol_read_u8(pyboy, "wKantoBadges"),
+        "pack": {
+            "items_count": _symbol_read_u8(pyboy, "wNumItems"),
+            "meds_count": _symbol_read_u8(pyboy, "wNumMedicine"),
+            "balls_count": _symbol_read_u8(pyboy, "wNumBalls"),
+            "berries_count": _symbol_read_u8(pyboy, "wNumBerries"),
+        }
     }
     
 def _get_growth_rate(pyboy, species: int) -> GrowthRate:

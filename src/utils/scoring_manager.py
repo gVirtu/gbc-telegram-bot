@@ -38,6 +38,7 @@ class ScoringManager:
         chat_id: int,
         button: str,
         timestamp: str,
+        commit: bool = True,
     ) -> ScoredInput:
         """Score a single player input and update their profile.
 
@@ -47,12 +48,14 @@ class ScoringManager:
             chat_id: Chat/channel ID
             button: Button value string
             timestamp: ISO-format UTC timestamp of the input
+            commit: Whether to commit after writing. Pass False when the caller
+                will issue a batched commit after processing multiple inputs.
 
         Returns:
             ScoredInput with computed scores (all zeros on error)
         """
         try:
-            return self._score_input_unsafe(platform, user_id, chat_id, button, timestamp)
+            return self._score_input_unsafe(platform, user_id, chat_id, button, timestamp, commit=commit)
         except Exception as e:
             logger.error(f"score_input failed for user {user_id} in chat {chat_id}: {e}")
             return ScoredInput(
@@ -90,6 +93,33 @@ class ScoringManager:
             name_tag_color=row["name_tag_color"],
         )
 
+    def get_player_profiles_batch(self, platform: str, user_ids: list) -> dict:
+        """Fetch multiple player profiles in a single query.
+
+        Returns a dict keyed by user_id. Users not found are absent from the dict.
+        """
+        if not user_ids:
+            return {}
+        placeholders = ",".join("?" * len(user_ids))
+        cursor = self._conn.execute(
+            f"SELECT * FROM user_player_profiles WHERE platform = ? AND user_id IN ({placeholders});",
+            (platform, *user_ids),
+        )
+        return {
+            row["user_id"]: PlayerProfile(
+                platform=row["platform"],
+                user_id=row["user_id"],
+                total_score_earned=row["total_score_earned"],
+                total_score_spent=row["total_score_spent"],
+                current_streak=row["current_streak"],
+                best_streak=row["best_streak"],
+                best_streak_date=row["best_streak_date"],
+                last_input_at=row["last_input_at"],
+                name_tag_color=row["name_tag_color"],
+            )
+            for row in cursor.fetchall()
+        }
+
     # ------------------------------------------------------------------ #
     # Internal helpers
     # ------------------------------------------------------------------ #
@@ -101,6 +131,7 @@ class ScoringManager:
         chat_id: int,
         button: str,
         timestamp: str,
+        commit: bool = True,
     ) -> ScoredInput:
         max_score = settings.player_input_max_score
         streak_bonus_per_day = settings.daily_streak_score_bonus
@@ -182,7 +213,8 @@ class ScoringManager:
                 timestamp,
             ),
         )
-        self._conn.commit()
+        if commit:
+            self._conn.commit()
 
         return ScoredInput(
             platform=platform,

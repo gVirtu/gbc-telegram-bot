@@ -367,15 +367,22 @@ class DatabaseManager:
         base_score: int = 0,
         streak_bonus: int = 0,
         total_score: int = 0,
+        commit: bool = True,
     ) -> None:
-        """Append a single button press to the recent_inputs log."""
+        """Append a single button press to the recent_inputs log.
+
+        Args:
+            commit: Whether to commit after inserting. Pass False when the caller
+                will issue a batched commit after processing multiple inputs.
+        """
         self.connection.execute(
             """INSERT INTO recent_inputs
                (chat_id, user_id, user_name, button, timestamp, base_score, streak_bonus, total_score)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?);""",
             (chat_id, user_id, user_name, button, timestamp, base_score, streak_bonus, total_score)
         )
-        self.connection.commit()
+        if commit:
+            self.connection.commit()
 
     def get_recent_inputs_for_overlay(
         self, chat_id: int, limit: int = 30

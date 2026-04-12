@@ -512,6 +512,7 @@ def apply_overlay_composite(
         and taller by 16*scale if status_bar_data is not None.
     """
     transform = _make_frame_transform(pre_existing_inputs, new_inputs_with_offsets, capture_fps, user_colors=user_colors)
+
     # Transform in-place: as each slot is overwritten CPython immediately frees
     # the old frame (refcount → 0), so we never hold both the raw and composited
     # generations simultaneously.
@@ -1094,7 +1095,7 @@ def build_timelapse_transform(
             status_bar_render_fn = getattr(m, "render_status_bar", None)
         except ImportError:
             pass
-
+        
     def transform(raw_frame: np.ndarray, index: int) -> np.ndarray:
         h, w = raw_frame.shape[:2]
         scaled = np.array(Image.fromarray(raw_frame).resize(

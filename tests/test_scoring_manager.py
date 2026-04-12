@@ -326,3 +326,52 @@ class TestScoredInputCurrentStreak:
         with patch.object(manager, "_score_input_unsafe", side_effect=Exception("fail")):
             result = manager.score_input("telegram", 1, 1, "a", "2026-01-01T00:00:00")
         assert result.current_streak == 0
+
+
+# ---------------------------------------------------------------------------
+# get_player_profiles_batch
+# ---------------------------------------------------------------------------
+
+class TestGetPlayerProfilesBatch:
+    def _insert_profile(self, db_conn, platform, user_id, color="#ffffff"):
+        db_conn.execute(
+            """INSERT INTO user_player_profiles
+               (platform, user_id, total_score_earned, total_score_spent,
+                current_streak, best_streak, best_streak_date, last_input_at, name_tag_color)
+               VALUES (?, ?, 0, 0, 1, 1, '2026-01-01', '2026-01-01T00:00:00', ?);""",
+            (platform, user_id, color),
+        )
+        db_conn.commit()
+
+    def test_empty_user_ids_returns_empty(self, manager):
+        result = manager.get_player_profiles_batch("telegram", [])
+        assert result == {}
+
+    def test_missing_users_absent_from_result(self, manager):
+        result = manager.get_player_profiles_batch("telegram", [999, 1000])
+        assert result == {}
+
+    def test_single_user_returned(self, manager, db_conn):
+        self._insert_profile(db_conn, "telegram", 1, "#ff0000")
+        result = manager.get_player_profiles_batch("telegram", [1])
+        assert 1 in result
+        assert result[1].name_tag_color == "#ff0000"
+
+    def test_multiple_users_returned(self, manager, db_conn):
+        self._insert_profile(db_conn, "telegram", 10, "#aaaaaa")
+        self._insert_profile(db_conn, "telegram", 20, "#bbbbbb")
+        self._insert_profile(db_conn, "telegram", 30, "#cccccc")
+        result = manager.get_player_profiles_batch("telegram", [10, 20, 30])
+        assert set(result.keys()) == {10, 20, 30}
+
+    def test_platform_filter(self, manager, db_conn):
+        self._insert_profile(db_conn, "telegram", 5, "#111111")
+        self._insert_profile(db_conn, "discord", 5, "#222222")
+        result = manager.get_player_profiles_batch("discord", [5])
+        assert 5 in result
+        assert result[5].name_tag_color == "#222222"
+
+    def test_partial_match_returns_only_found(self, manager, db_conn):
+        self._insert_profile(db_conn, "telegram", 7, "#333333")
+        result = manager.get_player_profiles_batch("telegram", [7, 8, 9])
+        assert set(result.keys()) == {7}

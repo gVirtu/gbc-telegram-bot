@@ -85,6 +85,36 @@ class InputHandlerError(Exception):
     pass
 
 
+def _build_recent_inputs_grouped(
+    pre_existing: list,
+    new_inputs_with_offsets: list,
+    group_limit: int = 3,
+) -> list:
+    """Build grouped recent-inputs list in memory, avoiding a DB reload.
+
+    Replicates the grouping logic of StateManager._load_recent_inputs:
+    consecutive inputs from the same user are collapsed into one group.
+
+    Args:
+        pre_existing: rows from get_recent_inputs_for_overlay (oldest-first dicts)
+        new_inputs_with_offsets: list of (input_dict, frame_offset) from the current batch
+        group_limit: maximum number of groups to return (tail of list)
+    """
+    all_rows = list(pre_existing) + [inp for inp, _ in new_inputs_with_offsets]
+    groups: list = []
+    for row in all_rows:
+        if groups and groups[-1]["user_id"] == row["user_id"]:
+            groups[-1]["buttons"].append(row["button"])
+        else:
+            groups.append({
+                "user_id": row["user_id"],
+                "user_name": row["user_name"],
+                "buttons": [row["button"]] if row.get("button") else [],
+                "timestamp": row.get("timestamp", ""),
+            })
+    return groups[-group_limit:] if len(groups) > group_limit else groups
+
+
 class InputHandler:
     """Handles game input processing with buffered queue system.
 
@@ -551,6 +581,7 @@ class InputHandler:
             bi = batch[i]
 
             # Score input first so total_score can be included in input_dict
+            # commit=False: all scoring writes are committed in a single batch after the loop
             input_total_score = None
             try:
                 scored = scoring_manager.score_input(
@@ -559,6 +590,7 @@ class InputHandler:
                     chat_id=chat_id,
                     button=bi.button.value,
                     timestamp=bi.received_at.isoformat(),
+                    commit=False,
                 )
                 input_total_score = scored.total_score
                 state_manager.append_recent_input(
@@ -570,6 +602,7 @@ class InputHandler:
                     base_score=scored.base_score,
                     streak_bonus=scored.streak_bonus,
                     total_score=scored.total_score,
+                    commit=False,
                 )
             except Exception as e:
                 logger.warning(f"Failed to append recent input for chat {chat_id}: {e}")
@@ -591,6 +624,12 @@ class InputHandler:
                 cumulative_frames += delay_frames
                 for _frame_num in range(delay_frames):
                     controller.tick(1)
+
+        # Commit all scoring and recent_inputs writes in one transaction
+        try:
+            state_manager.connection.commit()
+        except Exception as e:
+            logger.error(f"Failed to commit batch scoring writes for chat {chat_id}: {e}")
 
         # Continue animating after last button press
         animation_frames = int(settings.animation_duration * game_fps)
@@ -671,22 +710,22 @@ class InputHandler:
         if num_windows > 0:
             reactions = state_manager.pop_reactions(chat_id, limit=num_windows * 3)
 
-        # 3. Pre-fetch user colors for sidebar rendering
-        user_colors: dict = {}
+        # 3. Pre-fetch user colors for sidebar rendering (single batch query)
+        uid_to_uname: dict = {}
         for inp_dict, _ in new_inputs_with_offsets:
             uid = inp_dict.get("user_id")
-            uname = inp_dict.get("user_name", "")
-            if uid and uname not in user_colors:
-                profile = scoring_manager.get_player_profile(config.platform, uid)
-                if profile:
-                    user_colors[uname] = hex_to_rgb(profile.name_tag_color)
+            if uid:
+                uid_to_uname.setdefault(uid, inp_dict.get("user_name", ""))
         for inp in pre_existing_inputs_for_overlay:
             uid = inp.get("user_id")
-            uname = inp.get("user_name", "")
-            if uid and uname not in user_colors:
-                profile = scoring_manager.get_player_profile(config.platform, uid)
-                if profile:
-                    user_colors[uname] = hex_to_rgb(profile.name_tag_color)
+            if uid:
+                uid_to_uname.setdefault(uid, inp.get("user_name", ""))
+        profiles = scoring_manager.get_player_profiles_batch(config.platform, list(uid_to_uname))
+        user_colors: dict = {
+            uname: hex_to_rgb(profiles[uid].name_tag_color)
+            for uid, uname in uid_to_uname.items()
+            if uid in profiles and uname and profiles[uid].name_tag_color
+        }
 
         # 4. Build streaming animation transform
         #    Raw frames (index < num_raw_frames): scale 3x + reactions + sidebar
@@ -718,7 +757,7 @@ class InputHandler:
 
         animation_duration_seconds = num_raw_frames / capture_fps
 
-        recent = state_manager._load_recent_inputs(chat_id)
+        recent = _build_recent_inputs_grouped(pre_existing_inputs_for_overlay, new_inputs_with_offsets)
         pending_count = self._get_or_create_buffer(chat_id).total_buttons()
         base_text = self._get_message_base_text(chat_id)
         caption = create_game_message_text(
@@ -816,7 +855,6 @@ class InputHandler:
                 del audio_chunks
 
         # Auto-save if enabled
-        config = state_manager.get_or_create_chat_config(chat_id)
         if config.auto_save_enabled:
             try:
                 slot = state_manager.find_next_auto_save_slot(chat_id)

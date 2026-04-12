@@ -1,0 +1,8 @@
+[run]
+omit =
+    src/adapters/*
+    src/db/migrations/*
+    src/game_hooks/*
+    src/game_modifier_buttons/*
+    src/game_status_bars/*
+    src/game_utils/*

@@ -652,7 +652,7 @@ class TestProcessBatchEdgeCases:
              patch("src.handlers.input_handler.state_manager") as mock_sm, \
              patch("src.handlers.input_handler.broadcast_game_update", new_callable=AsyncMock) as mock_bcast, \
              patch("src.handlers.input_handler.generate_tbc_frames", return_value=[]), \
-             patch("src.handlers.input_handler.apply_overlay_composite", return_value=[np.zeros((432, 768, 3), dtype=np.uint8)]), \
+             patch("src.handlers.input_handler.apply_overlay_composite", return_value=[np.zeros((432, 852, 3), dtype=np.uint8)]), \
              patch("src.handlers.input_handler.settings") as mock_s:
             mock_gcm.get_or_create_controller = AsyncMock(return_value=controller)
             mock_sm.get_or_create_chat_config.return_value = ChatConfig(
@@ -682,7 +682,7 @@ class TestProcessBatchEdgeCases:
              patch("src.handlers.input_handler.state_manager") as mock_sm, \
              patch("src.handlers.input_handler.broadcast_game_update", new_callable=AsyncMock), \
              patch("src.handlers.input_handler.generate_tbc_frames", return_value=[]), \
-             patch("src.handlers.input_handler.apply_overlay_composite", return_value=[np.zeros((432, 768, 3), dtype=np.uint8)]), \
+             patch("src.handlers.input_handler.apply_overlay_composite", return_value=[np.zeros((432, 852, 3), dtype=np.uint8)]), \
              patch("src.tasks.timelapse_encoder.timelapse_queue", mock_timelapse_queue), \
              patch("src.handlers.input_handler._save_raw_frames_sync"), \
              patch("src.handlers.input_handler.settings") as mock_s:
@@ -714,7 +714,7 @@ class TestProcessBatchEdgeCases:
              patch("src.handlers.input_handler.state_manager") as mock_sm, \
              patch("src.handlers.input_handler.broadcast_game_update", new_callable=AsyncMock), \
              patch("src.handlers.input_handler.generate_tbc_frames", return_value=[]), \
-             patch("src.handlers.input_handler.apply_overlay_composite", return_value=[np.zeros((432, 768, 3), dtype=np.uint8)]), \
+             patch("src.handlers.input_handler.apply_overlay_composite", return_value=[np.zeros((432, 852, 3), dtype=np.uint8)]), \
              patch("src.tasks.timelapse_encoder.timelapse_queue", mock_timelapse_queue), \
              patch("src.handlers.input_handler._save_raw_frames_sync"), \
              patch("src.handlers.input_handler.settings") as mock_s:
@@ -750,7 +750,7 @@ class TestProcessBatchEdgeCases:
              patch("src.handlers.input_handler.state_manager") as mock_sm, \
              patch("src.handlers.input_handler.broadcast_game_update", new_callable=AsyncMock), \
              patch("src.handlers.input_handler.generate_tbc_frames", return_value=[]), \
-             patch("src.handlers.input_handler.apply_overlay_composite", return_value=[np.zeros((432, 768, 3), dtype=np.uint8)]), \
+             patch("src.handlers.input_handler.apply_overlay_composite", return_value=[np.zeros((432, 852, 3), dtype=np.uint8)]), \
              patch("src.handlers.input_handler.settings") as mock_s, \
              patch.dict("sys.modules", {"src.tasks.timelapse_encoder": fake_timelapse_module}):
             mock_gcm.get_or_create_controller = AsyncMock(return_value=controller)

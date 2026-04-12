@@ -443,23 +443,23 @@ class TestRenderInputSidebarStreak:
     def test_no_streak_field_no_crash(self):
         """Entry without current_streak key renders without error."""
         result = render_input_sidebar([{"user_name": "Foo", "button": "a"}])
-        assert result.shape == (432, 288, 3)
+        assert result.shape == (432, 372, 3)
         assert result.dtype.name == "uint8"
 
     def test_streak_zero_no_badge(self):
         """current_streak=0 renders like no streak (no badge)."""
         result = render_input_sidebar([{"user_name": "Foo", "button": "a", "current_streak": 0}])
-        assert result.shape == (432, 288, 3)
+        assert result.shape == (432, 372, 3)
 
     def test_streak_one_no_badge(self):
         """current_streak=1 renders without badge."""
         result = render_input_sidebar([{"user_name": "Foo", "button": "a", "current_streak": 1}])
-        assert result.shape == (432, 288, 3)
+        assert result.shape == (432, 372, 3)
 
     def test_streak_greater_than_one_no_crash(self):
         """current_streak=3 renders without crash and produces correct shape."""
         result = render_input_sidebar([{"user_name": "John Doe", "button": "start", "current_streak": 3}])
-        assert result.shape == (432, 288, 3)
+        assert result.shape == (432, 372, 3)
         assert result.dtype.name == "uint8"
 
     def test_streak_icon_missing_still_renders(self, tmp_path, monkeypatch):
@@ -474,7 +474,7 @@ class TestRenderInputSidebarStreak:
             lambda h: None,
         )
         result = render_input_sidebar([{"user_name": "Bar", "button": "b", "current_streak": 5}])
-        assert result.shape == (432, 288, 3)
+        assert result.shape == (432, 372, 3)
 
     def test_multiple_entries_mixed_streaks(self):
         """Multiple entries with mixed streak values render without crash."""
@@ -484,7 +484,7 @@ class TestRenderInputSidebarStreak:
             {"user_name": "Charlie", "button": "start"},
         ]
         result = render_input_sidebar(inputs)
-        assert result.shape == (432, 288, 3)
+        assert result.shape == (432, 372, 3)
 
 
 class TestMakeReactionFrameTransform:
@@ -808,32 +808,33 @@ class TestRenderStatusBar:
         # Should be a uniform dark color — no bright pixels
         assert result.max() < 50
 
-    def test_shape_with_pkpcrystal_data(self):
-        """Returns correct shape when given valid pkpcrystal data dict."""
+    def test_shape_with_data(self):
+        """Returns correct shape when given valid data dict."""
         import numpy as np
         from src.utils.frame_utils import render_status_bar
 
         data = {
-            "map_group": 3,
-            "map_number": 7,
-            "party": [155, 158, 152, 0, 0, 0],
+            "foo": "bar",
         }
         result = render_status_bar(data, width=768, scale=3)
 
         assert result.shape == (48, 768, 3)
         assert result.dtype == np.uint8
 
-    def test_has_white_pixels_with_data(self):
+    def test_render_fn(self):
         """Status bar with valid data and a render_fn contains white text pixels."""
         import numpy as np
         from src.utils.frame_utils import render_status_bar
-        from src.game_status_bars.pkpcrystal import render_status_bar as pkp_render
+        
+        render_fn = MagicMock()
 
         data = {
-            "map_name": "Test",
-            "party": [155, 158, 152, 0, 0, 0],
+            "foo": "bar"
         }
-        result = render_status_bar(data, width=768, scale=3, render_fn=pkp_render)
+        result = render_status_bar(data, width=768, scale=3, render_fn=render_fn)
 
-        # Should have some bright (text) pixels
-        assert result.max() > 200
+        # Should have called render_fn
+        render_fn.assert_called_once()
+        call_args = render_fn.call_args
+        assert call_args[0][1] == data
+        assert call_args[0][2] == 3

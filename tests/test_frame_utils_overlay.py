@@ -58,16 +58,16 @@ class TestCompositeOverlay:
     def test_composite_overlay_output_shape(self):
         """game_frame 480x432 + sidebar 288x432 should give 768x432 output."""
         game_frame = np.zeros((432, 480, 3), dtype=np.uint8)
-        sidebar = np.ones((432, 288, 3), dtype=np.uint8) * 128
+        sidebar = np.ones((432, 372, 3), dtype=np.uint8) * 128
         result = composite_overlay(game_frame, sidebar)
-        assert result.shape == (432, 768, 3)
+        assert result.shape == (432, 852, 3)
 
     def test_composite_overlay_game_frame_on_left(self):
         """Game frame pixels should be on the left side of the composite."""
         game_frame = np.zeros((432, 480, 3), dtype=np.uint8)
         # Mark game frame with a distinctive color
         game_frame[:, :, 0] = 200  # Red channel = 200
-        sidebar = np.ones((432, 288, 3), dtype=np.uint8) * 128
+        sidebar = np.ones((432, 372, 3), dtype=np.uint8) * 128
 
         result = composite_overlay(game_frame, sidebar)
         # Left portion (0:320) should have red channel = 200
@@ -78,7 +78,7 @@ class TestCompositeOverlay:
     def test_composite_overlay_sidebar_on_right(self):
         """Sidebar pixels should be on the right side of the composite."""
         game_frame = np.zeros((432, 480, 3), dtype=np.uint8)
-        sidebar = np.ones((432, 288, 3), dtype=np.uint8) * 128
+        sidebar = np.ones((432, 372, 3), dtype=np.uint8) * 128
 
         result = composite_overlay(game_frame, sidebar)
         # Right portion (320:512) should be 128 on all channels
@@ -110,7 +110,7 @@ class TestApplyOverlayComposite:
         frames = [np.zeros((432, 480, 3), dtype=np.uint8) for _ in range(3)]
         result = apply_overlay_composite(frames, [], [])
         for f in result:
-            assert f.shape == (480, 768, 3)  # 432 game+sidebar + 48 status bar (16*3)
+            assert f.shape == (480, 852, 3)  # 432 game+sidebar + 48 status bar (16*3)
 
     def test_sidebar_empty_before_offset(self):
         """Sidebar area is all-black on frames before an input's offset."""
@@ -190,7 +190,7 @@ class TestScoreLabels:
         # Render with no new inputs — pre-existing get no label
         result = apply_overlay_composite(frames, pre, [], capture_fps=5)
         # We can't easily test label absence vs text presence, but just verify it renders
-        assert result[0].shape == (480, 768, 3)  # 432 + 48 status bar
+        assert result[0].shape == (480, 852, 3)  # 432 + 48 status bar
 
     def test_label_at_frame_0_alpha_is_1(self):
         """At frame 0 (frames_since=0): ease=0, alpha=1.0, x_offset=0."""
@@ -200,7 +200,7 @@ class TestScoreLabels:
         frame = np.zeros((432, 480, 3), dtype=np.uint8)
         # Just verify transform runs and returns correct shape
         out = transform(frame)
-        assert out.shape == (432, 768, 3)
+        assert out.shape == (432, 852, 3)
 
     def test_label_fades_out_over_capture_fps_frames(self):
         """Label has fewer bright pixels at the last frame compared to frame 0."""
@@ -240,8 +240,8 @@ class TestScoreLabels:
         # inp_a at frame 0, inp_b at frame 2
         result = apply_overlay_composite(frames, [], [(inp_a, 0), (inp_b, 2)], capture_fps=capture_fps)
         # Frame 2: both inputs visible, both labels active
-        assert result[2].shape == (480, 768, 3)  # 432 + 48 status bar
+        assert result[2].shape == (480, 852, 3)  # 432 + 48 status bar
         # Frame 0: only inp_a visible, inp_a label active
-        assert result[0].shape == (480, 768, 3)  # 432 + 48 status bar
+        assert result[0].shape == (480, 852, 3)  # 432 + 48 status bar
         # Frame capture_fps + 1: both inputs visible but labels have expired
-        assert result[capture_fps + 1].shape == (480, 768, 3)  # 432 + 48 status bar
+        assert result[capture_fps + 1].shape == (480, 852, 3)  # 432 + 48 status bar

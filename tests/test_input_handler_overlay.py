@@ -172,7 +172,7 @@ class TestProcessBatchCallsFrameTransform:
              patch("src.handlers.input_handler.state_manager") as mock_sm, \
              patch("src.handlers.input_handler.broadcast_game_update", new_callable=AsyncMock), \
              patch("src.handlers.input_handler.generate_tbc_frames", return_value=[]), \
-             patch("src.handlers.input_handler.apply_overlay_composite", return_value=[np.zeros((432, 768, 3), dtype=np.uint8)]), \
+             patch("src.handlers.input_handler.apply_overlay_composite", return_value=[np.zeros((432, 852, 3), dtype=np.uint8)]), \
              patch("src.handlers.input_handler._save_raw_frames_sync"), \
              patch("src.handlers.input_handler.settings") as mock_settings, \
              patch("src.tasks.timelapse_encoder.timelapse_queue", mock_tq):

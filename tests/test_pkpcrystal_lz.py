@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.utils.lz import Decompressed
+from src.game_utils.pkpcrystal.lz import Decompressed
 
 
 def test_literal_command():

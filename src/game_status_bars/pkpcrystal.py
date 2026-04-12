@@ -9,8 +9,8 @@ import logging
 
 from PIL import Image, ImageDraw, ImageFont
 
-from src.utils.lz import Decompressed
-from src.utils.gbc_graphics import decode_1bpp, decode_2bpp, read_mini_palette, read_badge_palette
+from src.game_utils.pkpcrystal.lz import Decompressed
+from src.utils.gbc_graphics import decode_1bpp, decode_2bpp, gbc_color_to_rgba
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ def init(pyboy) -> None:
         mini_addr = _read_u16(pyboy, ptrs_bank, base_addr + 1)
         mini_mask_addr = _read_u16(pyboy, ptrs_bank, base_addr + 3)
 
-        palette = read_mini_palette(pyboy, i + 1)
+        palette = _read_mini_palette(pyboy, i + 1)
 
         out_path = out_dir / "minis" / f"{i + 1}.png"
         # if out_path.exists():
@@ -71,8 +71,8 @@ def init(pyboy) -> None:
     kanto_badge_gfx = _extract_badge_gfx(pyboy, kanto_badges_bank, kanto_badges_bank_base_addr)
     
     for i in range(0, 8):
-        johto_palette = read_badge_palette(pyboy, johto_badge_palettes_bank, johto_badge_palettes_addr, i)
-        kanto_palette = read_badge_palette(pyboy, kanto_badge_palettes_bank, kanto_badge_palettes_addr, i)
+        johto_palette = _read_badge_palette(pyboy, johto_badge_palettes_bank, johto_badge_palettes_addr, i)
+        kanto_palette = _read_badge_palette(pyboy, kanto_badge_palettes_bank, kanto_badge_palettes_addr, i)
         
         johto_out_path = out_dir / "badges" / "johto" / f"{i + 1}.png"
         kanto_out_path = out_dir / "badges" / "kanto" / f"{i + 1}.png"
@@ -80,6 +80,47 @@ def init(pyboy) -> None:
         _save_badge_sprite(johto_badge_gfx, johto_palette, i, out_path=johto_out_path)
         _save_badge_sprite(kanto_badge_gfx, kanto_palette, i, out_path=kanto_out_path)
 
+
+def _read_mini_palette(pyboy, pokemon_index: int) -> list[tuple[int, int, int, int]]:
+    """Read a Pokemon's 4-color GBC palette from ROM.
+
+    Follows Polished Crystal's logic for a plain,
+    non-shiny species entry. For plain-form species, the palette table
+    index collapses to the base species slot in PokemonPalettes.
+
+    Args:
+        pyboy: PyBoy instance with symbols loaded.
+        pokemon_index: National Dex number (1-based, e.g. 152 for Chikorita).
+
+    Returns:
+        4 RGBA tuples. Index 0 is always transparent (alpha=0).
+
+    """
+    pp_bank, pp_addr = pyboy.symbol_lookup("PokemonPalettes")
+    pal_base = pp_addr + (pokemon_index) * 8
+
+    colors: list[tuple[int, int, int, int]] = [(255, 255, 255, 255)]  # index 0 = white, index 1 = black
+    for i in range(0, 2):
+        lo = pyboy.memory[pp_bank, pal_base + (i * 2)]
+        hi = pyboy.memory[pp_bank, pal_base + (i * 2) + 1]
+        colors.append(gbc_color_to_rgba(lo | (hi << 8)))
+    colors.append((0, 0, 0, 255))
+
+    return colors
+
+
+def _read_badge_palette(pyboy, bank: int, addr: int, badge_index: int) -> list[tuple[int, int, int, int]]:
+    pal_base = addr + (badge_index) * 8
+
+    colors: list[tuple[int, int, int, int]] = [(255, 255, 255, 255)]  # index 0 = white, index 1 = black
+    for i in range(0, 2):
+        lo = pyboy.memory[bank, pal_base + (i * 2)]
+        hi = pyboy.memory[bank, pal_base + (i * 2) + 1]
+        colors.append(gbc_color_to_rgba(lo | (hi << 8)))
+    colors.append((0, 0, 0, 255))
+
+    return colors
+    
 
 def _extract_mini_sprite(pyboy, bank: int, addr: int, palette: list[tuple[int, int, int, int]], mask: list[list[int]], out_path: Path) -> None:
     """Read a mini sprite from ROM and save it as a 16×32 RGBA PNG.
@@ -276,7 +317,7 @@ def render_party(img: Image.Image, party: list[dict], scale: int):
             img.paste(resized_asset, (x + 5 * scale, y), resized_asset)
             
         status = _get_status_text(pokemon['status'])
-        draw.text((x + 13 * scale, y + 6 * scale), status, fill=(255, 255, 255), font=font, fontmode="1")
+        draw.text((x + 13 * scale, y + 5 * scale), status, fill=(255, 255, 255), font=font, fontmode="1")
         
         hp_percent = pokemon["hp"] / max(pokemon["max_hp"], 1)
         hp_color = (0, 184, 0) if hp_percent > 0.5 else (248, 168, 0) if hp_percent > 0.2 else (248, 0, 0)

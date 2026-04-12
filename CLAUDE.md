@@ -1,58 +1,31 @@
-# CLAUDE.md
+## Summary
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+A Telegram/Discord bot to play GBC games collaboratively in group chats. Users press inline keyboard buttons, bot runs received input in a queue through a headless PyBoy emulator, animates the result and edits the message's media.
 
-## What This Is
+## Dependencies
 
-A Telegram bot that lets group chats collaboratively play Gameboy games. Users press inline keyboard buttons, the bot runs the received input in a queue through a headless PyBoy emulator, animates the result by editing the Telegram message, then re-enables the keyboard for the next input.
-
-## Commands
-
-```bash
-# Run the bot
-poetry run python -m src.main
-
-# Run all tests
-poetry run pytest
-
-# Run a single test file
-poetry run pytest tests/test_config.py
-
-# Run a specific test
-poetry run pytest tests/test_config.py::TestRequiredSettings::test_telegram_bot_token_required
-```
-
-Python 3.11 is required (managed via `mise.toml`). Dependencies are in `pyproject.toml` and are managed by `poetry`.
+Python 3.11 required (`mise.toml`). Dependencies in `pyproject.toml`, managed by `poetry`.
 
 ## Architecture
 
-The app is a FastAPI webhook server that receives Telegram updates, routes them to handlers, and controls a PyBoy GameBoy emulator per chat.
-
-### Request Flow
-
-1. **Telegram sends update** -> `WebhookHandler` (FastAPI endpoint at `/webhook/{hash}`)
-2. **WebhookHandler** routes to either:
-   - `InputHandler.handle_button_press()` for callback queries (game button presses)
-   - `COMMAND_HANDLERS[command]` for `/start_game`, `/resume`, `/save`, `/load`, `/status`, `/print`, `/help`
-3. **InputHandler** uses `GameController` (PyBoy wrapper) to execute inputs and animate frames
-4. **StateManager** persists everything to SQLite3 database.
+FastAPI webhook server: Discord using discord.py, endpoints to receive Telegram updates, routes them to handlers, and controls a stateful emulator instance per chat.
 
 ### Key Modules
 
-- **`src/config.py`** - Pydantic Settings with env var support. Uses a `_SettingsProxy` for lazy instantiation. The global `settings` object is imported everywhere. In tests, `PYTEST_CURRENT_TEST` env var skips `.env` loading and ROM validation.
-- **`src/game.py`** - `GameController` wraps a single PyBoy instance. `GameControllerManager` (singleton `game_controller_manager`) manages one controller per chat_id.
-- **`src/handlers/input_handler.py`** - `InputHandler` manages the game loop: receive button press -> enqueue input -> process queue in a loop -> execute input -> animate frames -> re-add keyboard.
-- **`src/handlers/commands.py`** - Command functions registered in `COMMAND_HANDLERS` dict. Commands auto-start the game via `_ensure_game_active()` which tries to load save slot 1 first.
-- **`src/handlers/webhook.py`** - `WebhookHandler` creates the FastAPI app in `create_app()` with lifespan for startup/shutdown. Routes callbacks and messages.
-- **`src/keyboard.py`** - Telegram inline keyboard builders. `BUTTON_LAYOUT` from `models/game_state.py` defines the grid.
-- **`src/utils/state_manager.py`** - SQLite3-based persistence. Game state goes in `data/bot.db`
-- **`src/utils/frame_utils.py`** - Animation MP4 encoding using FFMPEG.
-- **`src/models/game_state.py`** - Dataclasses: `GameButton` enum, `ChatGameState`, `ChatConfig`, `SaveSlotInfo`, `GameSession`.
-
-### Singleton Pattern
-
-Several modules use module-level singletons: `settings` (config proxy), `game_controller_manager`, `state_manager`, `_webhook_handler`, `_input_handler`. These are lazily initialized.
+- **`src/config.py`** - Pydantic Settings - global `settings` object imported everywhere.
+- **`src/db/migrations/*.py`** - Migrations for the DB schema.
+- **`src/db/manager.py`** - DB queries and commands.
+- **`src/game.py`** - `GameController` wraps a single PyBoy instance. One controller per chat_id.
+- **`src/handlers/input_handler.py`** - `InputHandler` manages the game loop: receive button press -> buffer input -> loop process queue -> execute input -> async animate frames.
+- **`src/handlers/commands.py`** - Functions registered in `COMMAND_HANDLERS` dict.
+- **`src/handlers/webhook.py`** - Has the FastAPI app lifecycle, routes callbacks and messages.
+- **`src/utils/frame_utils.py`** - Animation MP4 encoding using FFMPEG, overlay utils, and more.
+- **`src/models/*.py`** - Dataclasses for game state, input, etc.
 
 ### Testing
 
-All features MUST be tested. Tests use `PYTEST_CURRENT_TEST=1` to bypass `.env` file loading and ROM existence checks. Config tests create temporary ROM files via `tmp_path`. pytest-asyncio is available for async tests.
+All features MUST be tested with `unittest`. pytest-asyncio is available. Run tests with `poetry run pytest`.
+
+### Response style
+
+When reporting info, be extremely concise and sacrifice grammar for the sake of conciseness.

@@ -112,15 +112,29 @@ class TestMigrationRunner:
         """Verify is_migration_applied detection."""
         from src.db.connection import DatabaseConnection
         from src.db.migrations.runner import MigrationRunner
-        
+
         db_path = tmp_path / "test.db"
         conn = DatabaseConnection(db_path)
         runner = MigrationRunner(conn)
         runner._ensure_migration_history_table()
-        
+
         assert not runner.is_migration_applied(1)
         runner._record_migration_applied(1, "001_baseline")
         assert runner.is_migration_applied(1)
+        conn.close()
+
+    def test_migration_022_adds_user_name_column(self, tmp_path):
+        """Migration 022 adds user_name column to user_player_profiles."""
+        from src.db.connection import DatabaseConnection
+
+        db_path = tmp_path / "test022.db"
+        conn = DatabaseConnection(db_path)
+        conn.initialize()  # runs all migrations including 022
+
+        # Column should exist
+        cursor = conn.execute("PRAGMA table_info(user_player_profiles);")
+        cols = [row["name"] for row in cursor.fetchall()]
+        assert "user_name" in cols
         conn.close()
 
 

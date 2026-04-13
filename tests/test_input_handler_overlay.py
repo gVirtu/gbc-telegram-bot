@@ -243,3 +243,67 @@ class TestProcessBatchPreExistingCappedAt30:
                 await handler._process_batch(123456, 789, batch, mock_adapter)
 
             mock_sm.get_recent_inputs_for_overlay.assert_called_once_with(123456, limit=30)
+
+
+class TestProcessBatchStatsHeader:
+    """Test that _process_batch passes header_stats and base_global_frame_count to timelapse."""
+
+    @pytest.fixture
+    def handler(self):
+        h = InputHandler()
+        h._sessions[123456] = GameSession(
+            chat_id=123456,
+            state=ChatGameState(chat_id=123456, message_id=789, global_frame_count=150),
+        )
+        return h
+
+    @pytest.mark.asyncio
+    async def test_compositing_context_includes_header_stats_and_frame_count(
+        self, handler, mock_adapter
+    ):
+        """compositing_context passed to insert_timelapse_job includes header_stats and base_global_frame_count."""
+        batch = _make_batch([(GameButton.A, 1, "Alice")])
+        mock_controller = _make_mock_controller()
+        mock_config = _make_mock_config(feature_flags={"realtime_recaps": True})
+        mock_tq = MagicMock()
+        mock_tq.trigger_worker = Mock()
+
+        today_stats = {"total": 10, "top_players": []}
+        alltime_stats = {"total": 100, "top_players": []}
+
+        with patch("src.handlers.input_handler.game_controller_manager") as mock_mgr, \
+             patch("src.handlers.input_handler.state_manager") as mock_sm, \
+             patch("src.handlers.input_handler.broadcast_game_update", new_callable=AsyncMock), \
+             patch("src.handlers.input_handler.generate_tbc_frames", return_value=[]), \
+             patch("src.handlers.input_handler._make_frame_transform", return_value=lambda f: f), \
+             patch("src.handlers.input_handler._save_raw_frames_sync"), \
+             patch("src.handlers.input_handler.settings") as mock_settings, \
+             patch("src.tasks.timelapse_encoder.timelapse_queue", mock_tq):
+
+            mock_settings.input_hold_frames = 10
+            mock_settings.animation_duration = 0
+            mock_settings.sequence_delay_seconds = 0.0
+            mock_settings.tbc_duration_frames = 0
+            mock_settings.tbc_overlay_path = MagicMock()
+            mock_settings.timelapse_frame_skip = 1
+            mock_settings.max_queue_size = 50
+            mock_settings.data_dir = MagicMock()
+            mock_settings.data_dir.__truediv__ = lambda s, o: MagicMock()
+
+            mock_mgr.get_or_create_controller = AsyncMock(return_value=mock_controller)
+            mock_sm.get_or_create_chat_config.return_value = mock_config
+            mock_sm.get_recent_inputs_for_overlay.return_value = []
+            mock_sm.get_today_input_stats.return_value = today_stats
+            mock_sm.get_alltime_input_stats.return_value = alltime_stats
+            mock_sm.append_recent_input.return_value = None
+            mock_sm.insert_timelapse_job = Mock(return_value=1)
+            mock_sm.connection = MagicMock()
+
+            await handler._process_batch(123456, 789, batch, mock_adapter)
+
+            mock_sm.insert_timelapse_job.assert_called_once()
+            ctx = mock_sm.insert_timelapse_job.call_args[1]["compositing_context"]
+            assert "header_stats" in ctx
+            assert ctx["header_stats"]["today"]["total"] == 10
+            assert "base_global_frame_count" in ctx
+            assert ctx["base_global_frame_count"] == 150  # from initial state

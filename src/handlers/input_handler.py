@@ -546,6 +546,16 @@ class InputHandler:
         except Exception as e:
             logger.warning(f"Failed to get recent inputs for overlay for chat {chat_id}: {e}")
 
+        # Fetch stats for sidebar header (before new inputs are committed)
+        header_stats = None
+        base_global_frame_count = session.state.global_frame_count if session else 0
+        try:
+            today_stats = state_manager.get_today_input_stats(chat_id)
+            alltime_stats = state_manager.get_alltime_input_stats(chat_id)
+            header_stats = {"today": today_stats, "alltime": alltime_stats}
+        except Exception as e:
+            logger.warning(f"Failed to fetch input stats for chat {chat_id}: {e}")
+
         logger.info(f"Executing batch of {len(buttons)} buttons for chat {chat_id} (modifier_states={modifier_states})")
 
         # Read game-specific status bar data before capture starts
@@ -738,7 +748,9 @@ class InputHandler:
         sidebar_transform_fn = _make_frame_transform(
             pre_existing_inputs_for_overlay, new_inputs_with_offsets, capture_fps,
             user_colors=user_colors,
-            scale=2
+            scale=2,
+            base_global_frame_count=base_global_frame_count,
+            header_stats=header_stats,
         )
         status_bar_render_fn = controller.get_status_bar_render_fn()
         _status_bar_cache: list[np.ndarray | None] = [None]
@@ -758,6 +770,8 @@ class InputHandler:
                 _status_bar_cache[0] = render_status_bar(status_bar_data, composited.shape[1], scale=2, render_fn=status_bar_render_fn)
             return np.vstack([composited, _status_bar_cache[0]])
 
+        if session:
+            session.state.global_frame_count = base_global_frame_count + num_raw_frames + num_tbc_frames
         animation_duration_seconds = num_raw_frames / capture_fps
 
         recent = _build_recent_inputs_grouped(pre_existing_inputs_for_overlay, new_inputs_with_offsets)
@@ -816,6 +830,8 @@ class InputHandler:
                             "user_colors": {k: list(v) for k, v in user_colors.items()},
                             "status_bar_data": status_bar_data,
                             "cartridge_title": controller.pyboy.cartridge_title if controller.pyboy else None,
+                            "base_global_frame_count": base_global_frame_count,
+                            "header_stats": header_stats,
                         }
 
                         ts_str = datetime.now().strftime('%Y%m%d_%H%M%S')

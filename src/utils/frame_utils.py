@@ -196,6 +196,38 @@ def create_empty_frame(
     return frame
 
 
+def _draw_colored_username(
+    img: "Image.Image",
+    draw: "ImageDraw.ImageDraw",
+    x: int,
+    y: int,
+    name: str,
+    color: tuple,
+    max_w: int,
+    line_height: int,
+    font,
+) -> int:
+    """Draw a username with color, compressing horizontally if too wide.
+
+    Returns the actual pixel width used (≤ max_w).
+    """
+    try:
+        bbox = draw.textbbox((0, 0), name, font=font)
+        natural_w = bbox[2] - bbox[0]
+    except Exception:
+        natural_w = len(name) * 6
+
+    if natural_w > max_w and natural_w > 0:
+        tmp = Image.new("RGB", (natural_w, line_height), (0, 0, 0))
+        ImageDraw.Draw(tmp).text((0, 0), name, fill=color, font=font, fontmode="1")
+        tmp = tmp.resize((max_w, line_height), Image.Resampling.LANCZOS)
+        img.paste(tmp, (x, y))
+        return max_w
+    else:
+        draw.text((x, y), name, fill=color, font=font, fontmode="1")
+        return natural_w
+
+
 def render_input_sidebar(
     inputs: list,
     base_width: int = 124,
@@ -308,18 +340,13 @@ def render_input_sidebar(
         max_name_w = max(int(width * 0.8) - streak_total_w - suffix_w, 1)
 
         if name_natural_w > max_name_w and name_natural_w > 0:
-            # Compress username horizontally to fit within budget
-            tmp = Image.new("RGB", (name_natural_w, line_height), (0, 0, 0))
-            tmp_draw = ImageDraw.Draw(tmp)
-            tmp_draw.text((0, 0), user_name, fill=color, font=font, fontmode="1")
-            tmp = tmp.resize((max_name_w, line_height), Image.Resampling.LANCZOS)
-            x = width - max_name_w - streak_total_w - suffix_w - padding
-            img.paste(tmp, (x, y))
-            cx = x + max_name_w
+            name_x = width - max_name_w - streak_total_w - suffix_w - padding
+            _draw_colored_username(img, draw, name_x, y, user_name, color, max_name_w, line_height, font)
+            cx = name_x + max_name_w
         else:
-            x = width - name_natural_w - streak_total_w - suffix_w - padding
-            draw.text((x, y), user_name, fill=color, font=font, fontmode="1")
-            cx = x + name_natural_w
+            name_x = width - name_natural_w - streak_total_w - suffix_w - padding
+            _draw_colored_username(img, draw, name_x, y, user_name, color, max_name_w, line_height, font)
+            cx = name_x + name_natural_w
 
         if streak > 1:
             cx = _draw_streak_badge(
@@ -346,7 +373,7 @@ def render_input_sidebar(
             gap_x = 2*scale
             gap_y = 2*scale
 
-            lx = x + x_off - lw - gap_x
+            lx = name_x + x_off - lw - gap_x
             ly = y + gap_y
             
             # Fill with yellow tint

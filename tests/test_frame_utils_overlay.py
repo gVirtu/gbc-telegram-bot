@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+from pathlib import Path
 
 from src.utils.frame_utils import composite_overlay, render_input_sidebar, _make_frame_transform, apply_overlay_composite
 
@@ -245,3 +246,50 @@ class TestScoreLabels:
         assert result[0].shape == (480, 852, 3)  # 432 + 48 status bar
         # Frame capture_fps + 1: both inputs visible but labels have expired
         assert result[capture_fps + 1].shape == (480, 852, 3)  # 432 + 48 status bar
+
+
+class TestDrawColoredUsername:
+    """Tests for the _draw_colored_username helper."""
+
+    def test_returns_width_within_max(self):
+        """Returns actual width <= max_w."""
+        from PIL import Image, ImageDraw, ImageFont
+        from src.utils.frame_utils import _draw_colored_username
+
+        scale = 1
+        img = Image.new("RGB", (200, 20), (0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        try:
+            font = ImageFont.truetype(
+                str(Path(__file__).parent.parent / "assets" / "fonts" / "unifont-17.0.04.otf"),
+                size=9 * scale,
+            )
+        except Exception:
+            font = ImageFont.load_default()
+
+        used_w = _draw_colored_username(img, draw, x=0, y=0, name="Alice",
+                                        color=(255, 255, 255), max_w=50,
+                                        line_height=20, font=font)
+        assert 0 < used_w <= 50
+
+    def test_compresses_long_name(self):
+        """A very long name is compressed to max_w."""
+        from PIL import Image, ImageDraw, ImageFont
+        from src.utils.frame_utils import _draw_colored_username
+
+        scale = 1
+        img = Image.new("RGB", (200, 20), (0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        try:
+            font = ImageFont.truetype(
+                str(Path(__file__).parent.parent / "assets" / "fonts" / "unifont-17.0.04.otf"),
+                size=9 * scale,
+            )
+        except Exception:
+            font = ImageFont.load_default()
+
+        long_name = "VeryLongUserNameThatDefinitelyExceedsTheMaxWidth"
+        used_w = _draw_colored_username(img, draw, x=0, y=0, name=long_name,
+                                        color=(255, 0, 0), max_w=30,
+                                        line_height=20, font=font)
+        assert used_w == 30

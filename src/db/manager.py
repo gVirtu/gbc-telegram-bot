@@ -214,11 +214,12 @@ class DatabaseManager:
 
     # ==================== Game State ====================
     
-    def save_game_state(self, state: ChatGameState) -> None:
+    def save_game_state(self, state: ChatGameState, save_user_input_counts: bool = False) -> None:
         """Save game state to database.
         
         Args:
             state: The game state to save
+            save_user_input_counts: Whether to save user input counts
         """
         sql = """
         INSERT INTO game_states 
@@ -245,7 +246,8 @@ class DatabaseManager:
         ))
         
         # Save user input counts
-        self._save_user_input_counts(state.chat_id, state.user_input_counts)
+        if save_user_input_counts:
+            self._save_user_input_counts(state.chat_id, state.user_input_counts)
         
         self.connection.commit()
         logger.debug(f"Saved game state for chat {state.chat_id}")

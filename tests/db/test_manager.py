@@ -131,7 +131,7 @@ class TestGameStateOperations:
             chat_id=123,
             user_input_counts={"111": 5, "222": 3}
         )
-        db_manager.save_game_state(state)
+        db_manager.save_game_state(state, save_user_input_counts=True)
         
         loaded = db_manager.load_game_state(123)
         assert loaded.user_input_counts == {"111": 5, "222": 3}

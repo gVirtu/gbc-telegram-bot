@@ -497,7 +497,7 @@ class InputHandler:
                     logger.error(f"Error processing batch for chat {chat_id}: {e}")
                     result = {"animation_duration": None}
 
-                state_manager.save_game_state(session.state)
+                state_manager.save_game_state(session.state, save_user_input_counts=True)
 
                 animation_duration = result.get("animation_duration") or 0
                 wait_time = max(animation_duration, settings.min_update_interval_seconds)

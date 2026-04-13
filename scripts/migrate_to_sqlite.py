@@ -107,7 +107,7 @@ def migrate_game_states(data_dir: Path, db_manager: DatabaseManager, dry_run: bo
             )
 
             if not dry_run:
-                db_manager.save_game_state(state)
+                db_manager.save_game_state(state, save_user_input_counts=True)
                 for group in recent_inputs_from_json:
                     for button in group.get("buttons", []):
                         db_manager.append_recent_input(

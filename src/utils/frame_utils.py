@@ -516,10 +516,12 @@ def apply_overlay_composite(
     # Transform in-place: as each slot is overwritten CPython immediately frees
     # the old frame (refcount → 0), so we never hold both the raw and composited
     # generations simultaneously.
+    _status_bar: np.ndarray | None = None
     for i in range(len(frames)):
         composited = transform(frames[i])
-        status_bar = render_status_bar(status_bar_data, composited.shape[1], scale, render_fn=status_bar_render_fn)
-        frames[i] = np.vstack([composited, status_bar])
+        if _status_bar is None:
+            _status_bar = render_status_bar(status_bar_data, composited.shape[1], scale, render_fn=status_bar_render_fn)
+        frames[i] = np.vstack([composited, _status_bar])
     return frames
 
 

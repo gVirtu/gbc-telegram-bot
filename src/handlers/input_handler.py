@@ -740,6 +740,7 @@ class InputHandler:
             scale=2
         )
         status_bar_render_fn = controller.get_status_bar_render_fn()
+        _status_bar_cache: list[np.ndarray | None] = [None]
 
         def animation_transform(frame: np.ndarray, index: int) -> np.ndarray:
             if index < num_raw_frames:
@@ -752,8 +753,9 @@ class InputHandler:
             else:
                 scaled = frame  # TBC frames are already 2x-scaled
             composited = sidebar_transform_fn(scaled)
-            status_bar = render_status_bar(status_bar_data, composited.shape[1], scale=2, render_fn=status_bar_render_fn)
-            return np.vstack([composited, status_bar])
+            if _status_bar_cache[0] is None:
+                _status_bar_cache[0] = render_status_bar(status_bar_data, composited.shape[1], scale=2, render_fn=status_bar_render_fn)
+            return np.vstack([composited, _status_bar_cache[0]])
 
         animation_duration_seconds = num_raw_frames / capture_fps
 

@@ -46,16 +46,16 @@ def init(pyboy) -> None:
     # Extract pokemon minis
     ptrs_bank, ptrs_base_addr = pyboy.symbol_lookup("MiniIconPointers")
     for i in range(0, 393):
+        out_path = out_dir / "minis" / f"{i + 1}.png"
+        if out_path.exists():
+            continue
+
         base_addr = ptrs_base_addr + (i * 7)
         mini_bank = pyboy.memory[ptrs_bank, base_addr]
         mini_addr = _read_u16(pyboy, ptrs_bank, base_addr + 1)
         mini_mask_addr = _read_u16(pyboy, ptrs_bank, base_addr + 3)
 
         palette = _read_mini_palette(pyboy, i + 1)
-
-        out_path = out_dir / "minis" / f"{i + 1}.png"
-        # if out_path.exists():
-        #     continue
 
         mask = _extract_mask_sprite(pyboy, mini_bank, mini_mask_addr)
         _extract_mini_sprite(pyboy, mini_bank, mini_addr, palette, mask, out_path=out_path)
@@ -71,12 +71,15 @@ def init(pyboy) -> None:
     kanto_badge_gfx = _extract_badge_gfx(pyboy, kanto_badges_bank, kanto_badges_bank_base_addr)
     
     for i in range(0, 8):
-        johto_palette = _read_badge_palette(pyboy, johto_badge_palettes_bank, johto_badge_palettes_addr, i)
-        kanto_palette = _read_badge_palette(pyboy, kanto_badge_palettes_bank, kanto_badge_palettes_addr, i)
-        
         johto_out_path = out_dir / "badges" / "johto" / f"{i + 1}.png"
         kanto_out_path = out_dir / "badges" / "kanto" / f"{i + 1}.png"
 
+        if johto_out_path.exists() and kanto_out_path.exists():
+            continue
+
+        johto_palette = _read_badge_palette(pyboy, johto_badge_palettes_bank, johto_badge_palettes_addr, i)
+        kanto_palette = _read_badge_palette(pyboy, kanto_badge_palettes_bank, kanto_badge_palettes_addr, i)
+        
         _save_badge_sprite(johto_badge_gfx, johto_palette, i, out_path=johto_out_path)
         _save_badge_sprite(kanto_badge_gfx, kanto_palette, i, out_path=kanto_out_path)
 

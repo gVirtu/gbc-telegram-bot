@@ -420,6 +420,67 @@ class DatabaseManager:
             for row in rows
         ]
 
+    def get_today_input_stats(self, chat_id: int) -> dict:
+        """Return total input count and top-3 players for today (UTC) for a chat.
+
+        Returns:
+            {"total": int, "top_players": [{"user_name": str, "count": int}, ...]}
+        """
+        from datetime import datetime, timezone
+        today_midnight = datetime.now(timezone.utc).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ).isoformat()
+
+        total_row = self.connection.execute(
+            "SELECT COUNT(*) as cnt FROM recent_inputs WHERE chat_id = ? AND timestamp >= ?;",
+            (chat_id, today_midnight),
+        ).fetchone()
+        total = total_row["cnt"] if total_row else 0
+
+        cursor = self.connection.execute(
+            """SELECT user_id, user_name, COUNT(*) as cnt
+               FROM recent_inputs
+               WHERE chat_id = ? AND timestamp >= ?
+               GROUP BY user_id
+               ORDER BY cnt DESC
+               LIMIT 3;""",
+            (chat_id, today_midnight),
+        )
+        top_players = [
+            {"user_name": row["user_name"] or "?", "count": row["cnt"]}
+            for row in cursor.fetchall()
+        ]
+        return {"total": total, "top_players": top_players}
+
+    def get_alltime_input_stats(self, chat_id: int) -> dict:
+        """Return total all-time input count and top-3 players for a chat.
+
+        Sources counts from user_input_counts, names from user_player_profiles.
+
+        Returns:
+            {"total": int, "top_players": [{"user_name": str, "count": int}, ...]}
+        """
+        total_row = self.connection.execute(
+            "SELECT COALESCE(SUM(input_count), 0) as total FROM user_input_counts WHERE chat_id = ?;",
+            (chat_id,),
+        ).fetchone()
+        total = int(total_row["total"]) if total_row else 0
+
+        cursor = self.connection.execute(
+            """SELECT uic.user_id, up.user_name, uic.input_count as cnt
+               FROM user_input_counts uic
+               LEFT JOIN user_player_profiles up ON uic.user_id = up.user_id
+               WHERE uic.chat_id = ?
+               ORDER BY uic.input_count DESC
+               LIMIT 3;""",
+            (chat_id,),
+        )
+        top_players = [
+            {"user_name": row["user_name"] or "?", "count": row["cnt"]}
+            for row in cursor.fetchall()
+        ]
+        return {"total": total, "top_players": top_players}
+
     def purge_old_recent_inputs(self, older_than_days: int) -> int:
         """Delete recent_inputs rows older than N days.
 

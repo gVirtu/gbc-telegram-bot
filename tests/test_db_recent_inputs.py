@@ -261,3 +261,113 @@ class TestGetRecentInputsForOverlayStreak:
         rows = db_manager.get_recent_inputs_for_overlay(chat_id=6)
         assert len(rows) == 1
         assert rows[0]["current_streak"] == 0
+
+
+class TestInputStats:
+    """Tests for get_today_input_stats and get_alltime_input_stats."""
+
+    @pytest.fixture
+    def manager(self, tmp_path):
+        from src.utils.state_manager import StateManager
+        return StateManager(data_dir=tmp_path)
+
+    def _insert_input(self, manager, chat_id, user_id, user_name, timestamp):
+        manager.connection.execute(
+            """INSERT INTO recent_inputs
+               (chat_id, user_id, user_name, button, timestamp)
+               VALUES (?, ?, ?, 'a', ?);""",
+            (chat_id, user_id, user_name, timestamp),
+        )
+        manager.connection.commit()
+
+    def _ensure_state(self, manager, chat_id):
+        manager.connection.execute(
+            """INSERT OR IGNORE INTO game_states
+               (chat_id, input_in_progress, created_at, updated_at)
+               VALUES (?, 0, '2026-01-01T00:00:00', '2026-01-01T00:00:00');""",
+            (chat_id,),
+        )
+        manager.connection.commit()
+
+    def test_get_today_input_stats_empty(self, manager):
+        """Returns zero total and empty list when no inputs today."""
+        self._ensure_state(manager, chat_id=1)
+        stats = manager.get_today_input_stats(chat_id=1)
+        assert stats["total"] == 0
+        assert stats["top_players"] == []
+
+    def test_get_today_input_stats_counts_today_only(self, manager):
+        """Only counts inputs with today's UTC date."""
+        self._ensure_state(manager, chat_id=1)
+        from datetime import datetime, timezone
+        today = datetime.now(timezone.utc).date().isoformat()
+        yesterday = "2000-01-01"
+
+        self._insert_input(manager, 1, 10, "Alice", f"{today}T10:00:00")
+        self._insert_input(manager, 1, 10, "Alice", f"{today}T11:00:00")
+        self._insert_input(manager, 1, 20, "Bob",   f"{yesterday}T10:00:00")
+
+        stats = manager.get_today_input_stats(chat_id=1)
+        assert stats["total"] == 2
+        assert len(stats["top_players"]) == 1
+        assert stats["top_players"][0]["user_name"] == "Alice"
+        assert stats["top_players"][0]["count"] == 2
+
+    def test_get_today_input_stats_top3_order(self, manager):
+        """top_players sorted descending by count, max 3 entries."""
+        self._ensure_state(manager, chat_id=2)
+        from datetime import datetime, timezone
+        today = datetime.now(timezone.utc).date().isoformat()
+        for _ in range(5):
+            self._insert_input(manager, 2, 1, "A", f"{today}T10:00:00")
+        for _ in range(3):
+            self._insert_input(manager, 2, 2, "B", f"{today}T10:00:00")
+        for _ in range(2):
+            self._insert_input(manager, 2, 3, "C", f"{today}T10:00:00")
+        self._insert_input(manager, 2, 4, "D", f"{today}T10:00:00")
+
+        stats = manager.get_today_input_stats(chat_id=2)
+        assert stats["total"] == 11
+        names = [p["user_name"] for p in stats["top_players"]]
+        assert names == ["A", "B", "C"]
+
+    def test_get_alltime_input_stats_empty(self, manager):
+        """Returns zero total and empty list when no all-time counts."""
+        self._ensure_state(manager, chat_id=3)
+        stats = manager.get_alltime_input_stats(chat_id=3)
+        assert stats["total"] == 0
+        assert stats["top_players"] == []
+
+    def test_get_alltime_input_stats_uses_user_input_counts(self, manager):
+        """Uses user_input_counts table, joins user_player_profiles for names."""
+        self._ensure_state(manager, chat_id=4)
+        # Insert user_input_counts rows
+        manager.connection.execute(
+            "INSERT INTO user_input_counts (chat_id, user_id, input_count) VALUES (?, ?, ?);",
+            (4, 10, 100),
+        )
+        manager.connection.execute(
+            "INSERT INTO user_input_counts (chat_id, user_id, input_count) VALUES (?, ?, ?);",
+            (4, 20, 50),
+        )
+        # Insert profiles with user_name
+        manager.connection.execute(
+            """INSERT INTO user_player_profiles
+               (platform, user_id, user_name, total_score_earned, total_score_spent,
+                current_streak, best_streak, last_input_at)
+               VALUES ('telegram', 10, 'Alice', 0, 0, 0, 0, '2026-01-01');"""
+        )
+        manager.connection.execute(
+            """INSERT INTO user_player_profiles
+               (platform, user_id, user_name, total_score_earned, total_score_spent,
+                current_streak, best_streak, last_input_at)
+               VALUES ('telegram', 20, 'Bob', 0, 0, 0, 0, '2026-01-01');"""
+        )
+        manager.connection.commit()
+
+        stats = manager.get_alltime_input_stats(chat_id=4)
+        assert stats["total"] == 150
+        assert stats["top_players"][0]["user_name"] == "Alice"
+        assert stats["top_players"][0]["count"] == 100
+        assert stats["top_players"][1]["user_name"] == "Bob"
+        assert stats["top_players"][1]["count"] == 50

@@ -291,7 +291,7 @@ def _render_stats_row(
 
     # ---- Right column: leaderboard ----
     rx = left_col_w  # right column x start
-    ordinals = ["1", "2", "3"]
+    ordinals = ["⑴", "⑵", "⑶"]
 
     # Header row: "TOP PLAYERS" left, period label right
     draw.text((rx + padding, row_y + padding), "TOP PLAYERS",
@@ -301,10 +301,11 @@ def _render_stats_row(
         pl_w = pl_bbox[2] - pl_bbox[0]
     except Exception:
         pl_w = len(period_label) * 6
-    draw.text((sidebar_width - pl_w - padding, padding), period_label,
+    draw.text((sidebar_width - pl_w - padding, 0), period_label,
               fill=(255, 255, 255), font=small_font, fontmode="1")
 
     # Player rows
+    player_row_font = _load_font(7 * scale)
     for rank_idx, ordinal in enumerate(ordinals):
         py = row_y + line_h + padding + rank_idx * line_h
         if py + line_h > row_y + row_height:
@@ -317,19 +318,19 @@ def _render_stats_row(
         color = (user_colors or {}).get(pname, (255, 255, 255))
 
         # Prefix "1st: "
-        prefix = f"{ordinal}. "
+        prefix = f"{ordinal} "
         try:
-            pre_bbox = draw.textbbox((0, 0), prefix, font=small_font)
+            pre_bbox = draw.textbbox((0, 0), prefix, font=player_row_font)
             pre_w = pre_bbox[2] - pre_bbox[0]
         except Exception:
             pre_w = len(prefix) * 6
         draw.text((rx + padding, py), prefix,
-                  fill=(255, 255, 255), font=small_font, fontmode="1")
+                  fill=(255, 255, 255), font=player_row_font, fontmode="1")
 
         # Suffix " - N"
         suffix = f" {pcount}"
         try:
-            suf_bbox = draw.textbbox((0, 0), suffix, font=small_font)
+            suf_bbox = draw.textbbox((0, 0), suffix, font=player_row_font)
             suf_w = suf_bbox[2] - suf_bbox[0]
         except Exception:
             suf_w = len(suffix) * 6
@@ -340,10 +341,10 @@ def _render_stats_row(
             img, draw, x=name_x, y=py,
             name=pname, color=color,
             max_w=max_name_w, line_height=line_h,
-            font=small_font,
+            font=player_row_font,
         )
         draw.text((name_x + actual_w, py), suffix,
-                  fill=(255, 255, 255), font=small_font, fontmode="1")
+                  fill=(255, 255, 255), font=player_row_font, fontmode="1")
 
 
 def render_input_sidebar(

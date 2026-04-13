@@ -345,8 +345,8 @@ def render_input_sidebar(
             cx = name_x + max_name_w
         else:
             name_x = width - name_natural_w - streak_total_w - suffix_w - padding
-            _draw_colored_username(img, draw, name_x, y, user_name, color, max_name_w, line_height, font)
-            cx = name_x + name_natural_w
+            used_w = _draw_colored_username(img, draw, name_x, y, user_name, color, max_name_w, line_height, font)
+            cx = name_x + used_w
 
         if streak > 1:
             cx = _draw_streak_badge(
@@ -373,7 +373,7 @@ def render_input_sidebar(
             gap_x = 2*scale
             gap_y = 2*scale
 
-            lx = name_x + x_off - lw - gap_x
+            lx = cx + x_off - lw - gap_x
             ly = y + gap_y
             
             # Fill with yellow tint

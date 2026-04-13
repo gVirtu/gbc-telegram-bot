@@ -222,18 +222,20 @@ class DatabaseManager:
             save_user_input_counts: Whether to save user input counts
         """
         sql = """
-        INSERT INTO game_states 
-            (chat_id, message_id, input_in_progress, last_input, last_input_time, last_animation_file_id, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO game_states
+            (chat_id, message_id, input_in_progress, last_input, last_input_time,
+             last_animation_file_id, global_frame_count, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(chat_id) DO UPDATE SET
             message_id = excluded.message_id,
             input_in_progress = excluded.input_in_progress,
             last_input = excluded.last_input,
             last_input_time = excluded.last_input_time,
             last_animation_file_id = excluded.last_animation_file_id,
+            global_frame_count = excluded.global_frame_count,
             updated_at = excluded.updated_at;
         """
-        
+
         self.connection.execute(sql, (
             state.chat_id,
             state.message_id,
@@ -241,6 +243,7 @@ class DatabaseManager:
             state.last_input.value if state.last_input else None,
             state.last_input_time.isoformat() if state.last_input_time else None,
             state.last_animation_file_id,
+            state.global_frame_count,
             state.created_at.isoformat() if state.created_at else datetime.utcnow().isoformat(),
             datetime.utcnow().isoformat()
         ))
@@ -278,6 +281,7 @@ class DatabaseManager:
             created_at=datetime.fromisoformat(row['created_at']),
             updated_at=datetime.fromisoformat(row['updated_at']),
             user_input_counts=self._load_user_input_counts(chat_id),
+            global_frame_count=row['global_frame_count'] if row['global_frame_count'] is not None else 0,
         )
         
         logger.debug(f"Loaded game state for chat {chat_id}")

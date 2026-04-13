@@ -75,8 +75,25 @@ class TestGameStatePersistence:
     def test_delete_nonexistent_state(self, manager):
         """Test deleting state that doesn't exist."""
         result = manager.delete_game_state(999999)
-        
+
         assert result is False
+
+    def test_global_frame_count_round_trips(self, manager):
+        """global_frame_count is saved and loaded correctly."""
+        state = ChatGameState(chat_id=111222, global_frame_count=750)
+        manager.save_game_state(state)
+
+        loaded = manager.load_game_state(111222)
+        assert loaded is not None
+        assert loaded.global_frame_count == 750
+
+    def test_global_frame_count_defaults_to_zero(self, manager):
+        """global_frame_count defaults to 0 for states loaded before migration."""
+        state = ChatGameState(chat_id=333444)
+        manager.save_game_state(state)
+
+        loaded = manager.load_game_state(333444)
+        assert loaded.global_frame_count == 0
 
 
 class TestChatConfigPersistence:

@@ -112,6 +112,7 @@ class ChatGameState:
     last_input_time: Optional[datetime] = None
     last_animation_file_id: Optional[str] = None
     user_input_counts: dict[str, int] = field(default_factory=dict)
+    global_frame_count: int = 0
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
 

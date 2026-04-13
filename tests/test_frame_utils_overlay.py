@@ -360,3 +360,42 @@ class TestRenderInputSidebarStatsRow:
             n_new_inputs=0,
         )
         assert result.shape == (144 * 3, 124 * 3, 3)
+
+
+class TestMakeFrameTransformStats:
+    """Tests that _make_frame_transform passes stats to sidebar correctly."""
+
+    def _make_stats(self):
+        return {
+            "today":   {"total": 5,  "top_players": [{"user_name": "X", "count": 5}]},
+            "alltime": {"total": 50, "top_players": [{"user_name": "X", "count": 50}]},
+        }
+
+    def test_transform_with_stats_returns_correct_shape(self):
+        """Transform with header_stats still returns a valid frame."""
+        game_frame = np.zeros((144 * 2, 160 * 2, 3), dtype=np.uint8)
+        transform = _make_frame_transform(
+            pre_existing=[],
+            new_inputs_with_offsets=[],
+            base_global_frame_count=0,
+            header_stats=self._make_stats(),
+        )
+        result = transform(game_frame)
+        assert result.ndim == 3
+        assert result.shape[2] == 3
+
+    def test_period_changes_render_at_frame_75(self):
+        """Renders at frame 0 and frame 75 differ (today vs alltime label)."""
+        game_frame = np.zeros((144 * 2, 160 * 2, 3), dtype=np.uint8)
+
+        transform_a = _make_frame_transform(
+            pre_existing=[], new_inputs_with_offsets=[],
+            base_global_frame_count=0, header_stats=self._make_stats(),
+        )
+        transform_b = _make_frame_transform(
+            pre_existing=[], new_inputs_with_offsets=[],
+            base_global_frame_count=75, header_stats=self._make_stats(),
+        )
+        result_a = transform_a(game_frame)
+        result_b = transform_b(game_frame)
+        assert not np.array_equal(result_a, result_b)

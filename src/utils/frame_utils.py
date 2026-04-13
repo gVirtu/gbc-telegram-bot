@@ -568,6 +568,8 @@ def _make_frame_transform(
     capture_fps: int = 15,
     scale: int = 3,
     user_colors: Optional[dict] = None,
+    base_global_frame_count: int = 0,
+    header_stats: Optional[dict] = None,
 ) -> Callable[[np.ndarray], np.ndarray]:
     """Build a stateful per-frame transform that composites the input sidebar.
 
@@ -620,7 +622,16 @@ def _make_frame_transform(
                         active_labels[ci] = (x_offset, alpha)
                         break
 
-        sidebar = render_input_sidebar(state["current_inputs"], active_labels=active_labels, user_colors=user_colors, scale=scale)
+        n_new = max(0, len(state["current_inputs"]) - len(pre_existing))
+        sidebar = render_input_sidebar(
+            state["current_inputs"],
+            active_labels=active_labels,
+            user_colors=user_colors,
+            scale=scale,
+            header_stats=header_stats,
+            global_frame_count=base_global_frame_count + fi,
+            n_new_inputs=n_new,
+        )
         return composite_overlay(frame, sidebar)
 
     return transform
@@ -1246,8 +1257,14 @@ def build_timelapse_transform(
     # Adjust input frame offsets for subsampling
     new_inputs_with_offsets = [(inp, off // max(frame_skip, 1)) for inp, off in raw_inputs]
 
+    base_global_frame_count = compositing_context.get("base_global_frame_count", 0)
+    header_stats = compositing_context.get("header_stats")
+
     sidebar_transform = _make_frame_transform(
-        pre_existing, new_inputs_with_offsets, capture_fps, user_colors=user_colors
+        pre_existing, new_inputs_with_offsets, capture_fps,
+        user_colors=user_colors,
+        base_global_frame_count=base_global_frame_count,
+        header_stats=header_stats,
     )
     reaction_transform = (
         _make_reaction_frame_transform(reactions, capture_fps, frame_skip)

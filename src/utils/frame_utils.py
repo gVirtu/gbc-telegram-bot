@@ -228,6 +228,125 @@ def _draw_colored_username(
         return natural_w
 
 
+def _render_stats_row(
+    img: "Image.Image",
+    draw: "ImageDraw.ImageDraw",
+    scale: int,
+    header_stats: dict,
+    global_frame_count: int,
+    n_new_inputs: int,
+    row_y: int,
+    row_height: int,
+    sidebar_width: int,
+    font_path: "Path",
+    user_colors: Optional[dict] = None,
+) -> None:
+    """Draw the stats header row onto img at the given y offset.
+
+    Left half: total input counter + "TOTAL INPUTS" label.
+    Right half: "TOP PLAYERS" + period label + top-3 player rows.
+    """
+    from PIL import ImageFont
+
+    period_key = "today" if (global_frame_count // 75) % 2 == 0 else "alltime"
+    period_label = "TODAY" if period_key == "today" else "ALL TIME"
+    stats = header_stats[period_key]
+
+    padding = 2 * scale
+    col_w = sidebar_width // 2  # 62*scale each
+    line_h = 10 * scale
+    label_y_offset = 14 * scale  # y offset for "TOTAL INPUTS" label below the number
+
+    # --- Load fonts ---
+    def _load_font(size):
+        try:
+            return ImageFont.truetype(str(font_path), size=size)
+        except Exception:
+            return ImageFont.load_default()
+
+    small_font = _load_font(9 * scale)
+
+    # ---- Left column: total counter ----
+    display_total = stats["total"] + n_new_inputs
+    total_str = f"{display_total:,}"
+
+    # Try progressively smaller font sizes until it fits
+    num_font = None
+    for font_size in range(12 * scale, 5 * scale, -scale):
+        candidate = _load_font(font_size)
+        try:
+            bbox = draw.textbbox((0, 0), total_str, font=candidate)
+            text_w = bbox[2] - bbox[0]
+        except Exception:
+            text_w = len(total_str) * font_size // 2
+        if text_w <= col_w - 2 * padding:
+            num_font = candidate
+            break
+    if num_font is None:
+        num_font = _load_font(6 * scale)
+
+    draw.text((padding, row_y + padding), total_str,
+              fill=(255, 255, 255), font=num_font, fontmode="1")
+    draw.text((padding, row_y + label_y_offset + padding), "TOTAL INPUTS",
+              fill=(255, 255, 255), font=small_font, fontmode="1")
+
+    # ---- Right column: leaderboard ----
+    rx = col_w  # right column x start
+    ordinals = ["1st", "2nd", "3rd"]
+
+    # Header row: "TOP PLAYERS" left, period label right
+    draw.text((rx + padding, row_y + padding), "TOP PLAYERS",
+              fill=(255, 255, 255), font=small_font, fontmode="1")
+    try:
+        pl_bbox = draw.textbbox((0, 0), period_label, font=small_font)
+        pl_w = pl_bbox[2] - pl_bbox[0]
+    except Exception:
+        pl_w = len(period_label) * 6
+    draw.text((sidebar_width - pl_w - padding, row_y + padding), period_label,
+              fill=(255, 255, 255), font=small_font, fontmode="1")
+
+    # Player rows
+    for rank_idx, ordinal in enumerate(ordinals):
+        py = row_y + line_h + padding + rank_idx * line_h
+        if py + line_h > row_y + row_height:
+            break
+        if rank_idx >= len(stats["top_players"]):
+            continue
+        player = stats["top_players"][rank_idx]
+        pname = player["user_name"]
+        pcount = str(player["count"])
+        color = (user_colors or {}).get(pname, (255, 255, 255))
+
+        # Prefix "1st: "
+        prefix = f"{ordinal}: "
+        try:
+            pre_bbox = draw.textbbox((0, 0), prefix, font=small_font)
+            pre_w = pre_bbox[2] - pre_bbox[0]
+        except Exception:
+            pre_w = len(prefix) * 6
+        draw.text((rx + padding, py), prefix,
+                  fill=(255, 255, 255), font=small_font, fontmode="1")
+
+        # Suffix " - N"
+        suffix = f" - {pcount}"
+        try:
+            suf_bbox = draw.textbbox((0, 0), suffix, font=small_font)
+            suf_w = suf_bbox[2] - suf_bbox[0]
+        except Exception:
+            suf_w = len(suffix) * 6
+
+        name_x = rx + padding + pre_w
+        max_name_w = max(1, sidebar_width - name_x - suf_w - padding)
+        actual_w = _draw_colored_username(
+            img, draw, x=name_x, y=py,
+            name=pname, color=color,
+            max_w=max_name_w, line_height=line_h,
+            font=small_font,
+        )
+        draw.text((name_x + actual_w, py), suffix,
+                  fill=(255, 255, 255), font=small_font, fontmode="1")
+
+
 def render_input_sidebar(
     inputs: list,
     base_width: int = 124,
@@ -235,6 +354,9 @@ def render_input_sidebar(
     scale: int = 3,
     active_labels: Optional[dict] = None,
     user_colors: Optional[dict] = None,
+    header_stats: Optional[dict] = None,
+    global_frame_count: int = 0,
+    n_new_inputs: int = 0,
 ) -> np.ndarray:
     """Render a sidebar showing recent input entries as a numpy RGB array.
 
@@ -286,11 +408,15 @@ def render_input_sidebar(
     padding = 2*scale
     y = height - line_height - padding  # start from bottom
 
+    stats_row_height = 48 * scale  # height reserved for the stats row
+    date_row_height = line_height   # one text line for the date
+    top_reserved = date_row_height + (stats_row_height if header_stats is not None else 0)
+
     # Render inputs bottom-up (most recent at bottom)
     for idx, entry in enumerate(reversed(inputs)):
         original_index = len(inputs) - 1 - idx
 
-        if y < line_height:
+        if y < top_reserved:
             break  # Stop when we reach the top boundary
 
         button_val = entry.get("button", "")
@@ -383,6 +509,21 @@ def render_input_sidebar(
 
     date_str = datetime.utcnow().strftime("%d/%m/%Y")
     draw.text((padding, 0), date_str, fill=(255, 255, 255), font=font, fontmode="1")
+
+    if header_stats is not None:
+        _render_stats_row(
+            img=img,
+            draw=draw,
+            scale=scale,
+            header_stats=header_stats,
+            global_frame_count=global_frame_count,
+            n_new_inputs=n_new_inputs,
+            row_y=date_row_height,
+            row_height=stats_row_height,
+            sidebar_width=width,
+            font_path=font_path,
+            user_colors=user_colors,
+        )
 
     return np.array(img, dtype=np.uint8)
 

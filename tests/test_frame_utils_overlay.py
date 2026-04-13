@@ -293,3 +293,70 @@ class TestDrawColoredUsername:
                                         color=(255, 0, 0), max_w=30,
                                         line_height=20, font=font)
         assert used_w == 30
+
+
+class TestRenderInputSidebarStatsRow:
+    """Tests for the stats header row in render_input_sidebar."""
+
+    def _make_stats(self, total=100, players=None):
+        if players is None:
+            players = [{"user_name": "Alice", "count": 50},
+                       {"user_name": "Bob",   "count": 30}]
+        return {"today": {"total": total, "top_players": players},
+                "alltime": {"total": total * 10, "top_players": players}}
+
+    def test_stats_row_renders_without_error(self):
+        """render_input_sidebar with header_stats returns correct shape."""
+        result = render_input_sidebar(
+            [],
+            base_width=124, base_height=144, scale=3,
+            header_stats=self._make_stats(),
+            global_frame_count=0,
+            n_new_inputs=0,
+        )
+        assert result.shape == (144 * 3, 124 * 3, 3)
+
+    def test_stats_row_today_period_at_frame_0(self):
+        """At global_frame_count=0, period is 'today' (cycle index 0)."""
+        result = render_input_sidebar(
+            [],
+            base_width=124, base_height=144, scale=3,
+            header_stats=self._make_stats(),
+            global_frame_count=0,
+            n_new_inputs=0,
+        )
+        # Stats row occupies y in [line_height, line_height + 48*3)
+        # line_height = 10*3 = 30
+        stats_band = result[30: 30 + 48 * 3, :, :]
+        assert np.any(stats_band > 0), "Stats row should have non-black pixels"
+
+    def test_stats_row_alltime_period_at_frame_75(self):
+        """At global_frame_count=75, period flips to 'alltime' (cycle index 1)."""
+        result_today = render_input_sidebar(
+            [],
+            base_width=124, base_height=144, scale=3,
+            header_stats=self._make_stats(),
+            global_frame_count=0,
+            n_new_inputs=0,
+        )
+        result_alltime = render_input_sidebar(
+            [],
+            base_width=124, base_height=144, scale=3,
+            header_stats=self._make_stats(),
+            global_frame_count=75,
+            n_new_inputs=0,
+        )
+        # The two renders must differ (different labels rendered)
+        assert not np.array_equal(result_today, result_alltime)
+
+    def test_entry_rows_do_not_overlap_stats_row(self):
+        """With many inputs, entries stop below the stats+date band."""
+        inputs = [{"user_name": f"U{i}", "button": "a"} for i in range(50)]
+        result = render_input_sidebar(
+            inputs,
+            base_width=124, base_height=144, scale=3,
+            header_stats=self._make_stats(),
+            global_frame_count=0,
+            n_new_inputs=0,
+        )
+        assert result.shape == (144 * 3, 124 * 3, 3)

@@ -254,7 +254,7 @@ def _render_stats_row(
     stats = header_stats[period_key]
 
     padding = 2 * scale
-    col_w = sidebar_width // 2  # 62*scale each
+    left_col_w = 56 * scale
     line_h = 10 * scale
     label_y_offset = 14 * scale  # y offset for "TOTAL INPUTS" label below the number
 
@@ -278,7 +278,7 @@ def _render_stats_row(
             text_w = bbox[2] - bbox[0]
         except Exception:
             text_w = len(total_str) * font_size // 2
-        if text_w <= col_w - 2 * padding:
+        if text_w <= left_col_w - 2 * padding:
             num_font = candidate
             break
     if num_font is None:
@@ -286,12 +286,12 @@ def _render_stats_row(
 
     draw.text((padding, row_y + padding), total_str,
               fill=(255, 255, 255), font=num_font, fontmode="1")
-    draw.text((padding, row_y + label_y_offset + padding), "TOTAL INPUTS",
+    draw.text((padding, row_y + label_y_offset + padding), "INPUTS",
               fill=(255, 255, 255), font=small_font, fontmode="1")
 
     # ---- Right column: leaderboard ----
-    rx = col_w  # right column x start
-    ordinals = ["1st", "2nd", "3rd"]
+    rx = left_col_w  # right column x start
+    ordinals = ["1", "2", "3"]
 
     # Header row: "TOP PLAYERS" left, period label right
     draw.text((rx + padding, row_y + padding), "TOP PLAYERS",
@@ -301,7 +301,7 @@ def _render_stats_row(
         pl_w = pl_bbox[2] - pl_bbox[0]
     except Exception:
         pl_w = len(period_label) * 6
-    draw.text((sidebar_width - pl_w - padding, row_y + padding), period_label,
+    draw.text((sidebar_width - pl_w - padding, padding), period_label,
               fill=(255, 255, 255), font=small_font, fontmode="1")
 
     # Player rows
@@ -317,7 +317,7 @@ def _render_stats_row(
         color = (user_colors or {}).get(pname, (255, 255, 255))
 
         # Prefix "1st: "
-        prefix = f"{ordinal}: "
+        prefix = f"{ordinal}. "
         try:
             pre_bbox = draw.textbbox((0, 0), prefix, font=small_font)
             pre_w = pre_bbox[2] - pre_bbox[0]
@@ -327,7 +327,7 @@ def _render_stats_row(
                   fill=(255, 255, 255), font=small_font, fontmode="1")
 
         # Suffix " - N"
-        suffix = f" - {pcount}"
+        suffix = f" {pcount}"
         try:
             suf_bbox = draw.textbbox((0, 0), suffix, font=small_font)
             suf_w = suf_bbox[2] - suf_bbox[0]
@@ -498,7 +498,7 @@ def render_input_sidebar(
             gap_x = 2*scale
             gap_y = 2*scale
 
-            lx = cx + x_off - lw - gap_x
+            lx = name_x + x_off - lw - gap_x
             ly = y + gap_y
             
             # Fill with yellow tint

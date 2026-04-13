@@ -581,7 +581,9 @@ def _make_frame_transform(
         new_inputs_with_offsets: List of (input_dict, frame_offset) pairs.
         capture_fps: Capture frames per second (used for label animation duration).
         scale: Scale factor for the sidebar.
-        
+        user_colors: Optional dict mapping user IDs to color values.
+        base_global_frame_count: Starting global frame counter for this animation batch.
+        header_stats: Optional pre-computed stats dict {"today": {...}, "alltime": {...}} for the sidebar header row. None disables the stats row.
 
     Returns:
         A callable ``transform(frame) -> composited_frame``.

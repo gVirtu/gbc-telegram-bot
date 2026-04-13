@@ -375,3 +375,38 @@ class TestGetPlayerProfilesBatch:
         self._insert_profile(db_conn, "telegram", 7, "#333333")
         result = manager.get_player_profiles_batch("telegram", [7, 8, 9])
         assert set(result.keys()) == {7}
+
+
+def test_score_input_persists_user_name(manager, db_conn):
+    """score_input saves user_name to user_player_profiles."""
+    _ensure_game_state(db_conn, chat_id=1)
+    manager.score_input(
+        platform="telegram",
+        user_id=42,
+        chat_id=1,
+        button="a",
+        timestamp="2026-04-12T10:00:00",
+        user_name="Alice",
+    )
+    cursor = db_conn.execute(
+        "SELECT user_name FROM user_player_profiles WHERE user_id = 42;"
+    )
+    row = cursor.fetchone()
+    assert row is not None
+    assert row["user_name"] == "Alice"
+
+def test_score_input_updates_user_name(manager, db_conn):
+    """score_input updates user_name when user changes their name."""
+    _ensure_game_state(db_conn, chat_id=1)
+    manager.score_input(
+        platform="telegram", user_id=42, chat_id=1,
+        button="a", timestamp="2026-04-12T10:00:00", user_name="OldName",
+    )
+    manager.score_input(
+        platform="telegram", user_id=42, chat_id=1,
+        button="b", timestamp="2026-04-12T10:01:00", user_name="NewName",
+    )
+    cursor = db_conn.execute(
+        "SELECT user_name FROM user_player_profiles WHERE user_id = 42;"
+    )
+    assert cursor.fetchone()["user_name"] == "NewName"

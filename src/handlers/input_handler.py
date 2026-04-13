@@ -590,6 +590,7 @@ class InputHandler:
                     chat_id=chat_id,
                     button=bi.button.value,
                     timestamp=bi.received_at.isoformat(),
+                    user_name=bi.user_name,
                     commit=False,
                 )
                 input_total_score = scored.total_score

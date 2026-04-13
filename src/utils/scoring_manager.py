@@ -38,6 +38,7 @@ class ScoringManager:
         chat_id: int,
         button: str,
         timestamp: str,
+        user_name: str = "",
         commit: bool = True,
     ) -> ScoredInput:
         """Score a single player input and update their profile.
@@ -55,7 +56,7 @@ class ScoringManager:
             ScoredInput with computed scores (all zeros on error)
         """
         try:
-            return self._score_input_unsafe(platform, user_id, chat_id, button, timestamp, commit=commit)
+            return self._score_input_unsafe(platform, user_id, chat_id, button, timestamp, user_name=user_name, commit=commit)
         except Exception as e:
             logger.error(f"score_input failed for user {user_id} in chat {chat_id}: {e}")
             return ScoredInput(
@@ -131,6 +132,7 @@ class ScoringManager:
         chat_id: int,
         button: str,
         timestamp: str,
+        user_name: str = "",
         commit: bool = True,
     ) -> ScoredInput:
         max_score = settings.player_input_max_score
@@ -193,10 +195,11 @@ class ScoringManager:
         # --- Persist profile ---
         self._conn.execute(
             """INSERT INTO user_player_profiles
-               (platform, user_id, total_score_earned, total_score_spent,
+               (platform, user_id, user_name, total_score_earned, total_score_spent,
                 current_streak, best_streak, best_streak_date, last_input_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(platform, user_id) DO UPDATE SET
+                   user_name = excluded.user_name,
                    total_score_earned = excluded.total_score_earned,
                    current_streak = excluded.current_streak,
                    best_streak = excluded.best_streak,
@@ -205,6 +208,7 @@ class ScoringManager:
             (
                 platform,
                 user_id,
+                user_name,
                 total_score_earned,
                 total_score_spent,
                 current_streak,

@@ -126,6 +126,7 @@ class ChatGameState:
             "last_input_time": self.last_input_time.isoformat() if self.last_input_time else None,
             "last_animation_file_id": self.last_animation_file_id,
             "user_input_counts": self.user_input_counts,
+            "global_frame_count": self.global_frame_count,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
@@ -141,6 +142,7 @@ class ChatGameState:
             last_input_time=datetime.fromisoformat(data["last_input_time"]) if data.get("last_input_time") else None,
             last_animation_file_id=data.get("last_animation_file_id"),
             user_input_counts=data.get("user_input_counts", {}),
+            global_frame_count=data.get("global_frame_count", 0),
             created_at=datetime.fromisoformat(data["created_at"]),
             updated_at=datetime.fromisoformat(data["updated_at"]),
         )

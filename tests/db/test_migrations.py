@@ -137,6 +137,20 @@ class TestMigrationRunner:
         assert "user_name" in cols
         conn.close()
 
+    def test_migration_023_adds_global_frame_count_column(self, tmp_path):
+        """Migration 023 adds global_frame_count column to game_states."""
+        from src.db.connection import DatabaseConnection
+
+        db_path = tmp_path / "test023.db"
+        conn = DatabaseConnection(db_path)
+        conn.initialize()  # runs all migrations including 023
+
+        # Column should exist
+        cursor = conn.execute("PRAGMA table_info(game_states);")
+        cols = [row["name"] for row in cursor.fetchall()]
+        assert "global_frame_count" in cols
+        conn.close()
+
 
 class TestBaselineMigration:
     """Test baseline migration for existing databases."""

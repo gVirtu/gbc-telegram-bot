@@ -239,6 +239,7 @@ def _render_stats_row(
     row_height: int,
     sidebar_width: int,
     font_path: "Path",
+    small_font,
     user_colors: Optional[dict] = None,
 ) -> None:
     """Draw the stats header row onto img at the given y offset.
@@ -263,8 +264,6 @@ def _render_stats_row(
             return ImageFont.truetype(str(font_path), size=size)
         except Exception:
             return ImageFont.load_default()
-
-    small_font = _load_font(9 * scale)
 
     # ---- Left column: total counter ----
     display_total = stats["total"] + n_new_inputs
@@ -522,6 +521,7 @@ def render_input_sidebar(
             row_height=stats_row_height,
             sidebar_width=width,
             font_path=font_path,
+            small_font=font,
             user_colors=user_colors,
         )
 

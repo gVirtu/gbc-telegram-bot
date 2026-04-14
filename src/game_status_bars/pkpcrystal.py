@@ -333,7 +333,7 @@ def render_party(img: Image.Image, party: list[dict], scale: int):
         draw.text((x - 1 * scale, y + 8.5 * scale), level_label, fill=(255, 255, 255), font=font, fontmode="1")
         
         if pokemon["item"] > 0:
-            img.paste(held_item_icon, (x, y + 6 * scale), held_item_icon)
+            img.paste(held_item_icon, (x + 3 * scale, y + 6 * scale), held_item_icon)
             
             
 def _draw_bar(draw: ImageDraw.ImageDraw, x: int, y: int, width: int, height: int, percent: float, color: tuple[int, int, int]):
@@ -417,7 +417,7 @@ def _get_status_text(value: int) -> str:
     
     
 def render_pack_counts(img: Image.Image, pack: dict, scale: int):
-    start_x = 214 * scale
+    start_x = 215 * scale
     
     font_size = max(7, 7 * scale)
     font = _load_unifont(font_size)

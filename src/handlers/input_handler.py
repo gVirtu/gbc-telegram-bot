@@ -571,18 +571,18 @@ class InputHandler:
         cumulative_frames = 0  # tracks frames captured so far
 
         for i, button in enumerate(buttons):
+            applied_modifier = None
             if button == GameButton.WAIT:
                 logger.debug(f"WAIT button in batch for chat {chat_id}")
                 controller.tick(frames=settings.input_hold_frames)
             else:
-                applied = False
                 for spec in modifier_specs:
                     if modifier_states.get(spec.key) and button in spec.applies_to:
                         logger.debug(f"Executing {button.value} with {spec.modifier_button.value} modifier for chat {chat_id}")
                         controller.send_input_with_modifier(button, spec.modifier_button, frames=settings.input_hold_frames)
-                        applied = True
+                        applied_modifier = spec.modifier_button.value
                         break
-                if not applied:
+                if applied_modifier is None:
                     logger.debug(f"Executing {button.value} in batch for chat {chat_id}")
                     controller.send_input(button, frames=settings.input_hold_frames)
 
@@ -613,6 +613,7 @@ class InputHandler:
                     base_score=scored.base_score,
                     streak_bonus=scored.streak_bonus,
                     total_score=scored.total_score,
+                    modifier=applied_modifier,
                     commit=False,
                 )
             except Exception as e:
@@ -625,6 +626,7 @@ class InputHandler:
                 'timestamp': bi.received_at.isoformat(),
                 'total_score': input_total_score,
                 'current_streak': scored.current_streak if input_total_score is not None else 0,
+                'modifier': applied_modifier,
             }
             new_inputs_with_offsets.append((input_dict, frame_offset))
 

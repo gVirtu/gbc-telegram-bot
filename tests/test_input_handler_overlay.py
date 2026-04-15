@@ -307,3 +307,133 @@ class TestProcessBatchStatsHeader:
             assert ctx["header_stats"]["today"]["total"] == 10
             assert "base_global_frame_count" in ctx
             assert ctx["base_global_frame_count"] == 150  # from initial state
+
+
+class TestProcessBatchModifier:
+    """Test that _process_batch captures modifier and passes it to DB and input_dict."""
+
+    @pytest.fixture
+    def handler(self):
+        from src.handlers.input_handler import InputHandler
+        from src.models.game_state import ChatGameState, GameSession
+        h = InputHandler()
+        h._sessions[123456] = GameSession(
+            chat_id=123456,
+            state=ChatGameState(chat_id=123456, message_id=1),
+        )
+        return h
+
+    @pytest.mark.asyncio
+    async def test_modifier_captured_in_input_dict(self, handler):
+        """When a modifier spec is active and applies to the pressed button,
+        input_dict['modifier'] is set to the modifier button value."""
+        from src.models.game_state import GameButton, ModifierButtonSpec
+        from src.models.input_queue import BufferedInput
+
+        spec = ModifierButtonSpec(
+            key="run",
+            modifier_button=GameButton.B,
+            applies_to=[GameButton.UP],
+            active_label_key="keyboard.buttons.running",
+            inactive_label_key="keyboard.buttons.walking",
+        )
+        controller = _make_mock_controller()
+        controller.get_modifier_specs.return_value = [spec]
+        controller.send_input_with_modifier = MagicMock()
+
+        config = _make_mock_config()
+        config.modifier_states = {"run": True}
+
+        batch = [BufferedInput(user_id=1, user_name="Alice", button=GameButton.UP)]
+
+        with (
+            patch("src.handlers.input_handler.game_controller_manager") as mock_gcm,
+            patch("src.handlers.input_handler.state_manager") as mock_sm,
+            patch("src.handlers.input_handler.scoring_manager") as mock_sc,
+            patch("src.handlers.input_handler.broadcast_game_update", new=AsyncMock()),
+            patch("src.handlers.input_handler._build_recent_inputs_grouped", return_value=[]),
+            patch("src.handlers.input_handler.create_game_message_text", return_value=""),
+        ):
+            mock_gcm.get_or_create_controller = AsyncMock(return_value=controller)
+            mock_sm.get_or_create_chat_config.return_value = config
+            mock_sm.get_recent_inputs_for_overlay.return_value = []
+            mock_sm.get_today_input_stats.return_value = {}
+            mock_sm.get_alltime_input_stats.return_value = {}
+            mock_sm.connection = MagicMock()
+
+            scored = MagicMock()
+            scored.total_score = 10
+            scored.base_score = 10
+            scored.streak_bonus = 0
+            scored.current_streak = 1
+            mock_sc.score_input.return_value = scored
+
+            adapter = MagicMock()
+            adapter.platform = "telegram"
+            adapter.build_game_keyboard.return_value = MagicMock()
+
+            # Capture what gets passed to append_recent_input
+            captured_modifier = {}
+            def capture_append(**kwargs):
+                captured_modifier["modifier"] = kwargs.get("modifier")
+            mock_sm.append_recent_input.side_effect = capture_append
+
+            await handler._process_batch(123456, 1, batch, adapter)
+
+        assert captured_modifier.get("modifier") == "b"
+
+    @pytest.mark.asyncio
+    async def test_no_modifier_when_spec_inactive(self, handler):
+        """When no modifier spec is active, input_dict['modifier'] is None."""
+        from src.models.game_state import GameButton, ModifierButtonSpec
+        from src.models.input_queue import BufferedInput
+
+        spec = ModifierButtonSpec(
+            key="run",
+            modifier_button=GameButton.B,
+            applies_to=[GameButton.UP],
+            active_label_key="keyboard.buttons.running",
+            inactive_label_key="keyboard.buttons.walking",
+        )
+        controller = _make_mock_controller()
+        controller.get_modifier_specs.return_value = [spec]
+
+        config = _make_mock_config()
+        config.modifier_states = {"run": False}  # inactive
+
+        batch = [BufferedInput(user_id=1, user_name="Alice", button=GameButton.UP)]
+
+        with (
+            patch("src.handlers.input_handler.game_controller_manager") as mock_gcm,
+            patch("src.handlers.input_handler.state_manager") as mock_sm,
+            patch("src.handlers.input_handler.scoring_manager") as mock_sc,
+            patch("src.handlers.input_handler.broadcast_game_update", new=AsyncMock()),
+            patch("src.handlers.input_handler._build_recent_inputs_grouped", return_value=[]),
+            patch("src.handlers.input_handler.create_game_message_text", return_value=""),
+        ):
+            mock_gcm.get_or_create_controller = AsyncMock(return_value=controller)
+            mock_sm.get_or_create_chat_config.return_value = config
+            mock_sm.get_recent_inputs_for_overlay.return_value = []
+            mock_sm.get_today_input_stats.return_value = {}
+            mock_sm.get_alltime_input_stats.return_value = {}
+            mock_sm.connection = MagicMock()
+
+            scored = MagicMock()
+            scored.total_score = 10
+            scored.base_score = 10
+            scored.streak_bonus = 0
+            scored.current_streak = 1
+            mock_sc.score_input.return_value = scored
+
+            adapter = MagicMock()
+            adapter.platform = "telegram"
+            adapter.build_game_keyboard.return_value = MagicMock()
+
+            captured_modifier = {}
+            def capture_append(**kwargs):
+                captured_modifier["modifier"] = kwargs.get("modifier")
+            mock_sm.append_recent_input.side_effect = capture_append
+
+            await handler._process_batch(123456, 1, batch, adapter)
+
+        assert captured_modifier.get("modifier") is None

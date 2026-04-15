@@ -422,7 +422,9 @@ def render_input_sidebar(
         button_val = entry.get("button", "")
         button_char = BUTTON_CHARS.get(button_val, button_val)
         user_name = entry.get("user_name", "?")
-        suffix = f": {button_char}"
+        modifier_val = entry.get("modifier")
+        modifier_char = BUTTON_CHARS.get(modifier_val, "") if modifier_val else ""
+        suffix = f": {modifier_char}{button_char}"
         streak = entry.get("current_streak", 0)
         color = user_colors.get(user_name, (255, 255, 255)) if user_colors else (255, 255, 255)
 

@@ -10,5 +10,4 @@ def upgrade(conn: sqlite3.Connection) -> None:
 
 
 def downgrade(conn: sqlite3.Connection) -> None:
-    # SQLite does not support DROP COLUMN on older versions; no-op.
-    pass
+    conn.execute("ALTER TABLE recent_inputs DROP COLUMN modifier;")

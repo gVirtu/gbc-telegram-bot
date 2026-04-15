@@ -95,7 +95,7 @@ class TestGetRecentInputsForOverlay:
         results = db_manager.get_recent_inputs_for_overlay(chat_id=4)
         assert len(results) == 1
         row = results[0]
-        assert set(row.keys()) == {"user_id", "user_name", "button", "timestamp", "current_streak"}
+        assert set(row.keys()) == {"user_id", "user_name", "button", "timestamp", "current_streak", "modifier"}
         assert row["button"] == "START"
         assert row["user_name"] == "Dave"
 
@@ -227,6 +227,40 @@ class TestSaveRecentInputsIsNoop:
             "SELECT COUNT(*) as cnt FROM recent_inputs WHERE chat_id = 10;"
         )
         assert cursor.fetchone()["cnt"] == 2
+
+
+class TestModifierPersistence:
+    def test_append_and_retrieve_modifier(self, db_manager):
+        """modifier value is stored and returned by get_recent_inputs_for_overlay."""
+        _create_game_state(db_manager, chat_id=10)
+
+        db_manager.append_recent_input(
+            chat_id=10,
+            user_id=1,
+            user_name="Alice",
+            button="up",
+            timestamp=_ts(0),
+            modifier="b",
+        )
+
+        rows = db_manager.get_recent_inputs_for_overlay(chat_id=10)
+        assert len(rows) == 1
+        assert rows[0]["modifier"] == "b"
+
+    def test_append_without_modifier_returns_none(self, db_manager):
+        """Omitting modifier defaults to None in get_recent_inputs_for_overlay."""
+        _create_game_state(db_manager, chat_id=11)
+
+        db_manager.append_recent_input(
+            chat_id=11,
+            user_id=2,
+            user_name="Bob",
+            button="a",
+            timestamp=_ts(0),
+        )
+
+        rows = db_manager.get_recent_inputs_for_overlay(chat_id=11)
+        assert rows[0]["modifier"] is None
 
 
 class TestGetRecentInputsForOverlayStreak:

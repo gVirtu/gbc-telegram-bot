@@ -373,19 +373,22 @@ class DatabaseManager:
         base_score: int = 0,
         streak_bonus: int = 0,
         total_score: int = 0,
+        modifier: str | None = None,
         commit: bool = True,
     ) -> None:
         """Append a single button press to the recent_inputs log.
 
         Args:
+            modifier: The modifier button value pressed alongside this input (e.g. "b"),
+                or None if no modifier was active.
             commit: Whether to commit after inserting. Pass False when the caller
                 will issue a batched commit after processing multiple inputs.
         """
         self.connection.execute(
             """INSERT INTO recent_inputs
-               (chat_id, user_id, user_name, button, timestamp, base_score, streak_bonus, total_score)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?);""",
-            (chat_id, user_id, user_name, button, timestamp, base_score, streak_bonus, total_score)
+               (chat_id, user_id, user_name, button, timestamp, base_score, streak_bonus, total_score, modifier)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);""",
+            (chat_id, user_id, user_name, button, timestamp, base_score, streak_bonus, total_score, modifier)
         )
         if commit:
             self.connection.commit()
@@ -395,12 +398,13 @@ class DatabaseManager:
     ) -> list:
         """Get the most recent N input rows for sidebar overlay rendering.
 
-        Returns a list of dicts with keys: user_id, user_name, button, timestamp.
-        Ordered oldest-first (suitable for rendering bottom-up).
+        Returns a list of dicts with keys: user_id, user_name, button, timestamp,
+        current_streak, modifier. Ordered oldest-first (suitable for rendering bottom-up).
         """
         cursor = self.connection.execute(
             """SELECT ri.user_id, ri.user_name, ri.button, ri.timestamp,
-                      COALESCE(up.current_streak, 0) AS current_streak
+                      COALESCE(up.current_streak, 0) AS current_streak,
+                      ri.modifier
                FROM recent_inputs ri
                LEFT JOIN user_player_profiles up ON ri.user_id = up.user_id
                WHERE ri.chat_id = ?
@@ -416,6 +420,7 @@ class DatabaseManager:
                 'button': row['button'],
                 'timestamp': row['timestamp'],
                 'current_streak': row['current_streak'],
+                'modifier': row['modifier'],
             }
             for row in rows
         ]

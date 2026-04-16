@@ -701,6 +701,7 @@ def _make_frame_transform(
         user_colors: Optional dict mapping user IDs to color values.
         base_global_frame_count: Starting global frame counter for this animation batch.
         header_stats: Optional pre-computed stats dict {"today": {...}, "alltime": {...}} for the sidebar header row. None disables the stats row.
+        avatar_fn: Optional callable ``(player: dict) -> Image | None`` for rendering the player avatar. None falls back to white rectangle.
 
     Returns:
         A callable ``transform(frame) -> composited_frame``.

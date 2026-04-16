@@ -655,12 +655,19 @@ class InputHandler:
             game_fps,
         )
 
-        # Guarantee ≥2 second (2 * capture_fps capture frames) after last user input
         capture_frames_elapsed = actual_ticked // capture_interval_frames
-        capture_frames_expected = 2 * capture_fps
-        remaining_capture = capture_frames_expected - capture_frames_elapsed
-        if remaining_capture > 0:
-            controller.tick(remaining_capture * capture_interval_frames)
+        
+        # Read queued reactions before building transforms so they can be stored
+        reactions = []
+        num_reaction_windows = max(1, (capture_frames_elapsed + (settings.tbc_duration_frames * 2)) // (2 * capture_fps))
+        reactions = state_manager.list_next_reactions(chat_id, limit=num_reaction_windows * 3)
+
+        # If any reactions were sent, guarantee ≥2 second (2 * capture_fps) after last user input
+        if len(reactions) > 0:
+            capture_frames_expected = 2 * capture_fps
+            remaining_capture = capture_frames_expected - capture_frames_elapsed
+            if remaining_capture > 0:
+                controller.tick(remaining_capture * capture_interval_frames)
 
         # Auto press A and capture more frames ahead (e.g.: during NPC dialogue)
         MAX_AUTO_PRESS_ITERATIONS = 10
@@ -716,12 +723,6 @@ class InputHandler:
         )
         num_tbc_frames = len(tbc_frames)
         num_raw_frames = len(raw_frames)
-
-        # 2. Pop queued reactions (before building transforms so they can be stored)
-        reactions = []
-        num_windows = (num_raw_frames + num_tbc_frames) // (2 * capture_fps)
-        if num_windows > 0:
-            reactions = state_manager.pop_reactions(chat_id, limit=num_windows * 3)
 
         # 3. Pre-fetch user colors for sidebar rendering (single batch query)
         uid_to_uname: dict = {}
@@ -862,6 +863,10 @@ class InputHandler:
                         )
                     except Exception as e:
                         logger.warning(f"Failed to queue timelapse for chat {chat_id}: {e}")
+                        
+                # 8. Cleanup reactions
+                if reactions:
+                    state_manager.delete_reactions([reaction["id"] for reaction in reactions])
 
             except Exception as e:
                 logger.error(f"Failed to generate animation for chat {chat_id}: {e}")

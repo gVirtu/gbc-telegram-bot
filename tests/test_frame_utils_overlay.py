@@ -248,13 +248,13 @@ class TestScoreLabels:
         assert result[capture_fps + 1].shape == (480, 852, 3)  # 432 + 48 status bar
 
 
-class TestDrawColoredUsername:
-    """Tests for the _draw_colored_username helper."""
+class TestDrawTextToFit:
+    """Tests for the draw_text_to_fit helper."""
 
     def test_returns_width_within_max(self):
         """Returns actual width <= max_w."""
         from PIL import Image, ImageDraw, ImageFont
-        from src.utils.frame_utils import _draw_colored_username
+        from src.utils.frame_utils import draw_text_to_fit
 
         scale = 1
         img = Image.new("RGB", (200, 20), (0, 0, 0))
@@ -267,7 +267,7 @@ class TestDrawColoredUsername:
         except Exception:
             font = ImageFont.load_default()
 
-        used_w = _draw_colored_username(img, draw, x=0, y=0, name="Alice",
+        used_w = draw_text_to_fit(img, draw, x=0, y=0, name="Alice",
                                         color=(255, 255, 255), max_w=50,
                                         line_height=20, font=font)
         assert 0 < used_w <= 50
@@ -275,7 +275,7 @@ class TestDrawColoredUsername:
     def test_compresses_long_name(self):
         """A very long name is compressed to max_w."""
         from PIL import Image, ImageDraw, ImageFont
-        from src.utils.frame_utils import _draw_colored_username
+        from src.utils.frame_utils import draw_text_to_fit
 
         scale = 1
         img = Image.new("RGB", (200, 20), (0, 0, 0))
@@ -289,7 +289,7 @@ class TestDrawColoredUsername:
             font = ImageFont.load_default()
 
         long_name = "VeryLongUserNameThatDefinitelyExceedsTheMaxWidth"
-        used_w = _draw_colored_username(img, draw, x=0, y=0, name=long_name,
+        used_w = draw_text_to_fit(img, draw, x=0, y=0, name=long_name,
                                         color=(255, 0, 0), max_w=30,
                                         line_height=20, font=font)
         assert used_w == 30

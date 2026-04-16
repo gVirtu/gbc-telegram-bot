@@ -1079,24 +1079,34 @@ class DatabaseManager:
         )
         self.connection.commit()
 
-    def pop_reactions(self, chat_id: int, limit: int = 3) -> list[dict]:
-        """Pop up to `limit` oldest reactions for a chat and remove them.
+    def list_next_reactions(self, chat_id: int, limit: int = 3) -> list[dict]:
+        """List up to `limit` oldest reactions for a chat.
 
-        Returns a list of dicts with keys: user_name, reaction_type.
-        Atomic: rows are selected then deleted in sequence (single-writer app).
+        Returns a list of dicts with keys: id, user_name, reaction_type.
         """
         rows = self.connection.execute(
             "SELECT id, user_name, reaction_type FROM reaction_queue "
             "WHERE chat_id = ? ORDER BY id ASC LIMIT ?;",
             (chat_id, limit),
         ).fetchall()
-        if not rows:
-            return []
-        ids = [r["id"] for r in rows]
+
+        return [
+            {
+                "id": row["id"],
+                "user_name": row["user_name"],
+                "reaction_type": row["reaction_type"],
+            }
+            for row in rows
+        ]
+
+    def delete_reactions(self, ids: list[int]) -> None:
+        """Delete queued reactions by row ID."""
+        if not ids:
+            return
+
         placeholders = ",".join("?" * len(ids))
         self.connection.execute(
             f"DELETE FROM reaction_queue WHERE id IN ({placeholders});",
             tuple(ids),
         )
         self.connection.commit()
-        return [{"user_name": r["user_name"], "reaction_type": r["reaction_type"]} for r in rows]

@@ -196,7 +196,7 @@ def create_empty_frame(
     return frame
 
 
-def _draw_colored_username(
+def draw_text_to_fit(
     img: "Image.Image",
     draw: "ImageDraw.ImageDraw",
     x: int,
@@ -337,7 +337,7 @@ def _render_stats_row(
 
         name_x = rx + padding + pre_w
         max_name_w = max(1, sidebar_width - name_x - suf_w - padding)
-        actual_w = _draw_colored_username(
+        actual_w = draw_text_to_fit(
             img, draw, x=name_x, y=py,
             name=pname, color=color,
             max_w=max_name_w, line_height=line_h,
@@ -467,11 +467,11 @@ def render_input_sidebar(
 
         if name_natural_w > max_name_w and name_natural_w > 0:
             name_x = width - max_name_w - streak_total_w - suffix_w - padding
-            _draw_colored_username(img, draw, name_x, y, user_name, color, max_name_w, line_height, font)
+            draw_text_to_fit(img, draw, name_x, y, user_name, color, max_name_w, line_height, font)
             cx = name_x + max_name_w
         else:
             name_x = width - name_natural_w - streak_total_w - suffix_w - padding
-            used_w = _draw_colored_username(img, draw, name_x, y, user_name, color, max_name_w, line_height, font)
+            used_w = draw_text_to_fit(img, draw, name_x, y, user_name, color, max_name_w, line_height, font)
             cx = name_x + used_w
 
         if streak > 1:

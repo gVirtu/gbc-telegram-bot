@@ -764,12 +764,14 @@ class InputHandler:
             _make_reaction_frame_transform(reactions, capture_fps, scale=2, frame_skip=1)
             if reactions else None
         )
+        avatar_fn = controller.get_avatar_fn()
         sidebar_transform_fn = _make_frame_transform(
             pre_existing_inputs_for_overlay, new_inputs_with_offsets, capture_fps,
             user_colors=user_colors,
             scale=2,
             base_global_frame_count=base_global_frame_count,
             header_stats=header_stats,
+            avatar_fn=avatar_fn,
         )
         status_bar_render_fn = controller.get_status_bar_render_fn()
         _status_bar_cache: list[np.ndarray | None] = [None]

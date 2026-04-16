@@ -451,6 +451,7 @@ def render_input_sidebar(
     header_stats: Optional[dict] = None,
     global_frame_count: int = 0,
     n_new_inputs: int = 0,
+    avatar_fn=None,
 ) -> np.ndarray:
     """Render a sidebar showing recent input entries as a numpy RGB array.
 
@@ -637,6 +638,7 @@ def render_input_sidebar(
                 card_y=card_y,
                 font_path=font_path,
                 small_font=font,
+                avatar_fn=avatar_fn,
             )
 
     return np.array(img, dtype=np.uint8)
@@ -684,6 +686,7 @@ def _make_frame_transform(
     user_colors: Optional[dict] = None,
     base_global_frame_count: int = 0,
     header_stats: Optional[dict] = None,
+    avatar_fn=None,
 ) -> Callable[[np.ndarray], np.ndarray]:
     """Build a stateful per-frame transform that composites the input sidebar.
 
@@ -747,6 +750,7 @@ def _make_frame_transform(
             header_stats=header_stats,
             global_frame_count=base_global_frame_count + fi,
             n_new_inputs=n_new,
+            avatar_fn=avatar_fn,
         )
         return composite_overlay(frame, sidebar)
 
@@ -1376,17 +1380,6 @@ def build_timelapse_transform(
     base_global_frame_count = compositing_context.get("base_global_frame_count", 0)
     header_stats = compositing_context.get("header_stats")
 
-    sidebar_transform = _make_frame_transform(
-        pre_existing, new_inputs_with_offsets, capture_fps,
-        user_colors=user_colors,
-        base_global_frame_count=base_global_frame_count,
-        header_stats=header_stats,
-    )
-    reaction_transform = (
-        _make_reaction_frame_transform(reactions, capture_fps, frame_skip)
-        if reactions else None
-    )
-
     status_bar_data = compositing_context.get("status_bar_data")
 
     cartridge_title = compositing_context.get("cartridge_title")
@@ -1398,7 +1391,21 @@ def build_timelapse_transform(
             status_bar_render_fn = getattr(m, "render_status_bar", None)
         except ImportError:
             pass
-        
+
+    avatar_fn = _get_avatar_fn(cartridge_title)
+
+    sidebar_transform = _make_frame_transform(
+        pre_existing, new_inputs_with_offsets, capture_fps,
+        user_colors=user_colors,
+        base_global_frame_count=base_global_frame_count,
+        header_stats=header_stats,
+        avatar_fn=avatar_fn,
+    )
+    reaction_transform = (
+        _make_reaction_frame_transform(reactions, capture_fps, frame_skip)
+        if reactions else None
+    )
+
     def transform(raw_frame: np.ndarray, index: int) -> np.ndarray:
         h, w = raw_frame.shape[:2]
         scaled = np.array(Image.fromarray(raw_frame).resize(

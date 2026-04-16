@@ -4,7 +4,16 @@ import numpy as np
 import pytest
 from pathlib import Path
 
-from src.utils.frame_utils import composite_overlay, render_input_sidebar, _make_frame_transform, apply_overlay_composite
+from PIL import Image, ImageDraw
+
+from src.utils.frame_utils import (
+    _make_frame_transform,
+    _render_current_player_card,
+    apply_overlay_composite,
+    composite_overlay,
+    draw_text_to_fit,
+    render_input_sidebar,
+)
 
 
 class TestRenderInputSidebar:
@@ -399,3 +408,192 @@ class TestMakeFrameTransformStats:
         result_a = transform_a(game_frame)
         result_b = transform_b(game_frame)
         assert not np.array_equal(result_a, result_b)
+
+
+# ── helpers ──────────────────────────────────────────────────────────────────
+
+def _make_pil(w: int, h: int):
+    img = Image.new("RGB", (w, h), (0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    return img, draw
+
+
+def _single_player(today: int = 10, alltime: int = 50) -> dict:
+    return {
+        "user_name": "Alice",
+        "today": today,
+        "alltime": alltime,
+        "color": (255, 200, 100),
+    }
+
+
+def _header_stats_with_player(**kwargs) -> dict:
+    return {
+        "today": {"total": 100, "top_players": []},
+        "alltime": {"total": 500, "top_players": []},
+        "single_player": _single_player(**kwargs),
+    }
+
+
+def _header_stats_without_player() -> dict:
+    return {
+        "today": {"total": 100, "top_players": []},
+        "alltime": {"total": 500, "top_players": []},
+    }
+
+
+# ── TestDrawTextToFitAlign ────────────────────────────────────────────────────
+
+class TestDrawTextToFitAlign:
+    def _render(self, text: str, max_w: int, align: str) -> np.ndarray:
+        img, draw = _make_pil(max_w, 20)
+        draw_text_to_fit(img, draw, x=0, y=0, name=text,
+                         color=(255, 255, 255), max_w=max_w,
+                         line_height=20, font=None, align=align)
+        return np.array(img)
+
+    def test_align_left_unchanged(self):
+        """Left-aligned short text: first column of pixels contains text."""
+        arr = self._render("A", max_w=50, align="left")
+        # With left align, non-zero pixels start near x=0
+        cols_with_pixels = np.where(np.any(arr > 0, axis=(0, 2)))[0]
+        assert len(cols_with_pixels) > 0
+        assert cols_with_pixels[0] < 10  # text starts near left edge
+
+    def test_align_center_shifts_x(self):
+        """Centered short text: non-zero pixels are not hugging the left edge."""
+        arr_left = self._render("A", max_w=80, align="left")
+        arr_center = self._render("A", max_w=80, align="center")
+        cols_left = np.where(np.any(arr_left > 0, axis=(0, 2)))[0]
+        cols_center = np.where(np.any(arr_center > 0, axis=(0, 2)))[0]
+        if len(cols_left) > 0 and len(cols_center) > 0:
+            # Centered text should start further right than left-aligned text
+            assert cols_center[0] > cols_left[0]
+
+    def test_align_center_compressed(self):
+        """Text wider than max_w is compressed to max_w regardless of align."""
+        arr = self._render("WWWWWWWWWWWWWWWWWWWWWWWWWW", max_w=20, align="center")
+        # Should have non-zero pixels (text rendered)
+        assert np.any(arr > 0)
+        # Width should be bounded to max_w (image width is max_w)
+        assert arr.shape[1] == 20
+
+
+# ── TestRenderCurrentPlayerCard ───────────────────────────────────────────────
+
+class TestRenderCurrentPlayerCard:
+    SCALE = 1
+
+    def _card(self, period_key="today", n_new=0, **sp_kwargs):
+        s = self.SCALE
+        card_w = 56 * s
+        card_h = 2 * s + 28 * s + 2 * s + 10 * s + 2 * s  # 44 at scale=1 → actually 44
+        # Make image tall enough to contain the card starting at y=0
+        img = Image.new("RGB", (card_w, card_h + 10), (0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        _render_current_player_card(
+            img=img, draw=draw,
+            single_player=_single_player(**sp_kwargs),
+            period_key=period_key,
+            n_new_inputs=n_new,
+            scale=s,
+            card_x=0, card_y=0,
+            font_path=None,
+            small_font=None,
+        )
+        return np.array(img)
+
+    def test_outline_present(self):
+        """The border pixel of the card should be white (outline)."""
+        arr = self._card()
+        # Top-left corner pixel should be white
+        assert tuple(arr[0, 0]) == (255, 255, 255)
+
+    def test_avatar_square_is_white(self):
+        """The avatar region (top-left, inset by padding) is all white."""
+        s = self.SCALE
+        padding = 2 * s
+        avatar_sz = 28 * s
+        arr = self._card()
+        avatar_region = arr[padding:padding + avatar_sz, padding:padding + avatar_sz]
+        assert np.all(avatar_region == 255)
+
+    def test_counter_uses_period_today(self):
+        """today period → counter = today + n_new."""
+        arr_0 = self._card(period_key="today", n_new=0, today=10)
+        arr_5 = self._card(period_key="today", n_new=5, today=10)
+        # With n_new=5 the counter is higher so more pixels are rendered (or different pixels)
+        assert not np.array_equal(arr_0, arr_5)
+
+    def test_counter_uses_period_alltime(self):
+        """alltime period → counter differs from today period when today != alltime."""
+        arr_today = self._card(period_key="today", today=10, alltime=9999)
+        arr_alltime = self._card(period_key="alltime", today=10, alltime=9999)
+        assert not np.array_equal(arr_today, arr_alltime)
+
+    def test_counter_increments_with_n_new_inputs(self):
+        """n_new_inputs shifts the displayed counter value."""
+        arr_a = self._card(period_key="alltime", n_new=0, alltime=100)
+        arr_b = self._card(period_key="alltime", n_new=100, alltime=100)
+        assert not np.array_equal(arr_a, arr_b)
+
+    def test_card_has_non_black_pixels(self):
+        """Card produces non-black pixels (outline + avatar + text)."""
+        arr = self._card()
+        assert np.any(arr > 0)
+
+
+# ── TestRenderInputSidebarSinglePlayer ────────────────────────────────────────
+
+class TestRenderInputSidebarSinglePlayer:
+    SCALE = 1
+
+    def _sidebar(self, header_stats, global_frame_count=0, n_new=0):
+        return render_input_sidebar(
+            inputs=[],
+            base_width=124, base_height=144,
+            scale=self.SCALE,
+            header_stats=header_stats,
+            global_frame_count=global_frame_count,
+            n_new_inputs=n_new,
+        )
+
+    def _card_region(self, arr) -> np.ndarray:
+        """Extract the expected floating card region from the sidebar array."""
+        s = self.SCALE
+        # card_y = date_row_height + 28*scale = 10*s + 28*s = 38*s (at scale=1 → 38)
+        card_y = 10 * s + 28 * s
+        card_h = 2 * s + 28 * s + 2 * s + 10 * s + 2 * s
+        card_w = 56 * s
+        return arr[card_y:card_y + card_h, 0:card_w]
+
+    def test_card_present_with_single_player_key(self):
+        """Single player card adds non-black pixels in the card region."""
+        arr = self._sidebar(_header_stats_with_player())
+        region = self._card_region(arr)
+        assert np.any(region > 0)
+
+    def test_card_absent_without_single_player_key(self):
+        """Without single_player key, card region stays black."""
+        arr = self._sidebar(_header_stats_without_player())
+        region = self._card_region(arr)
+        assert not np.any(region > 0)
+
+    def test_stats_row_height_unchanged(self):
+        """Input entries layout is unchanged: rows well below the card are identical."""
+        arr_with = self._sidebar(_header_stats_with_player())
+        arr_without = self._sidebar(_header_stats_without_player())
+        s = self.SCALE
+        # Card spans roughly y=38 to y=82 at scale=1 (38 + 44).
+        # Rows past the card bottom should be all-black (no inputs) and identical.
+        card_bottom = 10 * s + 28 * s + (2 * s + 28 * s + 2 * s + 10 * s + 2 * s)  # ~82
+        check_row = card_bottom + 5  # well below the card
+        assert np.array_equal(arr_with[check_row], arr_without[check_row])
+
+    def test_counter_increments_with_n_new(self):
+        """Card counter changes when n_new_inputs increases."""
+        arr_0 = self._sidebar(_header_stats_with_player(), n_new=0)
+        arr_5 = self._sidebar(_header_stats_with_player(), n_new=5)
+        region_0 = self._card_region(arr_0)
+        region_5 = self._card_region(arr_5)
+        assert not np.array_equal(region_0, region_5)

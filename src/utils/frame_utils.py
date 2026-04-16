@@ -4,6 +4,7 @@ This module provides functions for processing GameBoy frame buffers,
 including hashing for deduplication and conversion to PNG format.
 """
 
+import functools
 import hashlib
 import logging
 import os
@@ -20,6 +21,16 @@ from PIL import Image, ImageDraw
 logger = logging.getLogger(__name__)
 
 _streak_icon_cache: dict[int, Optional[Image.Image]] = {}
+
+@functools.lru_cache(maxsize=64)
+def _load_font(font_path_str: Optional[str], size: int):
+    from PIL import ImageFont
+    if font_path_str:
+        try:
+            return ImageFont.truetype(font_path_str, size=size)
+        except Exception:
+            pass
+    return ImageFont.load_default()
 
 
 def _load_streak_icon(height_px: int) -> Optional[Image.Image]:
@@ -206,6 +217,7 @@ def draw_text_to_fit(
     max_w: int,
     line_height: int,
     font,
+    align: str = "left",
 ) -> int:
     """Draw a username with color, compressing horizontally if too wide.
 
@@ -224,7 +236,8 @@ def draw_text_to_fit(
         img.paste(tmp, (x, y))
         return max_w
     else:
-        draw.text((x, y), name, fill=color, font=font, fontmode="1")
+        x_offset = (max_w - natural_w) // 2 if align == "center" else 0
+        draw.text((x + x_offset, y), name, fill=color, font=font, fontmode="1")
         return natural_w
 
 
@@ -233,7 +246,7 @@ def _render_stats_row(
     draw: "ImageDraw.ImageDraw",
     scale: int,
     header_stats: dict,
-    global_frame_count: int,
+    period_key: str,
     n_new_inputs: int,
     row_y: int,
     row_height: int,
@@ -247,32 +260,22 @@ def _render_stats_row(
     Left half: total input counter + "TOTAL INPUTS" label.
     Right half: "TOP PLAYERS" + period label + top-3 player rows.
     """
-    from PIL import ImageFont
-
-    period_key = "today" if (global_frame_count // 75) % 2 == 0 else "alltime"
     period_label = "TODAY" if period_key == "today" else "ALL TIME"
     stats = header_stats[period_key]
 
     padding = 2 * scale
     left_col_w = 56 * scale
     line_h = 10 * scale
-    label_y_offset = 14 * scale  # y offset for "TOTAL INPUTS" label below the number
-
-    # --- Load fonts ---
-    def _load_font(size):
-        try:
-            return ImageFont.truetype(str(font_path), size=size)
-        except Exception:
-            return ImageFont.load_default()
+    label_y_offset = 14 * scale
+    font_path_str = str(font_path) if font_path else None
 
     # ---- Left column: total counter ----
     display_total = stats["total"] + n_new_inputs
     total_str = f"{display_total:,}"
 
-    # Try progressively smaller font sizes until it fits
     num_font = None
     for font_size in range(12 * scale, 5 * scale, -scale):
-        candidate = _load_font(font_size)
+        candidate = _load_font(font_path_str, font_size)
         try:
             bbox = draw.textbbox((0, 0), total_str, font=candidate)
             text_w = bbox[2] - bbox[0]
@@ -282,7 +285,7 @@ def _render_stats_row(
             num_font = candidate
             break
     if num_font is None:
-        num_font = _load_font(6 * scale)
+        num_font = _load_font(font_path_str, 6 * scale)
 
     draw.text((padding, row_y + padding), total_str,
               fill=(255, 255, 255), font=num_font, fontmode="1")
@@ -305,7 +308,7 @@ def _render_stats_row(
               fill=(255, 255, 255), font=small_font, fontmode="1")
 
     # Player rows
-    player_row_font = _load_font(7 * scale)
+    player_row_font = _load_font(font_path_str, 7 * scale)
     for rank_idx, ordinal in enumerate(ordinals):
         py = row_y + line_h + padding + rank_idx * line_h
         if py + line_h > row_y + row_height:
@@ -345,6 +348,80 @@ def _render_stats_row(
         )
         draw.text((name_x + actual_w, py), suffix,
                   fill=(255, 255, 255), font=player_row_font, fontmode="1")
+
+
+def _render_current_player_card(
+    img: "Image.Image",
+    draw: "ImageDraw.ImageDraw",
+    single_player: dict,
+    period_key: str,
+    n_new_inputs: int,
+    scale: int,
+    card_x: int,
+    card_y: int,
+    font_path: "Path",
+    small_font,
+) -> None:
+    """Draw the floating single-player highlight card onto img."""
+    padding = 2 * scale
+    card_w = 56 * scale
+    avatar_sz = 28 * scale
+    line_h = 10 * scale
+    card_h = padding + avatar_sz + padding + line_h + padding
+    font_path_str = str(font_path) if font_path else None
+
+    draw.rectangle(
+        [card_x, card_y, card_x + card_w - 1, card_y + card_h - 1],
+        fill=(0, 0, 0),
+        outline=(255, 255, 255),
+        width=1,
+    )
+
+    ax, ay = card_x + padding, card_y + padding
+    draw.rectangle([ax, ay, ax + avatar_sz - 1, ay + avatar_sz - 1], fill=(255, 255, 255))
+    # TODO: Render avatar here
+
+    count = single_player[period_key] + n_new_inputs
+    count_str = f"{count:,}"
+    right_portion_w = card_w - avatar_sz - 2 * padding
+
+    num_font = None
+    text_w = text_h = 0
+    for font_size in range(12 * scale, 5 * scale, -scale):
+        candidate = _load_font(font_path_str, font_size)
+        try:
+            bbox = draw.textbbox((0, 0), count_str, font=candidate)
+            text_w = bbox[2] - bbox[0]
+            text_h = bbox[3] - bbox[1]
+        except Exception:
+            text_w = len(count_str) * font_size // 2
+            text_h = font_size
+        if text_w <= right_portion_w - padding:
+            num_font = candidate
+            break
+    if num_font is None:
+        num_font = _load_font(font_path_str, 5 * scale)
+        try:
+            bbox = draw.textbbox((0, 0), count_str, font=num_font)
+            text_w = bbox[2] - bbox[0]
+        except Exception:
+            text_w = len(count_str) * (5 * scale) // 2
+
+    text_x = card_x + card_w - padding - text_w
+    text_y = card_y + padding
+    draw.text((text_x, text_y), count_str, fill=(255, 255, 255), font=num_font, fontmode="1")
+
+    uname_y = card_y + padding + avatar_sz + padding
+    draw_text_to_fit(
+        img, draw,
+        x=card_x, y=uname_y,
+        name=single_player["user_name"],
+        color=single_player["color"],
+        max_w=card_w,
+        line_height=line_h,
+        font=small_font,
+        align="center",
+    )
 
 
 def render_input_sidebar(
@@ -513,12 +590,13 @@ def render_input_sidebar(
     draw.text((padding, 0), date_str, fill=(255, 255, 255), font=font, fontmode="1")
 
     if header_stats is not None:
+        period_key = "today" if (global_frame_count // 75) % 2 == 0 else "alltime"
         _render_stats_row(
             img=img,
             draw=draw,
             scale=scale,
             header_stats=header_stats,
-            global_frame_count=global_frame_count,
+            period_key=period_key,
             n_new_inputs=n_new_inputs,
             row_y=date_row_height,
             row_height=stats_row_height,
@@ -527,6 +605,22 @@ def render_input_sidebar(
             small_font=font,
             user_colors=user_colors,
         )
+
+        if "single_player" in header_stats:
+            label_bottom = date_row_height + 14 * scale + padding + line_height
+            card_y = label_bottom + 2 * scale
+            _render_current_player_card(
+                img=img,
+                draw=draw,
+                single_player=header_stats["single_player"],
+                period_key=period_key,
+                n_new_inputs=n_new_inputs,
+                scale=scale,
+                card_x=1,
+                card_y=card_y,
+                font_path=font_path,
+                small_font=font,
+            )
 
     return np.array(img, dtype=np.uint8)
 

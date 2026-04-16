@@ -2,10 +2,10 @@ import pytest
 import sqlite3
 import json
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 from src.db.manager import DatabaseManager
-from src.models.game_state import ChatConfig
+from src.models.game_state import ChatConfig, ChatGameState
 
 
 @pytest.fixture
@@ -101,3 +101,87 @@ def test_save_and_load_chat_config_multiple_modifier_states(db_manager):
     loaded = db_manager.load_chat_config(222)
     assert loaded is not None
     assert loaded.modifier_states == {"run": True, "turbo": False}
+
+
+# ── helpers ──────────────────────────────────────────────────────────────────
+
+def _ensure_chat(db_manager, chat_id: int) -> None:
+    """Upsert a game_states row so FK constraints on recent_inputs are satisfied."""
+    db_manager.save_game_state(ChatGameState(chat_id=chat_id))
+
+
+def _insert_recent_input(db_manager, chat_id: int, user_id: int, timestamp: str):
+    _ensure_chat(db_manager, chat_id)
+    db_manager.append_recent_input(
+        chat_id=chat_id, user_id=user_id, user_name="u",
+        button="a", timestamp=timestamp,
+    )
+
+
+def _today_ts() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def _yesterday_ts() -> str:
+    return (datetime.now(timezone.utc) - timedelta(days=1)).replace(microsecond=0).isoformat()
+
+
+def _insert_alltime_count(db_manager, chat_id: int, user_id: int, count: int):
+    _ensure_chat(db_manager, chat_id)
+    db_manager.connection.execute(  # user_input_counts also has a FK on chat_id
+        "INSERT INTO user_input_counts (chat_id, user_id, input_count) VALUES (?, ?, ?);",
+        (chat_id, user_id, count),
+    )
+    db_manager.connection.commit()
+
+
+# ── TestGetPlayerTodayInputCount ──────────────────────────────────────────────
+
+class TestGetPlayerTodayInputCount:
+    def test_returns_zero_when_no_rows(self, db_manager):
+        assert db_manager.get_player_today_input_count(1, 99) == 0
+
+    def test_returns_count_for_matching_user(self, db_manager):
+        ts = _today_ts()
+        _insert_recent_input(db_manager, 1, 42, ts)
+        _insert_recent_input(db_manager, 1, 42, ts)
+        _insert_recent_input(db_manager, 1, 42, ts)
+        assert db_manager.get_player_today_input_count(1, 42) == 3
+
+    def test_ignores_other_users(self, db_manager):
+        ts = _today_ts()
+        _insert_recent_input(db_manager, 1, 10, ts)
+        _insert_recent_input(db_manager, 1, 10, ts)
+        _insert_recent_input(db_manager, 1, 20, ts)
+        assert db_manager.get_player_today_input_count(1, 10) == 2
+
+    def test_ignores_other_chats(self, db_manager):
+        ts = _today_ts()
+        _insert_recent_input(db_manager, 1, 5, ts)
+        _insert_recent_input(db_manager, 2, 5, ts)
+        assert db_manager.get_player_today_input_count(1, 5) == 1
+
+    def test_ignores_yesterday_rows(self, db_manager):
+        _insert_recent_input(db_manager, 1, 7, _yesterday_ts())
+        assert db_manager.get_player_today_input_count(1, 7) == 0
+
+
+# ── TestGetPlayerAlltimeInputCount ────────────────────────────────────────────
+
+class TestGetPlayerAlltimeInputCount:
+    def test_returns_zero_when_no_rows(self, db_manager):
+        assert db_manager.get_player_alltime_input_count(1, 99) == 0
+
+    def test_returns_count_for_matching_user(self, db_manager):
+        _insert_alltime_count(db_manager, 1, 42, 500)
+        assert db_manager.get_player_alltime_input_count(1, 42) == 500
+
+    def test_ignores_other_users(self, db_manager):
+        _insert_alltime_count(db_manager, 1, 10, 100)
+        _insert_alltime_count(db_manager, 1, 20, 200)
+        assert db_manager.get_player_alltime_input_count(1, 10) == 100
+
+    def test_ignores_other_chats(self, db_manager):
+        _insert_alltime_count(db_manager, 1, 5, 50)
+        _insert_alltime_count(db_manager, 2, 5, 999)
+        assert db_manager.get_player_alltime_input_count(1, 5) == 50

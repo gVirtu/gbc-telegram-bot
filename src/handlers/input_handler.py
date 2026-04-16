@@ -741,6 +741,22 @@ class InputHandler:
             if uid in profiles and uname and profiles[uid].name_tag_color
         }
 
+        # Detect single-player batch and enrich header_stats
+        if header_stats is not None:
+            batch_user_ids = {inp["user_id"] for inp, _ in new_inputs_with_offsets}
+            if len(batch_user_ids) == 1:
+                solo_uid = next(iter(batch_user_ids))
+                solo_uname = uid_to_uname.get(solo_uid, "")
+                try:
+                    header_stats["single_player"] = {
+                        "user_name": solo_uname,
+                        "today": state_manager.get_player_today_input_count(chat_id, solo_uid),
+                        "alltime": state_manager.get_player_alltime_input_count(chat_id, solo_uid),
+                        "color": user_colors.get(solo_uname, (255, 255, 255)),
+                    }
+                except Exception as e:
+                    logger.warning(f"Failed to fetch single-player stats for chat {chat_id}: {e}")
+
         # 4. Build streaming animation transform
         #    Raw frames (index < num_raw_frames): scale 3x + reactions + sidebar
         #    TBC frames (index >= num_raw_frames): already scaled, sidebar only

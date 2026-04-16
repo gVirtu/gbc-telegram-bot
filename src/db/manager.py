@@ -486,6 +486,26 @@ class DatabaseManager:
         ]
         return {"total": total, "top_players": top_players}
 
+    def get_player_today_input_count(self, chat_id: int, user_id: int) -> int:
+        """Count inputs from user_id in recent_inputs since UTC midnight for chat_id."""
+        from datetime import datetime, timezone
+        today_midnight = datetime.now(timezone.utc).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ).isoformat()
+        row = self.connection.execute(
+            "SELECT COUNT(*) as cnt FROM recent_inputs WHERE chat_id = ? AND user_id = ? AND timestamp >= ?;",
+            (chat_id, user_id, today_midnight),
+        ).fetchone()
+        return int(row["cnt"]) if row else 0
+
+    def get_player_alltime_input_count(self, chat_id: int, user_id: int) -> int:
+        """Return total input count from user_input_counts for user_id in chat_id."""
+        row = self.connection.execute(
+            "SELECT input_count FROM user_input_counts WHERE chat_id = ? AND user_id = ?;",
+            (chat_id, user_id),
+        ).fetchone()
+        return int(row["input_count"]) if row else 0
+
     def purge_old_recent_inputs(self, older_than_days: int) -> int:
         """Delete recent_inputs rows older than N days.
 

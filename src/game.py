@@ -601,6 +601,7 @@ class GameController:
             self._hook_module = None
             self._modifier_module = None
             self._status_bar_module = None
+            self._avatar_provider_module = None
     
     def __del__(self):
         """Destructor to ensure emulator is stopped."""

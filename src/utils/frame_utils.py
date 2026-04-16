@@ -350,6 +350,18 @@ def _render_stats_row(
                   fill=(255, 255, 255), font=player_row_font, fontmode="1")
 
 
+def _get_avatar_fn(cartridge_title: str | None):
+    """Load and return the get_avatar callable for a cartridge, or None."""
+    if not cartridge_title:
+        return None
+    try:
+        import importlib
+        module = importlib.import_module(f"src.game_avatar_providers.{cartridge_title.lower()}")
+        return getattr(module, "get_avatar", None)
+    except ImportError:
+        return None
+
+
 def _render_current_player_card(
     img: "Image.Image",
     draw: "ImageDraw.ImageDraw",
@@ -361,6 +373,7 @@ def _render_current_player_card(
     card_y: int,
     font_path: "Path",
     small_font,
+    avatar_fn=None,
 ) -> None:
     """Draw the floating single-player highlight card onto img."""
     padding = 2 * scale
@@ -378,8 +391,12 @@ def _render_current_player_card(
     )
 
     ax, ay = card_x + padding, card_y + padding
-    draw.rectangle([ax, ay, ax + avatar_sz - 1, ay + avatar_sz - 1], fill=(255, 255, 255))
-    # TODO: Render avatar here
+    avatar_img = avatar_fn(single_player) if avatar_fn else None
+    if avatar_img is not None:
+        avatar_img = avatar_img.resize((avatar_sz, avatar_sz), Image.LANCZOS)
+        img.paste(avatar_img, (ax, ay), mask=avatar_img if avatar_img.mode == "RGBA" else None)
+    else:
+        draw.rectangle([ax, ay, ax + avatar_sz - 1, ay + avatar_sz - 1], fill=(255, 255, 255))
 
     count = single_player[period_key] + n_new_inputs
     count_str = f"{count:,}"
@@ -416,7 +433,7 @@ def _render_current_player_card(
         img, draw,
         x=card_x, y=uname_y,
         name=single_player["user_name"],
-        color=single_player["color"],
+        color=tuple(single_player["color"]),
         max_w=card_w,
         line_height=line_h,
         font=small_font,

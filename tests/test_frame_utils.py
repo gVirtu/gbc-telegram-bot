@@ -873,3 +873,103 @@ class TestRenderInputSidebarModifier:
         )
         assert isinstance(result, np.ndarray)
         assert result.shape[2] == 3
+
+
+class TestGetAvatarFn:
+    """Tests for the _get_avatar_fn helper."""
+
+    def test_returns_callable_for_pkpcrystal(self):
+        """_get_avatar_fn returns a callable for 'PKPCRYSTAL'."""
+        from src.utils.frame_utils import _get_avatar_fn
+        result = _get_avatar_fn("PKPCRYSTAL")
+        assert callable(result)
+
+    def test_lowercase_cartridge_title_works(self):
+        """_get_avatar_fn also works with lowercase cartridge title."""
+        from src.utils.frame_utils import _get_avatar_fn
+        result = _get_avatar_fn("pkpcrystal")
+        assert callable(result)
+
+    def test_returns_none_for_unknown_cartridge(self):
+        """_get_avatar_fn returns None for unknown cartridge titles."""
+        from src.utils.frame_utils import _get_avatar_fn
+        result = _get_avatar_fn("UNKNOWNGAME")
+        assert result is None
+
+    def test_returns_none_for_none_input(self):
+        """_get_avatar_fn returns None when cartridge_title is None."""
+        from src.utils.frame_utils import _get_avatar_fn
+        result = _get_avatar_fn(None)
+        assert result is None
+
+    def test_returns_none_for_empty_string(self):
+        """_get_avatar_fn returns None when cartridge_title is empty string."""
+        from src.utils.frame_utils import _get_avatar_fn
+        result = _get_avatar_fn("")
+        assert result is None
+
+
+class TestRenderCurrentPlayerCardWithAvatar:
+    """Tests for _render_current_player_card avatar rendering."""
+
+    def _make_card_image(self, avatar_fn=None):
+        """Call _render_current_player_card and return the PIL Image."""
+        from src.utils.frame_utils import _render_current_player_card
+        from PIL import Image, ImageDraw
+
+        scale = 1
+        card_x, card_y = 0, 0
+        img = Image.new("RGB", (200, 200), (0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        single_player = {
+            "user_name": "Alice",
+            "today": 10,
+            "alltime": 100,
+            "color": [255, 0, 0],
+        }
+        _render_current_player_card(
+            img=img,
+            draw=draw,
+            single_player=single_player,
+            period_key="today",
+            n_new_inputs=0,
+            scale=scale,
+            card_x=card_x,
+            card_y=card_y,
+            font_path=None,
+            small_font=None,
+            avatar_fn=avatar_fn,
+        )
+        return img
+
+    def test_white_rectangle_fallback_when_no_avatar_fn(self):
+        """Without avatar_fn, avatar slot is white."""
+        img = self._make_card_image(avatar_fn=None)
+        # avatar slot starts at (card_x + padding, card_y + padding) = (2, 2) at scale=1
+        pixel = img.getpixel((3, 3))
+        assert pixel == (255, 255, 255)
+
+    def test_avatar_is_rendered_when_fn_provided(self):
+        """With avatar_fn, avatar slot shows the returned image (not white)."""
+        from PIL import Image as PILImage
+
+        red_avatar = PILImage.new("RGBA", (10, 10), (255, 0, 0, 255))
+
+        def mock_avatar_fn(player):
+            return red_avatar
+
+        img = self._make_card_image(avatar_fn=mock_avatar_fn)
+        # Center of avatar slot at scale=1: ax=2, ay=2, avatar_sz=28 → center=(16,16)
+        pixel = img.getpixel((16, 16))
+        # Should be red, not white
+        assert pixel != (255, 255, 255)
+        assert pixel[0] > 200  # red channel dominant
+
+    def test_white_rectangle_fallback_when_fn_returns_none(self):
+        """When avatar_fn returns None, avatar slot falls back to white."""
+        def mock_avatar_fn(player):
+            return None
+
+        img = self._make_card_image(avatar_fn=mock_avatar_fn)
+        pixel = img.getpixel((3, 3))
+        assert pixel == (255, 255, 255)

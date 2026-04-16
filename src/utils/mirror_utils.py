@@ -124,7 +124,7 @@ async def broadcast_game_update(
                 animation_transform,
                 tmp_path,
                 fps=capture_fps,
-                crf=28,
+                crf=32,
                 preset="ultrafast",
             )
             elapsed = time.monotonic() - t0

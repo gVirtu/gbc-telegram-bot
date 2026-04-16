@@ -1386,7 +1386,7 @@ async def save_frames_as_mp4_streaming(
         if tmp_pcm:
             encode_args += ['-c:a', 'aac', '-af', 'highpass=f=40,lowpass=f=6500,aresample=32000']
         else:
-            encode_args += ['-an', '-movflags', '+faststart', '-metadata:s:v:0', 'loop=0']
+            encode_args += ['-an', '-tune', 'zerolatency', '-movflags', '+faststart']
 
         cmd = video_args + encode_args + [output_path]
 

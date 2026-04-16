@@ -320,7 +320,9 @@ def render_party(img: Image.Image, party: list[dict], scale: int):
     held_item_icon = _load_icon("held_item", 4 * scale)
 
     for i, pokemon in enumerate(party):
-        species = pokemon["species"]
+        is_egg = pokemon["is_egg"]
+        species = 255 if is_egg else pokemon["species"]
+
         if species == 0:
             continue
 
@@ -330,6 +332,9 @@ def render_party(img: Image.Image, party: list[dict], scale: int):
         if asset:
             resized_asset = asset.resize((10 * scale, 10 * scale), resample=Image.Resampling.LANCZOS)
             img.paste(resized_asset, (x + 5 * scale, y), resized_asset)
+            
+        if is_egg:
+            continue
             
         status = _get_status_text(pokemon['status'])
         draw.text((x + 13 * scale, y + 5 * scale), status, fill=(255, 255, 255), font=font, fontmode="1")
@@ -509,10 +514,20 @@ def get_status_bar_data(pyboy) -> dict[str, Any]:
         next_level_at = EXP_PER_LEVEL[growth_rate][current_level] if current_level < 100 else total_exp
         total_level_exp = next_level_at - current_level_exp
         exp_percent = (total_exp - current_level_exp) / max(total_level_exp, 1)
+        
+        gender_is_egg_ext_species_form = _symbol_read_u8(pyboy, f"wPartyMon{i}ExtSpecies")
+        gender = gender_is_egg_ext_species_form & 0b10000000
+        is_egg = gender_is_egg_ext_species_form & 0b01000000
+        ext_species = gender_is_egg_ext_species_form & 0b00100000
+        form = gender_is_egg_ext_species_form & 0b00011111
+        # logger.info(f"#{i}: Gender = {gender} | Is egg? {is_egg} | Ext species {ext_species} | Form {form}")
 
         party.append({
             "species": _symbol_read_u8(pyboy, f"wPartyMon{i}Species"),
-            "ext_species": _symbol_read_u8(pyboy, f"wPartyMon{i}ExtSpecies"),
+            "ext_species": ext_species,
+            "is_egg": is_egg,
+            "gender": gender,
+            "form": form,
             "hp": _symbol_read_u16le(pyboy, f"wPartyMon{i}HP"),
             "max_hp": _symbol_read_u16le(pyboy, f"wPartyMon{i}MaxHP"),
             "item": _symbol_read_u8(pyboy, f"wPartyMon{i}Item"),

@@ -53,14 +53,16 @@ def begin_hooks(pyboy) -> dict:
             "BattleIntroSlidingPics.loop2": 0,
             "_AnimateHPBar.loop": 0,
             "RunBattleAnimScript.playframe": 0,
+            "HealMachineAnim.party_loop": 0,
+            "HealMachineAnim.palette_loop": 0,
             "_total": 0
         }
     }
     
-    double_weight = set([
-        "DoPlayerMovement.GetAction",
-        "SummaryScreenLoop"
-    ])
+    weights = {
+        "DoPlayerMovement.GetAction": 3,
+        "SummaryScreenLoop": 2
+    }
     
     # Aggregate all actions linked to what categories they are in
     hook_counters = defaultdict(list)
@@ -75,7 +77,7 @@ def begin_hooks(pyboy) -> dict:
         target = ctx
         for key in path[:-1]:
             target = target[key]
-        weight = 2 if path[-1] in double_weight else 1
+        weight = weights.get(path[-1], 1)
         target[path[-1]] += weight
         target["_total"] += weight
         return None

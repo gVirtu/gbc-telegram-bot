@@ -103,6 +103,7 @@ class GameController:
         self._initialized = False
         self._modifier_module: Optional[ModuleType] = None
         self._status_bar_module: Optional[ModuleType] = None
+        self._avatar_provider_module: Optional[ModuleType] = None
         self._capturing: bool = False
         self._capture_interval: int = 1
         self._capture_tick_count: int = 0
@@ -162,6 +163,7 @@ class GameController:
             self._hook_module = self._load_hook_module(self.pyboy.cartridge_title)
             self._modifier_module = self._load_modifier_module(self.pyboy.cartridge_title)
             self._status_bar_module = self._load_status_bar_module(self.pyboy.cartridge_title)
+            self._avatar_provider_module = self._load_avatar_provider_module(self.pyboy.cartridge_title)
             if self._status_bar_module and hasattr(self._status_bar_module, 'init'):
                 self._status_bar_module.init(self.pyboy)
             logger.info(f"Game '{self.pyboy.cartridge_title}' initialized successfully for chat {self.chat_id}")
@@ -248,6 +250,40 @@ class GameController:
         except ImportError:
             logger.debug(f"No status bar module found for: {cartridge_title}")
             return None
+
+    def _load_avatar_provider_module(self, cartridge_title: str) -> Optional[ModuleType]:
+        """Dynamically load avatar provider module for a cartridge.
+
+        Args:
+            cartridge_title: PyBoy cartridge title (e.g., "PKPCRYSTAL")
+
+        Returns:
+            Module if found, None otherwise
+        """
+        if not cartridge_title:
+            return None
+
+        module_name = f"src.game_avatar_providers.{cartridge_title.lower()}"
+
+        try:
+            import importlib
+            module = importlib.import_module(module_name)
+            logger.debug(f"Loaded avatar provider module: {module_name}")
+            return module
+        except ImportError:
+            logger.debug(f"No avatar provider module found for: {cartridge_title}")
+            return None
+
+    def get_avatar_fn(self):
+        """Get the game-specific avatar provider function.
+
+        Returns:
+            Callable ``(player: dict) -> Image | None`` from the avatar provider
+            module, or None if no module or function exists.
+        """
+        if self._avatar_provider_module is None:
+            return None
+        return getattr(self._avatar_provider_module, "get_avatar", None)
 
     def get_status_bar_data(self) -> Optional[dict]:
         """Get status bar data from the game-specific module.

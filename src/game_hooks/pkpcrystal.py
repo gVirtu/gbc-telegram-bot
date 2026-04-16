@@ -40,6 +40,9 @@ def begin_hooks(pyboy) -> dict:
             "Toss_Sell_Loop.loop": 0,
             "MoveScreenLoop.loop": 0,
             "PokeGear.loop": 0,
+            "ManageBoxes.loop": 0,
+            "UnownPuzzle.loop": 0,
+            "_Pokedex_Description.newdesc_joypad": 0,
             "_total": 0
         },
         "autoPressA": {
@@ -54,6 +57,11 @@ def begin_hooks(pyboy) -> dict:
         }
     }
     
+    double_weight = set([
+        "DoPlayerMovement.GetAction",
+        "SummaryScreenLoop"
+    ])
+    
     # Aggregate all actions linked to what categories they are in
     hook_counters = defaultdict(list)
     
@@ -67,8 +75,9 @@ def begin_hooks(pyboy) -> dict:
         target = ctx
         for key in path[:-1]:
             target = target[key]
-        target[path[-1]] += 1
-        target["_total"] += 1
+        weight = 2 if path[-1] in double_weight else 1
+        target[path[-1]] += weight
+        target["_total"] += weight
         return None
     
     def increment_context_counters(ctx, categories: list, action: str):

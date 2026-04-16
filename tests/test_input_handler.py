@@ -713,6 +713,9 @@ class TestWaitButtonProcessing:
                                 mock_sm.get_or_create_chat_config.return_value = MagicMock(
                                     modifier_states={}, auto_save_enabled=False, platform="telegram"
                                 )
+                                mock_sm.list_next_reactions.return_value = [
+                                    {"id": 1, "user_name": "Alice", "reaction_type": "joy"}
+                                ]
                                 mock_controller.get_modifier_specs.return_value = []
                                 mock_tbc.return_value = []
 

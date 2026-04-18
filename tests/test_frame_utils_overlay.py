@@ -9,7 +9,6 @@ from PIL import Image, ImageDraw
 from src.utils.frame_utils import (
     _make_frame_transform,
     _render_current_player_card,
-    apply_overlay_composite,
     composite_overlay,
     draw_text_to_fit,
     render_input_sidebar,
@@ -106,101 +105,8 @@ class TestCompositeOverlay:
         assert np.all(result[200:, 480:, :] == 0)
 
 
-class TestApplyOverlayComposite:
-    def test_output_length_matches_input(self):
-        """Returns same number of frames as input."""
-        from src.utils.frame_utils import apply_overlay_composite
-        frames = [np.zeros((432, 480, 3), dtype=np.uint8) for _ in range(5)]
-        result = apply_overlay_composite(frames, [], [])
-        assert len(result) == 5
-
-    def test_output_shape_is_composited(self):
-        """Each output frame has sidebar width added and status bar height (16*scale=48 at scale=3)."""
-        from src.utils.frame_utils import apply_overlay_composite
-        frames = [np.zeros((432, 480, 3), dtype=np.uint8) for _ in range(3)]
-        result = apply_overlay_composite(frames, [], [])
-        for f in result:
-            assert f.shape == (480, 852, 3)  # 432 game+sidebar + 48 status bar (16*3)
-
-    def test_sidebar_empty_before_offset(self):
-        """Sidebar area is all-black on frames before an input's offset."""
-        from src.utils.frame_utils import apply_overlay_composite
-        frames = [np.zeros((432, 480, 3), dtype=np.uint8) for _ in range(3)]
-        new_input = {
-            "user_name": "Alice", "button": "a",
-            "user_id": 1, "timestamp": "2026-01-01T00:00:00",
-        }
-        result = apply_overlay_composite(frames, [], [(new_input, 2)])
-
-        # Before offset: sidebar (columns 320+) below date row should be black
-        # Restrict to rows 24:432 to exclude the status bar strip at the bottom
-        assert not np.any(result[0][24:432, 480:, :] > 10)
-        assert not np.any(result[1][24:432, 480:, :] > 10)
-
-    def test_sidebar_has_text_at_and_after_offset(self):
-        """Sidebar area has white pixels on the frame where input arrives."""
-        from src.utils.frame_utils import apply_overlay_composite
-        frames = [np.zeros((432, 480, 3), dtype=np.uint8) for _ in range(3)]
-        new_input = {
-            "user_name": "Alice", "button": "a",
-            "user_id": 1, "timestamp": "2026-01-01T00:00:00",
-        }
-        result = apply_overlay_composite(frames, [], [(new_input, 2)])
-        assert np.any(result[2][24:, 480:, :] > 10)
-
-    def test_pre_existing_inputs_visible_from_frame_0(self):
-        """Pre-existing inputs appear in the sidebar from frame 0."""
-        from src.utils.frame_utils import apply_overlay_composite
-        frames = [np.zeros((432, 480, 3), dtype=np.uint8) for _ in range(2)]
-        pre = [{"user_name": "Bob", "button": "b", "user_id": 2, "timestamp": "2026-01-01T00:00:00"}]
-        result = apply_overlay_composite(frames, pre, [])
-        # Frame 0 sidebar should already have text
-        assert np.any(result[0][24:, 480:, :] > 10)
-
-    def test_multiple_inputs_at_different_offsets(self):
-        """Two inputs at offsets 1 and 3: frame 0 empty, frame 1 has one, frame 3 has both."""
-        from src.utils.frame_utils import apply_overlay_composite
-        frames = [np.zeros((432, 480, 3), dtype=np.uint8) for _ in range(4)]
-        input_a = {"user_name": "A", "button": "a", "user_id": 1, "timestamp": "2026-01-01T00:00:00"}
-        input_b = {"user_name": "B", "button": "b", "user_id": 2, "timestamp": "2026-01-01T00:00:01"}
-
-        result = apply_overlay_composite(frames, [], [(input_a, 1), (input_b, 3)])
-
-        def sidebar_white_pixel_count(f):
-            # Restrict to sidebar rows only (exclude the status bar strip at the bottom)
-            return int(np.sum(f[24:432, 480:, :] > 10))
-
-        count_0 = sidebar_white_pixel_count(result[0])
-        count_1 = sidebar_white_pixel_count(result[1])
-        count_3 = sidebar_white_pixel_count(result[3])
-
-        assert count_0 == 0, "Frame 0: no inputs yet, sidebar should be black"
-        assert count_1 > 0, "Frame 1: input_a arrives, sidebar should have text"
-        assert count_3 > count_1, "Frame 3: input_b arrives, sidebar should have more text"
-
-
 class TestScoreLabels:
     """Tests for animated score label rendering."""
-
-    def test_label_appears_at_correct_frame(self):
-        """Score label is present on the frame when a new input arrives (frame_offset)."""
-        frames = [np.zeros((432, 480, 3), dtype=np.uint8) for _ in range(5)]
-        inp = {"user_name": "Alice", "button": "a", "user_id": 1,
-               "timestamp": "2026-01-01T00:00:00", "total_score": 10}
-        result = apply_overlay_composite(frames, [], [(inp, 0)], capture_fps=5)
-        # frame 0: label should be at alpha=1.0 (fully white)
-        sidebar_frame0 = result[0][24:, 480:, :]
-        assert np.any(sidebar_frame0 > 10), "Label should render on frame 0"
-
-    def test_label_absent_on_pre_existing_inputs(self):
-        """Pre-existing inputs have no score labels (no animation window)."""
-        pre = [{"user_name": "Bob", "button": "b", "user_id": 2,
-                "timestamp": "2026-01-01T00:00:00", "total_score": 5}]
-        frames = [np.zeros((432, 480, 3), dtype=np.uint8) for _ in range(2)]
-        # Render with no new inputs — pre-existing get no label
-        result = apply_overlay_composite(frames, pre, [], capture_fps=5)
-        # We can't easily test label absence vs text presence, but just verify it renders
-        assert result[0].shape == (480, 852, 3)  # 432 + 48 status bar
 
     def test_label_at_frame_0_alpha_is_1(self):
         """At frame 0 (frames_since=0): ease=0, alpha=1.0, x_offset=0."""
@@ -211,50 +117,6 @@ class TestScoreLabels:
         # Just verify transform runs and returns correct shape
         out = transform(frame)
         assert out.shape == (432, 852, 3)
-
-    def test_label_fades_out_over_capture_fps_frames(self):
-        """Label has fewer bright pixels at the last frame compared to frame 0."""
-        capture_fps = 5
-        n_frames = capture_fps
-        frames = [np.zeros((432, 480, 3), dtype=np.uint8) for _ in range(n_frames)]
-        inp = {"user_name": "Alice", "button": "a", "user_id": 1,
-               "timestamp": "2026-01-01T00:00:00", "total_score": 10}
-        result = apply_overlay_composite(frames, [], [(inp, 0)], capture_fps=capture_fps)
-        sidebar_0 = result[0][24:, 480:, :]
-        sidebar_last = result[-1][24:, 480:, :]
-        bright_0 = int(np.sum(sidebar_0 > 50))
-        bright_last = int(np.sum(sidebar_last > 50))
-        assert bright_0 >= bright_last, "Label should be brighter at frame 0 than at the last frame"
-
-    def test_no_label_when_total_score_is_none(self):
-        """Input with total_score=None renders no label."""
-        inp_no_score = {"user_name": "Alice", "button": "a", "user_id": 1,
-                        "timestamp": "2026-01-01T00:00:00", "total_score": None}
-        inp_with_score = {"user_name": "Alice", "button": "a", "user_id": 1,
-                          "timestamp": "2026-01-01T00:00:00", "total_score": 10}
-        frames = [np.zeros((432, 480, 3), dtype=np.uint8)]
-        result_no = apply_overlay_composite(frames, [], [(inp_no_score, 0)], capture_fps=5)
-        result_yes = apply_overlay_composite(frames, [], [(inp_with_score, 0)], capture_fps=5)
-        bright_no = int(np.sum(result_no[0][24:, 480:, :] > 10))
-        bright_yes = int(np.sum(result_yes[0][24:, 480:, :] > 10))
-        assert bright_yes >= bright_no, "Input with score should render at least as many bright pixels"
-
-    def test_multiple_simultaneous_labels_animate_independently(self):
-        """Two inputs at different offsets each get their own label animation."""
-        capture_fps = 10
-        frames = [np.zeros((432, 480, 3), dtype=np.uint8) for _ in range(capture_fps + 2)]
-        inp_a = {"user_name": "A", "button": "a", "user_id": 1,
-                 "timestamp": "2026-01-01T00:00:00", "total_score": 5}
-        inp_b = {"user_name": "B", "button": "b", "user_id": 2,
-                 "timestamp": "2026-01-01T00:00:01", "total_score": 8}
-        # inp_a at frame 0, inp_b at frame 2
-        result = apply_overlay_composite(frames, [], [(inp_a, 0), (inp_b, 2)], capture_fps=capture_fps)
-        # Frame 2: both inputs visible, both labels active
-        assert result[2].shape == (480, 852, 3)  # 432 + 48 status bar
-        # Frame 0: only inp_a visible, inp_a label active
-        assert result[0].shape == (480, 852, 3)  # 432 + 48 status bar
-        # Frame capture_fps + 1: both inputs visible but labels have expired
-        assert result[capture_fps + 1].shape == (480, 852, 3)  # 432 + 48 status bar
 
 
 class TestDrawTextToFit:

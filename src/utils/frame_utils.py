@@ -781,50 +781,6 @@ def render_status_bar(data: Optional[dict], width: int, scale: int, render_fn: O
     return np.array(img, dtype=np.uint8)
 
 
-def apply_overlay_composite(
-    frames: list[np.ndarray],
-    pre_existing_inputs: list,
-    new_inputs_with_offsets: list,
-    capture_fps: int = 15,
-    user_colors: Optional[dict] = None,
-    status_bar_data: Optional[dict] = None,
-    scale: int = 3,
-    status_bar_render_fn: Optional[Callable] = None,
-) -> list[np.ndarray]:
-    """Composite the input sidebar onto a sequence of already-scaled frames.
-
-    Applies a stateful per-frame transform that adds new inputs to the sidebar
-    at the specified frame offsets. If status_bar_data is provided, a status
-    bar strip is stacked below each composited frame.
-
-    Args:
-        frames: List of scaled numpy arrays (H, W, 3). Must be pre-scaled;
-            no internal scaling is applied.
-        pre_existing_inputs: Input dicts visible from frame 0.
-        new_inputs_with_offsets: List of (input_dict, frame_offset) pairs.
-        capture_fps: Capture frames per second (used for score label animation duration).
-        status_bar_data: Optional game-state dict for status bar rendering.
-        scale: Rendering scale factor (used for status bar height).
-        status_bar_render_fn: Optional game-specific render callable passed to render_status_bar.
-
-    Returns:
-        List of composited frames, each wider by the sidebar width (H, W+sidebar, 3),
-        and taller by 16*scale if status_bar_data is not None.
-    """
-    transform = _make_frame_transform(pre_existing_inputs, new_inputs_with_offsets, capture_fps, user_colors=user_colors)
-
-    # Transform in-place: as each slot is overwritten CPython immediately frees
-    # the old frame (refcount → 0), so we never hold both the raw and composited
-    # generations simultaneously.
-    _status_bar: np.ndarray | None = None
-    for i in range(len(frames)):
-        composited = transform(frames[i])
-        if _status_bar is None:
-            _status_bar = render_status_bar(status_bar_data, composited.shape[1], scale, render_fn=status_bar_render_fn)
-        frames[i] = np.vstack([composited, _status_bar])
-    return frames
-
-
 def save_frames_as_mp4(
     frames: list[np.ndarray],
     fps: int = 10,

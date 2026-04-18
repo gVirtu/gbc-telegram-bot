@@ -1359,7 +1359,7 @@ def build_timelapse_transform(
         avatar_fn=avatar_fn,
     )
     reaction_transform = (
-        _make_reaction_frame_transform(reactions, capture_fps, frame_skip)
+        _make_reaction_frame_transform(reactions, capture_fps, scale=3, frame_skip=frame_skip)
         if reactions else None
     )
 

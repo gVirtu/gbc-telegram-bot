@@ -34,7 +34,6 @@ from src.models.input_queue import BufferedInput, PendingBuffer
 from src.utils.frame_utils import (  # noqa: F401 (needed for test patching)
     _make_frame_transform,
     _make_reaction_frame_transform,
-    apply_overlay_composite,
     apply_reaction_overlay,
     build_timelapse_transform,
     generate_tbc_frames,
@@ -528,6 +527,7 @@ class InputHandler:
         controller = await game_controller_manager.get_or_create_controller(chat_id)
         checkpoint = controller.save_state()
         session = self._get_session(chat_id)
+        base_global_frame_count = session.state.global_frame_count if session else 0
 
         buttons = [bi.button for bi in batch]
 
@@ -545,14 +545,46 @@ class InputHandler:
             pre_existing_inputs_for_overlay = state_manager.get_recent_inputs_for_overlay(chat_id, limit=30)
         except Exception as e:
             logger.warning(f"Failed to get recent inputs for overlay for chat {chat_id}: {e}")
+            
+        # Pre-fetch user colors for sidebar rendering (single query)
+        uid_to_uname: dict = {}
+        for inp in batch:
+            uid = inp.user_id
+            if uid:
+                uid_to_uname.setdefault(uid, inp.user_name)
+        for inp in pre_existing_inputs_for_overlay:
+            uid = inp.get("user_id")
+            if uid:
+                uid_to_uname.setdefault(uid, inp.get("user_name", ""))
+
+        profiles = scoring_manager.get_player_profiles_batch(config.platform, list(uid_to_uname))
+        user_colors: dict = {
+            uname: hex_to_rgb(profiles[uid].name_tag_color)
+            for uid, uname in uid_to_uname.items()
+            if uid in profiles and uname and profiles[uid].name_tag_color
+        }
 
         # Fetch stats for sidebar header (before new inputs are committed)
         header_stats = None
-        base_global_frame_count = session.state.global_frame_count if session else 0
         try:
             today_stats = state_manager.get_today_input_stats(chat_id)
             alltime_stats = state_manager.get_alltime_input_stats(chat_id)
             header_stats = {"today": today_stats, "alltime": alltime_stats}
+            
+            # Detect single-player batch and enrich header_stats
+            batch_user_ids = {(inp.user_id, inp.user_name) for inp in batch}
+            if len(batch_user_ids) == 1:
+                solo_uid, solo_uname = next(iter(batch_user_ids))
+                try:
+                    header_stats["single_player"] = {
+                        "user_name": solo_uname,
+                        "today": state_manager.get_player_today_input_count(chat_id, solo_uid),
+                        "alltime": state_manager.get_player_alltime_input_count(chat_id, solo_uid),
+                        "color": user_colors.get(solo_uname, (255, 255, 255)),
+                    }
+                except Exception as e:
+                    logger.warning(f"Failed to fetch single-player stats for chat {chat_id}: {e}")
+
         except Exception as e:
             logger.warning(f"Failed to fetch input stats for chat {chat_id}: {e}")
 
@@ -635,8 +667,7 @@ class InputHandler:
             if i < len(buttons) - 1:
                 delay_frames = int(settings.sequence_delay_seconds * game_fps)
                 cumulative_frames += delay_frames
-                for _frame_num in range(delay_frames):
-                    controller.tick(1)
+                controller.tick(delay_frames)
 
         # Commit all scoring and recent_inputs writes in one transaction
         try:
@@ -697,7 +728,7 @@ class InputHandler:
         logger.info(f"Animation completed for chat {chat_id} in {animation_frames} frames")
 
         raw_frames = controller.end_capture()
-        logger.info(f"[MEM] raw_frames={len(raw_frames)}, approx_raw_MB={len(raw_frames)*69/1024:.1f}")
+        logger.debug(f"[MEM] raw_frames={len(raw_frames)}, approx_raw_MB={len(raw_frames)*69/1024:.1f}")
         audio_chunks = controller.get_last_captured_audio()
         controller.end_hooks(hook_context)
 
@@ -708,7 +739,7 @@ class InputHandler:
             await self._send_error_message(chat_id, error_msg, adapter)
             return {"animation_duration": None}
 
-        # 1. Generate TBC from last raw frame (scaled 3x)
+        # Generate TBC from last raw frame (scaled)
         last_raw = raw_frames[-1] if raw_frames else np.array(controller.get_frame())
         last_raw_h, last_raw_w = last_raw.shape[:2]
         last_scaled = np.array(Image.fromarray(last_raw).resize(
@@ -724,41 +755,8 @@ class InputHandler:
         num_tbc_frames = len(tbc_frames)
         num_raw_frames = len(raw_frames)
 
-        # 3. Pre-fetch user colors for sidebar rendering (single batch query)
-        uid_to_uname: dict = {}
-        for inp_dict, _ in new_inputs_with_offsets:
-            uid = inp_dict.get("user_id")
-            if uid:
-                uid_to_uname.setdefault(uid, inp_dict.get("user_name", ""))
-        for inp in pre_existing_inputs_for_overlay:
-            uid = inp.get("user_id")
-            if uid:
-                uid_to_uname.setdefault(uid, inp.get("user_name", ""))
-        profiles = scoring_manager.get_player_profiles_batch(config.platform, list(uid_to_uname))
-        user_colors: dict = {
-            uname: hex_to_rgb(profiles[uid].name_tag_color)
-            for uid, uname in uid_to_uname.items()
-            if uid in profiles and uname and profiles[uid].name_tag_color
-        }
-
-        # Detect single-player batch and enrich header_stats
-        if header_stats is not None:
-            batch_user_ids = {inp["user_id"] for inp, _ in new_inputs_with_offsets}
-            if len(batch_user_ids) == 1:
-                solo_uid = next(iter(batch_user_ids))
-                solo_uname = uid_to_uname.get(solo_uid, "")
-                try:
-                    header_stats["single_player"] = {
-                        "user_name": solo_uname,
-                        "today": state_manager.get_player_today_input_count(chat_id, solo_uid),
-                        "alltime": state_manager.get_player_alltime_input_count(chat_id, solo_uid),
-                        "color": user_colors.get(solo_uname, (255, 255, 255)),
-                    }
-                except Exception as e:
-                    logger.warning(f"Failed to fetch single-player stats for chat {chat_id}: {e}")
-
-        # 4. Build streaming animation transform
-        #    Raw frames (index < num_raw_frames): scale 3x + reactions + sidebar
+        # Build streaming animation transform
+        #    Raw frames (index < num_raw_frames): scale 2x + reactions + sidebar
         #    TBC frames (index >= num_raw_frames): already scaled, sidebar only
         reaction_transform_fn = (
             _make_reaction_frame_transform(reactions, capture_fps, scale=2, frame_skip=1)
@@ -809,7 +807,7 @@ class InputHandler:
             logger.info(f"Streaming animation encode: {num_raw_frames} raw + {num_tbc_frames} TBC frames for chat {chat_id}")
 
             try:
-                # 5+6. Encode and broadcast animation to chat and mirrors
+                # Encode and broadcast animation to chat and mirrors
                 try:
                     await broadcast_game_update(
                         chat_id, caption, raw_frames, tbc_frames,
@@ -824,7 +822,7 @@ class InputHandler:
                         self._update_group_avatar(chat_id, controller, adapter, config)
                     )
 
-                # 7. Persist raw frames to disk and enqueue DB timelapse job
+                # Persist raw frames to disk and enqueue DB timelapse job
                 from src.tasks.timelapse_encoder import timelapse_queue
 
                 if timelapse_queue is not None:
@@ -882,7 +880,7 @@ class InputHandler:
                     except Exception as e:
                         logger.warning(f"Failed to queue timelapse for chat {chat_id}: {e}")
                         
-                # 8. Cleanup reactions
+                # Cleanup reactions
                 if reactions:
                     state_manager.delete_reactions([reaction["id"] for reaction in reactions])
 

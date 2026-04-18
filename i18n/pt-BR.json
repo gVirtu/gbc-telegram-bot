@@ -216,6 +216,7 @@
     "prev": "◀ Anterior",
     "next": "Próximo ▶",
     "back": "↩ Voltar",
+    "cancel": "✕ Cancelar",
     "free": "Grátis",
     "purchase_success": "✅ {item_name} resgatado!",
     "insufficient_funds": "❌ Pontos insuficientes (precisa de {cost}, tem {balance}).",

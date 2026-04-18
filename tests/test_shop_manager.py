@@ -342,30 +342,35 @@ class TestGetOwnedItems:
 
 class TestOwnedBadgeInKeyboard:
     def test_owned_badge_in_keyboard(self, tmp_path):
-        from src.handlers.commands import _build_shop_keyboard
-        from src.shop.shop_manager import ShopManager
+        from src.handlers.commands import render_telegram_shop_screen
+        from src.shop.flow.screens import ItemListScreen
         from src.shop.items import SHOP_CATEGORIES
 
         category = next(c for c in SHOP_CATEGORIES if c.id == "name_tags")
         items = category.items[:3]
         owned = frozenset({"name_tag_red"})
-        keyboard = _build_shop_keyboard(
-            chat_id=1, source_chat_id=1, page=0, total_pages=1,
-            items=items, category=category, owned_items=owned,
+        screen = ItemListScreen(
+            category=category, items=items, page=0, total_pages=1,
+            balance=0, chat_id=1, platform="telegram", user_id=1,
+            owned_items=owned,
         )
+        keyboard = render_telegram_shop_screen(screen)
         buttons = [btn.text for row in keyboard.inline_keyboard for btn in row]
         assert any(b.startswith("✓") for b in buttons)
         assert not all(b.startswith("✓") for b in buttons)
 
     def test_unowned_items_have_no_badge(self, tmp_path):
-        from src.handlers.commands import _build_shop_keyboard
+        from src.handlers.commands import render_telegram_shop_screen
+        from src.shop.flow.screens import ItemListScreen
         from src.shop.items import SHOP_CATEGORIES
 
         category = next(c for c in SHOP_CATEGORIES if c.id == "name_tags")
         items = category.items[:3]
-        keyboard = _build_shop_keyboard(
-            chat_id=1, source_chat_id=1, page=0, total_pages=1,
-            items=items, category=category, owned_items=frozenset(),
+        screen = ItemListScreen(
+            category=category, items=items, page=0, total_pages=1,
+            balance=0, chat_id=1, platform="telegram", user_id=1,
+            owned_items=frozenset(),
         )
+        keyboard = render_telegram_shop_screen(screen)
         buttons = [btn.text for row in keyboard.inline_keyboard for btn in row]
         assert not any(b.startswith("✓") for b in buttons)

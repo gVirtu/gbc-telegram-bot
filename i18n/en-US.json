@@ -216,6 +216,7 @@
     "prev": "◀ Previous",
     "next": "Next ▶",
     "back": "↩ Back",
+    "cancel": "✕ Cancel",
     "free": "Free",
     "purchase_success": "✅ {item_name} redeemed!",
     "insufficient_funds": "❌ Not enough points (need {cost}, have {balance}).",

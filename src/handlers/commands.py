@@ -9,7 +9,12 @@ access to the adapter, chat_id, user_id, user_name, and args.
 
 import logging
 from datetime import datetime
-from typing import Optional, Dict, Tuple
+from typing import TYPE_CHECKING, Optional, Dict, Tuple
+
+if TYPE_CHECKING:
+    from telegram import InlineKeyboardMarkup
+    from src.shop.flow.actions import ShopAction
+    from src.shop.flow.screens import ShopScreen
 
 from src.adapters.base import CommandContext
 from src.config import settings
@@ -18,7 +23,7 @@ from src.handlers.input_handler import get_input_handler
 from src.i18n import translation_manager, SUPPORTED_LANGUAGES
 from src.keyboard import create_help_text
 from src.models.game_state import KNOWN_FEATURE_FLAGS
-from src.shop.shop_manager import shop_manager, build_shop_text
+from src.shop.shop_manager import shop_manager
 from src.shop.items import ShopCategory
 from src.utils.media_cache import load_last_animation
 from src.utils.mirror_utils import broadcast_text, get_leader_chat_id, is_media_only_mirror
@@ -930,111 +935,192 @@ async def maintenance_command(ctx: CommandContext) -> None:
 
 
 
-def _build_shop_keyboard(
-    chat_id: int,
-    source_chat_id: int,
-    page: int,
-    total_pages: int,
-    items: list,
-    category: "ShopCategory | None" = None,
-    owned_items: "frozenset[str]" = frozenset(),
-) -> "InlineKeyboardMarkup":
-    """Build the shop inline keyboard for Telegram.
+def parse_telegram_shop_action(
+    callback_data: str, source_chat_id_override: int | None = None
+) -> "ShopAction | None":
+    """Parse a Telegram shop callback_data string into a ShopAction."""
+    from src.shop.flow.actions import (
+        OpenShop, NavigateCategories, NavigateCategoryItems,
+        BuyItem, MakeSelection, NavigateSelectionPage, Cancel,
+    )
 
-    When category is None, renders the outer category listing.
-    When category is provided, renders the inner item view for that category.
-    """
+    if callback_data.startswith("shop_page_"):
+        rest = callback_data.removeprefix("shop_page_")
+        chat_id_str, page_str = rest.split("_", 1)
+        return NavigateCategories(chat_id=int(chat_id_str), page=int(page_str))
+
+    if callback_data.startswith("shop_back_"):
+        return OpenShop(chat_id=int(callback_data.removeprefix("shop_back_")))
+
+    if callback_data.startswith("shop_cat_"):
+        rest = callback_data.removeprefix("shop_cat_")
+        parts = rest.split("_")
+        if len(parts) < 3:
+            return None
+        source_chat_id = int(parts[0])
+        page = int(parts[-1])
+        cat_id = "_".join(parts[1:-1])
+        return NavigateCategoryItems(chat_id=source_chat_id, cat_id=cat_id, page=page)
+
+    if callback_data.startswith("shop_buy_"):
+        rest = callback_data.removeprefix("shop_buy_")
+        first_sep = rest.index("_")
+        source_chat_id = int(rest[:first_sep])
+        remaining = rest[first_sep + 1:]
+        colon_parts = remaining.rsplit(":", 2)
+        if len(colon_parts) == 3:
+            item_id, cat_id, cat_page_str = colon_parts
+            cat_page = int(cat_page_str)
+        else:
+            # Legacy format without cat info
+            item_id = remaining
+            cat_id = ""
+            cat_page = 0
+        return BuyItem(chat_id=source_chat_id, item_id=item_id, cat_id=cat_id, cat_page=cat_page)
+
+    if callback_data.startswith("shop_select_"):
+        rest = callback_data.removeprefix("shop_select_")
+        first_sep = rest.index("_")
+        source_chat_id = int(rest[:first_sep])
+        value = rest[first_sep + 1:]
+        return MakeSelection(chat_id=source_chat_id, value=value)
+
+    if callback_data.startswith("shop_sel_page_"):
+        rest = callback_data.removeprefix("shop_sel_page_")
+        chat_id_str, page_str = rest.split("_", 1)
+        return NavigateSelectionPage(chat_id=int(chat_id_str), page=int(page_str))
+
+    if callback_data.startswith("shop_cancel_"):
+        return Cancel(chat_id=int(callback_data.removeprefix("shop_cancel_")))
+
+    return None
+
+
+def render_telegram_shop_screen(screen: "ShopScreen") -> "InlineKeyboardMarkup":
+    """Build an InlineKeyboardMarkup from any ShopScreen."""
     from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+    from src.shop.flow.screens import CategoryListScreen, ItemListScreen, SelectionScreen
+    from src.i18n import translation_manager
 
-    rows = []
+    chat_id = screen.chat_id
 
-    if category is None:
-        # Outer category listing: one button per category
-        for cat in shop_manager.get_categories():
+    if isinstance(screen, CategoryListScreen):
+        rows = []
+        for cat in screen.categories:
             label = translation_manager.get(cat.label, chat_id)
             rows.append([InlineKeyboardButton(
                 label,
-                callback_data=f"shop_cat_{source_chat_id}_{cat.id}_0",
+                callback_data=f"shop_cat_{chat_id}_{cat.id}_0",
             )])
         nav = []
-        if page > 0:
+        if screen.page > 0:
             nav.append(InlineKeyboardButton(
                 translation_manager.get("shop.prev", chat_id),
-                callback_data=f"shop_page_{source_chat_id}_{page - 1}",
+                callback_data=f"shop_page_{chat_id}_{screen.page - 1}",
             ))
-        if page < total_pages - 1:
+        if screen.page < screen.total_pages - 1:
             nav.append(InlineKeyboardButton(
                 translation_manager.get("shop.next", chat_id),
-                callback_data=f"shop_page_{source_chat_id}_{page + 1}",
+                callback_data=f"shop_page_{chat_id}_{screen.page + 1}",
             ))
         if nav:
             rows.append(nav)
-    else:
-        # Inner category view: items laid out in rows of items_per_row
-        items_per_row = category.items_per_row
+        return InlineKeyboardMarkup(rows)
+
+    if isinstance(screen, ItemListScreen):
+        rows = []
+        items_per_row = screen.category.items_per_row
         row: list = []
-        for item in items:
+        for item in screen.items:
             name = translation_manager.get(item.name_i18n_key, chat_id)
-            is_owned = item.one_time_purchase and item.id in owned_items
-            if is_owned:
-                display_name = f"✓ {name}"
+            is_owned = item.one_time_purchase and item.id in screen.owned_items
+            display_name = f"✓ {name}" if is_owned else name
+            if is_owned or item.cost == 0:
                 cost_label = translation_manager.get("shop.free", chat_id)
             else:
-                display_name = name
-                cost_label = translation_manager.get("shop.free", chat_id) if item.cost == 0 else f"{item.cost:,} pts"
+                cost_label = f"{item.cost:,} pts"
             row.append(InlineKeyboardButton(
                 f"{display_name} — {cost_label}",
-                callback_data=f"shop_buy_{source_chat_id}_{item.id}",
+                callback_data=f"shop_buy_{chat_id}_{item.id}:{screen.category.id}:{screen.page}",
             ))
             if len(row) >= items_per_row:
                 rows.append(row)
                 row = []
         if row:
             rows.append(row)
-
-        # Bottom nav row: [← Prev] [BACK] [Next →]
         nav = []
-        if page > 0:
+        if screen.page > 0:
             nav.append(InlineKeyboardButton(
                 translation_manager.get("shop.prev", chat_id),
-                callback_data=f"shop_cat_{source_chat_id}_{category.id}_{page - 1}",
+                callback_data=f"shop_cat_{chat_id}_{screen.category.id}_{screen.page - 1}",
             ))
         nav.append(InlineKeyboardButton(
             translation_manager.get("shop.back", chat_id),
-            callback_data=f"shop_back_{source_chat_id}",
+            callback_data=f"shop_back_{chat_id}",
         ))
-        if page < total_pages - 1:
+        if screen.page < screen.total_pages - 1:
             nav.append(InlineKeyboardButton(
                 translation_manager.get("shop.next", chat_id),
-                callback_data=f"shop_cat_{source_chat_id}_{category.id}_{page + 1}",
+                callback_data=f"shop_cat_{chat_id}_{screen.category.id}_{screen.page + 1}",
             ))
         rows.append(nav)
+        return InlineKeyboardMarkup(rows)
 
+    # SelectionScreen
+    rows = []
+    for option in screen.options:
+        rows.append([InlineKeyboardButton(
+            option.label,
+            callback_data=f"shop_select_{chat_id}_{option.value}",
+        )])
+    nav = []
+    if screen.page > 0:
+        nav.append(InlineKeyboardButton(
+            translation_manager.get("shop.prev", chat_id),
+            callback_data=f"shop_sel_page_{chat_id}_{screen.page - 1}",
+        ))
+    nav.append(InlineKeyboardButton(
+        translation_manager.get("shop.cancel", chat_id),
+        callback_data=f"shop_cancel_{chat_id}",
+    ))
+    if screen.page < screen.total_pages - 1:
+        nav.append(InlineKeyboardButton(
+            translation_manager.get("shop.next", chat_id),
+            callback_data=f"shop_sel_page_{chat_id}_{screen.page + 1}",
+        ))
+    rows.append(nav)
     return InlineKeyboardMarkup(rows)
 
 
 async def _show_shop(
     ctx: "CommandContext",
     source_chat_id: int,
-    page: int,
+    page: int = 0,
     cat_id: str | None = None,
     status_message: str | None = None,
 ) -> None:
-    """Send the shop message in ctx's chat.
+    """Send the initial shop message in ctx's chat (Telegram only)."""
+    from src.shop.flow.actions import OpenShop, NavigateCategoryItems
+    from src.shop.flow.handlers import ShopInteractionContext
+    from src.shop.flow.router import shop_router
+    from src.shop.shop_manager import build_shop_text
 
-    When cat_id is None, renders the outer category listing.
-    When cat_id is provided, renders the inner category item view.
-    """
-    balance = shop_manager.get_balance(ctx.adapter.platform, ctx.user_id)
+    interaction_ctx = ShopInteractionContext(
+        platform=ctx.adapter.platform,
+        user_id=ctx.user_id,
+        user_name=ctx.user_name,
+        adapter=ctx.adapter,
+    )
     if cat_id is None:
-        total_pages = 1
-        text = build_shop_text(balance, None, 0, total_pages, source_chat_id, status_message, platform=ctx.adapter.platform, user_id=ctx.user_id)
-        keyboard = _build_shop_keyboard(source_chat_id, source_chat_id, 0, total_pages, [], category=None)
+        action = OpenShop(chat_id=source_chat_id)
     else:
-        category = shop_manager.get_category(cat_id)
-        items, total_pages = shop_manager.get_category_page(cat_id, page)
-        text = build_shop_text(balance, category, page, total_pages, source_chat_id, status_message, platform=ctx.adapter.platform, user_id=ctx.user_id)
-        keyboard = _build_shop_keyboard(source_chat_id, source_chat_id, page, total_pages, items, category=category)
+        action = NavigateCategoryItems(chat_id=source_chat_id, cat_id=cat_id, page=page)
+
+    screen = await shop_router.handle(action, interaction_ctx)
+    if status_message:
+        screen.status = status_message
+    text = build_shop_text(screen)
+    keyboard = render_telegram_shop_screen(screen)
     await ctx.adapter.send_text(ctx.chat_id, text, reply_markup=keyboard, parse_mode="Markdown")
 
 

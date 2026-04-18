@@ -162,114 +162,44 @@ class WebhookHandler:
             or callback_data.startswith("shop_buy_")
             or callback_data.startswith("shop_cat_")
             or callback_data.startswith("shop_back_")
+            or callback_data.startswith("shop_select_")
+            or callback_data.startswith("shop_sel_page_")
+            or callback_data.startswith("shop_cancel_")
         ):
             await self._handle_shop_callback(update, callback_data)
         else:
             logger.debug(f"Unhandled callback: {callback_data}")
 
     async def _handle_shop_callback(self, update: "Update", callback_data: str) -> None:
-        """Handle shop navigation, category, and purchase callbacks."""
-        from src.handlers.commands import _build_shop_keyboard
-        from src.shop.shop_manager import shop_manager as _sm, build_shop_text
-        from src.i18n import translation_manager
+        """Handle all shop navigation, selection, and purchase callbacks."""
+        from src.handlers.commands import parse_telegram_shop_action, render_telegram_shop_screen
+        from src.shop.flow.handlers import ShopInteractionContext
+        from src.shop.flow.router import shop_router
+        from src.shop.shop_manager import build_shop_text
 
         callback_query = update.callback_query
         user_id = callback_query.from_user.id
         user_name = (
-            callback_query.from_user.first_name or
-            (f"@{callback_query.from_user.username}" if callback_query.from_user.username else "User")
+            callback_query.from_user.first_name
+            or (f"@{callback_query.from_user.username}" if callback_query.from_user.username else "User")
         )
-        platform = "telegram"
 
-        if callback_data.startswith("shop_page_"):
-            # Outer category listing navigation: shop_page_{source_chat_id}_{page}
-            rest = callback_data.removeprefix("shop_page_")
-            source_chat_id_str, page_str = rest.split("_", 1)
-            try:
-                source_chat_id = int(source_chat_id_str)
-                page = int(page_str)
-            except ValueError:
-                return
-            balance = _sm.get_balance(platform, user_id)
-            total_pages = 1
-            owned_items = frozenset(_sm.get_owned_items(platform, user_id))
-            text = build_shop_text(balance, None, page, total_pages, source_chat_id, platform=platform, user_id=user_id)
-            keyboard = _build_shop_keyboard(source_chat_id, source_chat_id, page, total_pages, [], category=None, owned_items=owned_items)
-            await callback_query.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
+        action = parse_telegram_shop_action(callback_data)
+        if action is None:
             await callback_query.answer()
+            return
 
-        elif callback_data.startswith("shop_cat_"):
-            # Enter/navigate within a category: shop_cat_{source_chat_id}_{cat_id}_{page}
-            rest = callback_data.removeprefix("shop_cat_")
-            # source_chat_id is first numeric segment; cat_id may contain underscores; page is last
-            parts = rest.split("_")
-            if len(parts) < 3:
-                return
-            try:
-                source_chat_id = int(parts[0])
-                page = int(parts[-1])
-            except ValueError:
-                return
-            cat_id = "_".join(parts[1:-1])
-            category = _sm.get_category(cat_id)
-            if category is None:
-                return
-            items, total_pages = _sm.get_category_page(cat_id, page)
-            balance = _sm.get_balance(platform, user_id)
-            owned_items = frozenset(_sm.get_owned_items(platform, user_id))
-            text = build_shop_text(balance, category, page, total_pages, source_chat_id, platform=platform, user_id=user_id)
-            keyboard = _build_shop_keyboard(source_chat_id, source_chat_id, page, total_pages, items, category=category, owned_items=owned_items)
-            await callback_query.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
-            await callback_query.answer()
-
-        elif callback_data.startswith("shop_back_"):
-            # Return to category listing: shop_back_{source_chat_id}
-            source_chat_id_str = callback_data.removeprefix("shop_back_")
-            try:
-                source_chat_id = int(source_chat_id_str)
-            except ValueError:
-                return
-            balance = _sm.get_balance(platform, user_id)
-            total_pages = 1
-            owned_items = frozenset(_sm.get_owned_items(platform, user_id))
-            text = build_shop_text(balance, None, 0, total_pages, source_chat_id, platform=platform, user_id=user_id)
-            keyboard = _build_shop_keyboard(source_chat_id, source_chat_id, 0, total_pages, [], category=None, owned_items=owned_items)
-            await callback_query.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
-            await callback_query.answer()
-
-        elif callback_data.startswith("shop_buy_"):
-            # Purchase: shop_buy_{source_chat_id}_{item_id}
-            rest = callback_data.removeprefix("shop_buy_")
-            source_chat_id_str, item_id = rest.split("_", 1)
-            try:
-                source_chat_id = int(source_chat_id_str)
-            except ValueError:
-                return
-            result = _sm.purchase(platform, user_id, item_id, chat_id=source_chat_id, user_name=user_name)
-            balance = _sm.get_balance(platform, user_id)
-            total_pages = 1
-            if result.success:
-                item_name = translation_manager.get(result.item.name_i18n_key, source_chat_id)
-                status = translation_manager.get(
-                    "shop.purchase_success", source_chat_id, item_name=item_name
-                )
-            else:
-                if result.item:
-                    status = translation_manager.get(
-                        "shop.insufficient_funds", source_chat_id,
-                        cost=f"{result.item.cost:,}", balance=f"{balance:,}"
-                    )
-                else:
-                    status = translation_manager.get(
-                        "shop.insufficient_funds", source_chat_id,
-                        cost="?", balance=f"{balance:,}"
-                    )
-            # Return to outer category listing after purchase
-            owned_items = frozenset(_sm.get_owned_items(platform, user_id))
-            text = build_shop_text(balance, None, 0, total_pages, source_chat_id, status_message=status, platform=platform, user_id=user_id)
-            keyboard = _build_shop_keyboard(source_chat_id, source_chat_id, 0, total_pages, [], category=None, owned_items=owned_items)
-            await callback_query.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
-            await callback_query.answer()
+        ctx = ShopInteractionContext(
+            platform="telegram",
+            user_id=user_id,
+            user_name=user_name,
+            adapter=self._telegram_adapter,
+        )
+        screen = await shop_router.handle(action, ctx)
+        text = build_shop_text(screen)
+        keyboard = render_telegram_shop_screen(screen)
+        await callback_query.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
+        await callback_query.answer()
 
     async def _handle_message(self, update: Update) -> None:
         """Handle incoming message (commands)."""

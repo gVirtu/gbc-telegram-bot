@@ -596,7 +596,7 @@ def _get_battle_data(pyboy):
 
         bank, pokemon_base_addr = pyboy.symbol_lookup("PokemonNames")
         pokemon_name_ptr = pokemon_base_addr + (temp_enemy_mon_species * 10)
-        pokemon_name = _decode_text(pyboy, bank, pokemon_name_ptr)
+        pokemon_name = _decode_text(pyboy, bank, pokemon_name_ptr, max_len=10)
         # logger.debug(f"Pokemon Name: {pokemon_name}")
 
         return {
@@ -692,9 +692,9 @@ def _get_nth_string_addr(pyboy, bank, addr, n):
     return ptr
     
 
-def _decode_text(pyboy, bank, addr):
+def _decode_text(pyboy, bank, addr, max_len = 2_147_483_647):
     text = []
-    while True:
+    for _ in range(max_len):
         c = pyboy.memory[(bank, addr)]
 
         if c == 0x53:  # @ string terminator

@@ -95,6 +95,42 @@ class ShopManager:
         ).fetchall()
         return {row[0] for row in rows}
 
+    def validate_purchase(
+        self, platform: str, user_id: int, item: "ShopItem"
+    ) -> tuple[bool, int]:
+        """Return (can_afford, effective_cost).
+
+        For one_time_purchase items already owned, effective_cost is 0.
+        """
+        if item.one_time_purchase:
+            already_owned = self._conn.execute(
+                "SELECT 1 FROM shop_transactions "
+                "WHERE platform = ? AND user_id = ? AND item_id = ? LIMIT 1;",
+                (platform, user_id, item.id),
+            ).fetchone()
+            effective_cost = 0 if already_owned else item.cost
+        else:
+            effective_cost = item.cost
+        balance = self.get_balance(platform, user_id)
+        return balance >= effective_cost, effective_cost
+
+    def record_transaction(
+        self, platform: str, user_id: int, item_id: str, pts_spent: int
+    ) -> None:
+        """Deduct pts_spent from the user's score and insert a shop_transactions row."""
+        self._conn.execute(
+            "UPDATE user_player_profiles "
+            "SET total_score_spent = total_score_spent + ? "
+            "WHERE platform = ? AND user_id = ?;",
+            (pts_spent, platform, user_id),
+        )
+        self._conn.execute(
+            "INSERT INTO shop_transactions (platform, user_id, item_id, pts_spent) "
+            "VALUES (?, ?, ?, ?);",
+            (platform, user_id, item_id, pts_spent),
+        )
+        self._conn.commit()
+
     def purchase(
         self,
         platform: str,

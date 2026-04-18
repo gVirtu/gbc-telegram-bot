@@ -128,10 +128,9 @@ class TestGameControllerMocked:
     
     def test_tick(self, controller, mock_pyboy):
         """Test ticking the emulator."""
-        frame = controller.tick(frames=5)
+        controller.tick(frames=5)
         
         assert mock_pyboy.tick.call_count == 5
-        assert isinstance(frame, np.ndarray)
     
     def test_send_input(self, controller, mock_pyboy):
         """Test sending button input."""

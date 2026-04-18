@@ -363,14 +363,11 @@ class GameController:
         frame = self.get_frame()
         return frame_to_png(frame)
     
-    def tick(self, frames: int = 1) -> np.ndarray:
+    def tick(self, frames: int = 1) -> None:
         """Advance the emulator by a number of frames.
         
         Args:
             frames: Number of frames to advance (default: 1)
-            
-        Returns:
-            The frame after ticking
         """
         if not self.is_initialized():
             raise RuntimeError("Emulator not initialized. Call initialize() first.")
@@ -382,8 +379,6 @@ class GameController:
                 if self._capture_tick_count % self._capture_interval == 0:
                     self._frame_buffer.append(self.get_frame().copy())
                 self._audio_buffer.append(self.pyboy.sound.ndarray.copy())
-
-        return self.get_frame()
 
     def send_input(self, button: GameButton, frames: int) -> np.ndarray:
         """Press and hold a button for a number of frames.

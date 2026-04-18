@@ -213,49 +213,49 @@ class _ShopManagerProxy:
 shop_manager: _ShopManagerProxy = _ShopManagerProxy()
 
 
-def build_shop_text(
-    balance: int,
-    category: ShopCategory | None,
-    page: int,
-    total_pages: int,
-    chat_id: int,
-    status_message: str | None = None,
-    platform: str | None = None,
-    user_id: int | None = None,
-) -> str:
-    """Build the shop message text (platform-agnostic).
+def build_shop_text(screen: "ShopScreen") -> str:
+    """Build the shop message text from a ShopScreen.
 
     Args:
-        balance: Current point balance to display.
-        page: Zero-based page index.
-        total_pages: Total number of pages.
-        chat_id: Chat ID used for i18n lookups.
-        status_message: Optional status line prepended before the welcome text.
-        platform: Platform identifier, used to fetch the player's streak.
-        user_id: User identifier, used to fetch the player's streak.
+        screen: The screen to render text for.
+            - SelectionScreen: returns the resolved prompt string.
+            - CategoryListScreen / ItemListScreen: returns the full shop message.
     """
+    from src.shop.flow.screens import CategoryListScreen, ItemListScreen, SelectionScreen
     from src.i18n import translation_manager
     from src.utils.scoring_manager import scoring_manager
 
+    if isinstance(screen, SelectionScreen):
+        return screen.prompt
+
+    chat_id = screen.chat_id
     parts = []
-    if status_message:
-        parts.append(status_message)
+    if screen.status:
+        parts.append(screen.status)
     parts.append(translation_manager.get("shop.welcome", chat_id))
-    if category:
-        parts.append(translation_manager.get(category.label, chat_id))
-        parts.append(translation_manager.get(category.description, chat_id))
-    parts.append(translation_manager.get("shop.balance", chat_id, balance=f"{balance:,}"))
+    if isinstance(screen, ItemListScreen):
+        parts.append(translation_manager.get(screen.category.label, chat_id))
+        parts.append(translation_manager.get(screen.category.description, chat_id))
+    parts.append(
+        translation_manager.get("shop.balance", chat_id, balance=f"{screen.balance:,}")
+    )
 
-    if platform is not None and user_id is not None:
-        profile = scoring_manager.get_player_profile(platform, user_id)
-        current_streak = profile.current_streak if profile else 0
-        best_streak = profile.best_streak if profile else 0
-        if current_streak >= best_streak:
-            streak_suffix = translation_manager.get("shop.streak_is_best", chat_id)
-        else:
-            streak_suffix = translation_manager.get("shop.streak_prev_best", chat_id, best_streak=best_streak)
-        parts.append(translation_manager.get("shop.streak", chat_id, streak=current_streak, streak_suffix=streak_suffix))
-        parts.append(translation_manager.get("shop.streak_tip", chat_id))
-
-    parts.append(translation_manager.get("shop.page_indicator", chat_id, page=page + 1, total=total_pages))
+    profile = scoring_manager.get_player_profile(screen.platform, screen.user_id)
+    current_streak = profile.current_streak if profile else 0
+    best_streak = profile.best_streak if profile else 0
+    if current_streak >= best_streak:
+        streak_suffix = translation_manager.get("shop.streak_is_best", chat_id)
+    else:
+        streak_suffix = translation_manager.get(
+            "shop.streak_prev_best", chat_id, best_streak=best_streak
+        )
+    parts.append(
+        translation_manager.get("shop.streak", chat_id, streak=current_streak, streak_suffix=streak_suffix)
+    )
+    parts.append(translation_manager.get("shop.streak_tip", chat_id))
+    parts.append(
+        translation_manager.get(
+            "shop.page_indicator", chat_id, page=screen.page + 1, total=screen.total_pages
+        )
+    )
     return "\n\n".join(parts)

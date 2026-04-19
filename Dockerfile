@@ -5,61 +5,45 @@ ARG TARGETARCH
 # Create non-root user first
 RUN groupadd -r appgroup && useradd -r -g appgroup -u 1000 appuser
 
-# Build SVT-AV1 4.1.0 and FFmpeg 8.1 from source, then build PyAV against
-# those libs. All build tools are purged afterwards; only the runtime .so files
-# remain in the image.
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Add Debian sid repository, pinned low so bookworm packages are preferred by
+# default; FFmpeg + SVT-AV1 4.1.0 are pulled from sid explicitly.
+RUN echo 'deb http://deb.debian.org/debian sid main' > /etc/apt/sources.list.d/sid.list && \
+    printf 'Package: *\nPin: release a=stable\nPin-Priority: 900\n\nPackage: *\nPin: release a=unstable\nPin-Priority: 100\n' \
+    > /etc/apt/preferences.d/prefer-stable
+
+# Install runtime deps; pull FFmpeg (with SVT-AV1 4.1.0) and dev headers from
+# sid; compile PyAV from source so it links against the system FFmpeg; then
+# strip the dev headers and pkg-config to keep the image lean.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
     libgl1-mesa-glx \
     libglib2.0-0 \
     libjemalloc2 \
     build-essential \
-    clang \
-    lld \
-    cmake \
     git \
-    nasm \
-    yasm \
-    pkg-config \
-    libx264-dev \
-    && \
-    export CFLAGS="-O3" && \
-    export CXXFLAGS="-O3" && \
-    export LDFLAGS="-Wl,--no-keep-memory" && \
-    export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig && \
-    if [ "$TARGETARCH" = "arm64" ]; then \
-    export SVT_CMAKE_EXTRA="-DENABLE_NEON=ON -DENABLE_ARM_CRC32=ON -DENABLE_NEON_DOTPROD=ON -DENABLE_NEON_I8MM=ON -DENABLE_SVE=OFF -DENABLE_SVE2=OFF"; \
-    export SVT_MARCH="-march=armv8.2-a+crc+dotprod+i8mm"; \
-    else \
-    export SVT_CMAKE_EXTRA=""; \
-    export SVT_MARCH=""; \
-    fi && \
-    # Cap build jobs to prevent out-of-memory errors
-    BUILD_JOBS=$(nproc) && \
-    if [ "$BUILD_JOBS" -gt 4 ]; then BUILD_JOBS=4; fi && \
-    # Build SVT-AV1 v4.1.0 from source
-    git clone --depth 1 -b v4.1.0 https://gitlab.com/AOMediaCodec/SVT-AV1.git /tmp/svtav1 && \
-    mkdir /tmp/svtav1_build && cd /tmp/svtav1_build && \
-    cmake /tmp/svtav1 -G"Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_AR=/usr/bin/ar -DCMAKE_RANLIB=/usr/bin/ranlib -DCMAKE_C_COMPILER_AR=/usr/bin/ar -DCMAKE_C_COMPILER_RANLIB=/usr/bin/ranlib "-DCMAKE_C_FLAGS=$SVT_MARCH" "-DCMAKE_CXX_FLAGS=$SVT_MARCH" "-DCMAKE_C_FLAGS_RELEASE=-O3 -DNDEBUG -flto=thin" "-DCMAKE_CXX_FLAGS_RELEASE=-O3 -DNDEBUG -flto=thin" "-DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld" "-DCMAKE_EXE_LINKER_FLAGS_RELEASE=-flto=thin" "-DCMAKE_SHARED_LINKER_FLAGS=-fuse-ld=lld" "-DCMAKE_SHARED_LINKER_FLAGS_RELEASE=-flto=thin" -DCMAKE_INSTALL_PREFIX=/usr/local -DBUILD_SHARED_LIBS=ON -DBUILD_APPS=OFF -DBUILD_DEC=OFF $SVT_CMAKE_EXTRA && \
-    mkdir -p /tmp/svtav1/Bin/Release && \
-    make -j$BUILD_JOBS && \
-    make install && \
-    ldconfig && \
-    # Build FFmpeg from source
-    git clone --depth 1 -b release/8.1 https://github.com/FFmpeg/FFmpeg.git /tmp/FFmpeg && \
-    cd /tmp/FFmpeg && \
-    ./configure --prefix=/usr/local --cc=clang --enable-gpl --enable-libsvtav1 --enable-libx264 --pkg-config-flags="--static" --extra-cflags="$CFLAGS" --extra-cxxflags="$CXXFLAGS" --extra-ldflags="$LDFLAGS -fuse-ld=lld" && \
-    make -j$BUILD_JOBS && \
-    make install && \
-    ldconfig && \
-    # Build PyAV from source against the freshly-built FFmpeg + SVT-AV1 4.1.0
+    pkg-config && \
+    apt-get -o Dpkg::Options::="--force-overwrite" install -y --no-install-recommends -t sid \
+    ffmpeg \
+    libavcodec-dev \
+    libavformat-dev \
+    libavutil-dev \
+    libswscale-dev \
+    libswresample-dev \
+    libavdevice-dev \
+    libavfilter-dev && \
     pip install --no-cache-dir --no-binary av "av>=14.0.0" && \
-    # Clean up build tools and temporary files to keep image size small
-    rm -rf /tmp/svtav1 /tmp/svtav1_build /tmp/FFmpeg && \
-    apt-get remove -y clang lld cmake nasm yasm pkg-config && \
-    apt-get autoremove -y && \
-    rm -rf /var/lib/apt/lists/* \
-    && apt-get clean \
-    && rm -rf /var/cache/apt/*
+    apt-get remove -y --purge \
+    pkg-config \
+    libavcodec-dev \
+    libavformat-dev \
+    libavutil-dev \
+    libswscale-dev \
+    libswresample-dev \
+    libavdevice-dev \
+    libavfilter-dev && \
+    rm -rf /var/lib/apt/lists/* && \
+    apt-get clean && \
+    rm -rf /var/cache/apt/*
 
 # Use jemalloc instead of glibc malloc to reduce memory fragmentation.
 # glibc ptmalloc retains freed numpy array pages in per-thread arenas and

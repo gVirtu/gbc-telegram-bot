@@ -935,9 +935,7 @@ async def maintenance_command(ctx: CommandContext) -> None:
 
 
 
-def parse_telegram_shop_action(
-    callback_data: str, source_chat_id_override: int | None = None
-) -> "ShopAction | None":
+def parse_telegram_shop_action(callback_data: str) -> "ShopAction | None":
     """Parse a Telegram shop callback_data string into a ShopAction."""
     from src.shop.flow.actions import (
         OpenShop, NavigateCategories, NavigateCategoryItems,

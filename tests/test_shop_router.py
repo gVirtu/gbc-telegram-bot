@@ -418,3 +418,31 @@ async def test_cancel_with_no_session_returns_category_list():
         screen = await router.handle(Cancel(chat_id=100), ctx)
 
     assert isinstance(screen, CategoryListScreen)
+
+
+@pytest.mark.asyncio
+async def test_game_specific_categories_appear_for_matching_cartridge():
+    from src.shop.flow.router import ShopRouter
+    import game_shops
+
+    extra_cat = _make_category(cat_id="game_cat")
+    game_shops._EXTENSIONS["TEST_GAME"] = [extra_cat]
+
+    router = ShopRouter()
+    ctx = _make_ctx()
+    mock_controller = MagicMock()
+    mock_controller.pyboy.cartridge_title = "TEST_GAME"
+
+    with patch("src.shop.flow.router.shop_manager") as mock_sm, \
+         patch("src.shop.flow.router.game_controller_manager") as mock_gcm, \
+         patch("src.shop.flow.router.translation_manager") as mock_tm:
+        mock_sm.get_balance.return_value = 0
+        mock_gcm.get_controller.return_value = mock_controller
+        mock_sm.get_categories.return_value = []
+        mock_tm.get.return_value = ""
+
+        screen = await router.handle(OpenShop(chat_id=100), ctx)
+
+    assert any(c.id == "game_cat" for c in screen.categories)
+    # cleanup
+    del game_shops._EXTENSIONS["TEST_GAME"]

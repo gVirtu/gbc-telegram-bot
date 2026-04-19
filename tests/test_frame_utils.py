@@ -22,6 +22,7 @@ from src.utils.frame_utils import (
     save_frames_as_mp4,
     save_frames_as_avif,
     save_frames_as_mp4_streaming,
+    save_frames_as_avif_streaming,
 )
 
 
@@ -774,6 +775,66 @@ class TestSaveFramesAsMp4Streaming:
 
         s_idx = captured_cmd.index("-s")
         assert captured_cmd[s_idx + 1] == "320x144"  # 160*2 x 144
+
+
+class TestSaveFramesAsAvifStreaming:
+    """Tests for save_frames_as_avif_streaming (PyAV-based)."""
+
+    def _frames(self, count=5, h=64, w=64):
+        return [np.full((h, w, 3), i * 40, dtype=np.uint8) for i in range(count)]
+
+    def _identity_transform(self, frame, index):
+        return frame
+
+    @pytest.mark.asyncio
+    async def test_raises_on_empty_frames(self, tmp_path):
+        """ValueError is raised when frames iterable is empty."""
+        with pytest.raises(ValueError, match="No frames"):
+            await save_frames_as_avif_streaming(
+                iter([]), self._identity_transform, str(tmp_path / "out.avif"), fps=10
+            )
+
+    @pytest.mark.asyncio
+    async def test_transform_called_once_per_frame(self, tmp_path):
+        """Transform is called exactly once per frame with sequential indices."""
+        frames = self._frames(4)
+        call_indices = []
+
+        def counting_transform(frame, index):
+            call_indices.append(index)
+            return frame
+
+        await save_frames_as_avif_streaming(
+            iter(frames), counting_transform, str(tmp_path / "out.avif"), fps=10
+        )
+
+        assert call_indices == list(range(4))
+
+    @pytest.mark.asyncio
+    async def test_output_is_valid_avif(self, tmp_path):
+        """Output file has AVIF magic bytes at offset 4."""
+        out = str(tmp_path / "out.avif")
+        await save_frames_as_avif_streaming(
+            iter(self._frames()), self._identity_transform, out, fps=10
+        )
+        with open(out, "rb") as f:
+            header = f.read(12)
+        assert header[4:8] == b"ftyp", f"unexpected header: {header!r}"
+        assert header[8:12] in (b"avif", b"avis"), \
+            f"expected AVIF brand, got: {header[8:12]!r}"
+
+    @pytest.mark.asyncio
+    async def test_low_priority_calls_nice(self, tmp_path):
+        """low_priority=True calls os.nice(19) inside the encoder thread."""
+        nice_calls = []
+
+        with patch("src.utils.frame_utils.os.nice", side_effect=lambda n: nice_calls.append(n) or 0):
+            await save_frames_as_avif_streaming(
+                iter(self._frames()), self._identity_transform,
+                str(tmp_path / "out.avif"), fps=10, low_priority=True
+            )
+
+        assert nice_calls == [19]
 
 
 class TestRenderStatusBar:

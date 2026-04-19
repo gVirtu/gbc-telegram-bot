@@ -1508,11 +1508,12 @@ async def save_frames_as_avif_streaming(
     crf: int = 45,
     low_priority: bool = False,
 ) -> None:
-    """Encode a stream of raw frames into an animated AVIF file via FFmpeg.
+    """Encode a stream of raw frames into an animated AVIF file via PyAV.
 
-    Each frame is passed through ``transform(frame, index)`` before being piped
-    to FFmpeg stdin. No intermediate list of composited frames is ever held in
-    memory; only one frame at a time is in flight.
+    Each frame is passed through ``transform(frame, index)`` before encoding.
+    No intermediate list of composited frames is ever held in memory; only one
+    frame at a time is in flight. Encoding runs in a thread executor to avoid
+    blocking the event loop.
 
     Args:
         frames: Iterable of raw numpy arrays (H, W, 3) in RGB format.
@@ -1520,13 +1521,13 @@ async def save_frames_as_avif_streaming(
         output_path: Destination AVIF file path.
         fps: Output frames per second.
         crf: Constant Rate Factor (quality, lower = better).
-        low_priority: If True, run FFmpeg with ``nice 19``.
+        low_priority: If True, renice the encoder thread to 19.
 
     Raises:
         ValueError: If the frames iterable is empty.
-        RuntimeError: If FFmpeg encoding fails.
     """
     import asyncio
+    import av
 
     it = iter(frames)
     try:
@@ -1537,79 +1538,42 @@ async def save_frames_as_avif_streaming(
     first = transform(first_raw, 0)
     h, w = first.shape[:2]
 
-    cmd = [
-        'ffmpeg', '-y',
-        '-f', 'rawvideo',
-        '-pix_fmt', 'rgb24',
-        '-s', f'{w}x{h}',
-        '-framerate', str(fps),
-        '-i', 'pipe:0',
-        '-an',
-        '-vf', 'format=yuv420p',
-        '-c:v', 'libsvtav1',
-        '-preset', '13',
-        # '-crf', str(crf),
-        '-qp', '50',
-        '-svtav1-params',
-        'pred-struct=0:lookahead=0:enable-tf=0:enable-overlays=0:fast-decode=2:film-grain=0:enable-dlf=0:enable-cdef=0:enable-restoration=0:scm=0:tile-columns=0:tile-rows=0:lp=1:enable-dg=0:recode-loop=0:tune=1',
-        '-threads', '1',
-        output_path,
-    ]
-    
-    print(' '.join(cmd))
-    
-    # cmd = [
-    #     'ffmpeg', '-y',
-    #     '-f', 'rawvideo',
-    #     '-pix_fmt', 'rgb24',
-    #     '-s', f'{w}x{h}',
-    #     '-framerate', str(fps),
-    #     '-i', 'pipe:0',
-    #     '-an',
-    #     '-vf', 'format=yuv420p',
-    #     '-c:v', 'libaom-av1',
-    #     '-usage', 'realtime',
-    #     # '-deadline', 'realtime',
-    #     '-cpu-used', '8',
-    #     '-lag-in-frames', '0',
-    #     '-threads', '1',
-    #     # '-row-mt', '0',
-    #     # '-tile-columns', '0',
-    #     # '-tile-rows', '0',
-    #     # '-crf', str(crf),
-    #     '-b:v', '600k',
-    #     '-minrate', '600k',
-    #     '-maxrate', '600k',
-    #     '-bufsize', '1200k',
-    #     '-aom-params', 'aq-mode=3:error-resilient=0:enable-cdef=1:enable-restoration=0:enable-obmc=0:enable-warped-motion=0:enable-global-motion=0:enable-ref-frame-mvs=0:deltaq-mode=0:tile-columns=0:tile-rows=0:row-mt=0:arnr-maxframes=0',
-    #     '-g', str(fps),
-    #     '-keyint_min', str(fps),
-    #     '-loop', '0',
-    #     output_path,
-    # ]
+    def _encode() -> None:
+        if low_priority:
+            os.nice(19)
 
-    kwargs: dict = {}
-    if low_priority:
-        kwargs['preexec_fn'] = lambda: os.nice(19)
+        with av.open(output_path, 'w') as container:
+            container.metadata['loop'] = '0'
+            stream = container.add_stream('libsvtav1', rate=fps)
+            stream.width = w
+            stream.height = h
+            stream.pix_fmt = 'yuv420p'
+            stream.codec_context.thread_count = 1
+            stream.codec_context.options = {
+                'preset': '13',
+                'crf': str(crf),
+                'svtav1-params': (
+                    'rtc=1:tune=1:pred-struct=1:hierarchical-levels=2:'
+                    'lookahead=0:scd=0:enable-overlays=0:fast-decode=1:'
+                    'film-grain=0:enable-tpl-la=0:enable-dlf=0:enable-cdef=0:'
+                    'enable-restoration=0:enable-dg=0:scm=0:tile-columns=0:tile-rows=0'
+                ),
+            }
 
-    process = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdin=asyncio.subprocess.PIPE,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-        **kwargs,
-    )
+            def _mux(arr: np.ndarray, idx: int) -> None:
+                av_frame = av.VideoFrame.from_ndarray(arr, format='rgb24')
+                av_frame = av_frame.reformat(format='yuv420p')
+                av_frame.pts = idx
+                for packet in stream.encode(av_frame):
+                    container.mux(packet)
 
-    process.stdin.write(first.tobytes())
+            _mux(first, 0)
+            for i, raw in enumerate(it, start=1):
+                _mux(transform(raw, i), i)
 
-    for i, raw in enumerate(it, start=1):
-        transformed = transform(raw, i)
-        process.stdin.write(transformed.tobytes())
+            for packet in stream.encode():
+                container.mux(packet)
 
-    process.stdin.close()
-    _, stderr = await process.communicate()
-
-    if process.returncode != 0:
-        raise RuntimeError(f"FFmpeg AVIF encode failed: {stderr.decode()}")
-
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, _encode)
     logger.debug(f"save_frames_as_avif_streaming: wrote {output_path}")

@@ -5,7 +5,9 @@ ARG TARGETARCH
 # Create non-root user first
 RUN groupadd -r appgroup && useradd -r -g appgroup -u 1000 appuser
 
-# Install runtime dependencies and build tools
+# Build SVT-AV1 4.1.0 and FFmpeg 8.1 from source, then build PyAV against
+# those libs. All build tools are purged afterwards; only the runtime .so files
+# remain in the image.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1-mesa-glx \
     libglib2.0-0 \
@@ -48,6 +50,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ./configure --prefix=/usr/local --cc=clang --enable-gpl --enable-libsvtav1 --enable-libx264 --pkg-config-flags="--static" --extra-cflags="$CFLAGS" --extra-cxxflags="$CXXFLAGS" --extra-ldflags="$LDFLAGS -fuse-ld=lld" && \
     make -j$BUILD_JOBS && \
     make install && \
+    ldconfig && \
+    # Build PyAV from source against the freshly-built FFmpeg + SVT-AV1 4.1.0
+    pip install --no-cache-dir --no-binary av "av>=14.0.0" && \
     # Clean up build tools and temporary files to keep image size small
     rm -rf /tmp/svtav1 /tmp/svtav1_build /tmp/FFmpeg && \
     apt-get remove -y clang lld cmake nasm yasm pkg-config && \
@@ -69,9 +74,11 @@ WORKDIR /app
 # Copy application code first (for layer caching of deps)
 COPY --chown=appuser:appgroup pyproject.toml ./
 
-# Install Python dependencies from pyproject.toml
+# Install Python dependencies from pyproject.toml.
+# --no-binary av ensures av is never silently swapped to the PyPI wheel
+# (which bundles an older SVT-AV1) on a cache-invalidated rebuild.
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir .
+    pip install --no-cache-dir --no-binary av .
 
 # Copy source code and assets
 COPY --chown=appuser:appgroup src/ ./src/

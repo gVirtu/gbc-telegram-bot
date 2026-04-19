@@ -148,18 +148,8 @@ class ShopManager:
         if item is None:
             return PurchaseResult(success=False)  # unknown item_id; callers handle gracefully
 
-        # For one_time_purchase items, re-purchasing is free if already owned
-        if item.one_time_purchase:
-            already_owned = self._conn.execute(
-                "SELECT 1 FROM shop_transactions WHERE platform = ? AND user_id = ? AND item_id = ? LIMIT 1;",
-                (platform, user_id, item_id),
-            ).fetchone()
-            effective_cost = 0 if already_owned else item.cost
-        else:
-            effective_cost = item.cost
-
-        balance = self.get_balance(platform, user_id)
-        if balance < effective_cost:
+        can_afford, effective_cost = self.validate_purchase(platform, user_id, item)
+        if not can_afford:
             return PurchaseResult(
                 success=False, error_i18n_key="shop.insufficient_funds", item=item
             )

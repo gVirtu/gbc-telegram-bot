@@ -97,8 +97,6 @@ class ShopRouter:
         # Unreachable — satisfies type checker
         raise ValueError(f"Unknown action type: {type(action)}")
 
-    # ── helpers ──────────────────────────────────────────────────────────────
-
     def _get_categories(self, chat_id: int, controller) -> list:
         cats = list(shop_manager.get_categories())
         if controller is not None:
@@ -167,7 +165,6 @@ class ShopRouter:
     async def _handle_selection(self, action: MakeSelection, ctx: ShopInteractionContext) -> ShopScreen:
         session = get_session(ctx.platform, ctx.user_id, action.chat_id)
         if session is None or session.step is None:
-            # Stale interaction — return to category list
             return await self.handle(OpenShop(chat_id=action.chat_id), ctx)
 
         controller = game_controller_manager.get_controller(action.chat_id)
@@ -209,11 +206,7 @@ class ShopRouter:
         if session is None:
             return await self.handle(OpenShop(chat_id=action.chat_id), ctx)
 
-        controller_ref = None
-        try:
-            controller_ref = game_controller_manager.get_controller(action.chat_id)
-        except Exception:
-            pass
+        controller_ref = game_controller_manager.get_controller(action.chat_id)
 
         cat = self._find_category(session.cat_id, action.chat_id, controller_ref)
         if cat is None:
@@ -277,7 +270,6 @@ class ShopRouter:
                     owned_items=owned_items, status=status,
                 )
 
-        # SelectionStep — store session and show SelectionScreen
         step: SelectionStep = outcome
         session.step = step
         set_session(ctx.platform, ctx.user_id, chat_id, session)

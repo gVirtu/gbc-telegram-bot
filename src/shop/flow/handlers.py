@@ -16,7 +16,6 @@ class PurchaseComplete:
     error_message: str | None = None   # i18n key; resolved by router
 
 
-# Forward-declare — ShopPurchaseContext is defined below
 @dataclass
 class SelectionStep:
     prompt: str                         # i18n key; resolved by router

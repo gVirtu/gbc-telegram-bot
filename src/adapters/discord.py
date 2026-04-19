@@ -19,6 +19,7 @@ from src.utils.state_manager import state_manager
 
 if TYPE_CHECKING:
     from src.models.game_state import ChatConfig, ModifierButtonSpec
+    from src.shop.flow.screens import ShopScreen
 
 logger = logging.getLogger(__name__)
 
@@ -179,29 +180,17 @@ class DiscordGameView:
         return view
 
 
-def build_discord_shop_view(
-    page: int,
-    total_pages: int,
-    items: list,
-    chat_id: int = 0,
-    category: Any = None,
-) -> Any:
-    """Build a discord.ui.View for the shop.
-
-    When category is None, renders the outer category listing.
-    When category is a ShopCategory, renders the inner item view.
-
-    Discord supports rows 0-4 (max 5 buttons per row).
-    """
+def render_discord_shop_screen(screen: "ShopScreen") -> Any:
+    """Build a discord.ui.View from any ShopScreen."""
     import discord
+    from src.shop.flow.screens import CategoryListScreen, ItemListScreen, SelectionScreen
     from src.i18n import translation_manager
 
     view = discord.ui.View(timeout=None)
+    chat_id = screen.chat_id
 
-    if category is None:
-        # Outer category listing: one button per category
-        from src.shop.shop_manager import shop_manager as _sm
-        for i, cat in enumerate(_sm.get_categories()):
+    if isinstance(screen, CategoryListScreen):
+        for i, cat in enumerate(screen.categories):
             label = translation_manager.get(cat.label, chat_id)
             view.add_item(discord.ui.Button(
                 label=label,
@@ -209,34 +198,40 @@ def build_discord_shop_view(
                 row=i,
                 style=discord.ButtonStyle.primary,
             ))
-        nav_row = len(_sm.get_categories())
-        if page > 0:
+        nav_row = len(screen.categories)
+        if screen.page > 0:
             view.add_item(discord.ui.Button(
                 label=translation_manager.get("shop.prev", chat_id),
-                custom_id=f"shop_page_{page - 1}",
+                custom_id=f"shop_page_{screen.page - 1}",
                 row=nav_row,
                 style=discord.ButtonStyle.secondary,
             ))
-        if page < total_pages - 1:
+        if screen.page < screen.total_pages - 1:
             view.add_item(discord.ui.Button(
                 label=translation_manager.get("shop.next", chat_id),
-                custom_id=f"shop_page_{page + 1}",
+                custom_id=f"shop_page_{screen.page + 1}",
                 row=nav_row,
                 style=discord.ButtonStyle.secondary,
             ))
-    else:
-        # Inner category view: items laid out in rows, row 4 reserved for nav
-        items_per_row = min(category.items_per_row, 5)  # Discord max 5 per row
+        return view
+
+    if isinstance(screen, ItemListScreen):
+        items_per_row = min(screen.category.items_per_row, 5)
         current_row = 0
         count_in_row = 0
-        for item in items:
-            if current_row >= 4:  # row 4 reserved for navigation
+        for item in screen.items:
+            if current_row >= 4:
                 break
             name = translation_manager.get(item.name_i18n_key, chat_id)
-            cost_label = translation_manager.get("shop.free", chat_id) if item.cost == 0 else f"{item.cost:,} pts"
+            is_owned = item.one_time_purchase and item.id in screen.owned_items
+            display_name = f"✓ {name}" if is_owned else name
+            if is_owned or item.cost == 0:
+                cost_label = translation_manager.get("shop.free", chat_id)
+            else:
+                cost_label = f"{item.cost:,} pts"
             view.add_item(discord.ui.Button(
-                label=f"{name} — {cost_label}",
-                custom_id=f"shop_buy_{item.id}",
+                label=f"{display_name} — {cost_label}",
+                custom_id=f"shop_buy_{item.id}:{screen.category.id}:{screen.page}",
                 row=current_row,
                 style=discord.ButtonStyle.primary,
             ))
@@ -244,12 +239,11 @@ def build_discord_shop_view(
             if count_in_row >= items_per_row:
                 count_in_row = 0
                 current_row += 1
-
-        # Nav row (row 4): [← Prev] [BACK] [Next →]
-        if page > 0:
+        # Nav row (row 4)
+        if screen.page > 0:
             view.add_item(discord.ui.Button(
                 label=translation_manager.get("shop.prev", chat_id),
-                custom_id=f"shop_cat_{category.id}_{page - 1}",
+                custom_id=f"shop_cat_{screen.category.id}_{screen.page - 1}",
                 row=4,
                 style=discord.ButtonStyle.secondary,
             ))
@@ -259,14 +253,52 @@ def build_discord_shop_view(
             row=4,
             style=discord.ButtonStyle.secondary,
         ))
-        if page < total_pages - 1:
+        if screen.page < screen.total_pages - 1:
             view.add_item(discord.ui.Button(
                 label=translation_manager.get("shop.next", chat_id),
-                custom_id=f"shop_cat_{category.id}_{page + 1}",
+                custom_id=f"shop_cat_{screen.category.id}_{screen.page + 1}",
                 row=4,
                 style=discord.ButtonStyle.secondary,
             ))
+        return view
 
+    # SelectionScreen — rows 0-3 for options, row 4 for nav
+    current_row = 0
+    count_in_row = 0
+    options_per_row = 3
+    for option in screen.options:
+        if current_row >= 4:
+            break
+        view.add_item(discord.ui.Button(
+            label=option.label,
+            custom_id=f"shop_select_{option.value}",
+            row=current_row,
+            style=discord.ButtonStyle.primary,
+        ))
+        count_in_row += 1
+        if count_in_row >= options_per_row:
+            count_in_row = 0
+            current_row += 1
+    if screen.page > 0:
+        view.add_item(discord.ui.Button(
+            label=translation_manager.get("shop.prev", chat_id),
+            custom_id=f"shop_sel_page_{screen.page - 1}",
+            row=4,
+            style=discord.ButtonStyle.secondary,
+        ))
+    view.add_item(discord.ui.Button(
+        label=translation_manager.get("shop.cancel", chat_id),
+        custom_id="shop_cancel",
+        row=4,
+        style=discord.ButtonStyle.danger,
+    ))
+    if screen.page < screen.total_pages - 1:
+        view.add_item(discord.ui.Button(
+            label=translation_manager.get("shop.next", chat_id),
+            custom_id=f"shop_sel_page_{screen.page + 1}",
+            row=4,
+            style=discord.ButtonStyle.secondary,
+        ))
     return view
 
 

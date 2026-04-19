@@ -179,6 +179,55 @@ def create_discord_bot() -> Any:
         args = [a for a in [flag, value] if a is not None]
         await _run_command(interaction, "feature", args)
 
+    def parse_discord_shop_action(custom_id: str, channel_id: int) -> "Any | None":
+        """Parse a Discord shop custom_id into a ShopAction. channel_id is used as chat_id."""
+        from src.shop.flow.actions import (
+            OpenShop, NavigateCategories, NavigateCategoryItems,
+            BuyItem, MakeSelection, NavigateSelectionPage, Cancel,
+        )
+
+        if custom_id in ("open_shop", "shop_back"):
+            return OpenShop(chat_id=channel_id)
+
+        if custom_id.startswith("shop_page_"):
+            return NavigateCategories(
+                chat_id=channel_id,
+                page=int(custom_id.removeprefix("shop_page_")),
+            )
+
+        if custom_id.startswith("shop_cat_"):
+            rest = custom_id.removeprefix("shop_cat_")
+            parts = rest.rsplit("_", 1)
+            if len(parts) != 2:
+                return None
+            cat_id, page_str = parts
+            return NavigateCategoryItems(chat_id=channel_id, cat_id=cat_id, page=int(page_str))
+
+        if custom_id.startswith("shop_buy_"):
+            remaining = custom_id.removeprefix("shop_buy_")
+            colon_parts = remaining.rsplit(":", 2)
+            if len(colon_parts) == 3:
+                item_id, cat_id, cat_page_str = colon_parts
+                cat_page = int(cat_page_str)
+            else:
+                item_id = remaining
+                cat_id = ""
+                cat_page = 0
+            return BuyItem(chat_id=channel_id, item_id=item_id, cat_id=cat_id, cat_page=cat_page)
+
+        if custom_id.startswith("shop_select_"):
+            value = custom_id.removeprefix("shop_select_")
+            return MakeSelection(chat_id=channel_id, value=value)
+
+        if custom_id.startswith("shop_sel_page_"):
+            page = int(custom_id.removeprefix("shop_sel_page_"))
+            return NavigateSelectionPage(chat_id=channel_id, page=page)
+
+        if custom_id == "shop_cancel":
+            return Cancel(chat_id=channel_id)
+
+        return None
+
     # --- Component Interactions (Button Presses) ---
 
     @bot.listen("on_interaction")

@@ -12,46 +12,44 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libjemalloc2 \
     build-essential \
     clang \
+    lld \
     cmake \
     git \
     nasm \
     yasm \
     pkg-config \
-    ninja-build \
     libx264-dev \
     && \
     export CFLAGS="-O3" && \
     export CXXFLAGS="-O3" && \
     export LDFLAGS="-Wl,--no-keep-memory" && \
+    export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig && \
     if [ "$TARGETARCH" = "arm64" ]; then \
-    export AOM_CMAKE_EXTRA="-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
-    -DAOM_TARGET_CPU=aarch64 \
-    -DENABLE_NEON=ON \
-    -DENABLE_NEON_DOTPROD=ON \
-    -DENABLE_NEON_I8MM=OFF \
-    -DENABLE_SVE=OFF \
-    -DCONFIG_REALTIME_ONLY=1"; \
+    export SVT_CMAKE_EXTRA="-DENABLE_NEON=ON -DENABLE_ARM_CRC32=ON -DENABLE_NEON_DOTPROD=ON -DENABLE_NEON_I8MM=OFF -DENABLE_SVE=OFF -DENABLE_SVE2=OFF"; \
+    export SVT_MARCH="-march=armv8.2-a+crc+dotprod"; \
     else \
-    export AOM_CMAKE_EXTRA="-DCONFIG_REALTIME_ONLY=1"; \
+    export SVT_CMAKE_EXTRA=""; \
+    export SVT_MARCH=""; \
     fi && \
     # Cap build jobs to prevent out-of-memory errors
     BUILD_JOBS=$(nproc) && \
     if [ "$BUILD_JOBS" -gt 4 ]; then BUILD_JOBS=4; fi && \
-    # Build libaom latest from source
-    git clone --depth 1 -b main https://aomedia.googlesource.com/aom /tmp/aom && \
-    mkdir /tmp/aom_build && cd /tmp/aom_build && \
-    cmake /tmp/aom -G"Ninja" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local -DBUILD_SHARED_LIBS=ON $AOM_CMAKE_EXTRA && \
-    ninja -j$BUILD_JOBS && \
-    ninja install && \
+    # Build SVT-AV1 v4.1.0 from source
+    git clone --depth 1 -b v4.1.0 https://gitlab.com/AOMediaCodec/SVT-AV1.git /tmp/svtav1 && \
+    mkdir /tmp/svtav1_build && cd /tmp/svtav1_build && \
+    cmake /tmp/svtav1 -G"Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_AR=/usr/bin/ar -DCMAKE_RANLIB=/usr/bin/ranlib -DCMAKE_C_COMPILER_AR=/usr/bin/ar -DCMAKE_C_COMPILER_RANLIB=/usr/bin/ranlib "-DCMAKE_C_FLAGS=$SVT_MARCH" "-DCMAKE_C_FLAGS_RELEASE=-O3 -DNDEBUG -flto=thin" "-DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld" "-DCMAKE_EXE_LINKER_FLAGS_RELEASE=-flto=thin" "-DCMAKE_SHARED_LINKER_FLAGS=-fuse-ld=lld" "-DCMAKE_SHARED_LINKER_FLAGS_RELEASE=-flto=thin" -DCMAKE_INSTALL_PREFIX=/usr/local -DBUILD_SHARED_LIBS=OFF -DBUILD_APPS=OFF -DBUILD_DEC=OFF $SVT_CMAKE_EXTRA && \
+    mkdir -p /tmp/svtav1/Bin/Release && \
+    make -j$BUILD_JOBS && \
+    make install && \
     # Build FFmpeg from source
     git clone --depth 1 -b release/8.1 https://github.com/FFmpeg/FFmpeg.git /tmp/FFmpeg && \
     cd /tmp/FFmpeg && \
-    ./configure --prefix=/usr/local --enable-gpl --enable-libaom --enable-libx264 --pkg-config-flags="" --extra-cflags="$CFLAGS" --extra-cxxflags="$CXXFLAGS" --extra-ldflags="$LDFLAGS" && \
+    ./configure --prefix=/usr/local --cc=clang --enable-gpl --enable-libsvtav1 --enable-libx264 --pkg-config-flags="--static" --extra-cflags="$CFLAGS" --extra-cxxflags="$CXXFLAGS" --extra-ldflags="$LDFLAGS -fuse-ld=lld" && \
     make -j$BUILD_JOBS && \
     make install && \
     # Clean up build tools and temporary files to keep image size small
-    rm -rf /tmp/aom /tmp/aom_build /tmp/FFmpeg && \
-    apt-get remove -y clang cmake nasm yasm pkg-config ninja-build && \
+    rm -rf /tmp/svtav1 /tmp/svtav1_build /tmp/FFmpeg && \
+    apt-get remove -y clang lld cmake nasm yasm pkg-config && \
     apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/* \
     && apt-get clean \

@@ -1,6 +1,6 @@
 [project]
 name = "gbc-telegram-bot"
-version = "2.4.0"
+version = "2.6.0"
 description = "Telegram/Discord bot for playing GBC games via crowdsourced input"
 requires-python = ">=3.11"
 
@@ -28,7 +28,8 @@ dev = [
     "vulture (==2.14)",
     "coverage (==7.13.3)",
     "ruff (>=0.15.0,<0.16.0)",
-    "coverage-badge"
+    "coverage-badge",
+    "snakeviz",
 ]
 [tool.pytest.ini_options]
 testpaths = ["tests"]

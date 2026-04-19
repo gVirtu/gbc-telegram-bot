@@ -25,8 +25,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     export LDFLAGS="-Wl,--no-keep-memory" && \
     export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig && \
     if [ "$TARGETARCH" = "arm64" ]; then \
-    export SVT_CMAKE_EXTRA="-DENABLE_NEON=ON -DENABLE_ARM_CRC32=ON -DENABLE_NEON_DOTPROD=ON -DENABLE_NEON_I8MM=OFF -DENABLE_SVE=OFF -DENABLE_SVE2=OFF"; \
-    export SVT_MARCH="-march=armv8.2-a+crc+dotprod"; \
+    export SVT_CMAKE_EXTRA="-DENABLE_NEON=ON -DENABLE_ARM_CRC32=ON -DENABLE_NEON_DOTPROD=ON -DENABLE_NEON_I8MM=ON -DENABLE_SVE=OFF -DENABLE_SVE2=OFF"; \
+    export SVT_MARCH="-march=armv8.2-a+crc+dotprod+i8mm"; \
     else \
     export SVT_CMAKE_EXTRA=""; \
     export SVT_MARCH=""; \
@@ -37,10 +37,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # Build SVT-AV1 v4.1.0 from source
     git clone --depth 1 -b v4.1.0 https://gitlab.com/AOMediaCodec/SVT-AV1.git /tmp/svtav1 && \
     mkdir /tmp/svtav1_build && cd /tmp/svtav1_build && \
-    cmake /tmp/svtav1 -G"Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_AR=/usr/bin/ar -DCMAKE_RANLIB=/usr/bin/ranlib -DCMAKE_C_COMPILER_AR=/usr/bin/ar -DCMAKE_C_COMPILER_RANLIB=/usr/bin/ranlib "-DCMAKE_C_FLAGS=$SVT_MARCH" "-DCMAKE_C_FLAGS_RELEASE=-O3 -DNDEBUG -flto=thin" "-DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld" "-DCMAKE_EXE_LINKER_FLAGS_RELEASE=-flto=thin" "-DCMAKE_SHARED_LINKER_FLAGS=-fuse-ld=lld" "-DCMAKE_SHARED_LINKER_FLAGS_RELEASE=-flto=thin" -DCMAKE_INSTALL_PREFIX=/usr/local -DBUILD_SHARED_LIBS=OFF -DBUILD_APPS=OFF -DBUILD_DEC=OFF $SVT_CMAKE_EXTRA && \
+    cmake /tmp/svtav1 -G"Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_AR=/usr/bin/ar -DCMAKE_RANLIB=/usr/bin/ranlib -DCMAKE_C_COMPILER_AR=/usr/bin/ar -DCMAKE_C_COMPILER_RANLIB=/usr/bin/ranlib "-DCMAKE_C_FLAGS=$SVT_MARCH" "-DCMAKE_CXX_FLAGS=$SVT_MARCH" "-DCMAKE_C_FLAGS_RELEASE=-O3 -DNDEBUG -flto=thin" "-DCMAKE_CXX_FLAGS_RELEASE=-O3 -DNDEBUG -flto=thin" "-DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld" "-DCMAKE_EXE_LINKER_FLAGS_RELEASE=-flto=thin" "-DCMAKE_SHARED_LINKER_FLAGS=-fuse-ld=lld" "-DCMAKE_SHARED_LINKER_FLAGS_RELEASE=-flto=thin" -DCMAKE_INSTALL_PREFIX=/usr/local -DBUILD_SHARED_LIBS=ON -DBUILD_APPS=OFF -DBUILD_DEC=OFF $SVT_CMAKE_EXTRA && \
     mkdir -p /tmp/svtav1/Bin/Release && \
     make -j$BUILD_JOBS && \
     make install && \
+    ldconfig && \
     # Build FFmpeg from source
     git clone --depth 1 -b release/8.1 https://github.com/FFmpeg/FFmpeg.git /tmp/FFmpeg && \
     cd /tmp/FFmpeg && \

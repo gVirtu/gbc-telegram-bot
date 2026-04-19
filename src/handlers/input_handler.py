@@ -40,6 +40,7 @@ from src.utils.frame_utils import (  # noqa: F401 (needed for test patching)
     hex_to_rgb,
     render_status_bar,
 )
+from src.utils import prof_trace
 from src.utils.mirror_utils import broadcast_game_update, get_leader_chat_id, is_media_only_mirror
 from src.utils.priority_gate import mark_busy, mark_idle
 from src.utils.scoring_manager import scoring_manager
@@ -524,6 +525,15 @@ class InputHandler:
         self, chat_id: int, message_id: int, batch: list[BufferedInput], adapter: BotAdapter
     ) -> dict:
         """Process a batch of buffered inputs as a single animation."""
+        profiler = prof_trace.start()
+        try:
+            return await self._process_batch_inner(chat_id, message_id, batch, adapter)
+        finally:
+            prof_trace.stop(profiler, f"batch_{chat_id}")
+
+    async def _process_batch_inner(
+        self, chat_id: int, message_id: int, batch: list[BufferedInput], adapter: BotAdapter
+    ) -> dict:
         controller = await game_controller_manager.get_or_create_controller(chat_id)
         checkpoint = controller.save_state()
         session = self._get_session(chat_id)

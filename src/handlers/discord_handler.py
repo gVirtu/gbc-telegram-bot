@@ -186,8 +186,6 @@ def create_discord_bot() -> Any:
             await interaction.response.send_message("Unauthorized.", ephemeral=True)
             return
 
-        await interaction.response.defer(ephemeral=True)
-
         channel_id = interaction.channel_id
         user = interaction.user
         user_id = user.id
@@ -198,7 +196,7 @@ def create_discord_bot() -> Any:
             adapter_for_check = _get_discord_adapter()
             is_admin = await adapter_for_check.is_admin(channel_id, user_id, interaction)
             if not is_admin:
-                await interaction.followup.send(
+                await interaction.response.send_message(
                     "No momento estamos em manutenção, apenas admins podem enviar comandos.",
                     ephemeral=True,
                 )
@@ -215,7 +213,7 @@ def create_discord_bot() -> Any:
                 channel_id,
                 mapping=mapping_key,
             )
-            await interaction.followup.send(help_msg, ephemeral=True)
+            await interaction.response.send_message(help_msg, ephemeral=True)
             return
 
         # Trim if too long
@@ -233,7 +231,7 @@ def create_discord_bot() -> Any:
                 channel_id,
                 chars=chars_str,
             )
-            await interaction.followup.send(error_msg, ephemeral=True)
+            await interaction.response.send_message(error_msg, ephemeral=True)
             return
 
         # Get current message_id from game state
@@ -266,9 +264,9 @@ def create_discord_bot() -> Any:
                     max=settings.max_sequence_length,
                 )
                 success_msg = f"{trim_warn}\n{success_msg}"
-            await interaction.followup.send(success_msg, ephemeral=True)
+            await interaction.response.send_message(success_msg, ephemeral=True, delete_after=2.0)
         else:
-            await interaction.followup.send(error, ephemeral=True)
+            await interaction.response.send_message(error, ephemeral=True)
 
     def parse_discord_shop_action(custom_id: str, channel_id: int) -> "Any | None":
         """Parse a Discord shop custom_id into a ShopAction. channel_id is used as chat_id."""

@@ -17,10 +17,7 @@ def _make_interaction(channel_id: int = 100, user_id: int = 999, user_name: str 
     interaction.user.id = user_id
     interaction.user.display_name = user_name
     interaction.response = MagicMock()
-    interaction.response.defer = AsyncMock()
     interaction.response.send_message = AsyncMock()
-    interaction.followup = MagicMock()
-    interaction.followup.send = AsyncMock()
     return interaction
 
 
@@ -70,10 +67,9 @@ class TestInputSlashCommandNoSequence:
             mock_sm.get_or_create_chat_config.return_value = mock_config
             await slash_i(interaction, sequence=None)
 
-        interaction.response.defer.assert_awaited_once_with(ephemeral=True)
-        interaction.followup.send.assert_awaited_once()
-        msg = interaction.followup.send.call_args.args[0] if interaction.followup.send.call_args.args \
-              else interaction.followup.send.call_args.kwargs.get("content", "")
+        interaction.response.send_message.assert_awaited_once()
+        msg = interaction.response.send_message.call_args.args[0] if interaction.response.send_message.call_args.args \
+              else interaction.response.send_message.call_args.kwargs.get("content", "")
         assert "ULDR AB ST" in msg
 
     @pytest.mark.asyncio
@@ -90,7 +86,7 @@ class TestInputSlashCommandNoSequence:
             mock_sm.get_or_create_chat_config.return_value = mock_config
             await slash_i(interaction, sequence="")
 
-        interaction.followup.send.assert_awaited_once()
+        interaction.response.send_message.assert_awaited_once()
 
 
 class TestInputSlashCommandValid:
@@ -116,9 +112,9 @@ class TestInputSlashCommandValid:
             mock_ih_sm.get_or_create_chat_config.return_value = MagicMock()
             await slash_i(interaction, sequence="aaaaa")
 
-        interaction.followup.send.assert_awaited_once()
-        msg = interaction.followup.send.call_args.args[0] if interaction.followup.send.call_args.args \
-              else interaction.followup.send.call_args.kwargs.get("content", "")
+        interaction.response.send_message.assert_awaited_once()
+        msg = interaction.response.send_message.call_args.args[0] if interaction.response.send_message.call_args.args \
+              else interaction.response.send_message.call_args.kwargs.get("content", "")
         # 'a' in WASD = LEFT = ⬅️; 5 times
         assert "⬅️" in msg
 
@@ -143,8 +139,8 @@ class TestInputSlashCommandValid:
             mock_ih_sm.get_or_create_chat_config.return_value = MagicMock()
             await slash_i(interaction, sequence="w")  # 'w' = UP in WASD
 
-        msg = interaction.followup.send.call_args.args[0] if interaction.followup.send.call_args.args \
-              else interaction.followup.send.call_args.kwargs.get("content", "")
+        msg = interaction.response.send_message.call_args.args[0] if interaction.response.send_message.call_args.args \
+              else interaction.response.send_message.call_args.kwargs.get("content", "")
         assert "⬆️" in msg  # UP emoji
 
     @pytest.mark.asyncio
@@ -168,8 +164,8 @@ class TestInputSlashCommandValid:
             mock_ih_sm.get_or_create_chat_config.return_value = MagicMock()
             await slash_i(interaction, sequence="u")  # 'u' = UP in ULDR
 
-        msg = interaction.followup.send.call_args.args[0] if interaction.followup.send.call_args.args \
-              else interaction.followup.send.call_args.kwargs.get("content", "")
+        msg = interaction.response.send_message.call_args.args[0] if interaction.response.send_message.call_args.args \
+              else interaction.response.send_message.call_args.kwargs.get("content", "")
         assert "⬆️" in msg
 
 
@@ -200,9 +196,9 @@ class TestInputSlashCommandTrimming:
             await slash_i(interaction, sequence=long_seq)
 
         # Must succeed (not error) and queue exactly max_sequence_length buttons
-        interaction.followup.send.assert_awaited_once()
-        msg = interaction.followup.send.call_args.args[0] if interaction.followup.send.call_args.args \
-              else interaction.followup.send.call_args.kwargs.get("content", "")
+        interaction.response.send_message.assert_awaited_once()
+        msg = interaction.response.send_message.call_args.args[0] if interaction.response.send_message.call_args.args \
+              else interaction.response.send_message.call_args.kwargs.get("content", "")
         assert "⬆️" in msg  # UP queued
         # Trim warning must appear
         assert str(settings.max_sequence_length) in msg
@@ -231,8 +227,8 @@ class TestInputSlashCommandTrimming:
             mock_ih_sm.get_or_create_chat_config.return_value = MagicMock()
             await slash_i(interaction, sequence=exact_seq)
 
-        msg = interaction.followup.send.call_args.args[0] if interaction.followup.send.call_args.args \
-              else interaction.followup.send.call_args.kwargs.get("content", "")
+        msg = interaction.response.send_message.call_args.args[0] if interaction.response.send_message.call_args.args \
+              else interaction.response.send_message.call_args.kwargs.get("content", "")
         # No trim warning in the message
         assert "Trimmed" not in msg and "Limitado" not in msg
 
@@ -254,9 +250,9 @@ class TestInputSlashCommandInvalidChars:
             mock_sm.get_or_create_chat_config.return_value = mock_config
             await slash_i(interaction, sequence="UXY")  # X and Y invalid for ULDR
 
-        interaction.followup.send.assert_awaited_once()
-        msg = interaction.followup.send.call_args.args[0] if interaction.followup.send.call_args.args \
-              else interaction.followup.send.call_args.kwargs.get("content", "")
+        interaction.response.send_message.assert_awaited_once()
+        msg = interaction.response.send_message.call_args.args[0] if interaction.response.send_message.call_args.args \
+              else interaction.response.send_message.call_args.kwargs.get("content", "")
         assert "X" in msg or "Y" in msg
         # handle_sequence_input was never called
         mock_get_handler.return_value.handle_sequence_input.assert_not_called()
@@ -281,9 +277,9 @@ class TestInputSlashCommandHandlerFailure:
             mock_sm.get_or_create_chat_config.return_value = mock_config
             await slash_i(interaction, sequence="UU")
 
-        interaction.followup.send.assert_awaited_once()
-        msg = interaction.followup.send.call_args.args[0] if interaction.followup.send.call_args.args \
-              else interaction.followup.send.call_args.kwargs.get("content", "")
+        interaction.response.send_message.assert_awaited_once()
+        msg = interaction.response.send_message.call_args.args[0] if interaction.response.send_message.call_args.args \
+              else interaction.response.send_message.call_args.kwargs.get("content", "")
         assert "Queue is full" in msg
 
 
@@ -306,7 +302,7 @@ class TestInputSlashCommandMaintenanceMode:
             mock_get_adapter.return_value = mock_adapter
             await slash_i(interaction, sequence="UU")
 
-        interaction.followup.send.assert_awaited_once()
+        interaction.response.send_message.assert_awaited_once()
         # handle_sequence_input was never reached
         mock_sm.get_user_preference.assert_not_called()
 

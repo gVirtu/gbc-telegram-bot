@@ -73,21 +73,14 @@ def begin_hooks(pyboy) -> dict:
                 continue
             hook_counters[action].append(counter_category)
 
-    def increment_context_counter(ctx, path: list[str]):
-        target = ctx
-        for key in path[:-1]:
-            target = target[key]
-        weight = weights.get(path[-1], 1)
-        target[path[-1]] += weight
-        target["_total"] += weight
-        return None
-    
-    def increment_context_counters(ctx, categories: list, action: str):
-        for category in categories:
-            increment_context_counter(ctx, [category, action])
-
     def make_hook(categories: list, action: str):
-        return lambda ctx: increment_context_counters(ctx, categories, action)
+        sub_dicts = [context[cat] for cat in categories]
+        weight = weights.get(action, 1)
+        def hook(ctx):
+            for d in sub_dicts:
+                d[action] += weight
+                d["_total"] += weight
+        return hook
 
     for action in hook_counters.keys():
         pyboy.hook_register(None, action, make_hook(hook_counters[action], action), context)

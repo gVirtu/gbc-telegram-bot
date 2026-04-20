@@ -285,3 +285,52 @@ class TestInputSlashCommandHandlerFailure:
         msg = interaction.followup.send.call_args.args[0] if interaction.followup.send.call_args.args \
               else interaction.followup.send.call_args.kwargs.get("content", "")
         assert "Queue is full" in msg
+
+
+class TestInputSlashCommandMaintenanceMode:
+
+    @pytest.mark.asyncio
+    async def test_maintenance_mode_blocks_non_admin(self):
+        """Non-admin users cannot use /i during maintenance mode."""
+        bot = _make_bot()
+        slash_i = _get_slash_i(bot)
+        interaction = _make_interaction()
+
+        with patch("src.handlers.discord_handler.state_manager") as mock_sm, \
+             patch("src.adapters.base.get_adapter") as mock_get_adapter:
+            mock_config = MagicMock()
+            mock_config.maintenance_mode = True
+            mock_sm.get_or_create_chat_config.return_value = mock_config
+            mock_adapter = MagicMock()
+            mock_adapter.is_admin = AsyncMock(return_value=False)
+            mock_get_adapter.return_value = mock_adapter
+            await slash_i(interaction, sequence="UU")
+
+        interaction.followup.send.assert_awaited_once()
+        # handle_sequence_input was never reached
+        mock_sm.get_user_preference.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_maintenance_mode_allows_admin(self):
+        """Admin users can use /i during maintenance mode."""
+        bot = _make_bot()
+        slash_i = _get_slash_i(bot)
+        interaction = _make_interaction()
+        handler = MagicMock()
+        handler.handle_sequence_input = AsyncMock(return_value=(False, "no session"))
+
+        with patch("src.handlers.discord_handler.state_manager") as mock_sm, \
+             patch("src.adapters.base.get_adapter") as mock_get_adapter, \
+             patch("src.handlers.discord_handler.get_input_handler", return_value=handler):
+            mock_config = MagicMock()
+            mock_config.maintenance_mode = True
+            mock_sm.get_or_create_chat_config.return_value = mock_config
+            mock_sm.get_user_preference.return_value = "ULDR AB ST"
+            mock_sm.load_game_state.return_value = None
+            mock_adapter = MagicMock()
+            mock_adapter.is_admin = AsyncMock(return_value=True)
+            mock_get_adapter.return_value = mock_adapter
+            await slash_i(interaction, sequence="UU")
+
+        # Admin proceeds: get_user_preference was called (not blocked early)
+        mock_sm.get_user_preference.assert_called_once()

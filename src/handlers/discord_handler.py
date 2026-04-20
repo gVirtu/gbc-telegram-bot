@@ -179,6 +179,86 @@ def create_discord_bot() -> Any:
         args = [a for a in [flag, value] if a is not None]
         await _run_command(interaction, "feature", args)
 
+    @bot.tree.command(name="i", description=translation_manager.get("discord.input_command.description", 0) or "Input a button sequence")
+    @app_commands.describe(sequence=translation_manager.get("discord.input_command.sequence_describe", 0) or "Button sequence (e.g. AABBLL)")
+    async def slash_i(interaction: discord.Interaction, sequence: str = None):
+        if not _is_chat_allowed(interaction.channel_id):
+            await interaction.response.send_message("Unauthorized.", ephemeral=True)
+            return
+
+        await interaction.response.defer(ephemeral=True)
+
+        channel_id = interaction.channel_id
+        user = interaction.user
+        user_id = user.id
+        user_name = user.display_name or str(user)
+
+        mapping_key = state_manager.get_user_preference(
+            "discord", user_id, "sequence_mapping"
+        ) or "ULDR AB ST"
+
+        # No sequence → send help
+        if not sequence:
+            help_msg = translation_manager.get(
+                "discord.input_command.help",
+                channel_id,
+                mapping=mapping_key,
+            )
+            await interaction.followup.send(help_msg, ephemeral=True)
+            return
+
+        # Trim if too long
+        trimmed = len(sequence) > settings.max_sequence_length
+        if trimmed:
+            sequence = sequence[: settings.max_sequence_length]
+
+        from src.adapters.discord import parse_sequence
+        buttons, invalid_chars = parse_sequence(sequence, mapping_key)
+
+        if invalid_chars:
+            chars_str = ", ".join(invalid_chars)
+            error_msg = translation_manager.get(
+                "discord.sequence_modal.invalid_chars",
+                channel_id,
+                chars=chars_str,
+            )
+            await interaction.followup.send(error_msg, ephemeral=True)
+            return
+
+        # Get current message_id from game state
+        game_state = state_manager.load_game_state(channel_id)
+        message_id = game_state.message_id if game_state else None
+
+        adapter = _get_discord_adapter()
+        handler = get_input_handler()
+
+        ok, error = await handler.handle_sequence_input(
+            buttons=buttons,
+            chat_id=channel_id,
+            message_id=message_id,
+            user_id=user_id,
+            user_name=user_name,
+            adapter=adapter,
+        )
+
+        if ok:
+            buttons_str = "".join(b.emoji for b in buttons)
+            success_msg = translation_manager.get(
+                "discord.sequence_modal.success",
+                channel_id,
+                buttons=buttons_str,
+            )
+            if trimmed:
+                trim_warn = translation_manager.get(
+                    "discord.input_command.trimmed",
+                    channel_id,
+                    max=settings.max_sequence_length,
+                )
+                success_msg = f"{trim_warn}\n{success_msg}"
+            await interaction.followup.send(success_msg, ephemeral=True)
+        else:
+            await interaction.followup.send(error, ephemeral=True)
+
     def parse_discord_shop_action(custom_id: str, channel_id: int) -> "Any | None":
         """Parse a Discord shop custom_id into a ShopAction. channel_id is used as chat_id."""
         from src.shop.flow.actions import (

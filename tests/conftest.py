@@ -12,6 +12,7 @@ os.environ["PYTEST_CURRENT_TEST"] = "1"
 os.environ["TELEGRAM_BOT_TOKEN"] = "test_token"
 os.environ["WEBHOOK_URL"] = "https://test.example.com"
 os.environ["WEBHOOK_SECRET"] = "test_secret_1234567890"
+os.environ["ALLOWED_CHAT_IDS"] = ""  # allow all channels in tests
 
 
 @pytest.fixture(autouse=True)

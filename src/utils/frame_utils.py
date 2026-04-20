@@ -431,10 +431,10 @@ def _render_current_player_card(
     uname_y = card_y + padding + avatar_sz + padding
     draw_text_to_fit(
         img, draw,
-        x=card_x, y=uname_y,
+        x=card_x + 1, y=uname_y,
         name=single_player["user_name"],
         color=tuple(single_player["color"]),
-        max_w=card_w,
+        max_w=card_w - 2,
         line_height=line_h,
         font=small_font,
         align="center",

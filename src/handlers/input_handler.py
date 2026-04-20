@@ -765,16 +765,24 @@ class InputHandler:
         num_tbc_frames = len(tbc_frames)
         num_raw_frames = len(raw_frames)
 
+        # Broadcast decimation: skip every other raw frame when batch exceeds 150 (10s).
+        # Timelapse receives the original raw_frames via disk save below.
+        _BROADCAST_FRAME_LIMIT = 150
+        _bc_step = 2 if num_raw_frames > _BROADCAST_FRAME_LIMIT else 1
+        broadcast_raw_frames = raw_frames[::_bc_step]
+        broadcast_inputs_with_offsets = [(inp, off // _bc_step) for inp, off in new_inputs_with_offsets]
+        broadcast_num_raw_frames = len(broadcast_raw_frames)
+
         # Build streaming animation transform
-        #    Raw frames (index < num_raw_frames): scale 2x + reactions + sidebar
-        #    TBC frames (index >= num_raw_frames): already scaled, sidebar only
+        #    Raw frames (index < broadcast_num_raw_frames): scale 2x + reactions + sidebar
+        #    TBC frames (index >= broadcast_num_raw_frames): already scaled, sidebar only
         reaction_transform_fn = (
             _make_reaction_frame_transform(reactions, capture_fps, scale=2, frame_skip=1)
             if reactions else None
         )
         avatar_fn = controller.get_avatar_fn()
         sidebar_transform_fn = _make_frame_transform(
-            pre_existing_inputs_for_overlay, new_inputs_with_offsets, capture_fps,
+            pre_existing_inputs_for_overlay, broadcast_inputs_with_offsets, capture_fps,
             user_colors=user_colors,
             scale=2,
             base_global_frame_count=base_global_frame_count,
@@ -785,7 +793,7 @@ class InputHandler:
         _status_bar_cache: list[np.ndarray | None] = [None]
 
         def animation_transform(frame: np.ndarray, index: int) -> np.ndarray:
-            if index < num_raw_frames:
+            if index < broadcast_num_raw_frames:
                 h, w = frame.shape[:2]
                 scaled = np.array(Image.fromarray(frame).resize(
                     (w * 2, h * 2), Image.Resampling.NEAREST
@@ -820,7 +828,7 @@ class InputHandler:
                 # Encode and broadcast animation to chat and mirrors
                 try:
                     await broadcast_game_update(
-                        chat_id, caption, raw_frames, tbc_frames,
+                        chat_id, caption, broadcast_raw_frames, tbc_frames,
                         capture_fps, modifier_specs, animation_transform,
                     )
                 except Exception as e:

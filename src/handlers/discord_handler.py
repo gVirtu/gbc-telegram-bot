@@ -181,7 +181,7 @@ def create_discord_bot() -> Any:
 
     @bot.tree.command(name="i", description=translation_manager.get("discord.input_command.description", 0) or "Input a button sequence")
     @app_commands.describe(sequence=translation_manager.get("discord.input_command.sequence_describe", 0) or "Button sequence (e.g. AABBLL)")
-    async def slash_i(interaction: discord.Interaction, sequence: str = None):
+    async def slash_i(interaction: discord.Interaction, sequence: str):
         if not _is_chat_allowed(interaction.channel_id):
             await interaction.response.send_message("Unauthorized.", ephemeral=True)
             return
@@ -207,7 +207,7 @@ def create_discord_bot() -> Any:
         ) or "ULDR AB ST"
 
         # No sequence → send help
-        if not sequence:
+        if len(sequence or "") == 0:
             help_msg = translation_manager.get(
                 "discord.input_command.help",
                 channel_id,

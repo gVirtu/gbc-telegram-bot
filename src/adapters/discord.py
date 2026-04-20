@@ -415,7 +415,7 @@ class DiscordSequenceModal(discord.ui.Modal):
                     self._chat_id,
                     buttons=buttons_str,
                 )
-                await interaction.response.send_message(confirm_msg, ephemeral=True, delete_after=5.0)
+                await interaction.response.send_message(confirm_msg, ephemeral=True, delete_after=2.0)
             else:
                 await interaction.response.send_message(error, ephemeral=True)
 

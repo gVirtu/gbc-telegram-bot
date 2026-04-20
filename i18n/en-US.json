@@ -206,6 +206,12 @@
       "sequence_placeholder": "Up to {max} chars",
       "invalid_chars": "❌ Invalid characters: {chars}",
       "success": "⌨️ Queued: {buttons}"
+    },
+    "input_command": {
+      "description": "Input a button sequence",
+      "sequence_describe": "Button sequence (e.g. AABBLL)",
+      "help": "Use `/i <sequence>` to queue button inputs using your saved mapping.\nCurrent mapping: **{mapping}**\nTip: open the ⌨️ INPUT SEQUENCE modal to change your mapping.",
+      "trimmed": "⚠️ Trimmed to {max} characters"
     }
   },
   "shop": {

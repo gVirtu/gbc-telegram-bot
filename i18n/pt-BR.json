@@ -206,6 +206,12 @@
       "sequence_placeholder": "Máx. {max} caracteres",
       "invalid_chars": "❌ Caracteres inválidos: {chars}",
       "success": "⌨️ Enfileirado: {buttons}"
+    },
+    "input_command": {
+      "description": "Inserir uma sequência de botões",
+      "sequence_describe": "Sequência de botões (ex: AABBLL)",
+      "help": "Use `/i <sequência>` para enfileirar inputs usando seu mapeamento salvo.\nMapeamento atual: **{mapping}**\nDica: abra o modal ⌨️ DIGITAR SEQUÊNCIA para alterar seu mapeamento.",
+      "trimmed": "⚠️ Limitado a {max} caracteres"
     }
   },
   "shop": {

@@ -66,6 +66,8 @@ class TestInputSlashCommandNoSequence:
         with patch("src.handlers.discord_handler.state_manager") as mock_sm, \
              patch("src.handlers.discord_handler.get_input_handler") as mock_get_handler:
             mock_sm.get_user_preference.return_value = "ULDR AB ST"
+            mock_config = MagicMock(maintenance_mode=False)
+            mock_sm.get_or_create_chat_config.return_value = mock_config
             await slash_i(interaction, sequence=None)
 
         interaction.response.defer.assert_awaited_once_with(ephemeral=True)
@@ -84,6 +86,8 @@ class TestInputSlashCommandNoSequence:
         with patch("src.handlers.discord_handler.state_manager") as mock_sm, \
              patch("src.handlers.discord_handler.get_input_handler"):
             mock_sm.get_user_preference.return_value = None  # falls back to default
+            mock_config = MagicMock(maintenance_mode=False)
+            mock_sm.get_or_create_chat_config.return_value = mock_config
             await slash_i(interaction, sequence="")
 
         interaction.followup.send.assert_awaited_once()
@@ -107,6 +111,8 @@ class TestInputSlashCommandValid:
              patch.object(handler, "_is_processing", return_value=True):
             mock_sm.get_user_preference.return_value = "WASD ZX CV"
             mock_sm.load_game_state.return_value = ChatGameState(chat_id=100, message_id=42)
+            mock_config = MagicMock(maintenance_mode=False)
+            mock_sm.get_or_create_chat_config.return_value = mock_config
             mock_ih_sm.get_or_create_chat_config.return_value = MagicMock()
             await slash_i(interaction, sequence="aaaaa")
 
@@ -132,6 +138,8 @@ class TestInputSlashCommandValid:
              patch.object(handler, "_is_processing", return_value=True):
             mock_sm.get_user_preference.return_value = "WASD ZX CV"
             mock_sm.load_game_state.return_value = ChatGameState(chat_id=100, message_id=42)
+            mock_config = MagicMock(maintenance_mode=False)
+            mock_sm.get_or_create_chat_config.return_value = mock_config
             mock_ih_sm.get_or_create_chat_config.return_value = MagicMock()
             await slash_i(interaction, sequence="w")  # 'w' = UP in WASD
 
@@ -155,6 +163,8 @@ class TestInputSlashCommandValid:
              patch.object(handler, "_is_processing", return_value=True):
             mock_sm.get_user_preference.return_value = None  # no preference
             mock_sm.load_game_state.return_value = ChatGameState(chat_id=100, message_id=42)
+            mock_config = MagicMock(maintenance_mode=False)
+            mock_sm.get_or_create_chat_config.return_value = mock_config
             mock_ih_sm.get_or_create_chat_config.return_value = MagicMock()
             await slash_i(interaction, sequence="u")  # 'u' = UP in ULDR
 
@@ -184,6 +194,8 @@ class TestInputSlashCommandTrimming:
              patch.object(handler, "_is_processing", return_value=True):
             mock_sm.get_user_preference.return_value = "ULDR AB ST"
             mock_sm.load_game_state.return_value = ChatGameState(chat_id=100, message_id=42)
+            mock_config = MagicMock(maintenance_mode=False)
+            mock_sm.get_or_create_chat_config.return_value = mock_config
             mock_ih_sm.get_or_create_chat_config.return_value = MagicMock()
             await slash_i(interaction, sequence=long_seq)
 
@@ -214,6 +226,8 @@ class TestInputSlashCommandTrimming:
              patch.object(handler, "_is_processing", return_value=True):
             mock_sm.get_user_preference.return_value = "ULDR AB ST"
             mock_sm.load_game_state.return_value = ChatGameState(chat_id=100, message_id=42)
+            mock_config = MagicMock(maintenance_mode=False)
+            mock_sm.get_or_create_chat_config.return_value = mock_config
             mock_ih_sm.get_or_create_chat_config.return_value = MagicMock()
             await slash_i(interaction, sequence=exact_seq)
 
@@ -236,6 +250,8 @@ class TestInputSlashCommandInvalidChars:
              patch("src.handlers.discord_handler.get_input_handler") as mock_get_handler:
             mock_sm.get_user_preference.return_value = "ULDR AB ST"
             mock_sm.load_game_state.return_value = ChatGameState(chat_id=100, message_id=42)
+            mock_config = MagicMock(maintenance_mode=False)
+            mock_sm.get_or_create_chat_config.return_value = mock_config
             await slash_i(interaction, sequence="UXY")  # X and Y invalid for ULDR
 
         interaction.followup.send.assert_awaited_once()
@@ -261,6 +277,8 @@ class TestInputSlashCommandHandlerFailure:
              patch("src.handlers.discord_handler.get_input_handler", return_value=handler):
             mock_sm.get_user_preference.return_value = "ULDR AB ST"
             mock_sm.load_game_state.return_value = ChatGameState(chat_id=100, message_id=42)
+            mock_config = MagicMock(maintenance_mode=False)
+            mock_sm.get_or_create_chat_config.return_value = mock_config
             await slash_i(interaction, sequence="UU")
 
         interaction.followup.send.assert_awaited_once()

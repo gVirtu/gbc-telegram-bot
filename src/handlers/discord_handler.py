@@ -193,6 +193,17 @@ def create_discord_bot() -> Any:
         user_id = user.id
         user_name = user.display_name or str(user)
 
+        config = state_manager.get_or_create_chat_config(channel_id)
+        if config.maintenance_mode:
+            adapter_for_check = _get_discord_adapter()
+            is_admin = await adapter_for_check.is_admin(channel_id, user_id, interaction)
+            if not is_admin:
+                await interaction.followup.send(
+                    "No momento estamos em manutenção, apenas admins podem enviar comandos.",
+                    ephemeral=True,
+                )
+                return
+
         mapping_key = state_manager.get_user_preference(
             "discord", user_id, "sequence_mapping"
         ) or "ULDR AB ST"

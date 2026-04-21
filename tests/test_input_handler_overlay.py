@@ -367,7 +367,7 @@ class TestProcessBatchModifier:
 
             adapter = MagicMock()
             adapter.platform = "telegram"
-            adapter.build_game_keyboard.return_value = MagicMock()
+            adapter.build_game_keyboard = AsyncMock(return_value=MagicMock())
 
             # Capture what gets passed to append_recent_input
             captured_modifier = {}
@@ -424,7 +424,7 @@ class TestProcessBatchModifier:
 
             adapter = MagicMock()
             adapter.platform = "telegram"
-            adapter.build_game_keyboard.return_value = MagicMock()
+            adapter.build_game_keyboard = AsyncMock(return_value=MagicMock())
 
             captured_modifier = {}
             def capture_append(**kwargs):

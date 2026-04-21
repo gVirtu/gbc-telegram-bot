@@ -28,6 +28,7 @@ from src.handlers.commands import (
     unknown_command,
     message_command,
     language_command,
+    start_command,
     _ensure_game_active,
     COMMAND_HANDLERS,
 )
@@ -1273,3 +1274,69 @@ class TestLanguageCommand:
         """Test that 'language' is registered in COMMAND_HANDLERS."""
         assert "language" in COMMAND_HANDLERS
         assert COMMAND_HANDLERS["language"] == language_command
+
+
+class TestStartCommandUnfreezeGif:
+    """Tests for /start unfreeze_gif- deep-link handler."""
+
+    @pytest.mark.asyncio
+    async def test_unfreeze_sends_message_with_keyboard_button(self, mock_adapter):
+        """start unfreeze_gif-testgroup sends a message with an inline button linking to the group."""
+        import src.handlers.commands as cmd_module
+        cmd_module._unfreeze_sent.clear()
+
+        ctx = make_ctx(mock_adapter, args=["unfreeze_gif-testgroup"], user_id=1001)
+        await start_command(ctx)
+
+        mock_adapter.send_text.assert_called_once()
+        call_kwargs = mock_adapter.send_text.call_args
+        # keyboard passed as reply_markup kwarg
+        keyboard = call_kwargs.kwargs.get("reply_markup") or call_kwargs[1].get("reply_markup")
+        assert keyboard is not None
+        all_buttons = [btn for row in keyboard.inline_keyboard for btn in row]
+        link_buttons = [b for b in all_buttons if b.url and "t.me/testgroup" in b.url]
+        assert len(link_buttons) == 1
+
+    @pytest.mark.asyncio
+    async def test_unfreeze_rate_limited_within_10_minutes(self, mock_adapter):
+        """Second call within 10 minutes for the same user does not send a message."""
+        import src.handlers.commands as cmd_module
+        import time
+        cmd_module._unfreeze_sent.clear()
+        cmd_module._unfreeze_sent[1002] = time.time() - 60  # 1 minute ago
+
+        ctx = make_ctx(mock_adapter, args=["unfreeze_gif-testgroup"], user_id=1002)
+        await start_command(ctx)
+
+        mock_adapter.send_text.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_unfreeze_sends_after_cooldown_expires(self, mock_adapter):
+        """Call after 10+ minutes cooldown sends the message again."""
+        import src.handlers.commands as cmd_module
+        import time
+        cmd_module._unfreeze_sent.clear()
+        cmd_module._unfreeze_sent[1003] = time.time() - 700  # 11+ minutes ago
+
+        ctx = make_ctx(mock_adapter, args=["unfreeze_gif-testgroup"], user_id=1003)
+        await start_command(ctx)
+
+        mock_adapter.send_text.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_unfreeze_ignores_empty_username(self, mock_adapter):
+        """start unfreeze_gif- with empty username is silently ignored."""
+        import src.handlers.commands as cmd_module
+        cmd_module._unfreeze_sent.clear()
+
+        ctx = make_ctx(mock_adapter, args=["unfreeze_gif-"], user_id=1004)
+        await start_command(ctx)
+
+        mock_adapter.send_text.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_unfreeze_no_args_does_nothing(self, mock_adapter):
+        """start with no args does nothing."""
+        ctx = make_ctx(mock_adapter, args=[], user_id=1005)
+        await start_command(ctx)
+        mock_adapter.send_text.assert_not_called()

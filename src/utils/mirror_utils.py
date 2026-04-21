@@ -185,7 +185,7 @@ async def broadcast_game_update(
         logger.info(f"Broadcasting game update to chat {target_id} on platform {config.platform}")
 
         state = state_manager.load_game_state(target_id)
-        keyboard = adapter.build_game_keyboard(chat_config=config, modifier_specs=modifier_specs)
+        keyboard = await adapter.build_game_keyboard(chat_config=config, modifier_specs=modifier_specs)
         sent = False
 
         if state and state.message_id:

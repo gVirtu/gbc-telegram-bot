@@ -24,7 +24,7 @@ def _make_adapter(platform="telegram"):
     adapter = MagicMock()
     adapter.platform = platform
     adapter.answer_interaction = AsyncMock()
-    adapter.build_game_keyboard = MagicMock(return_value=MagicMock())
+    adapter.build_game_keyboard = AsyncMock(return_value=MagicMock())
     adapter.edit_game_message = AsyncMock(return_value=None)
     adapter.edit_game_keyboard = AsyncMock()
     adapter.send_game_message = AsyncMock(return_value=200)

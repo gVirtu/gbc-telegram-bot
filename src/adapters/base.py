@@ -197,7 +197,7 @@ class BotAdapter(ABC):
     # --- Keyboard builders ---
 
     @abstractmethod
-    def build_game_keyboard(
+    async def build_game_keyboard(
         self,
         chat_config: Optional["ChatConfig"],
         modifier_specs: Optional[list["ModifierButtonSpec"]] = None,

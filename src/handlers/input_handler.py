@@ -446,7 +446,7 @@ class InputHandler:
         controller = await game_controller_manager.get_or_create_controller(leader_id)
         modifier_specs = controller.get_modifier_specs() if controller else []
 
-        keyboard = adapter.build_game_keyboard(chat_config=config, modifier_specs=modifier_specs)
+        keyboard = await adapter.build_game_keyboard(chat_config=config, modifier_specs=modifier_specs)
         await adapter.edit_game_keyboard(chat_id, message_id, keyboard)
 
         spec = next((s for s in modifier_specs if s.key == key), None)
@@ -547,7 +547,7 @@ class InputHandler:
         modifier_specs = controller.get_modifier_specs()
         modifier_states = config.modifier_states if config else {}
 
-        input_keyboard = adapter.build_game_keyboard(chat_config=config, modifier_specs=modifier_specs)
+        input_keyboard = await adapter.build_game_keyboard(chat_config=config, modifier_specs=modifier_specs)
 
         # Fetch pre-existing recent inputs for overlay (before this batch)
         pre_existing_inputs_for_overlay = []
@@ -1021,7 +1021,7 @@ class InputHandler:
         recent = state_manager._load_recent_inputs(chat_id)
         base_text = self._get_message_base_text(chat_id)
         text = create_game_message_text(recent_inputs=recent, queue_length=buffer.total_buttons(), base_text_override=base_text, chat_id=chat_id)
-        keyboard = adapter.build_game_keyboard(chat_config=config, modifier_specs=modifier_specs)
+        keyboard = await adapter.build_game_keyboard(chat_config=config, modifier_specs=modifier_specs)
 
         message_id = await adapter.send_game_message(chat_id, text, keyboard, png_buffer)
 
@@ -1049,7 +1049,7 @@ class InputHandler:
         recent = state_manager._load_recent_inputs(chat_id)
         base_text = self._get_message_base_text(chat_id)
         caption = create_game_message_text(recent_inputs=recent, queue_length=buffer.total_buttons(), base_text_override=base_text, chat_id=chat_id)
-        keyboard = adapter.build_game_keyboard(chat_config=config, modifier_specs=modifier_specs)
+        keyboard = await adapter.build_game_keyboard(chat_config=config, modifier_specs=modifier_specs)
 
         if session and session.state.message_id and not session.state.input_in_progress:
             try:
@@ -1105,7 +1105,7 @@ class InputHandler:
         recent = state_manager._load_recent_inputs(leader_id)
         base_text = self._get_message_base_text(leader_id)
         text = create_game_message_text(recent_inputs=recent, queue_length=leader_buffer.total_buttons(), base_text_override=base_text, chat_id=leader_id)
-        keyboard = adapter.build_game_keyboard(chat_config=leader_config, modifier_specs=modifier_specs)
+        keyboard = await adapter.build_game_keyboard(chat_config=leader_config, modifier_specs=modifier_specs)
 
         message_id = await adapter.send_game_message(chat_id, text, keyboard, png_buffer)
 

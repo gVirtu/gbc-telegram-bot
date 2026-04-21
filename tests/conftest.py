@@ -226,7 +226,7 @@ def mock_adapter():
     adapter.send_video = AsyncMock(return_value=None)
     adapter.send_animation = AsyncMock()
     adapter.delete_message = AsyncMock()
-    adapter.build_game_keyboard = MagicMock(return_value=MagicMock())
+    adapter.build_game_keyboard = AsyncMock(return_value=MagicMock())
     adapter.build_save_slot_keyboard = MagicMock(return_value=MagicMock())
     adapter.is_admin = AsyncMock(return_value=True)
     adapter.answer_interaction = AsyncMock()

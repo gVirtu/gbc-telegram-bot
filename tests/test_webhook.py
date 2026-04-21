@@ -205,7 +205,7 @@ class TestUpdateProcessing:
         mock_adapter.send_text = AsyncMock()
         mock_adapter.is_admin = AsyncMock(return_value=True)
         mock_adapter.answer_interaction = AsyncMock()
-        mock_adapter.build_game_keyboard = MagicMock(return_value=None)
+        mock_adapter.build_game_keyboard = AsyncMock(return_value=None)
         handler._telegram_adapter = mock_adapter
         return handler
 

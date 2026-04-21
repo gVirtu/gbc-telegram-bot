@@ -13,7 +13,7 @@ def webhook_handler():
     mock_adapter = MagicMock()
     mock_adapter.is_admin = AsyncMock(return_value=False)
     mock_adapter.answer_interaction = AsyncMock()
-    mock_adapter.build_game_keyboard = MagicMock(return_value=None)
+    mock_adapter.build_game_keyboard = AsyncMock(return_value=None)
     handler._telegram_adapter = mock_adapter
     return handler
 

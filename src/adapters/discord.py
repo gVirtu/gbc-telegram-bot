@@ -646,7 +646,7 @@ class DiscordAdapter(BotAdapter):
         except Exception as e:
             logger.error(f"Failed to delete Discord message {message_id}: {e}")
 
-    def build_game_keyboard(
+    async def build_game_keyboard(
         self,
         chat_config: Optional["ChatConfig"],
         modifier_specs: Optional[list["ModifierButtonSpec"]] = None,

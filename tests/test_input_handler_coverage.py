@@ -33,7 +33,7 @@ def _make_adapter(platform="telegram"):
     a.edit_game_keyboard = AsyncMock()
     a.send_game_message = AsyncMock(return_value=200)
     a.send_text = AsyncMock()
-    a.build_game_keyboard = MagicMock(return_value=MagicMock())
+    a.build_game_keyboard = AsyncMock(return_value=MagicMock())
     return a
 
 

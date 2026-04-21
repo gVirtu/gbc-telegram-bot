@@ -14,6 +14,7 @@ from src.config import settings
 def create_input_keyboard(
     chat_config: "ChatConfig | None" = None,
     modifier_specs: "list[ModifierButtonSpec] | None" = None,
+    chat_username: str | None = None,
 ) -> InlineKeyboardMarkup:
     """Create the inline keyboard for game input.
 
@@ -58,6 +59,10 @@ def create_input_keyboard(
         keyboard.append(modifier_row)
 
     import src.config as _cfg
+    if chat_username and _cfg.telegram_bot_username:
+        unfreeze_label = translation_manager.get("keyboard.buttons.unfreeze_button_label", chat_id)
+        unfreeze_url = f"https://t.me/{_cfg.telegram_bot_username}?start=unfreeze_gif-{chat_username}"
+        keyboard.append([InlineKeyboardButton(unfreeze_label, url=unfreeze_url)])
     if _cfg.telegram_bot_username:
         shop_label = translation_manager.get("shop.button_label", chat_id)
         shop_url = f"https://t.me/{_cfg.telegram_bot_username}?start=shop_{chat_id}"

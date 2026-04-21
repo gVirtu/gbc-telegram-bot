@@ -146,7 +146,8 @@
       "slot": "Slot {slot}",
       "cancel": "❌ Cancel",
       "yes": "✅ Yes",
-      "no": "❌ No"
+      "no": "❌ No",
+      "unfreeze_button_label": "🧊 FIX FROZEN GIF"
     },
     "descriptions": {
       "up": "Move up",
@@ -268,5 +269,9 @@
       "react_sunglasses": "😎",
       "react_thumbs_up": "👍"
     }
+  },
+  "unfreeze": {
+    "message": "Due to a bug in some Telegram clients, the game GIF may occasionally fail to load. Tap the button below to return to the game.",
+    "button_label": "▶️ RESUME GAME"
   }
 }

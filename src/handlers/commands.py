@@ -8,6 +8,7 @@ access to the adapter, chat_id, user_id, user_name, and args.
 """
 
 import logging
+import time
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional, Dict, Tuple
 
@@ -34,6 +35,10 @@ logger = logging.getLogger(__name__)
 
 # Lazy singleton for BackupManager (stateless, but avoids repeated construction)
 _backup_manager = None
+
+# unfreeze_gif rate limit: user_id -> last sent timestamp (resets on server restart)
+_unfreeze_sent: dict[int, float] = {}
+_UNFREEZE_COOLDOWN = 600  # 10 minutes
 
 
 def _get_backup_manager():
@@ -1144,6 +1149,19 @@ async def start_command(ctx: CommandContext) -> None:
                 )
             return
         await _show_shop(ctx, source_chat_id, page=0)
+    elif payload.startswith("unfreeze_gif-"):
+        chat_username = payload.removeprefix("unfreeze_gif-")
+        if not chat_username:
+            return
+        now = time.time()
+        if now - _unfreeze_sent.get(ctx.user_id, 0.0) < _UNFREEZE_COOLDOWN:
+            return
+        _unfreeze_sent[ctx.user_id] = now
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+        msg = translation_manager.get("unfreeze.message", ctx.chat_id)
+        button_label = translation_manager.get("unfreeze.button_label", ctx.chat_id)
+        keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(button_label, url=f"https://t.me/{chat_username}")]])
+        await ctx.adapter.send_text(ctx.chat_id, msg, reply_markup=keyboard)
 
 
 async def shop_command(ctx: CommandContext) -> None:

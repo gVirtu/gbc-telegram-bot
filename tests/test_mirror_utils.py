@@ -87,7 +87,7 @@ def _make_mock_adapter(platform="telegram", anim_format="mp4"):
     adapter.preferred_animation_format = anim_format
     adapter.edit_game_message = AsyncMock(return_value="file_id_xyz")
     adapter.send_game_message = AsyncMock(return_value=999)
-    adapter.build_game_keyboard = MagicMock(return_value=MagicMock())
+    adapter.build_game_keyboard = AsyncMock(return_value=MagicMock())
     return adapter
 
 

@@ -31,6 +31,10 @@ logger = logging.getLogger(__name__)
 _admin_cache: dict[tuple[int, int], tuple[bool, float]] = {}
 _CACHE_TTL = 30  # seconds
 
+# Chat username cache: chat_id -> (username | None, timestamp)
+_chat_username_cache: dict[int, tuple[str | None, float]] = {}
+_CHAT_USERNAME_TTL = 24 * 60 * 60  # 1 day
+
 
 class TelegramAdapter(BotAdapter):
     """BotAdapter implementation for Telegram using python-telegram-bot."""
@@ -178,14 +182,31 @@ class TelegramAdapter(BotAdapter):
         except TelegramError as e:
             logger.warning(f"Failed to delete message {message_id} in chat {chat_id}: {e}")
 
-    def build_game_keyboard(
+    async def _get_chat_username(self, chat_id: int) -> str | None:
+        if chat_id in _chat_username_cache:
+            username, ts = _chat_username_cache[chat_id]
+            if time.time() - ts < _CHAT_USERNAME_TTL:
+                return username
+        try:
+            chat = await self._bot.get_chat(chat_id)
+            username = chat.username or None
+        except Exception:
+            username = None
+        _chat_username_cache[chat_id] = (username, time.time())
+        return username
+
+    async def build_game_keyboard(
         self,
         chat_config: Optional["ChatConfig"],
         modifier_specs: Optional[list["ModifierButtonSpec"]] = None,
     ) -> Any:
+        chat_username = None
+        if chat_config is not None:
+            chat_username = await self._get_chat_username(chat_config.chat_id)
         return create_input_keyboard(
             chat_config=chat_config,
             modifier_specs=modifier_specs,
+            chat_username=chat_username,
         )
 
     def build_save_slot_keyboard(

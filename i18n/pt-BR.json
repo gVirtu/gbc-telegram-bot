@@ -145,8 +145,9 @@
       "walking": "🚶 ANDANDO",
       "slot": "Slot {slot}",
       "cancel": "❌ Cancel",
-      "yes": "✅ Yes",
-      "no": "❌ No"
+      "yes": "✅ Sim",
+      "no": "❌ Não",
+      "unfreeze_button_label": "🧊 GIF CONGELADO?"
     },
     "descriptions": {
       "up": "Mover para cima",
@@ -268,5 +269,9 @@
       "react_sunglasses": "😎",
       "react_thumbs_up": "👍"
     }
+  },
+  "unfreeze": {
+    "message": "Devido a um bug em alguns clientes do Telegram, o GIF do jogo pode ocasionalmente não carregar. Toque no botão abaixo para retornar ao jogo.",
+    "button_label": "▶️ RETOMAR JOGO"
   }
 }

@@ -423,10 +423,10 @@ async def test_cancel_with_no_session_returns_category_list():
 @pytest.mark.asyncio
 async def test_game_specific_categories_appear_for_matching_cartridge():
     from src.shop.flow.router import ShopRouter
-    import game_shops
+    import src.game_shops
 
     extra_cat = _make_category(cat_id="game_cat")
-    game_shops._EXTENSIONS["TEST_GAME"] = [extra_cat]
+    src.game_shops._EXTENSIONS["TEST_GAME"] = [extra_cat]
 
     router = ShopRouter()
     ctx = _make_ctx()
@@ -445,4 +445,4 @@ async def test_game_specific_categories_appear_for_matching_cartridge():
 
     assert any(c.id == "game_cat" for c in screen.categories)
     # cleanup
-    del game_shops._EXTENSIONS["TEST_GAME"]
+    del src.game_shops._EXTENSIONS["TEST_GAME"]

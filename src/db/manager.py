@@ -195,7 +195,7 @@ class DatabaseManager:
         row = cursor.fetchone()
         return row["value"] if row is not None else None
 
-    def set_user_preference(self, platform: str, user_id: int, key: str, value: str) -> None:
+    def set_user_preference(self, platform: str, user_id: int, key: str, value: str, commit: bool = True) -> None:
         """Set a per-user preference value (upsert).
 
         Args:
@@ -210,7 +210,8 @@ class DatabaseManager:
                ON CONFLICT(platform, user_id, key) DO UPDATE SET value = excluded.value;""",
             (platform, user_id, key, value),
         )
-        self.connection.commit()
+        if commit:
+            self.connection.commit()
 
     # ==================== Game State ====================
     

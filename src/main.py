@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 handler = get_webhook_handler()
 app = handler.create_app()
 
+import src.game_shops
 
 def setup_webhook() -> None:
     """Set up the Telegram webhook.

@@ -58,6 +58,11 @@ def _all_items():
     return [item for cat in SHOP_CATEGORIES for item in cat.items]
 
 
+def _get_item(category_id: str, item_id: str):
+    category = next(cat for cat in SHOP_CATEGORIES if cat.id == category_id)
+    return next(item for item in category.items if item.id == item_id)
+
+
 class TestReactJoyItem:
     def test_react_joy_in_shop_items(self):
         ids = [i.id for i in _all_items()]
@@ -79,7 +84,7 @@ class TestPurchaseReaction:
     def test_reaction_purchase_enqueues_row(self):
         mgr, conn = _make_manager()
         self._setup_user(conn)
-        result = mgr.purchase("telegram", 1, "react_joy", chat_id=42, user_name="Alice")
+        result = mgr.purchase("telegram", 1, _get_item("reactions", "react_joy"), chat_id=42, user_name="Alice")
         assert result.success is True
         row = conn.execute("SELECT * FROM reaction_queue WHERE chat_id = 42").fetchone()
         assert row is not None
@@ -89,7 +94,7 @@ class TestPurchaseReaction:
     def test_reaction_purchase_deducts_score(self):
         mgr, conn = _make_manager()
         self._setup_user(conn)
-        mgr.purchase("telegram", 1, "react_joy", chat_id=42, user_name="Alice")
+        mgr.purchase("telegram", 1, _get_item("reactions", "react_joy"), chat_id=42, user_name="Alice")
         row = conn.execute(
             "SELECT total_score_spent FROM user_player_profiles WHERE user_id = 1"
         ).fetchone()
@@ -98,6 +103,6 @@ class TestPurchaseReaction:
     def test_reaction_purchase_insufficient_funds(self):
         mgr, conn = _make_manager()
         self._setup_user(conn, earned=0)
-        result = mgr.purchase("telegram", 1, "react_joy", chat_id=42, user_name="Alice")
+        result = mgr.purchase("telegram", 1, _get_item("reactions", "react_joy"), chat_id=42, user_name="Alice")
         assert result.success is False
         assert result.error_i18n_key == "shop.insufficient_funds"

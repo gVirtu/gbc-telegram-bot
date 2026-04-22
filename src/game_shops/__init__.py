@@ -28,7 +28,7 @@ def get_categories_for_game(game_id: str) -> list[ShopCategory]:
 def _load_all() -> None:
     package_dir = Path(__file__).parent
     for module_info in pkgutil.iter_modules([str(package_dir)]):
-        importlib.import_module(f"game_shops.{module_info.name}")
+        importlib.import_module(f"src.game_shops.{module_info.name}")
 
 
 _load_all()

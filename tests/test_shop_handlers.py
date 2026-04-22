@@ -55,7 +55,7 @@ class TestValidatePurchase:
         mgr = _make_manager()
         _add_profile(mgr, earned=5000)
         item = ShopItem(id="react_fire", name_i18n_key="k", cost=50, effect={})
-        can_afford, cost = mgr.validate_purchase("telegram", 1, item)
+        can_afford, cost = mgr.validate_purchase("telegram", 1, item, 50)
         assert can_afford is True
         assert cost == 50
 
@@ -63,7 +63,7 @@ class TestValidatePurchase:
         mgr = _make_manager()
         _add_profile(mgr, earned=10, spent=0)
         item = ShopItem(id="react_fire", name_i18n_key="k", cost=50, effect={})
-        can_afford, cost = mgr.validate_purchase("telegram", 1, item)
+        can_afford, cost = mgr.validate_purchase("telegram", 1, item, 50)
         assert can_afford is False
         assert cost == 50
 
@@ -75,7 +75,7 @@ class TestValidatePurchase:
             "INSERT INTO shop_transactions (platform, user_id, item_id, pts_spent) VALUES (?,?,?,?);",
             ("telegram", 1, "name_tag_red", 25000),
         )
-        can_afford, cost = mgr.validate_purchase("telegram", 1, item)
+        can_afford, cost = mgr.validate_purchase("telegram", 1, item, 50)
         assert can_afford is True
         assert cost == 0
 

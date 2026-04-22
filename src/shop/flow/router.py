@@ -67,9 +67,9 @@ class ShopRouter:
                     balance=balance, chat_id=chat_id,
                     platform=ctx.platform, user_id=ctx.user_id,
                 )
-            items, total_pages = self._paginate(cat, action.page)
-            balance = shop_manager.get_balance(ctx.platform, ctx.user_id)
             owned_items = frozenset(shop_manager.get_owned_items(ctx.platform, ctx.user_id))
+            items, total_pages = self._paginate(cat, action.page, owned_items)
+            balance = shop_manager.get_balance(ctx.platform, ctx.user_id)
             return ItemListScreen(
                 category=cat,
                 items=items,
@@ -101,7 +101,7 @@ class ShopRouter:
         cats = list(shop_manager.get_categories())
         if controller is not None:
             try:
-                from game_shops import get_categories_for_game
+                from src.game_shops import get_categories_for_game
                 game_id = controller.pyboy.cartridge_title
                 cats += get_categories_for_game(game_id)
             except ImportError:
@@ -122,11 +122,12 @@ class ShopRouter:
         return None
 
     @staticmethod
-    def _paginate(cat, page: int) -> tuple[list, int]:
-        total_pages = max(1, math.ceil(len(cat.items) / cat.items_per_page))
+    def _paginate(cat, page: int, owned_items: frozenset) -> tuple[list, int]:
+        items = [i for i in cat.items if not i.secret or i.id in owned_items]
+        total_pages = max(1, math.ceil(len(items) / cat.items_per_page))
         page = max(0, min(page, total_pages - 1))
         start = page * cat.items_per_page
-        return cat.items[start : start + cat.items_per_page], total_pages
+        return items[start : start + cat.items_per_page], total_pages
 
     async def _handle_buy(self, action: BuyItem, ctx: ShopInteractionContext) -> ShopScreen:
         chat_id = action.chat_id
@@ -212,9 +213,9 @@ class ShopRouter:
         if cat is None:
             return await self.handle(OpenShop(chat_id=action.chat_id), ctx)
 
-        items, total_pages = self._paginate(cat, session.cat_page)
-        balance = shop_manager.get_balance(ctx.platform, ctx.user_id)
         owned_items = frozenset(shop_manager.get_owned_items(ctx.platform, ctx.user_id))
+        items, total_pages = self._paginate(cat, session.cat_page, owned_items)
+        balance = shop_manager.get_balance(ctx.platform, ctx.user_id)
         return ItemListScreen(
             category=cat,
             items=items,
@@ -260,8 +261,8 @@ class ShopRouter:
                         platform=ctx.platform, user_id=ctx.user_id,
                         status=status,
                     )
-                items, total_pages = self._paginate(cat, session.cat_page)
                 owned_items = frozenset(shop_manager.get_owned_items(ctx.platform, ctx.user_id))
+                items, total_pages = self._paginate(cat, session.cat_page, owned_items)
                 return ItemListScreen(
                     category=cat, items=items,
                     page=session.cat_page, total_pages=total_pages,

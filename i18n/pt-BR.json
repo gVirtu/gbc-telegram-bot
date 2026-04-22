@@ -228,6 +228,7 @@
     "purchase_success": "✅ {item_name} resgatado!",
     "insufficient_funds": "❌ Pontos insuficientes (precisa de {cost}, tem {balance}).",
     "no_profile": "❌ Você ainda não jogou.",
+    "unknown_error": "❌ Algo deu errado, não foi possível completar a compra.",
     "streak": "🔥 Sua ofensiva atual: *{streak}* dia(s). {streak_suffix}",
     "streak_is_best": "Esta é sua melhor ofensiva até agora!",
     "streak_prev_best": "Sua melhor ofensiva foi: {best_streak}.",
@@ -431,6 +432,10 @@
           "avatar_cubone_armor": "Cubone Armor",
           "avatar_meteorite": "Meteorite",
           "avatar_silhouette": "Silhouette"
+        },
+        "errors": {
+          "no_game_controller": "❌ Por favor, inicie o jogo primeiro.",
+          "not_in_trainer_battle": "❌ Você deve estar em uma batalha contra um treinador para capturar o avatar do oponente!"
         }
       }
     }

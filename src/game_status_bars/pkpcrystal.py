@@ -2,8 +2,6 @@
 
 from pathlib import Path
 from typing import Any, Optional
-from enum import Enum
-import math
 import bisect
 import logging
 
@@ -12,6 +10,13 @@ from PIL import Image, ImageDraw, ImageFont
 from src.game_utils.pkpcrystal.lz import Decompressed
 from src.utils.gbc_graphics import decode_1bpp, decode_2bpp, gbc_color_to_rgba
 from src.utils.frame_utils import draw_text_to_fit
+from src.game_utils.pkpcrystal.charmap import CHARMAP
+from src.game_utils.pkpcrystal.enum import BattleMode, GrowthRate, EXP_PER_LEVEL
+from src.game_utils.pkpcrystal.reader import (
+    symbol_read_u8, symbol_read_u16le, symbol_read_u24le,
+    read_u8, read_u16, read_u16le, read_u24le,
+    get_nth_string_addr, decode_text
+)
 
 logger = logging.getLogger(__name__)
 
@@ -19,25 +24,6 @@ _pokemon_icon_asset_cache: dict[int, Optional["Image.Image"]] = {}
 _icon_cache: dict[tuple[str, int], Optional[Image.Image]] = {}
 _badge_asset_cache: dict[tuple[str, int], Optional["Image.Image"]] = {}
 _unifont_cache: dict[int, Optional[ImageFont.ImageFont]] = {}
-
-
-class BattleMode(Enum):
-    NONE = 0
-    WILD = 1
-    TRAINER = 2
-    
-class GrowthRate(Enum):
-    MEDIUM_FAST = 0
-    MEDIUM_SLOW = 1
-    FAST = 2
-    SLOW = 3
-
-EXP_PER_LEVEL = {
-    GrowthRate.MEDIUM_FAST: [math.floor(n**3) for n in range(1, 101)],
-    GrowthRate.MEDIUM_SLOW: [(math.floor(((6/5) * (n**3)) - (15 * (n**2)) + (100 * n) - 140)) for n in range(1, 101)],
-    GrowthRate.FAST: [math.floor((4 * (n**3)) / 5) for n in range(1, 101)],
-    GrowthRate.SLOW: [math.floor((5 * (n**3)) / 4) for n in range(1, 101)],
-}
 
 
 def init(pyboy) -> None:
@@ -59,8 +45,8 @@ def init(pyboy) -> None:
 
         base_addr = ptrs_base_addr + (i * 7)
         mini_bank = pyboy.memory[ptrs_bank, base_addr]
-        mini_addr = _read_u16(pyboy, ptrs_bank, base_addr + 1)
-        mini_mask_addr = _read_u16(pyboy, ptrs_bank, base_addr + 3)
+        mini_addr = read_u16(pyboy, ptrs_bank, base_addr + 1)
+        mini_mask_addr = read_u16(pyboy, ptrs_bank, base_addr + 3)
 
         palette = _read_mini_palette(pyboy, i + 1)
 
@@ -100,7 +86,7 @@ def init(pyboy) -> None:
 
         base_addr = ptrs_base_addr + (i * 3)
         trainer_bank = pyboy.memory[ptrs_bank, base_addr]
-        trainer_addr = _read_u16(pyboy, ptrs_bank, base_addr + 1)
+        trainer_addr = read_u16(pyboy, ptrs_bank, base_addr + 1)
 
         palette = _read_palette(pyboy, palettes_bank, palettes_base_addr, i, 2)
 
@@ -554,20 +540,20 @@ def get_status_bar_data(pyboy) -> dict[str, Any]:
     party = []
     
     for i in range(1, 7):
-        species = _symbol_read_u8(pyboy, f"wPartyMon{i}Species")
+        species = symbol_read_u8(pyboy, f"wPartyMon{i}Species")
         
         if species == 0:
             continue
         
         growth_rate = _get_growth_rate(pyboy, species)
-        total_exp = _symbol_read_u24le(pyboy, f"wPartyMon{i}Exp")
+        total_exp = symbol_read_u24le(pyboy, f"wPartyMon{i}Exp")
         current_level = _get_level_from_exp(growth_rate, total_exp)
         current_level_exp = EXP_PER_LEVEL[growth_rate][current_level - 1] if current_level > 1 else 0
         next_level_at = EXP_PER_LEVEL[growth_rate][current_level] if current_level < 100 else total_exp
         total_level_exp = next_level_at - current_level_exp
         exp_percent = (total_exp - current_level_exp) / max(total_level_exp, 1)
         
-        gender_is_egg_ext_species_form = _symbol_read_u8(pyboy, f"wPartyMon{i}ExtSpecies")
+        gender_is_egg_ext_species_form = symbol_read_u8(pyboy, f"wPartyMon{i}ExtSpecies")
         gender = gender_is_egg_ext_species_form & 0b10000000
         is_egg = gender_is_egg_ext_species_form & 0b01000000
         ext_species = gender_is_egg_ext_species_form & 0b00100000
@@ -575,15 +561,15 @@ def get_status_bar_data(pyboy) -> dict[str, Any]:
         # logger.info(f"#{i}: Gender = {gender} | Is egg? {is_egg} | Ext species {ext_species} | Form {form}")
 
         party.append({
-            "species": _symbol_read_u8(pyboy, f"wPartyMon{i}Species"),
+            "species": symbol_read_u8(pyboy, f"wPartyMon{i}Species"),
             "ext_species": ext_species,
             "is_egg": is_egg,
             "gender": gender,
             "form": form,
-            "hp": _symbol_read_u16le(pyboy, f"wPartyMon{i}HP"),
-            "max_hp": _symbol_read_u16le(pyboy, f"wPartyMon{i}MaxHP"),
-            "item": _symbol_read_u8(pyboy, f"wPartyMon{i}Item"),
-            "status": _symbol_read_u8(pyboy, f"wPartyMon{i}Status"),
+            "hp": symbol_read_u16le(pyboy, f"wPartyMon{i}HP"),
+            "max_hp": symbol_read_u16le(pyboy, f"wPartyMon{i}MaxHP"),
+            "item": symbol_read_u8(pyboy, f"wPartyMon{i}Item"),
+            "status": symbol_read_u8(pyboy, f"wPartyMon{i}Status"),
             "level": current_level,
             "exp_percent": exp_percent,
         })
@@ -591,13 +577,13 @@ def get_status_bar_data(pyboy) -> dict[str, Any]:
     return {
         "map_name": map_name,
         "party": party,
-        "johto_badges": _symbol_read_u8(pyboy, "wJohtoBadges"),
-        "kanto_badges": _symbol_read_u8(pyboy, "wKantoBadges"),
+        "johto_badges": symbol_read_u8(pyboy, "wJohtoBadges"),
+        "kanto_badges": symbol_read_u8(pyboy, "wKantoBadges"),
         "pack": {
-            "items_count": _symbol_read_u8(pyboy, "wNumItems"),
-            "meds_count": _symbol_read_u8(pyboy, "wNumMedicine"),
-            "balls_count": _symbol_read_u8(pyboy, "wNumBalls"),
-            "berries_count": _symbol_read_u8(pyboy, "wNumBerries"),
+            "items_count": symbol_read_u8(pyboy, "wNumItems"),
+            "meds_count": symbol_read_u8(pyboy, "wNumMedicine"),
+            "balls_count": symbol_read_u8(pyboy, "wNumBalls"),
+            "berries_count": symbol_read_u8(pyboy, "wNumBerries"),
         },
         "battle": battle_data
     }
@@ -614,7 +600,7 @@ def _get_level_from_exp(growth_rate: GrowthRate, total_exp: int) -> int:
     return bisect.bisect_right(EXP_PER_LEVEL[growth_rate], total_exp)
 
 def _get_map_name(pyboy):
-    cur_landmark = _symbol_read_u8(pyboy, "wCurLandmark")
+    cur_landmark = symbol_read_u8(pyboy, "wCurLandmark")
     
     if cur_landmark == 255:
         return '???'
@@ -627,28 +613,28 @@ def _get_map_name(pyboy):
 
     # Landmark structure: x (u8), y (u8), name ptr (u16)
     landmark_name_ptr_addr = landmarks_base_addr + (cur_landmark * 4)
-    landmark_name_ptr = _read_u16(pyboy, bank, landmark_name_ptr_addr + 2)
+    landmark_name_ptr = read_u16(pyboy, bank, landmark_name_ptr_addr + 2)
 
     # logger.debug(f"Landmark Name Pointer Address: {hex(landmark_name_ptr_addr)}")
     # logger.debug(f"Landmark Name Pointer: {hex(landmark_name_ptr)}")
 
-    landmark_name = _decode_text(pyboy, bank, landmark_name_ptr)
+    landmark_name = decode_text(pyboy, bank, landmark_name_ptr)
     # logger.debug(f"Landmark Name: {landmark_name}")
 
     return landmark_name
 
 
 def _get_battle_data(pyboy):
-    mode = _symbol_read_u8(pyboy, "wBattleMode")
+    mode = symbol_read_u8(pyboy, "wBattleMode")
     # logger.debug(f"Battle Mode: {mode}")
     
     if BattleMode(mode) == BattleMode.WILD:
-        temp_enemy_mon_species = _symbol_read_u8(pyboy, "wTempEnemyMonSpecies")
+        temp_enemy_mon_species = symbol_read_u8(pyboy, "wTempEnemyMonSpecies")
         # logger.debug(f"Temp Enemy Mon Species: {temp_enemy_mon_species}")
 
         bank, pokemon_base_addr = pyboy.symbol_lookup("PokemonNames")
         pokemon_name_ptr = pokemon_base_addr + (temp_enemy_mon_species * 10)
-        pokemon_name = _decode_text(pyboy, bank, pokemon_name_ptr, max_len=10)
+        pokemon_name = decode_text(pyboy, bank, pokemon_name_ptr, max_len=10)
         # logger.debug(f"Pokemon Name: {pokemon_name}")
 
         return {
@@ -657,8 +643,8 @@ def _get_battle_data(pyboy):
         }
     
     if BattleMode(mode) == BattleMode.TRAINER:
-        other_trainer_class = _symbol_read_u8(pyboy, "wOtherTrainerClass")
-        other_trainer_id = _symbol_read_u8(pyboy, "wOtherTrainerID")
+        other_trainer_class = symbol_read_u8(pyboy, "wOtherTrainerClass")
+        other_trainer_id = symbol_read_u8(pyboy, "wOtherTrainerID")
         
         # logger.debug(f"Other Trainer Class: {other_trainer_class}")
         # logger.debug(f"Other Trainer ID: {other_trainer_id}")
@@ -668,8 +654,8 @@ def _get_battle_data(pyboy):
 
         # logger.debug(f"Trainer Group Pointer Addr: {hex(groups_bank)}:{hex(trainer_group_ptr_addr)}")
 
-        trainer_group_bank = _read_u8(pyboy, groups_bank, trainer_group_ptr_addr)
-        trainer_group_ptr = _read_u16(pyboy, groups_bank, trainer_group_ptr_addr + 1)
+        trainer_group_bank = read_u8(pyboy, groups_bank, trainer_group_ptr_addr)
+        trainer_group_ptr = read_u16(pyboy, groups_bank, trainer_group_ptr_addr + 1)
 
         # logger.debug(f"Trainer Group: {hex(trainer_group_bank)}:{hex(trainer_group_ptr)}")
         
@@ -678,19 +664,19 @@ def _get_battle_data(pyboy):
         
         while i > 1:
             # Skip this trainer's length (given by the first byte) + 1 (the length byte itself)
-            trainer_data_length = _read_u8(pyboy, trainer_group_bank, trainer_id_ptr)
+            trainer_data_length = read_u8(pyboy, trainer_group_bank, trainer_id_ptr)
             trainer_id_ptr += trainer_data_length + 1
 
             i -= 1
         
         # logger.debug(f"Trainer ID Pointer: {hex(trainer_group_bank)}:{hex(trainer_id_ptr)}")
 
-        trainer_name = _decode_text(pyboy, trainer_group_bank, trainer_id_ptr + 1)
+        trainer_name = decode_text(pyboy, trainer_group_bank, trainer_id_ptr + 1)
         # logger.debug(f"Trainer Name: {trainer_name}")
         
         trainer_class_names_bank, trainer_class_names_base_addr = pyboy.symbol_lookup("TrainerClassNames")
-        trainer_class_name_addr = _get_nth_string_addr(pyboy, trainer_class_names_bank, trainer_class_names_base_addr, other_trainer_class - 1)
-        trainer_class_name = _decode_text(pyboy, trainer_class_names_bank, trainer_class_name_addr)
+        trainer_class_name_addr = get_nth_string_addr(pyboy, trainer_class_names_bank, trainer_class_names_base_addr, other_trainer_class - 1)
+        trainer_class_name = decode_text(pyboy, trainer_class_names_bank, trainer_class_name_addr)
 
         # logger.debug(f"Trainer Class Name Addr: {hex(trainer_class_name_addr)}")
         # logger.debug(f"Trainer Class Name: {trainer_class_name}")
@@ -701,242 +687,3 @@ def _get_battle_data(pyboy):
         }
 
     return None
-
-def _symbol_read_u8(pyboy, symbol: str) -> int:
-    return pyboy.memory[pyboy.symbol_lookup(symbol)]
-
-def _symbol_read_u16le(pyboy, symbol: str) -> int:
-    bank, addr = pyboy.symbol_lookup(symbol)
-    return _read_u16le(pyboy, bank, addr)
-
-def _symbol_read_u24le(pyboy, symbol: str) -> int:
-    bank, addr = pyboy.symbol_lookup(symbol)
-    return _read_u24le(pyboy, bank, addr)
-
-def _read_u8(pyboy, bank, addr):
-    return pyboy.memory[bank, addr]
-
-def _read_u16(pyboy, bank, addr):
-    [lo, hi] = pyboy.memory[bank, addr:addr+2]
-    return lo | (hi << 8)
-
-def _read_u16le(pyboy, bank, addr):
-    [hi, lo] = pyboy.memory[bank, addr:addr+2]
-    return lo | (hi << 8)
-
-def _read_u24le(pyboy, bank, addr):
-    [hi, mi, lo] = pyboy.memory[bank, addr:addr+3]
-    return lo | (mi << 8) | (hi << 16)
-
-def _get_nth_string_addr(pyboy, bank, addr, n):
-    ptr = addr
-
-    if n == 0:
-        return ptr
-
-    remaining = n
-
-    while remaining > 0:
-        if pyboy.memory[(bank, ptr)] == 0x53:
-            remaining -= 1
-        ptr += 1
-
-    return ptr
-    
-
-def _decode_text(pyboy, bank, addr, max_len = 2_147_483_647):
-    text = []
-    for _ in range(max_len):
-        c = pyboy.memory[(bank, addr)]
-
-        if c == 0x53:  # @ string terminator
-            break
-
-        text.append(CHARMAP.get(c, " "))
-        addr += 1
-    return "".join(text)
-
-CHARMAP = {
-    0x80: "A",
-    0x81: "B",
-    0x82: "C",
-    0x83: "D",
-    0x84: "E",
-    0x85: "F",
-    0x86: "G",
-    0x87: "H",
-    0x88: "I",
-    0x89: "J",
-    0x8a: "K",
-    0x8b: "L",
-    0x8c: "M",
-    0x8d: "N",
-    0x8e: "O",
-    0x8f: "P",
-    0x90: "Q",
-    0x91: "R",
-    0x92: "S",
-    0x93: "T",
-    0x94: "U",
-    0x95: "V",
-    0x96: "W",
-    0x97: "X",
-    0x98: "Y",
-    0x99: "Z",
-    0x9a: "(",
-    0x9b: ")",
-    0x9c: ".",
-    0x9d: ",",
-    0x9e: "?",
-    0x9f: "!",
-    0xa0: "a",
-    0xa1: "b",
-    0xa2: "c",
-    0xa3: "d",
-    0xa4: "e",
-    0xa5: "f",
-    0xa6: "g",
-    0xa7: "h",
-    0xa8: "i",
-    0xa9: "j",
-    0xaa: "k",
-    0xab: "l",
-    0xac: "m",
-    0xad: "n",
-    0xae: "o",
-    0xaf: "p",
-    0xb0: "q",
-    0xb1: "r",
-    0xb2: "s",
-    0xb3: "t",
-    0xb4: "u",
-    0xb5: "v",
-    0xb6: "w",
-    0xb7: "x",
-    0xb8: "y",
-    0xb9: "z",
-    0xba: "“",
-    0xbb: "”",
-    0xbc: "-",
-    0xbd: ":",
-    0xbe: "♂",
-    0xbf: "♀",
-    0xc0: "'",
-    0xc1: "'d",
-    0xc2: "'l",
-    0xc3: "'m",
-    0xc4: "'r",
-    0xc5: "'s",
-    0xc6: "'t",
-    0xc7: "'v",
-    0xc8: "é",
-    0xc9: "É",
-    0xca: "á",
-    0xcb: "𝐇",
-    0xcc: "í",
-    0xcd: "ó",
-    0xce: "¿",
-    0xcf: "¡",
-    0xd0: "Po",
-    0xd1: "ké",
-    0xd2: "Pk",
-    0xd3: "Mn",
-    0xd4: "ID",
-    0xd5: "№",
-    0xd6: "Lv.",
-    0xd7: "𝐏",
-    0xd8: "&",
-    0xd9: "♪",
-    0xda: "♥",
-    0xdb: "×",
-    0xdc: "/",
-    0xdd: "%",
-    0xde: "+",
-    0xdf: "<SHARP>",
-    0xe0: "0",
-    0xe1: "1",
-    0xe2: "2",
-    0xe3: "3",
-    0xe4: "4",
-    0xe5: "5",
-    0xe6: "6",
-    0xe7: "7",
-    0xe8: "8",
-    0xe9: "9",
-    0xea: "¥",
-    0xeb: "…",
-    0xec: "★",
-    0xed: "▼",
-    0xee: "▲",
-    0xef: "◀",
-    0xf0: "▶",
-    0xf1: "▷",
-    # N-grams
-    0x0a: "ou",
-    0x0b: "th",
-    0x0c: "in",
-    0x0d: "t ",
-    0x0e: "er",
-    0x0f: "s ",
-    0x10: "an",
-    0x11: "on",
-    0x12: "to ",
-    0x13: "d ",
-    0x14: "ea",
-    0x15: "y ",
-    0x16: "en",
-    0x17: "or",
-    0x18: "at",
-    0x19: ", ",
-    0x1a: "ll",
-    0x1b: "I ",
-    0x1c: "ar",
-    0x1d: "it",
-    0x1e: "st",
-    0x1f: "ow",
-    0x20: "ha",
-    0x21: "a ",
-    0x22: "om",
-    0x23: "le",
-    0x24: "of ",
-    0x25: "se",
-    0x26: "re",
-    0x27: "to",
-    0x28: "'s ",
-    0x29: "Th",
-    0x2a: "is",
-    0x2b: "ra",
-    0x2c: "ch",
-    0x2d: "I'm ",
-    0x2e: "o ",
-    0x2f: "gh",
-    0x30: "es",
-    0x31: "wa",
-    0x32: "e.",
-    0x33: "oo",
-    0x34: "ck",
-    0x35: "r ",
-    0x36: "l ",
-    0x37: "be",
-    0x38: "li",
-    0x39: "ed",
-    0x3a: "us",
-    0x3b: "ti",
-    0x3c: " you",
-    0x3d: "ing ",
-    0x3e: "the ",
-    0x3f: "you",
-    0x40: "ing",
-    0x41: "is ",
-    0x42: "the",
-    0x43: "You ",
-    0x44: "er ",
-    0x45: "with",
-    0x46: "batt",
-    0x47: "for",
-    0x48: "ve ",
-    0x49: "ed ",
-    0x4a: "It's ",
-    0x4b: "that ",
-    0x4c: "e ",
-}

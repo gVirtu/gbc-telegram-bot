@@ -82,7 +82,7 @@ async def default_purchase_handler(ctx: ShopPurchaseContext) -> PurchaseOutcome:
     """Handler for all built-in items — delegates to shop_manager.purchase()."""
     from src.shop.shop_manager import shop_manager
     result = shop_manager.purchase(
-        ctx.platform, ctx.user_id, ctx.item.id, ctx.chat_id, ctx.user_name
+        ctx.platform, ctx.user_id, ctx.item, ctx.chat_id, ctx.user_name
     )
     if result.success:
         return PurchaseComplete(success=True)

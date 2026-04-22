@@ -7,6 +7,7 @@ import logging
 from dataclasses import dataclass
 
 from src.db.connection import DatabaseConnection
+from src.utils.state_manager import state_manager
 from src.shop.items import SHOP_CATEGORIES, ShopCategory, ShopItem
 
 logger = logging.getLogger(__name__)
@@ -96,7 +97,7 @@ class ShopManager:
         return {row[0] for row in rows}
 
     def validate_purchase(
-        self, platform: str, user_id: int, item: "ShopItem"
+        self, platform: str, user_id: int, item: "ShopItem", cost: int | None = None
     ) -> tuple[bool, int]:
         """Return (can_afford, effective_cost).
 
@@ -108,9 +109,9 @@ class ShopManager:
                 "WHERE platform = ? AND user_id = ? AND item_id = ? LIMIT 1;",
                 (platform, user_id, item.id),
             ).fetchone()
-            effective_cost = 0 if already_owned else item.cost
+            effective_cost = 0 if already_owned else cost
         else:
-            effective_cost = item.cost
+            effective_cost = cost
         balance = self.get_balance(platform, user_id)
         return balance >= effective_cost, effective_cost
 
@@ -135,20 +136,20 @@ class ShopManager:
         self,
         platform: str,
         user_id: int,
-        item_id: str,
+        item: ShopItem,
         chat_id: int = 0,
         user_name: str = "",
+        cost_override: int | None = None,
     ) -> PurchaseResult:
         """Attempt to purchase an item.
 
         Called only after validate_shop_access has passed.
         Returns PurchaseResult with success=True or error details.
         """
-        item = self.get_item(item_id)
         if item is None:
             return PurchaseResult(success=False)  # unknown item_id; callers handle gracefully
 
-        can_afford, effective_cost = self.validate_purchase(platform, user_id, item)
+        can_afford, effective_cost = self.validate_purchase(platform, user_id, item, cost_override or item.cost)
         if not can_afford:
             return PurchaseResult(
                 success=False, error_i18n_key="shop.insufficient_funds", item=item
@@ -161,24 +162,28 @@ class ShopManager:
                 "VALUES (?, ?, ?, ?);",
                 (chat_id, user_id, user_name, reaction_type),
             )
-            self._conn.execute(
-                "UPDATE user_player_profiles "
-                "SET total_score_spent = total_score_spent + ? "
-                "WHERE platform = ? AND user_id = ?;",
-                (effective_cost, platform, user_id),
-            )
-        else:
+        elif "name_tag_color" in item.effect:
             name_tag_color = item.effect.get("name_tag_color", "#FFFFFF")
             self._conn.execute(
                 "UPDATE user_player_profiles "
-                "SET name_tag_color = ?, total_score_spent = total_score_spent + ? "
+                "SET name_tag_color = ?"
                 "WHERE platform = ? AND user_id = ?;",
-                (name_tag_color, effective_cost, platform, user_id),
+                (name_tag_color, platform, user_id),
             )
+        elif "user_preference" in item.effect:
+            user_preference = item.effect["user_preference"]
+            state_manager.set_user_preference(platform, user_id, user_preference["key"], user_preference["value"], commit=False)
+
 
         self._conn.execute(
+            "UPDATE user_player_profiles "
+            "SET total_score_spent = total_score_spent + ? "
+            "WHERE platform = ? AND user_id = ?;",
+            (effective_cost, platform, user_id),
+        )
+        self._conn.execute(
             "INSERT INTO shop_transactions (platform, user_id, item_id, pts_spent) VALUES (?, ?, ?, ?);",
-            (platform, user_id, item_id, effective_cost),
+            (platform, user_id, item.id, effective_cost),
         )
         self._conn.commit()
         return PurchaseResult(success=True, item=item)

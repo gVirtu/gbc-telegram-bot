@@ -61,6 +61,11 @@ def _make_manager(tmp_path):
     return ShopManager(FakeConn())
 
 
+def _get_item(category_id: str, item_id: str):
+    category = next(cat for cat in SHOP_CATEGORIES if cat.id == category_id)
+    return next(item for item in category.items if item.id == item_id)
+
+
 class TestGetBalance:
     def test_returns_zero_for_no_profile(self, tmp_path):
         mgr = _make_manager(tmp_path)
@@ -193,7 +198,7 @@ class TestPurchase:
 
     def test_success_updates_color_and_spent(self, tmp_path):
         mgr = self._setup(tmp_path, earned=30000)
-        result = mgr.purchase("telegram", 1, "name_tag_red")
+        result = mgr.purchase("telegram", 1, _get_item("name_tags", "name_tag_red"))
         assert result.success is True
         assert result.item.id == "name_tag_red"
         row = mgr._conn.execute(
@@ -206,21 +211,21 @@ class TestPurchase:
 
     def test_insufficient_funds(self, tmp_path):
         mgr = self._setup(tmp_path, earned=100, spent=0)
-        result = mgr.purchase("telegram", 1, "name_tag_red")
+        result = mgr.purchase("telegram", 1, _get_item("name_tags", "name_tag_red"))
         assert result.success is False
         assert result.error_i18n_key == "shop.insufficient_funds"
         assert result.item is not None
 
     def test_unknown_item_returns_error_no_key(self, tmp_path):
         mgr = self._setup(tmp_path, earned=10000)
-        result = mgr.purchase("telegram", 1, "does_not_exist")
+        result = mgr.purchase("telegram", 1, None)
         assert result.success is False
         assert result.error_i18n_key is None
         assert result.item is None
 
     def test_free_item_can_be_purchased_with_zero_balance(self, tmp_path):
         mgr = self._setup(tmp_path, earned=0, spent=0)
-        result = mgr.purchase("telegram", 1, "name_tag_white")
+        result = mgr.purchase("telegram", 1, _get_item("name_tags", "name_tag_white"))
         assert result.success is True
         row = mgr._conn.execute(
             "SELECT name_tag_color FROM user_player_profiles WHERE platform = ? AND user_id = ?;",
@@ -230,7 +235,7 @@ class TestPurchase:
 
     def test_purchase_logs_transaction(self, tmp_path):
         mgr = self._setup(tmp_path, earned=30000)
-        mgr.purchase("telegram", 1, "name_tag_red")
+        mgr.purchase("telegram", 1, _get_item("name_tags", "name_tag_red"))
         row = mgr._conn.execute(
             "SELECT item_id, pts_spent FROM shop_transactions WHERE platform = ? AND user_id = ?;",
             ("telegram", 1),
@@ -241,7 +246,7 @@ class TestPurchase:
 
     def test_first_purchase_charges_full_price(self, tmp_path):
         mgr = self._setup(tmp_path, earned=30000)
-        mgr.purchase("telegram", 1, "name_tag_red")
+        mgr.purchase("telegram", 1, _get_item("name_tags", "name_tag_red"))
         row = mgr._conn.execute(
             "SELECT total_score_spent FROM user_player_profiles WHERE platform = ? AND user_id = ?;",
             ("telegram", 1),
@@ -250,9 +255,9 @@ class TestPurchase:
 
     def test_one_time_repurchase_is_free(self, tmp_path):
         mgr = self._setup(tmp_path, earned=50000)
-        mgr.purchase("telegram", 1, "name_tag_red")
-        mgr.purchase("telegram", 1, "name_tag_blue")  # switch away
-        result = mgr.purchase("telegram", 1, "name_tag_red")  # switch back
+        mgr.purchase("telegram", 1, _get_item("name_tags", "name_tag_red"))
+        mgr.purchase("telegram", 1, _get_item("name_tags", "name_tag_blue"))  # switch away
+        result = mgr.purchase("telegram", 1, _get_item("name_tags", "name_tag_red"))  # switch back
         assert result.success is True
         row = mgr._conn.execute(
             "SELECT total_score_spent FROM user_player_profiles WHERE platform = ? AND user_id = ?;",
@@ -263,8 +268,8 @@ class TestPurchase:
 
     def test_reactions_always_charge(self, tmp_path):
         mgr = self._setup(tmp_path, earned=500)
-        mgr.purchase("telegram", 1, "react_joy")
-        mgr.purchase("telegram", 1, "react_joy")
+        mgr.purchase("telegram", 1, _get_item("reactions", "react_joy"))
+        mgr.purchase("telegram", 1, _get_item("reactions", "react_joy"))
         row = mgr._conn.execute(
             "SELECT total_score_spent FROM user_player_profiles WHERE platform = ? AND user_id = ?;",
             ("telegram", 1),
@@ -319,23 +324,23 @@ class TestGetOwnedItems:
                 conn.commit()
 
         return ShopManager(FakeConn())
-
+    
     def test_empty_for_new_user(self, tmp_path):
         mgr = self._setup(tmp_path)
         assert mgr.get_owned_items("telegram", 1) == set()
 
     def test_get_owned_items_returns_all(self, tmp_path):
         mgr = self._setup(tmp_path)
-        mgr.purchase("telegram", 1, "name_tag_red")
-        mgr.purchase("telegram", 1, "react_joy")
+        mgr.purchase("telegram", 1, _get_item("name_tags", "name_tag_red"))
+        mgr.purchase("telegram", 1, _get_item("reactions", "react_joy"))
         owned = mgr.get_owned_items("telegram", 1)
         assert "name_tag_red" in owned
         assert "react_joy" in owned
 
     def test_repurchase_not_duplicated_in_owned(self, tmp_path):
         mgr = self._setup(tmp_path)
-        mgr.purchase("telegram", 1, "name_tag_red")
-        mgr.purchase("telegram", 1, "name_tag_red")
+        mgr.purchase("telegram", 1, _get_item("name_tags", "name_tag_red"))
+        mgr.purchase("telegram", 1, _get_item("name_tags", "name_tag_red"))
         owned = mgr.get_owned_items("telegram", 1)
         assert owned == {"name_tag_red"}
 

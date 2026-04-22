@@ -20,6 +20,7 @@ class ShopItem:
         effect: Dict describing what changes on purchase.
             Currently supports: {"name_tag_color": "#RRGGBB"} or {"reaction": "type"}
         one_time_purchase: If True, re-purchasing costs 0 pts if already owned.
+        secret: If True, the item will not be displayed in the shop unless already owned.
         purchase_handler: Custom async handler for this item. If None, the default
             handler (shop_manager.purchase) is used. Game-specific items must provide
             a handler; built-in items leave this None.
@@ -30,6 +31,7 @@ class ShopItem:
     cost: int
     effect: dict
     one_time_purchase: bool = False
+    secret: bool = False
     purchase_handler: PurchaseHandler | None = field(default=None, compare=False, repr=False)
 
 

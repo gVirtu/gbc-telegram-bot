@@ -587,6 +587,9 @@ class InputHandler:
                 solo_uid, solo_uname = next(iter(batch_user_ids))
                 try:
                     header_stats["single_player"] = {
+                        "chat_id": chat_id,
+                        "platform": config.platform,
+                        "user_id": solo_uid,
                         "user_name": solo_uname,
                         "today": state_manager.get_player_today_input_count(chat_id, solo_uid),
                         "alltime": state_manager.get_player_alltime_input_count(chat_id, solo_uid),

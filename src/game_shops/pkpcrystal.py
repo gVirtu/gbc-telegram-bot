@@ -88,7 +88,7 @@ register("PKPCRYSTAL", [
         items_per_page=3,
         items_per_row=1,
         items=[
-            ShopItem("capture_avatar", f"{SHOP_PREFIX}.items.capture_avatar", 10, {}, purchase_handler=capture_avatar_handler),
+            ShopItem("capture_avatar", f"{SHOP_PREFIX}.items.capture_avatar", 5000, {}, purchase_handler=capture_avatar_handler),
             ShopItem("avatar_carrie", f"{SHOP_PREFIX}.items.avatar_carrie", 0, _avatar_effect(1), one_time_purchase=True),
             ShopItem("avatar_cal", f"{SHOP_PREFIX}.items.avatar_cal", 0, _avatar_effect(2), one_time_purchase=True),
             ShopItem("avatar_jacky", f"{SHOP_PREFIX}.items.avatar_jacky", 0, _avatar_effect(3), one_time_purchase=True),

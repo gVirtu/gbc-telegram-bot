@@ -48,6 +48,7 @@ def init(pyboy) -> None:
     (out_dir / "minis").mkdir(parents=True, exist_ok=True)
     (out_dir / "badges" / "johto").mkdir(parents=True, exist_ok=True)
     (out_dir / "badges" / "kanto").mkdir(parents=True, exist_ok=True)
+    (out_dir / "trainers").mkdir(parents=True, exist_ok=True)
 
     # Extract pokemon minis
     ptrs_bank, ptrs_base_addr = pyboy.symbol_lookup("MiniIconPointers")
@@ -83,11 +84,28 @@ def init(pyboy) -> None:
         if johto_out_path.exists() and kanto_out_path.exists():
             continue
 
-        johto_palette = _read_badge_palette(pyboy, johto_badge_palettes_bank, johto_badge_palettes_addr, i)
-        kanto_palette = _read_badge_palette(pyboy, kanto_badge_palettes_bank, kanto_badge_palettes_addr, i)
+        johto_palette = _read_palette(pyboy, johto_badge_palettes_bank, johto_badge_palettes_addr, i)
+        kanto_palette = _read_palette(pyboy, kanto_badge_palettes_bank, kanto_badge_palettes_addr, i)
         
         _save_badge_sprite(johto_badge_gfx, johto_palette, i, out_path=johto_out_path)
         _save_badge_sprite(kanto_badge_gfx, kanto_palette, i, out_path=kanto_out_path)
+        
+    # Extract trainer pics
+    ptrs_bank, ptrs_base_addr = pyboy.symbol_lookup("TrainerPicPointers")
+    palettes_bank, palettes_base_addr = pyboy.symbol_lookup("TrainerPalettes")
+    for i in range(0, 153):
+        out_path = out_dir / "trainers" / f"{i + 1}.png"
+        if out_path.exists():
+            continue
+
+        base_addr = ptrs_base_addr + (i * 3)
+        trainer_bank = pyboy.memory[ptrs_bank, base_addr]
+        trainer_addr = _read_u16(pyboy, ptrs_bank, base_addr + 1)
+
+        palette = _read_palette(pyboy, palettes_bank, palettes_base_addr, i, 2)
+
+        pixels = _extract_trainer_pic(pyboy, trainer_bank, trainer_addr)
+        _save_trainer_pic(pixels, palette, out_path=out_path)
 
 
 def _read_mini_palette(pyboy, pokemon_index: int) -> list[tuple[int, int, int, int]]:
@@ -118,11 +136,11 @@ def _read_mini_palette(pyboy, pokemon_index: int) -> list[tuple[int, int, int, i
     return colors
 
 
-def _read_badge_palette(pyboy, bank: int, addr: int, badge_index: int) -> list[tuple[int, int, int, int]]:
-    pal_base = addr + (badge_index) * 8
+def _read_palette(pyboy, bank: int, addr: int, index: int, size: int = 4) -> list[tuple[int, int, int, int]]:
+    pal_base = addr + index * size * 2
 
     colors: list[tuple[int, int, int, int]] = [(255, 255, 255, 255)]  # index 0 = white, index 1 = black
-    for i in range(0, 2):
+    for i in range(0, size):
         lo = pyboy.memory[bank, pal_base + (i * 2)]
         hi = pyboy.memory[bank, pal_base + (i * 2) + 1]
         colors.append(gbc_color_to_rgba(lo | (hi << 8)))
@@ -264,6 +282,40 @@ def _floodfill_transparency(pixels: list[list[int]]) -> None:
             if x < width - 1:
                 queue.append((y, x + 1))    
     
+
+def _extract_trainer_pic(pyboy, bank: int, addr: int) -> None:
+    """Reads a badge spritesheet from ROM and return its piexls.
+
+    Badges are 56×56 pixels (49 tiles of 8×8), stored as LZ-compressed
+    2bpp data. Decompressed self-terminates at 0xFF.
+    """
+
+    file_offset = bank * 0x4000 + (addr % 0x4000)
+    with open(pyboy.gamerom, "rb") as f:
+        f.seek(file_offset)
+        raw = bytearray(f.read(1024))
+
+    raw = bytes(raw)
+
+    decompressed = bytes(Decompressed(raw).output)
+
+    needed = (56 // 8) * (56 // 8) * 16  # tiles_x * tiles_y * bytes_per_tile
+    if len(decompressed) < needed:
+        decompressed = decompressed + bytes(needed - len(decompressed))
+
+    return decode_2bpp(decompressed, width=56, height=56, pic=True)
+
+
+def _save_trainer_pic(pixels: list[list[int]], palette: list[tuple[int, int, int, int]], out_path: Path) -> None:
+    palette.append((0, 0, 0, 0))
+    
+    img = Image.new("RGBA", (56, 56))
+    for y, row in enumerate(pixels):
+        for x, idx in enumerate(row):
+            color = palette[idx]
+            img.putpixel((x, y), color)
+    img.save(str(out_path))
+
 
 def render_status_bar(img: Image.Image, data: dict, scale: int) -> None:
     """Draw map/party text on the status bar image in-place.

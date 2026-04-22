@@ -3,6 +3,14 @@
 from __future__ import annotations
 
 
+def _transpose_tiles(data: bytes, tiles_wide: int) -> bytes:
+    """Reorder tiled image data using the same transpose as Polished Crystal pics."""
+    tile_size = 16
+    tiles = [data[i : i + tile_size] for i in range(0, len(data), tile_size)]
+    transposed = [tile for _, tile in sorted(enumerate(tiles), key=lambda item: item[0] % tiles_wide)]
+    return b"".join(transposed)
+
+
 def decode_1bpp(data: bytes, width: int, height: int) -> list[list[int]]:
     """Decode 1bpp GB tile data into a 2D grid of palette indices (0-1).
 
@@ -26,7 +34,7 @@ def decode_1bpp(data: bytes, width: int, height: int) -> list[list[int]]:
     return grid
 
 
-def decode_2bpp(data: bytes, width: int, height: int) -> list[list[int]]:
+def decode_2bpp(data: bytes, width: int, height: int, pic: bool = False) -> list[list[int]]:
     """Decode 2bpp GBC tile data into a 2D grid of palette indices (0–3).
 
     GBC tiles are 8×8 pixels. Each row is 2 bytes:
@@ -34,9 +42,16 @@ def decode_2bpp(data: bytes, width: int, height: int) -> list[list[int]]:
       hi: MSB of each pixel's palette index
     pixel_index = ((hi >> (7-col)) & 1) << 1 | ((lo >> (7-col)) & 1)
     Tiles are arranged left-to-right, then top-to-bottom.
+
+    If ``pic`` is true, first transpose the tile order the same way
+    Polished Crystal stores square "pic" graphics such as trainer portraits.
     """
     tiles_x = width // 8
     tiles_y = height // 8
+    if pic:
+        if tiles_x != tiles_y:
+            raise ValueError("pic=True requires square tile dimensions")
+        data = _transpose_tiles(data, tiles_y)
     grid = [[0] * width for _ in range(height)]
     tile_idx = 0
     for ty in range(tiles_y):
@@ -66,4 +81,3 @@ def gbc_color_to_rgba(color15: int) -> tuple[int, int, int, int]:
     g = ((color15 >> 5) & 0x1F) * 255 // 31
     b = ((color15 >> 10) & 0x1F) * 255 // 31
     return (r, g, b, 255)
-

@@ -40,6 +40,7 @@ class DatabaseManager:
             db_path = Path(settings.data_dir) / "bot.db"
         
         self.connection = DatabaseConnection(db_path)
+        self._preference_cache: dict[tuple[str, int, str], Optional[str]] = {}
     
     def initialize(self) -> None:
         """Initialize database schema.
@@ -188,12 +189,17 @@ class DatabaseManager:
         Returns:
             The stored string value, or None if not set.
         """
+        cache_key = (platform, user_id, key)
+        if cache_key in self._preference_cache:
+            return self._preference_cache[cache_key]
         cursor = self.connection.execute(
             "SELECT value FROM user_preferences WHERE platform = ? AND user_id = ? AND key = ?;",
             (platform, user_id, key),
         )
         row = cursor.fetchone()
-        return row["value"] if row is not None else None
+        value = row["value"] if row is not None else None
+        self._preference_cache[cache_key] = value
+        return value
 
     def set_user_preference(self, platform: str, user_id: int, key: str, value: str, commit: bool = True) -> None:
         """Set a per-user preference value (upsert).
@@ -212,6 +218,7 @@ class DatabaseManager:
         )
         if commit:
             self.connection.commit()
+        self._preference_cache.pop((platform, user_id, key), None)
 
     # ==================== Game State ====================
     

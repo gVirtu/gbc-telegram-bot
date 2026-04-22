@@ -45,6 +45,54 @@ def test_set_user_preference_overwrites_existing(db_manager):
     assert db_manager.get_user_preference("discord", 111, "sequence_mapping") == "8426 13 79"
 
 
+def test_get_user_preference_caches_result(db_manager):
+    """Second get returns cached value without hitting the DB."""
+    db_manager.set_user_preference("discord", 1, "sequence_mapping", "WASD ZX CV")
+    # Populate cache
+    db_manager.get_user_preference("discord", 1, "sequence_mapping")
+    # Bypass cache by writing directly to DB
+    db_manager.connection.execute(
+        "UPDATE user_preferences SET value = 'DIRECT' WHERE platform = 'discord' AND user_id = 1 AND key = 'sequence_mapping';"
+    )
+    db_manager.connection.commit()
+    # Should still return cached value
+    assert db_manager.get_user_preference("discord", 1, "sequence_mapping") == "WASD ZX CV"
+
+
+def test_set_user_preference_invalidates_cache(db_manager):
+    """set_user_preference clears the cache for that key."""
+    db_manager.set_user_preference("discord", 1, "sequence_mapping", "WASD ZX CV")
+    db_manager.get_user_preference("discord", 1, "sequence_mapping")  # populate cache
+    db_manager.set_user_preference("discord", 1, "sequence_mapping", "NEW VALUE")
+    assert db_manager.get_user_preference("discord", 1, "sequence_mapping") == "NEW VALUE"
+
+
+def test_set_user_preference_only_invalidates_matching_key(db_manager):
+    """set_user_preference does not invalidate cache entries for other keys."""
+    db_manager.set_user_preference("discord", 1, "key_a", "A")
+    db_manager.set_user_preference("discord", 1, "key_b", "B")
+    db_manager.get_user_preference("discord", 1, "key_a")  # populate cache for key_a
+    db_manager.set_user_preference("discord", 1, "key_b", "B2")
+    # key_a cache entry should still be intact
+    db_manager.connection.execute(
+        "UPDATE user_preferences SET value = 'DIRECT' WHERE platform = 'discord' AND user_id = 1 AND key = 'key_a';"
+    )
+    db_manager.connection.commit()
+    assert db_manager.get_user_preference("discord", 1, "key_a") == "A"
+
+
+def test_get_user_preference_caches_none(db_manager):
+    """Missing preference (None) is also cached."""
+    db_manager.get_user_preference("discord", 999, "sequence_mapping")  # caches None
+    # Insert directly to DB bypassing set_user_preference
+    db_manager.connection.execute(
+        "INSERT INTO user_preferences (platform, user_id, key, value) VALUES ('discord', 999, 'sequence_mapping', 'DIRECT');"
+    )
+    db_manager.connection.commit()
+    # Cache still returns None
+    assert db_manager.get_user_preference("discord", 999, "sequence_mapping") is None
+
+
 def test_preferences_are_isolated_by_platform_and_user(db_manager):
     """Different (platform, user_id) pairs do not share preferences."""
     db_manager.set_user_preference("discord", 1, "sequence_mapping", "WASD ZX CV")

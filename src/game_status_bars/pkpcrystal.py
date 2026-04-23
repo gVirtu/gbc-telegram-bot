@@ -538,8 +538,9 @@ def get_status_bar_data(pyboy) -> dict[str, Any]:
     map_name = _get_map_name(pyboy)
     battle_data = _get_battle_data(pyboy)
     party = []
+    party_count = symbol_read_u8(pyboy, f"wPartyCount")
     
-    for i in range(1, 7):
+    for i in range(1, party_count + 1):
         species = symbol_read_u8(pyboy, f"wPartyMon{i}Species")
         
         if species == 0:

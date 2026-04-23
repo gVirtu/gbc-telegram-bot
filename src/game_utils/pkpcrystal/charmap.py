@@ -181,4 +181,6 @@ CHARMAP = {
     0x4a: "It's ",
     0x4b: "that ",
     0x4c: "e ",
+    0x4d: "Poké",
+    0x4e: "Pokémon",
 }

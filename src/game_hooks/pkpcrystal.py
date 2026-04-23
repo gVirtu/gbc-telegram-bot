@@ -42,7 +42,16 @@ def begin_hooks(pyboy) -> dict:
             "PokeGear.loop": 0,
             "ManageBoxes.loop": 0,
             "UnownPuzzle.loop": 0,
+            "Pokedex_MainLoop.loop": 0,
+            "_Pokedex_Area.joypad_loop": 0,
+            "_Pokedex_Description.joypad_loop": 0,
             "_Pokedex_Description.newdesc_joypad": 0,
+            "Pokedex_Bio.joypad_loop": 0,
+            "_Pokedex_Stats.joypad_loop": 0,
+            "_Pokedex_Mode.joypad_loop": 0,
+            "_Pokedex_Search.joypad_loop": 0,
+            "_Pokedex_Unown.joypad_loop": 0,
+            "OptionsMenu.joypad_loop": 0,
             "_total": 0
         },
         "autoPressA": {
@@ -61,7 +70,18 @@ def begin_hooks(pyboy) -> dict:
     
     weights = {
         "DoPlayerMovement.GetAction": 3,
-        "SummaryScreenLoop": 2
+        "SummaryScreenLoop": 2,
+        "MenuJoypadLoop.loop": 10,
+        "Pokedex_MainLoop.loop": 10,
+        "_Pokedex_Area.joypad_loop": 10,
+        "_Pokedex_Description.joypad_loop": 10,
+        "_Pokedex_Description.newdesc_joypad": 10,
+        "Pokedex_Bio.joypad_loop": 10,
+        "_Pokedex_Stats.joypad_loop": 10,
+        "_Pokedex_Mode.joypad_loop": 10,
+        "_Pokedex_Search.joypad_loop": 10,
+        "_Pokedex_Unown.joypad_loop": 10,
+        "OptionsMenu.joypad_loop": 10,
     }
     
     # Aggregate all actions linked to what categories they are in
@@ -69,7 +89,7 @@ def begin_hooks(pyboy) -> dict:
     
     for counter_category in context.keys():
         for action in context[counter_category].keys():
-            if action.startswith("_"):
+            if action == '_total':
                 continue
             hook_counters[action].append(counter_category)
 
@@ -102,6 +122,6 @@ def end_hooks(pyboy, context: dict) -> None:
             actions.add(action)
             
     for action in actions:
-        if action.startswith("_"):
+        if action == '_total':
             continue
         pyboy.hook_deregister(None, action)

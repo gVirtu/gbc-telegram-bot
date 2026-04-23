@@ -215,7 +215,6 @@ def draw_text_to_fit(
     name: str,
     color: tuple,
     max_w: int,
-    line_height: int,
     font,
     align: str = "left",
 ) -> int:
@@ -224,16 +223,19 @@ def draw_text_to_fit(
     Returns the actual pixel width used (≤ max_w).
     """
     try:
+        ascent, descent = font.getmetrics()
         bbox = draw.textbbox((0, 0), name, font=font)
         natural_w = bbox[2] - bbox[0]
+        natural_h = ascent + descent
     except Exception:
         natural_w = len(name) * 6
+        natural_h = 12
 
     if natural_w > max_w and natural_w > 0:
-        tmp = Image.new("RGB", (natural_w, line_height), (0, 0, 0))
+        tmp = Image.new("RGBA", (natural_w, natural_h), (0, 0, 0, 0))
         ImageDraw.Draw(tmp).text((0, 0), name, fill=color, font=font, fontmode="1")
-        tmp = tmp.resize((max_w, line_height), Image.Resampling.LANCZOS)
-        img.paste(tmp, (x, y))
+        tmp = tmp.resize((max_w, natural_h), Image.Resampling.LANCZOS)
+        img.paste(tmp, (x, y), mask=tmp)
         return max_w
     else:
         x_offset = (max_w - natural_w) // 2 if align == "center" else 0
@@ -343,7 +345,7 @@ def _render_stats_row(
         actual_w = draw_text_to_fit(
             img, draw, x=name_x, y=py,
             name=pname, color=color,
-            max_w=max_name_w, line_height=line_h,
+            max_w=max_name_w,
             font=player_row_font,
         )
         draw.text((name_x + actual_w, py), suffix,
@@ -435,7 +437,6 @@ def _render_current_player_card(
         name=single_player["user_name"],
         color=tuple(single_player["color"]),
         max_w=card_w - 2,
-        line_height=line_h,
         font=small_font,
         align="center",
     )
@@ -564,11 +565,11 @@ def render_input_sidebar(
 
         if name_natural_w > max_name_w and name_natural_w > 0:
             name_x = width - max_name_w - streak_total_w - suffix_w - padding
-            draw_text_to_fit(img, draw, name_x, y, user_name, color, max_name_w, line_height, font)
+            draw_text_to_fit(img, draw, name_x, y, user_name, color, max_name_w, font)
             cx = name_x + max_name_w
         else:
             name_x = width - name_natural_w - streak_total_w - suffix_w - padding
-            used_w = draw_text_to_fit(img, draw, name_x, y, user_name, color, max_name_w, line_height, font)
+            used_w = draw_text_to_fit(img, draw, name_x, y, user_name, color, max_name_w, font)
             cx = name_x + used_w
 
         if streak > 1:

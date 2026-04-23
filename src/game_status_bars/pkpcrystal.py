@@ -339,7 +339,7 @@ def render_status_bar(img: Image.Image, data: dict, scale: int) -> None:
 
     y = max(0, (height - text_h) // 2)
     
-    draw_text_to_fit(img, draw, pad, y, text, (255, 255, 255), 80 * scale, text_h, font)
+    draw_text_to_fit(img, draw, pad, y, text, (255, 255, 255), 80 * scale, font)
     
     render_party(img, party, scale)
     render_pack_counts(img, pack, scale)

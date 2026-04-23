@@ -140,7 +140,7 @@ class TestDrawTextToFit:
 
         used_w = draw_text_to_fit(img, draw, x=0, y=0, name="Alice",
                                         color=(255, 255, 255), max_w=50,
-                                        line_height=20, font=font)
+                                        font=font)
         assert 0 < used_w <= 50
 
     def test_compresses_long_name(self):
@@ -162,7 +162,7 @@ class TestDrawTextToFit:
         long_name = "VeryLongUserNameThatDefinitelyExceedsTheMaxWidth"
         used_w = draw_text_to_fit(img, draw, x=0, y=0, name=long_name,
                                         color=(255, 0, 0), max_w=30,
-                                        line_height=20, font=font)
+                                        font=font)
         assert used_w == 30
 
 
@@ -311,7 +311,7 @@ class TestDrawTextToFitAlign:
         img, draw = _make_pil(max_w, 20)
         draw_text_to_fit(img, draw, x=0, y=0, name=text,
                          color=(255, 255, 255), max_w=max_w,
-                         line_height=20, font=None, align=align)
+                         font=None, align=align)
         return np.array(img)
 
     def test_align_left_unchanged(self):

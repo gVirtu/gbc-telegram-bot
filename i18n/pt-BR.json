@@ -120,7 +120,7 @@
     "input_processing_error": "Erro ao processar inputs! Tente de novo depois.",
     "default_message": "Sua vez!",
     "queue_status": "{count} input{plural} na fila.",
-    "gameplay_tip": "💡 Toque nos botões abaixo para jogar. *DICA*: Para melhores resultados, toque em até {sequence_length} botões rapidamente em sequência, depois aguarde um momento para que o jogo atualize.",
+    "gameplay_tip": "🕹️ *DICA*: Para melhores resultados,\n • toque até {sequence_length} botões em rápida sucessão OU\n • para ações mais curtas, finalize a sequência com 👁️ (atualização rápida)\n\nDepois, aguarde um instante e o GIF do jogo atualizará.",
     "recent_activity": "📖 *Atividade recente*:",
     "avatar_update_failed": "⚠️ Falha ao atualizar o avatar do grupo — verifique se o bot tem permissões de administrador.",
     "avatar_updating": "Atualizando foto do grupo..."

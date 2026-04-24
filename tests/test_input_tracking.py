@@ -336,4 +336,3 @@ class TestEdgeCases:
         # Telegram caption limit is 1024 characters
         # Our message should be well under that
         assert len(text) < 1024
-        assert len(text) < 300  # Should be much shorter in practice

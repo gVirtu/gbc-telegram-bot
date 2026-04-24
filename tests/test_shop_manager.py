@@ -147,7 +147,7 @@ class TestGetItem:
         mgr = _make_manager(tmp_path)
         item = mgr.get_item("name_tag_red")
         assert item is not None
-        assert item.cost == 25000
+        assert item.cost == 15000
 
     def test_finds_item_in_reactions(self, tmp_path):
         mgr = _make_manager(tmp_path)
@@ -207,7 +207,7 @@ class TestPurchase:
             ("telegram", 1),
         ).fetchone()
         assert row["name_tag_color"] == "#FF8888"
-        assert row["total_score_spent"] == 25000
+        assert row["total_score_spent"] == 15000
 
     def test_insufficient_funds(self, tmp_path):
         mgr = self._setup(tmp_path, earned=100, spent=0)
@@ -242,7 +242,7 @@ class TestPurchase:
         ).fetchone()
         assert row is not None
         assert row["item_id"] == "name_tag_red"
-        assert row["pts_spent"] == 25000
+        assert row["pts_spent"] == 15000
 
     def test_first_purchase_charges_full_price(self, tmp_path):
         mgr = self._setup(tmp_path, earned=30000)
@@ -251,7 +251,7 @@ class TestPurchase:
             "SELECT total_score_spent FROM user_player_profiles WHERE platform = ? AND user_id = ?;",
             ("telegram", 1),
         ).fetchone()
-        assert row["total_score_spent"] == 25000
+        assert row["total_score_spent"] == 15000
 
     def test_one_time_repurchase_is_free(self, tmp_path):
         mgr = self._setup(tmp_path, earned=50000)
@@ -263,8 +263,8 @@ class TestPurchase:
             "SELECT total_score_spent FROM user_player_profiles WHERE platform = ? AND user_id = ?;",
             ("telegram", 1),
         ).fetchone()
-        # paid 25000 for red, 25000 for blue, 0 for red again
-        assert row["total_score_spent"] == 50000
+        # paid 15000 for red, 15000 for blue, 0 for red again
+        assert row["total_score_spent"] == 30000
 
     def test_reactions_always_charge(self, tmp_path):
         mgr = self._setup(tmp_path, earned=500)

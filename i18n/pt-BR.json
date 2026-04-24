@@ -276,9 +276,17 @@
           "avatars": {
             "label": "🖼️ Avatares de Treinador",
             "description": "Durante uma batalha de treinador, resgate '📸 Capturar Avatar' para obter um avatar permanente do treinador adversário!"
+          },
+          "trainer_card_pokemon": {
+            "label": "🧢 Pokémon do Trainer Card",
+            "description": "Durante qualquer batalha Pokémon, resgate uma Pokébola para ter a chance de adicioná-lo ao seu Trainer Card. Diferentes espécies podem ter diferentes chances de captura!"
           }
         },
         "items": {
+          "poke_ball": "🔴 Poké Bola",
+          "great_ball": "🔵 Grande Bola",
+          "ultra_ball": "🟡 Ultra Bola",
+          "master_ball": "🟣 Bola Mestra",
           "capture_avatar": "📸 Capturar Avatar",
           "avatar_carrie": "Carrie",
           "avatar_cal": "Cal",
@@ -435,7 +443,22 @@
         },
         "errors": {
           "no_game_controller": "❌ Por favor, inicie o jogo primeiro.",
-          "not_in_trainer_battle": "❌ Você deve estar em uma batalha contra um treinador para capturar o avatar do oponente!"
+          "not_in_trainer_battle": "❌ Você deve estar em uma batalha contra um treinador para capturar o avatar do oponente!",
+          "not_in_battle": "❌ Você deve estar em uma batalha para capturar um Pokémon!",
+          "enemy_mon_already_caught": "❌ Este Pokémon já foi capturado!",
+          "enemy_mon_cannot_be_captured": "❌ Este Pokémon não pode ser capturado no momento."
+        },
+        "messages": {
+          "capture_success": "🎉 Parabéns, você capturou {enemy_mon_name}! ({chance} de chance)\n\nEscolha a posição para adicionar ao seu card:\n\n⚠️ Selecionar uma posição com um Pokémon substituirá ele *permanentemente*.",
+          "capture_failed": "Ah não, {enemy_mon_name} escapou! Tentar de novo? ({chance} de chance)",
+          "positions": {
+            "top_left": "Superior esquerdo {mon_0}",
+            "top_center": "Superior central {mon_1}",
+            "top_right": "Superior direito {mon_2}",
+            "bottom_left": "Inferior esquerdo {mon_3}",
+            "bottom_center": "Inferior central {mon_4}",
+            "bottom_right": "Inferior direito {mon_5}"
+          }
         }
       }
     }

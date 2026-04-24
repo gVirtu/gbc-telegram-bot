@@ -276,9 +276,17 @@
           "avatars": {
             "label": "🖼️ Trainer Avatars",
             "description": "During a trainer battle, redeem '📸 Capture Avatar' to get a permanent avatar of the opponent trainer!"
+          },
+          "trainer_card_pokemon": {
+            "label": "🧢 Trainer Card Pokémon",
+            "description": "During any Pokémon battle, redeem a ball for a chance to add it to your trainer card. Different species may have different catch rates!"
           }
         },
         "items": {
+          "poke_ball": "🔴 Poké Ball",
+          "great_ball": "🔵 Great Ball",
+          "ultra_ball": "🟡 Ultra Ball",
+          "master_ball": "🟣 Master Ball",
           "capture_avatar": "📸 Capture Avatar",
           "avatar_carrie": "Carrie",
           "avatar_cal": "Cal",
@@ -435,7 +443,22 @@
         },
         "errors": {
           "no_game_controller": "❌ Please start the game first.",
-          "not_in_trainer_battle": "❌ You must be in a trainer battle to capture the opponent's avatar!"
+          "not_in_trainer_battle": "❌ You must be in a trainer battle to capture the opponent's avatar!",
+          "not_in_battle": "❌ You must be in a battle to catch a Pokémon!",
+          "enemy_mon_already_caught": "❌ This Pokémon has already been caught!",
+          "enemy_mon_cannot_be_captured": "❌ This Pokémon cannot be caught right now."
+        },
+        "messages": {
+          "capture_success": "🎉 Congratulations, {enemy_mon_name} was caught! ({chance} catch chance)\n\nChoose the slot to place it in:\n\n⚠️ Selecting a slot with a Pokémon will replace it *permanently*.",
+          "capture_failed": "Oh no, the {enemy_mon_name} broke free! Try again? ({chance} catch chance)",
+          "positions": {
+            "top_left": "Top left {mon_0}",
+            "top_center": "Top center {mon_1}",
+            "top_right": "Top right {mon_2}",
+            "bottom_left": "Bottom left {mon_3}",
+            "bottom_center": "Bottom center {mon_4}",
+            "bottom_right": "Bottom right {mon_5}"
+          }
         }
       }
     }

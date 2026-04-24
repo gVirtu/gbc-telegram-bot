@@ -53,3 +53,10 @@ def decode_text(pyboy, bank, addr, max_len = 2_147_483_647):
         text.append(CHARMAP.get(c, " "))
         addr += 1
     return "".join(text)
+
+
+def get_pokemon_name(pyboy, species_id):
+    bank, pokemon_base_addr = pyboy.symbol_lookup("PokemonNames")
+    pokemon_name_ptr = pokemon_base_addr + (species_id * 10)
+    pokemon_name = decode_text(pyboy, bank, pokemon_name_ptr, max_len=10)
+    return pokemon_name

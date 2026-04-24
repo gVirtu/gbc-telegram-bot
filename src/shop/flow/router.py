@@ -190,8 +190,13 @@ class ShopRouter:
         total_pages = max(1, math.ceil(len(step.options) / step.per_page))
         page = max(0, min(action.page, total_pages - 1))
         start = page * step.per_page
-        options = step.options[start : start + step.per_page]
-        prompt = translation_manager.get(step.prompt, action.chat_id)
+        options = [
+            SelectionOption(
+                label=translation_manager.get(opt.label, action.chat_id, **step.bindings),
+                value=opt.value,
+            ) for opt in step.options[start : start + step.per_page]
+        ]
+        prompt = translation_manager.get(step.prompt, action.chat_id, **step.bindings)
         return SelectionScreen(
             prompt=prompt,
             options=options,
@@ -234,8 +239,10 @@ class ShopRouter:
             balance = shop_manager.get_balance(ctx.platform, ctx.user_id)
 
             if outcome.success:
+                success_key = outcome.success_message or "shop.purchase_success"
                 status = translation_manager.get(
-                    "shop.purchase_success", chat_id,
+                    success_key, chat_id,
+                    **outcome.bindings,
                     item_name=translation_manager.get(session.item.name_i18n_key, chat_id),
                 )
                 categories = self._get_categories(chat_id, controller)
@@ -250,6 +257,7 @@ class ShopRouter:
                 cost = f"{session.item.cost:,}"
                 status = translation_manager.get(
                     error_key, chat_id,
+                    **outcome.bindings,
                     cost=cost, balance=f"{balance:,}",
                 )
                 cat = self._find_category(session.cat_id, chat_id, controller)
@@ -275,8 +283,13 @@ class ShopRouter:
         session.step = step
         set_session(ctx.platform, ctx.user_id, chat_id, session)
         total_pages = max(1, math.ceil(len(step.options) / step.per_page))
-        options = step.options[: step.per_page]
-        prompt = translation_manager.get(step.prompt, chat_id)
+        options = [
+            SelectionOption(
+                label=translation_manager.get(opt.label, chat_id, **step.bindings),
+                value=opt.value,
+            ) for opt in step.options[: step.per_page]
+        ]
+        prompt = translation_manager.get(step.prompt, chat_id, **step.bindings)
         return SelectionScreen(
             prompt=prompt,
             options=options,

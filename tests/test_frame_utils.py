@@ -1012,12 +1012,11 @@ class TestRenderCurrentPlayerCardWithAvatar:
 
     def test_avatar_is_rendered_when_fn_provided(self):
         """With avatar_fn, avatar slot shows the returned image (not white)."""
-        from PIL import Image as PILImage
+        from PIL import ImageDraw
 
-        red_avatar = PILImage.new("RGBA", (10, 10), (255, 0, 0, 255))
-
-        def mock_avatar_fn(player):
-            return red_avatar
+        def mock_avatar_fn(img, scale, area, player):
+            draw = ImageDraw.Draw(img)
+            draw.rectangle(area, fill=(255, 0, 0, 255))
 
         img = self._make_card_image(avatar_fn=mock_avatar_fn)
         # Center of avatar slot at scale=1: ax=2, ay=2, avatar_sz=28 → center=(16,16)
@@ -1025,12 +1024,3 @@ class TestRenderCurrentPlayerCardWithAvatar:
         # Should be red, not white
         assert pixel != (255, 255, 255)
         assert pixel[0] > 200  # red channel dominant
-
-    def test_white_rectangle_fallback_when_fn_returns_none(self):
-        """When avatar_fn returns None, avatar slot falls back to white."""
-        def mock_avatar_fn(player):
-            return None
-
-        img = self._make_card_image(avatar_fn=mock_avatar_fn)
-        pixel = img.getpixel((3, 3))
-        assert pixel == (255, 255, 255)

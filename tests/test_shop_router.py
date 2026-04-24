@@ -223,7 +223,7 @@ async def test_buy_item_returns_selection_screen_and_stores_session():
     async def multi_step_handler(purchase_ctx):
         return SelectionStep(
             prompt="shop.select_pokemon",
-            options=[SelectionOption(label="Pikachu", value="0")],
+            options=[SelectionOption(label="pikachu", value="0")],
             per_page=6,
             on_select=AsyncMock(return_value=PurchaseComplete(success=True)),
         )
@@ -236,7 +236,9 @@ async def test_buy_item_returns_selection_screen_and_stores_session():
         mock_sm.get_balance.return_value = 1000
         mock_gcm.get_controller.return_value = None
         mock_sm.get_categories.return_value = [cat]
-        mock_tm.get.return_value = "Select a Pokémon"
+        
+        # Translates options first, then prompt
+        mock_tm.get.side_effect = ["Pikachu", "Select a Pokémon"]
 
         screen = await router.handle(
             BuyItem(chat_id=100, item_id="item_0", cat_id="game_shop", cat_page=0), ctx

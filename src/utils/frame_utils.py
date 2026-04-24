@@ -393,12 +393,12 @@ def _render_current_player_card(
     )
 
     ax, ay = card_x + padding, card_y + padding
-    avatar_img = avatar_fn(single_player) if avatar_fn else None
-    if avatar_img is not None:
-        avatar_img = avatar_img.resize((avatar_sz, avatar_sz), Image.LANCZOS)
-        img.paste(avatar_img, (ax, ay), mask=avatar_img if avatar_img.mode == "RGBA" else None)
+    avatar_area = (ax, ay, ax + avatar_sz - 1, ay + avatar_sz - 1)
+
+    if avatar_fn is not None:
+        avatar_fn(img, scale, avatar_area, single_player)
     else:
-        draw.rectangle([ax, ay, ax + avatar_sz - 1, ay + avatar_sz - 1], fill=(255, 255, 255))
+        draw.rectangle(avatar_area, fill=(255, 255, 255))
 
     count = single_player[period_key] + n_new_inputs
     count_str = f"{count:,}"

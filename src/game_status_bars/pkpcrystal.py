@@ -15,12 +15,12 @@ from src.game_utils.pkpcrystal.enum import BattleMode, GrowthRate, EXP_PER_LEVEL
 from src.game_utils.pkpcrystal.reader import (
     symbol_read_u8, symbol_read_u16le, symbol_read_u24le,
     read_u8, read_u16, read_u16le, read_u24le,
-    get_nth_string_addr, decode_text
+    get_nth_string_addr, decode_text, get_pokemon_name
 )
+from src.game_utils.pkpcrystal.assets import load_pokemon_asset
 
 logger = logging.getLogger(__name__)
 
-_pokemon_icon_asset_cache: dict[int, Optional["Image.Image"]] = {}
 _icon_cache: dict[tuple[str, int], Optional[Image.Image]] = {}
 _badge_asset_cache: dict[tuple[str, int], Optional["Image.Image"]] = {}
 _unifont_cache: dict[int, Optional[ImageFont.ImageFont]] = {}
@@ -365,7 +365,7 @@ def render_party(img: Image.Image, party: list[dict], scale: int):
             continue
 
         x = start_x + i * (22 * scale)
-        asset = _load_pokemon_asset(species)
+        asset = load_pokemon_asset(species)
 
         if asset:
             resized_asset = asset.resize((10 * scale, 10 * scale), resample=Image.Resampling.LANCZOS)
@@ -422,21 +422,6 @@ def _load_unifont(height_px: int) -> Optional[ImageFont.ImageFont]:
             except Exception:
                 _unifont_cache[height_px] = ImageFont.load_default()
     return _unifont_cache[height_px]
-
-
-def _load_pokemon_asset(species_id: int) -> Optional["Image.Image"]:
-    """Load and cache pokemon PNG (RGBA). Returns None if missing."""
-    if species_id in _pokemon_icon_asset_cache:
-        return _pokemon_icon_asset_cache[species_id]
-
-    asset_path = f"assets/dynamic/pkpcrystal/minis/{species_id}.png"
-    if not Path(asset_path).exists():
-        logger.warning(f"Pokémon icon asset not found: {asset_path}")
-        _pokemon_icon_asset_cache[species_id] = None
-        return None
-    img = Image.open(asset_path).crop((0, 0, 16, 16)).convert("RGBA")
-    _pokemon_icon_asset_cache[species_id] = img
-    return img
 
 
 def _load_badge_asset(region: str, badge_id: int) -> Optional["Image.Image"]:
@@ -633,9 +618,7 @@ def _get_battle_data(pyboy):
         temp_enemy_mon_species = symbol_read_u8(pyboy, "wTempEnemyMonSpecies")
         # logger.debug(f"Temp Enemy Mon Species: {temp_enemy_mon_species}")
 
-        bank, pokemon_base_addr = pyboy.symbol_lookup("PokemonNames")
-        pokemon_name_ptr = pokemon_base_addr + (temp_enemy_mon_species * 10)
-        pokemon_name = decode_text(pyboy, bank, pokemon_name_ptr, max_len=10)
+        pokemon_name = get_pokemon_name(pyboy, temp_enemy_mon_species)
         # logger.debug(f"Pokemon Name: {pokemon_name}")
 
         return {

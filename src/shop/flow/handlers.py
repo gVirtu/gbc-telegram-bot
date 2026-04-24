@@ -13,7 +13,9 @@ if TYPE_CHECKING:
 @dataclass
 class PurchaseComplete:
     success: bool
+    success_message: str | None = None   # i18n key; resolved by router
     error_message: str | None = None   # i18n key; resolved by router
+    bindings: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -22,6 +24,7 @@ class SelectionStep:
     options: list[SelectionOption]
     per_page: int
     on_select: Callable[[str, "ShopPurchaseContext"], Awaitable["PurchaseOutcome"]]
+    bindings: dict[str, Any] = field(default_factory=dict)
 
 
 PurchaseOutcome = PurchaseComplete | SelectionStep
@@ -78,12 +81,15 @@ class ShopPurchaseContext:
         shop_manager.record_transaction(self.platform, self.user_id, self.item.id, final_cost)
 
 
-async def default_purchase_handler(ctx: ShopPurchaseContext) -> PurchaseOutcome:
+async def default_purchase_handler(ctx: ShopPurchaseContext, on_success: Callable[[ShopPurchaseContext], Awaitable[PurchaseComplete]] = None) -> PurchaseOutcome:
     """Handler for all built-in items — delegates to shop_manager.purchase()."""
     from src.shop.shop_manager import shop_manager
     result = shop_manager.purchase(
         ctx.platform, ctx.user_id, ctx.item, ctx.chat_id, ctx.user_name
     )
     if result.success:
-        return PurchaseComplete(success=True)
+        if on_success is not None:
+            return await on_success(ctx)
+        else:
+            return PurchaseComplete(success=True)
     return PurchaseComplete(success=False, error_message=result.error_i18n_key)

@@ -85,6 +85,7 @@ class ModifierButtonSpec:
     applies_to: list[GameButton]
     active_label_key: str
     inactive_label_key: str
+    condition: Optional[Callable[[Controller, int], bool]] = None
 
 
 @dataclass

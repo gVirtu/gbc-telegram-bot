@@ -622,7 +622,7 @@ class InputHandler:
                 controller.tick(frames=settings.input_hold_frames)
             else:
                 for spec in modifier_specs:
-                    if modifier_states.get(spec.key) and button in spec.applies_to:
+                    if modifier_states.get(spec.key) and button in spec.applies_to and (spec.condition is None or spec.condition(controller)):
                         logger.debug(f"Executing {button.value} with {spec.modifier_button.value} modifier for chat {chat_id}")
                         controller.send_input_with_modifier(button, spec.modifier_button, frames=settings.input_hold_frames)
                         applied_modifier = spec.modifier_button.value

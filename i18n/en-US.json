@@ -120,7 +120,7 @@
     "input_processing_error": "Error processing inputs! Try again later.",
     "default_message": "Your turn!",
     "queue_status": "{count} input{plural} in queue.",
-    "gameplay_tip": "🕹️ *PRO TIP*: For best results,\n • tap up to {sequence_length} buttons in quick succession OR\n • for shorter actions, finish your sequence with 👁️ (faster refresh)\n\nThen wait a moment and the game GIF will update.",
+    "gameplay_tip": "Stuck? Press “📚 HELP”!",
     "recent_activity": "📖 *Recent Activity*:",
     "avatar_update_failed": "⚠️ Failed to update group avatar — make sure the bot has admin rights.",
     "avatar_updating": "Updating group photo..."
@@ -147,7 +147,7 @@
       "cancel": "❌ Cancel",
       "yes": "✅ Yes",
       "no": "❌ No",
-      "unfreeze_button_label": "🧊 FIX FROZEN GIF"
+      "help_button_label": "📚 HELP"
     },
     "descriptions": {
       "up": "Move up",
@@ -193,7 +193,9 @@
       "select": "Select item / Toggle",
       "wait": "Wait / Let the game progress without input",
       "run": "Toggle running shoes (holds B while walking)"
-    }
+    },
+    "message": "*➔ How to play*\n\nPress the onscreen buttons to control the game. The game GIF should update and play automatically after a moment.\n\nButton sequences are HIGHLY encouraged: tap up to {sequence_length} buttons in quick succession and they will all show up in a single update!\n\n*➔ GIF not playing?*\n\nDue to a bug in some Telegram clients, the game GIF may occasionally fail to load after an update. When that happens, tap '📚 HELP' to jump to this screen and then tap the button below to resume the game. Changing screens like this usually makes the GIF load properly.\n\nAlso make sure automatic media downloads are enabled in your [Telegram settings](tg://settings) under Data and Storage.\n\n*➔ The wait between GIF updates is too long*\n\nWe comply with Telegram's API rate limits, so we cannot always rapid fire updates. However you may occasionally get shorter delays on quick actions if you tap the 👁️ button once after your input.\n\n*➔ How do I customize my player card?*\n\nEvery button press earns you points that you can spend in the '💎 POINTS SHOP' for customizations and in-game reactions. Inputs are worth more if other players have acted recently, [invite your friends](tg://msg_url?url=https%3A%2F%2Ft.me%2F{chat_username}) to play! Daily streaks (🔥) also award an increasing amount of points the longer you keep them up.",
+    "button_label": "▶️ RESUME GAME"
   },
   "discord": {
     "sequence_modal": {
@@ -462,9 +464,5 @@
         }
       }
     }
-  },
-  "unfreeze": {
-    "message": "Due to a bug in some Telegram clients, the game GIF may occasionally fail to load. Tap the button below to return to the game.",
-    "button_label": "▶️ RESUME GAME"
   }
 }

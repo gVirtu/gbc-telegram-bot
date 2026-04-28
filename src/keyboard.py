@@ -60,9 +60,9 @@ def create_input_keyboard(
 
     import src.config as _cfg
     if chat_username and _cfg.telegram_bot_username:
-        unfreeze_label = translation_manager.get("keyboard.buttons.unfreeze_button_label", chat_id)
-        unfreeze_url = f"https://t.me/{_cfg.telegram_bot_username}?start=unfreeze_gif-{chat_username}"
-        keyboard.append([InlineKeyboardButton(unfreeze_label, url=unfreeze_url)])
+        help_label = translation_manager.get("keyboard.buttons.help_button_label", chat_id)
+        help_url = f"https://t.me/{_cfg.telegram_bot_username}?start=help-{chat_username}"
+        keyboard.append([InlineKeyboardButton(help_label, url=help_url)])
     if _cfg.telegram_bot_username:
         shop_label = translation_manager.get("shop.button_label", chat_id)
         shop_url = f"https://t.me/{_cfg.telegram_bot_username}?start=shop_{chat_id}"

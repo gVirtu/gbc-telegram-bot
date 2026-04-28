@@ -120,7 +120,7 @@
     "input_processing_error": "Erro ao processar inputs! Tente de novo depois.",
     "default_message": "Sua vez!",
     "queue_status": "{count} input{plural} na fila.",
-    "gameplay_tip": "🕹️ *DICA*: Para melhores resultados,\n • toque até {sequence_length} botões em rápida sucessão OU\n • para ações mais curtas, finalize a sequência com 👁️ (atualização rápida)\n\nDepois, aguarde um instante e o GIF do jogo atualizará.",
+    "gameplay_tip": "Dúvidas? Toque em “📚 AJUDA”!",
     "recent_activity": "📖 *Atividade recente*:",
     "avatar_update_failed": "⚠️ Falha ao atualizar o avatar do grupo — verifique se o bot tem permissões de administrador.",
     "avatar_updating": "Atualizando foto do grupo..."
@@ -147,7 +147,7 @@
       "cancel": "❌ Cancel",
       "yes": "✅ Sim",
       "no": "❌ Não",
-      "unfreeze_button_label": "🧊 GIF CONGELADO?"
+      "help_button_label": "📚 AJUDA"
     },
     "descriptions": {
       "up": "Mover para cima",
@@ -193,7 +193,9 @@
       "select": "Selecionar item / Alternar",
       "wait": "Esperar / Deixar o jogo progredir sem input",
       "run": "Alternar modo corrida (segura B ao andar)"
-    }
+    },
+    "message": "*➔ Como jogar*\n\nPressione os botões na tela para controlar o jogo. O GIF do jogo deve atualizar e reproduzir automaticamente após alguns instantes.\n\nSequências de botões são ALTAMENTE recomendadas: toque em até {sequence_length} botões rapidamente em sequência e todos aparecerão em uma única atualização!\n\n*➔ O GIF não está reproduzindo?*\n\nDevido a um bug em alguns clientes do Telegram, o GIF do jogo às vezes pode não carregar após uma atualização. Quando isso acontecer, toque em '📚 AJUDA' para entrar nesta tela e, em seguida, toque no botão abaixo para retomar o jogo. Alternar entre telas geralmente faz com que o GIF carregue.\n\nCertifique-se também de que os downloads automáticos de mídia estejam ativados nas suas [configurações do Telegram](tg://settings) em Dados e Armazenamento.\n\n*➔ As atualizações do GIF demoram muito*\n\nRespeitamos os limites de frequência da API do Telegram, então não podemos sempre fazer atualizações instantâneas. No entanto, para ações curtas, talvez você consiga respostas mais rápidas se tocar no botão 👁️ uma vez após seu comando.\n\n*➔ Como personalizo meu cartão de jogador?*\n\nCada botão pressionado lhe rende pontos que você pode gastar na '💎 LOJA DE PONTOS' para personalizações e reações no jogo. Os comandos valem mais se outros jogadores tiverem interagido recentemente. [Convide seus amigos](tg://msg_url?url=https%3A%2F%2Ft.me%2F{chat_username}) para jogar! Sequências diárias (🔥) também concedem uma quantidade crescente de pontos quanto mais tempo você as mantiver.",
+    "button_label": "▶️ RETOMAR JOGO"
   },
   "discord": {
     "sequence_modal": {
@@ -462,9 +464,5 @@
         }
       }
     }
-  },
-  "unfreeze": {
-    "message": "Devido a um bug em alguns clientes do Telegram, o GIF do jogo pode ocasionalmente não carregar. Toque no botão abaixo para retornar ao jogo.",
-    "button_label": "▶️ RETOMAR JOGO"
   }
 }

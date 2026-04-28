@@ -275,49 +275,49 @@ class TestShopButton:
             _cfg.telegram_bot_username = original
 
 
-class TestUnfreezeButton:
-    def test_unfreeze_button_present_when_chat_username_and_bot_username_set(self):
+class TestHelpButton:
+    def test_help_button_present_when_chat_username_and_bot_username_set(self):
         original = _cfg.telegram_bot_username
         try:
             _cfg.telegram_bot_username = "testbot"
             kb = create_input_keyboard(chat_username="testgroup")
             all_buttons = [btn for row in kb.inline_keyboard for btn in row]
             urls = [b.url for b in all_buttons if b.url]
-            assert any("unfreeze_gif-testgroup" in u for u in urls)
+            assert any("help-testgroup" in u for u in urls)
         finally:
             _cfg.telegram_bot_username = original
 
-    def test_unfreeze_button_url_format(self):
+    def test_help_button_url_format(self):
         original = _cfg.telegram_bot_username
         try:
             _cfg.telegram_bot_username = "mygamebot"
             kb = create_input_keyboard(chat_username="mygroupchat")
             all_buttons = [btn for row in kb.inline_keyboard for btn in row]
-            unfreeze_btns = [b for b in all_buttons if b.url and "unfreeze_gif" in b.url]
-            assert len(unfreeze_btns) == 1
-            assert unfreeze_btns[0].url == "https://t.me/mygamebot?start=unfreeze_gif-mygroupchat"
+            help_btns = [b for b in all_buttons if b.url and "help-" in b.url]
+            assert len(help_btns) == 1
+            assert help_btns[0].url == "https://t.me/mygamebot?start=help-mygroupchat"
         finally:
             _cfg.telegram_bot_username = original
 
-    def test_unfreeze_button_absent_when_no_chat_username(self):
+    def test_help_button_absent_when_no_chat_username(self):
         original = _cfg.telegram_bot_username
         try:
             _cfg.telegram_bot_username = "testbot"
             kb = create_input_keyboard(chat_username=None)
             all_buttons = [btn for row in kb.inline_keyboard for btn in row]
             urls = [b.url for b in all_buttons if b.url]
-            assert not any("unfreeze_gif" in (u or "") for u in urls)
+            assert not any("help-" in (u or "") for u in urls)
         finally:
             _cfg.telegram_bot_username = original
 
-    def test_unfreeze_button_absent_when_no_bot_username(self):
+    def test_help_button_absent_when_no_bot_username(self):
         original = _cfg.telegram_bot_username
         try:
             _cfg.telegram_bot_username = None
             kb = create_input_keyboard(chat_username="testgroup")
             all_buttons = [btn for row in kb.inline_keyboard for btn in row]
             urls = [b.url for b in all_buttons if b.url]
-            assert not any("unfreeze_gif" in (u or "") for u in urls)
+            assert not any("help-" in (u or "") for u in urls)
         finally:
             _cfg.telegram_bot_username = original
 

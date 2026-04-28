@@ -1276,16 +1276,16 @@ class TestLanguageCommand:
         assert COMMAND_HANDLERS["language"] == language_command
 
 
-class TestStartCommandUnfreezeGif:
-    """Tests for /start unfreeze_gif- deep-link handler."""
+class TestStartCommandHelp:
+    """Tests for /start help- deep-link handler."""
 
     @pytest.mark.asyncio
-    async def test_unfreeze_sends_message_with_keyboard_button(self, mock_adapter):
-        """start unfreeze_gif-testgroup sends a message with an inline button linking to the group."""
+    async def test_help_sends_message_with_keyboard_button(self, mock_adapter):
+        """start help-testgroup sends a message with an inline button linking to the group."""
         import src.handlers.commands as cmd_module
-        cmd_module._unfreeze_sent.clear()
+        cmd_module._help_sent.clear()
 
-        ctx = make_ctx(mock_adapter, args=["unfreeze_gif-testgroup"], user_id=1001)
+        ctx = make_ctx(mock_adapter, args=["help-testgroup"], user_id=1001)
         await start_command(ctx)
 
         mock_adapter.send_text.assert_called_once()
@@ -1298,44 +1298,44 @@ class TestStartCommandUnfreezeGif:
         assert len(link_buttons) == 1
 
     @pytest.mark.asyncio
-    async def test_unfreeze_rate_limited_within_10_minutes(self, mock_adapter):
+    async def test_help_rate_limited_within_10_minutes(self, mock_adapter):
         """Second call within 10 minutes for the same user does not send a message."""
         import src.handlers.commands as cmd_module
         import time
-        cmd_module._unfreeze_sent.clear()
-        cmd_module._unfreeze_sent[1002] = time.time() - 60  # 1 minute ago
+        cmd_module._help_sent.clear()
+        cmd_module._help_sent[1002] = time.time() - 60  # 1 minute ago
 
-        ctx = make_ctx(mock_adapter, args=["unfreeze_gif-testgroup"], user_id=1002)
+        ctx = make_ctx(mock_adapter, args=["help-testgroup"], user_id=1002)
         await start_command(ctx)
 
         mock_adapter.send_text.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_unfreeze_sends_after_cooldown_expires(self, mock_adapter):
+    async def test_help_sends_after_cooldown_expires(self, mock_adapter):
         """Call after 10+ minutes cooldown sends the message again."""
         import src.handlers.commands as cmd_module
         import time
-        cmd_module._unfreeze_sent.clear()
-        cmd_module._unfreeze_sent[1003] = time.time() - 700  # 11+ minutes ago
+        cmd_module._help_sent.clear()
+        cmd_module._help_sent[1003] = time.time() - 700  # 11+ minutes ago
 
-        ctx = make_ctx(mock_adapter, args=["unfreeze_gif-testgroup"], user_id=1003)
+        ctx = make_ctx(mock_adapter, args=["help-testgroup"], user_id=1003)
         await start_command(ctx)
 
         mock_adapter.send_text.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_unfreeze_ignores_empty_username(self, mock_adapter):
-        """start unfreeze_gif- with empty username is silently ignored."""
+    async def test_help_ignores_empty_username(self, mock_adapter):
+        """start help- with empty username is silently ignored."""
         import src.handlers.commands as cmd_module
-        cmd_module._unfreeze_sent.clear()
+        cmd_module._help_sent.clear()
 
-        ctx = make_ctx(mock_adapter, args=["unfreeze_gif-"], user_id=1004)
+        ctx = make_ctx(mock_adapter, args=["help-"], user_id=1004)
         await start_command(ctx)
 
         mock_adapter.send_text.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_unfreeze_no_args_does_nothing(self, mock_adapter):
+    async def test_help_no_args_does_nothing(self, mock_adapter):
         """start with no args does nothing."""
         ctx = make_ctx(mock_adapter, args=[], user_id=1005)
         await start_command(ctx)

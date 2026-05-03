@@ -54,7 +54,7 @@ SEQUENCE_MAPPINGS: dict[str, dict[str, "GameButton"]] = {
     },
 }
 
-_DEFAULT_MAPPING = "ULDR AB ST"
+_DEFAULT_MAPPING = "WASD ZX CV"
 
 
 def parse_sequence(
@@ -64,7 +64,7 @@ def parse_sequence(
     """Parse a sequence string into GameButtons using the given mapping.
 
     Matching is case-insensitive: input is normalised with .upper() before lookup.
-    Unknown mapping_key falls back to the default ("ULDR AB ST").
+    Unknown mapping_key falls back to the default ("WASD ZX CV").
 
     Args:
         sequence: Raw character sequence from the user.

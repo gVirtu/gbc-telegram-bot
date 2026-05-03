@@ -124,9 +124,9 @@ class TestParseSequence:
         assert buttons == [GameButton.UP, GameButton.LEFT, GameButton.DOWN, GameButton.RIGHT]
         assert invalid == []
 
-    def test_unknown_mapping_key_falls_back_to_uldr(self):
+    def test_unknown_mapping_key_falls_back_to_wasd(self):
         from src.adapters.discord import parse_sequence
-        buttons, invalid = parse_sequence("U", "UNKNOWN_KEY")
+        buttons, invalid = parse_sequence("W", "UNKNOWN_KEY")
         assert buttons == [GameButton.UP]
 
     def test_empty_sequence(self):
@@ -494,4 +494,4 @@ class TestOnInteractionOpenSequenceModal:
             await on_interaction(interaction)
 
         _, kwargs = mock_modal_cls.call_args
-        assert kwargs.get("preferred_mapping") == "ULDR AB ST"
+        assert kwargs.get("preferred_mapping") == "WASD ZX CV"

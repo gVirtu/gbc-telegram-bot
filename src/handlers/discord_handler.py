@@ -204,7 +204,7 @@ def create_discord_bot() -> Any:
 
         mapping_key = state_manager.get_user_preference(
             "discord", user_id, "sequence_mapping"
-        ) or "ULDR AB ST"
+        ) or "WASD ZX CV"
 
         # No sequence → send help
         if len(sequence or "") == 0:
@@ -383,10 +383,10 @@ def create_discord_bot() -> Any:
                             ephemeral=True,
                         )
                         return
-                # Load preferred mapping (default: "ULDR AB ST")
+                # Load preferred mapping (default: "WASD ZX CV")
                 preferred_mapping = state_manager.get_user_preference(
                     "discord", user_id, "sequence_mapping"
-                ) or "ULDR AB ST"
+                ) or "WASD ZX CV"
                 title = translation_manager.get("discord.sequence_modal.modal_title", channel_id)
                 modal = DiscordSequenceModal(
                     title=title,

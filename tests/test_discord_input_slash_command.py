@@ -144,8 +144,8 @@ class TestInputSlashCommandValid:
         assert "⬆️" in msg  # UP emoji
 
     @pytest.mark.asyncio
-    async def test_no_saved_preference_falls_back_to_uldr(self):
-        """/i falls back to ULDR AB ST when no preference is saved."""
+    async def test_no_saved_preference_falls_back_to_wasd(self):
+        """/i falls back to WASD ZX CV when no preference is saved."""
         bot = _make_bot()
         slash_i = _get_slash_i(bot)
         interaction = _make_interaction()
@@ -162,7 +162,7 @@ class TestInputSlashCommandValid:
             mock_config = MagicMock(maintenance_mode=False)
             mock_sm.get_or_create_chat_config.return_value = mock_config
             mock_ih_sm.get_or_create_chat_config.return_value = MagicMock()
-            await slash_i(interaction, sequence="u")  # 'u' = UP in ULDR
+            await slash_i(interaction, sequence="w")  # 'w' = UP in WASD
 
         msg = interaction.response.send_message.call_args.args[0] if interaction.response.send_message.call_args.args \
               else interaction.response.send_message.call_args.kwargs.get("content", "")

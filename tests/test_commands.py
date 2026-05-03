@@ -963,6 +963,7 @@ class TestMessageCommand:
         with patch("src.handlers.commands.state_manager") as mock_state:
             mock_config = MagicMock()
             mock_config.message_base_text = None
+            mock_config.platform = 'telegram'
             mock_state.get_or_create_chat_config.return_value = mock_config
             mock_state.save_chat_config = MagicMock()
 
@@ -1006,6 +1007,7 @@ class TestMessageCommand:
 
         with patch("src.handlers.commands.state_manager") as mock_state:
             mock_config = MagicMock()
+            mock_config.platform = 'telegram'
             mock_state.get_or_create_chat_config.return_value = mock_config
 
             with patch("src.handlers.commands.settings") as mock_settings:

@@ -820,8 +820,12 @@ async def message_command(ctx: CommandContext) -> None:
         logger.info(f"Cleared custom message base text for chat {chat_id}")
         return
 
-    raw_message = ctx.raw.message.text_markdown
-    custom_text = raw_message.split(maxsplit=1)[1]
+    custom_text = ''
+    if config.platform == 'telegram':
+        raw_message = ctx.raw.message.text_markdown
+        custom_text = raw_message.split(maxsplit=1)[1]
+    else:
+        custom_text = ctx.raw.namespace.text.replace('\\n', '\n')
 
     if len(custom_text) > 240:
         error_msg = translation_manager.get("commands.message.too_long", chat_id)

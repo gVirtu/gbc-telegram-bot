@@ -65,7 +65,7 @@ export ALLOWED_CHAT_IDS={OPTIONAL: YOUR TELEGRAM CHAT ID HERE}
 
 ```bash
 docker run -d \
-  --name gbc-telegram-bot \
+  --name gbc-together-bot \
   -e TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN} \
   -e WEBHOOK_URL=${WEBHOOK_URL} \
   -e WEBHOOK_SECRET=${WEBHOOK_SECRET}\
@@ -80,7 +80,7 @@ docker run -d \
 3. Set webhook for the bot (for Telegram):
 
 ```bash
-docker exec gbc-telegram-bot python -c 'from src.main import setup_webhook; setup_webhook()'
+docker exec gbc-together-bot python -c 'from src.main import setup_webhook; setup_webhook()'
 ```
 
 4. Send `/start_game` to the bot in one of the allowed chats.

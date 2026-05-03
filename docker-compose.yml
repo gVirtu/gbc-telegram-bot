@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile
     image: ${DOCKER_REGISTRY:-docker.io/gvirtu}/pyboy-telegram-bot:${IMAGE_TAG:-latest}
-    container_name: gbc-telegram-bot
+    container_name: gbc-together-bot
     restart: on-failure:5
     
     # Environment variables from host

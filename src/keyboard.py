@@ -77,6 +77,7 @@ def create_game_message_text(
     queue_length: int = 0,
     base_text_override: str | None = None,
     chat_id: int = 0,
+    show_gameplay_tip: bool = True,
 ) -> str:
     """Create the caption text for the game message.
 
@@ -106,9 +107,9 @@ def create_game_message_text(
 
     # Add recent inputs if available
     if recent_inputs:
-        gameplay_tip = translation_manager.get("game.gameplay_tip", chat_id, sequence_length=settings.max_sequence_length)
+        gameplay_tip = ("\n\n" + translation_manager.get("game.gameplay_tip", chat_id, sequence_length=settings.max_sequence_length)) if show_gameplay_tip else ""
         activity_header = translation_manager.get("game.recent_activity", chat_id)
-        base_text += f"\n\n{gameplay_tip}\n\n{activity_header}"
+        base_text += f"{gameplay_tip}\n\n{activity_header}"
         # Show most recent first (reversed)
         for inp in reversed(recent_inputs):
             user_name = inp["user_name"]

@@ -822,6 +822,7 @@ class InputHandler:
             queue_length=pending_count,
             base_text_override=base_text,
             chat_id=chat_id,
+            show_gameplay_tip=config.platform == 'telegram'
         )
 
         if raw_frames:
@@ -1023,7 +1024,13 @@ class InputHandler:
 
         recent = state_manager._load_recent_inputs(chat_id)
         base_text = self._get_message_base_text(chat_id)
-        text = create_game_message_text(recent_inputs=recent, queue_length=buffer.total_buttons(), base_text_override=base_text, chat_id=chat_id)
+        text = create_game_message_text(
+            recent_inputs=recent, 
+            queue_length=buffer.total_buttons(), 
+            base_text_override=base_text, 
+            chat_id=chat_id,
+            show_gameplay_tip=config.platform == 'telegram'
+        )
         keyboard = await adapter.build_game_keyboard(chat_config=config, modifier_specs=modifier_specs)
 
         message_id = await adapter.send_game_message(chat_id, text, keyboard, png_buffer)
@@ -1051,7 +1058,13 @@ class InputHandler:
         png_buffer = controller.get_frame_as_png()
         recent = state_manager._load_recent_inputs(chat_id)
         base_text = self._get_message_base_text(chat_id)
-        caption = create_game_message_text(recent_inputs=recent, queue_length=buffer.total_buttons(), base_text_override=base_text, chat_id=chat_id)
+        caption = create_game_message_text(
+            recent_inputs=recent, 
+            queue_length=buffer.total_buttons(), 
+            base_text_override=base_text, 
+            chat_id=chat_id,
+            show_gameplay_tip=config.platform == 'telegram'
+        )
         keyboard = await adapter.build_game_keyboard(chat_config=config, modifier_specs=modifier_specs)
 
         if session and session.state.message_id and not session.state.input_in_progress:
@@ -1107,7 +1120,14 @@ class InputHandler:
         leader_session = self._get_session(leader_id)
         recent = state_manager._load_recent_inputs(leader_id)
         base_text = self._get_message_base_text(leader_id)
-        text = create_game_message_text(recent_inputs=recent, queue_length=leader_buffer.total_buttons(), base_text_override=base_text, chat_id=leader_id)
+        config = state_manager.get_or_create_chat_config(chat_id)
+        text = create_game_message_text(
+            recent_inputs=recent, 
+            queue_length=leader_buffer.total_buttons(), 
+            base_text_override=base_text, 
+            chat_id=leader_id,
+            show_gameplay_tip=config.platform == 'telegram'
+        )
         keyboard = await adapter.build_game_keyboard(chat_config=leader_config, modifier_specs=modifier_specs)
 
         message_id = await adapter.send_game_message(chat_id, text, keyboard, png_buffer)

@@ -15,7 +15,7 @@ from src.shop.flow.router import default_purchase_handler
 from src.shop.flow.handlers import ShopPurchaseContext, PurchaseComplete, SelectionStep
 from src.shop.flow.screens import SelectionOption
 from src.utils.state_manager import state_manager
-from src.game_utils.pkpcrystal.reader import symbol_read_u8, symbol_read_u16le, get_pokemon_name
+from src.game_utils.pkpcrystal.reader import symbol_read_u8, symbol_read_u16le, get_pokemon_name, get_pokemon_catch_rate
 from src.game_utils.pkpcrystal.enum import BattleMode
 
 logger = logging.getLogger(__name__)
@@ -147,7 +147,7 @@ async def capture_mon_handler(purchase_ctx: ShopPurchaseContext):
 
     enemy_mon_species = symbol_read_u8(pyboy, "wEnemyMonSpecies")
     enemy_mon_species_name = get_pokemon_name(pyboy, enemy_mon_species)
-    enemy_mon_catch_rate = symbol_read_u8(pyboy, "wEnemyMonCatchRate")
+    enemy_mon_catch_rate = get_pokemon_catch_rate(pyboy, enemy_mon_species) # symbol_read_u8(pyboy, "wEnemyMonCatchRate")
     enemy_mon_hp = symbol_read_u16le(pyboy, "wEnemyMonHP")
     enemy_mon_max_hp = symbol_read_u16le(pyboy, "wEnemyMonMaxHP")
     enemy_mon_status = symbol_read_u8(pyboy, "wEnemyMonStatus")

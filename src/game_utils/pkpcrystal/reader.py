@@ -60,3 +60,10 @@ def get_pokemon_name(pyboy, species_id):
     pokemon_name_ptr = pokemon_base_addr + (species_id * 10)
     pokemon_name = decode_text(pyboy, bank, pokemon_name_ptr, max_len=10)
     return pokemon_name
+
+def get_pokemon_catch_rate(pyboy, species_id):
+    bank, pokemon_base_addr = pyboy.symbol_lookup("BaseData")
+    base_stats_width = 34
+    base_catch_rate_offset = 8
+    pokemon_base_stats_ptr = pokemon_base_addr + ((species_id - 1) * base_stats_width)
+    return read_u8(pyboy, bank, pokemon_base_stats_ptr + base_catch_rate_offset)

@@ -583,7 +583,7 @@ def _get_growth_rate(pyboy, species: int) -> GrowthRate:
     return GrowthRate(growth_rate)
 
 def _get_level_from_exp(growth_rate: GrowthRate, total_exp: int) -> int:
-    return bisect.bisect_right(EXP_PER_LEVEL[growth_rate], total_exp)
+    return max(1, bisect.bisect_right(EXP_PER_LEVEL[growth_rate], total_exp))
 
 def _get_map_name(pyboy):
     cur_landmark = symbol_read_u8(pyboy, "wCurLandmark")

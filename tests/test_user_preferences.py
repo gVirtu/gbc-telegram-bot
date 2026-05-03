@@ -1,7 +1,6 @@
 """Tests for user_preferences table and DatabaseManager get/set methods."""
 import os
 import pytest
-from pathlib import Path
 
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "test_token")
 os.environ.setdefault("WEBHOOK_URL", "https://test.example.com")

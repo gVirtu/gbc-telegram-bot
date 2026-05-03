@@ -4,9 +4,9 @@ import pytest
 import asyncio
 import numpy as np
 from pathlib import Path
-from unittest.mock import Mock, patch, AsyncMock, MagicMock
+from unittest.mock import Mock, patch, AsyncMock
 
-from src.tasks.timelapse_encoder import TimelapseEncodingQueue, TimelapseEncoder
+from src.tasks.timelapse_encoder import TimelapseEncodingQueue
 from src.db.manager import DatabaseManager
 from src.models.game_state import TimelapseJobRow
 

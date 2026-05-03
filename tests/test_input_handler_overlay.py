@@ -7,9 +7,8 @@ and pre_existing_inputs passing to timelapse_queue.enqueue().
 import os
 import pytest
 import numpy as np
-from datetime import datetime
 from io import BytesIO
-from unittest.mock import AsyncMock, MagicMock, Mock, call, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 # Set environment variables before importing
 os.environ["TELEGRAM_BOT_TOKEN"] = "test_token"

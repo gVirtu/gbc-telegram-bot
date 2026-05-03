@@ -4,12 +4,10 @@ The encoder no longer owns overlay logic. Frames arrive pre-composited.
 """
 
 import os
-import pytest
-import numpy as np
 
 os.environ.setdefault("PYTEST_CURRENT_TEST", "1")
 
-from src.tasks.timelapse_encoder import TimelapseEncodingQueue, TimelapseEncoder
+from src.tasks.timelapse_encoder import TimelapseEncoder
 
 
 def test_video_path_uses_recap_prefix(tmp_path, monkeypatch):

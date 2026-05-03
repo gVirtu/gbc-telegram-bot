@@ -1,8 +1,5 @@
 """Tests for migration script."""
 import json
-import pytest
-from pathlib import Path
-from datetime import datetime
 
 from src.models.game_state import ChatGameState, ChatConfig, SaveSlotInfo, GameButton
 from src.db import DatabaseManager

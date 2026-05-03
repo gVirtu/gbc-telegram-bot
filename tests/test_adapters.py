@@ -1,7 +1,7 @@
 """Tests for BotAdapter implementations."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch, call
+from unittest.mock import AsyncMock, MagicMock, patch
 from telegram.error import TelegramError
 
 

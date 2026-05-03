@@ -1,9 +1,6 @@
 """Integration tests for database migration."""
-import pytest
-from pathlib import Path
 from src.db import DatabaseManager
-from src.utils.state_manager import StateManager
-from src.models.game_state import ChatGameState, ChatConfig
+from src.models.game_state import ChatGameState
 
 class TestStateManagerCompatibility:
     """Test DatabaseManager provides same interface as StateManager."""

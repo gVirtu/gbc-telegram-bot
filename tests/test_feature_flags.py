@@ -8,7 +8,6 @@ Covers:
 - _update_group_avatar called on mock adapter when flag is set and cooldown passed
 """
 
-import asyncio
 import pytest
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch

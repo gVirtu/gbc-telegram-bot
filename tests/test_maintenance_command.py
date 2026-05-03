@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 from src.adapters.base import CommandContext
 from src.handlers.commands import maintenance_command, COMMAND_HANDLERS

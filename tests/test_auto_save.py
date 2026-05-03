@@ -1,11 +1,9 @@
 
-import asyncio
 import pytest
 import numpy as np
-from io import BytesIO
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from src.models.game_state import ChatConfig, SaveSlotInfo, GameButton
+from src.models.game_state import ChatConfig, GameButton
 from src.handlers.commands import _ensure_game_active
 
 @pytest.mark.asyncio

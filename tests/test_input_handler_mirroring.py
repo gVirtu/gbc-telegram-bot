@@ -1,9 +1,8 @@
 """Tests for InputHandler mirroring behaviour."""
 
-import asyncio
 from io import BytesIO
 import numpy as np
-from unittest.mock import AsyncMock, MagicMock, patch, call
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 

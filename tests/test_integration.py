@@ -56,7 +56,6 @@ class TestEndToEndGameFlow:
                 # Import after mocking
                 from src.handlers.input_handler import InputHandler
                 from src.handlers.commands import start_game_command
-                from src.models.game_state import GameButton
                 
                 # Create mock update and context
                 mock_update = MagicMock()

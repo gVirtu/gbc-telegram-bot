@@ -216,7 +216,7 @@ def build_shop_text(screen: "ShopScreen") -> str:
             - SelectionScreen: returns the resolved prompt string.
             - CategoryListScreen / ItemListScreen: returns the full shop message.
     """
-    from src.shop.flow.screens import CategoryListScreen, ItemListScreen, SelectionScreen
+    from src.shop.flow.screens import ItemListScreen, SelectionScreen
     from src.i18n import translation_manager
     from src.utils.scoring_manager import scoring_manager
 

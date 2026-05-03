@@ -50,7 +50,7 @@ async def capture_avatar_handler(purchase_ctx: ShopPurchaseContext):
     avatar_category = _get_avatar_category()
     if avatar_category is None:
         logger.error(f"User {purchase_ctx.user_id} tried to purchase avatar in chat {purchase_ctx.chat_id} could not find avatar category")
-        return PurchaseComplete(success=False, error_message=f"shop.unknown_error")
+        return PurchaseComplete(success=False, error_message="shop.unknown_error")
         
     target_item = next(
         (item for item in avatar_category.items if item.effect.get("id") and item.effect["id"] == other_trainer_class), 
@@ -59,7 +59,7 @@ async def capture_avatar_handler(purchase_ctx: ShopPurchaseContext):
 
     if target_item is None:
         logger.error(f"User {purchase_ctx.user_id} tried to purchase avatar in chat {purchase_ctx.chat_id} could not find target item (trainer class = {other_trainer_class})")
-        return PurchaseComplete(success=False, error_message=f"shop.unknown_error")
+        return PurchaseComplete(success=False, error_message="shop.unknown_error")
 
     result = shop_manager.purchase(
         purchase_ctx.platform, 

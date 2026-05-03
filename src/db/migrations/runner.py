@@ -2,7 +2,7 @@
 
 import logging
 import sqlite3
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from datetime import datetime
 
 from src.db.connection import DatabaseConnection

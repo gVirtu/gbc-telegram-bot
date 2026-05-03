@@ -6,9 +6,8 @@ frame capture, input injection, and save states.
 
 import pytest
 import numpy as np
-from pathlib import Path
 from io import BytesIO
-from unittest.mock import MagicMock, PropertyMock, patch, mock_open
+from unittest.mock import MagicMock, PropertyMock, patch
 
 from src.game import GameController, GameControllerManager, BUTTON_EVENTS
 from src.models.game_state import GameButton

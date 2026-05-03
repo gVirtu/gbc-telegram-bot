@@ -10,12 +10,10 @@ from PIL import Image, ImageDraw, ImageFont
 from src.game_utils.pkpcrystal.lz import Decompressed
 from src.utils.gbc_graphics import decode_1bpp, decode_2bpp, gbc_color_to_rgba
 from src.utils.frame_utils import draw_text_to_fit
-from src.game_utils.pkpcrystal.charmap import CHARMAP
 from src.game_utils.pkpcrystal.enum import BattleMode, GrowthRate, EXP_PER_LEVEL
 from src.game_utils.pkpcrystal.reader import (
     symbol_read_u8, symbol_read_u16le, symbol_read_u24le,
-    read_u8, read_u16, read_u16le, read_u24le,
-    get_nth_string_addr, decode_text, get_pokemon_name
+    read_u8, read_u16, get_nth_string_addr, decode_text, get_pokemon_name
 )
 from src.game_utils.pkpcrystal.assets import load_pokemon_asset
 
@@ -413,7 +411,7 @@ def _load_icon(name: str, height_px: int) -> Optional[Image.Image]:
 
 def _load_unifont(height_px: int) -> Optional[ImageFont.ImageFont]:
     if height_px not in _unifont_cache:
-        path = f"assets/fonts/unifont-17.0.04.otf"
+        path = "assets/fonts/unifont-17.0.04.otf"
         if not Path(path).exists():
             _unifont_cache[height_px] = None
         else:
@@ -523,7 +521,7 @@ def get_status_bar_data(pyboy) -> dict[str, Any]:
     map_name = _get_map_name(pyboy)
     battle_data = _get_battle_data(pyboy)
     party = []
-    party_count = symbol_read_u8(pyboy, f"wPartyCount")
+    party_count = symbol_read_u8(pyboy, "wPartyCount")
     
     for i in range(1, party_count + 1):
         species = symbol_read_u8(pyboy, f"wPartyMon{i}Species")

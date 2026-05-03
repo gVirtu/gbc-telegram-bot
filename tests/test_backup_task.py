@@ -3,7 +3,6 @@
 import asyncio
 import os
 import pytest
-from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "test_token")

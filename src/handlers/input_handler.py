@@ -8,10 +8,8 @@ multi-user batch animation.
 
 import asyncio
 import logging
-import os
 import uuid
 from datetime import datetime, timedelta
-from io import BytesIO
 from pathlib import Path
 from typing import Optional
 
@@ -29,7 +27,7 @@ from src.keyboard import (
     get_button_from_callback,
     is_valid_button_callback,
 )
-from src.models.game_state import ChatGameState, GameButton, GameSession, ModifierButtonSpec
+from src.models.game_state import ChatGameState, GameButton, GameSession
 from src.models.input_queue import BufferedInput, PendingBuffer
 from src.utils.frame_utils import (  # noqa: F401 (needed for test patching)
     _make_frame_transform,

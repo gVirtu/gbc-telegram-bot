@@ -8,11 +8,11 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from src.models.game_state import ChatConfig, GameButton, ModifierButtonSpec
+    from src.models.game_state import ChatConfig, ModifierButtonSpec
 
 logger = logging.getLogger(__name__)
 

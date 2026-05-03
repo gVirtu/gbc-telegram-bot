@@ -1,7 +1,6 @@
 """Tests for DatabaseManager."""
 import pytest
 from datetime import datetime
-from pathlib import Path
 
 from src.db.manager import DatabaseManager
 from src.models.game_state import ChatConfig, ChatGameState, GameButton
@@ -138,7 +137,6 @@ class TestGameStateOperations:
     
     def test_save_game_state_with_recent_inputs(self, db_manager):
         """Verify recent inputs are queryable via get_recent_inputs_for_overlay."""
-        from datetime import datetime
         state = ChatGameState(chat_id=123)
         db_manager.save_game_state(state)
 

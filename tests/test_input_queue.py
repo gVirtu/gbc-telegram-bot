@@ -1,6 +1,5 @@
 """Tests for buffered input queue data structures."""
 
-import pytest
 from datetime import datetime
 
 from src.models.input_queue import BufferedInput, PendingBuffer

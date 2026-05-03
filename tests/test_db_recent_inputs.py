@@ -1,7 +1,6 @@
 """Tests for append-only recent_inputs log in DatabaseManager."""
 import pytest
 from datetime import datetime, timedelta
-from pathlib import Path
 
 from src.db.manager import DatabaseManager
 from src.models.game_state import ChatGameState

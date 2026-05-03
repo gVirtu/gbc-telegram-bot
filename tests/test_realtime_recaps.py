@@ -1,11 +1,9 @@
 """Tests for realtime_recaps feature."""
 
-import asyncio
 import pytest
 import numpy as np
 from io import BytesIO
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, Mock, patch, call
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from PIL import Image
 
 from src.handlers.commands import recap_command

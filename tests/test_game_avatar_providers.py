@@ -1,5 +1,4 @@
 """Tests for game avatar provider modules."""
-from PIL import Image
 
 
 class TestAvatarProviderModuleLoading:

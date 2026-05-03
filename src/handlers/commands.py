@@ -10,7 +10,7 @@ access to the adapter, chat_id, user_id, user_name, and args.
 import logging
 import time
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional, Dict, Tuple
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from telegram import InlineKeyboardMarkup
@@ -25,7 +25,6 @@ from src.i18n import translation_manager, SUPPORTED_LANGUAGES
 from src.keyboard import create_help_text
 from src.models.game_state import KNOWN_FEATURE_FLAGS
 from src.shop.shop_manager import shop_manager
-from src.shop.items import ShopCategory
 from src.utils.media_cache import load_last_animation
 from src.utils.mirror_utils import broadcast_text, get_leader_chat_id, is_media_only_mirror
 from src.utils.recap_utils import send_recap_to_chat
@@ -1006,7 +1005,7 @@ def parse_telegram_shop_action(callback_data: str) -> "ShopAction | None":
 def render_telegram_shop_screen(screen: "ShopScreen") -> "InlineKeyboardMarkup":
     """Build an InlineKeyboardMarkup from any ShopScreen."""
     from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-    from src.shop.flow.screens import CategoryListScreen, ItemListScreen, SelectionScreen
+    from src.shop.flow.screens import CategoryListScreen, ItemListScreen
     from src.i18n import translation_manager
 
     chat_id = screen.chat_id

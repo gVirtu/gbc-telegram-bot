@@ -1,7 +1,6 @@
 """Tests for deferred-commit behavior in score_input and append_recent_input."""
 
 import sqlite3
-import unittest
 from pathlib import Path
 from unittest.mock import patch
 

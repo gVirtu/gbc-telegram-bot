@@ -236,8 +236,6 @@ class TestDiscordSequenceModalOnSubmit:
         os.environ.setdefault("WEBHOOK_URL", "https://test.example.com")
         os.environ.setdefault("WEBHOOK_SECRET", "test_secret_1234567890")
 
-        from src.adapters.discord import DiscordSequenceModal
-        from src.handlers.input_handler import InputHandler
 
         modal = self._make_modal()
         # Simulate Select returning mapping key

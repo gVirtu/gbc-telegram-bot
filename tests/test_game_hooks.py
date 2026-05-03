@@ -2,7 +2,6 @@
 
 import pytest
 from unittest.mock import MagicMock, patch
-import sys
 
 
 class TestHookModuleLoading:
@@ -148,7 +147,7 @@ class TestIntegration:
     async def test_hooks_loaded_during_init(self, tmp_path):
         """Test that hooks are loaded during GameController initialization."""
         from src.game import GameController
-        from unittest.mock import patch, MagicMock, PropertyMock
+        from unittest.mock import MagicMock, PropertyMock
         import numpy as np
 
         rom_path = tmp_path / "test.gbc"
@@ -175,7 +174,7 @@ class TestIntegration:
     async def test_hooks_not_loaded_for_unknown_game(self, tmp_path):
         """Test that hooks are None for unknown games."""
         from src.game import GameController
-        from unittest.mock import patch, MagicMock, PropertyMock
+        from unittest.mock import MagicMock, PropertyMock
         import numpy as np
 
         rom_path = tmp_path / "test.gbc"
@@ -246,7 +245,7 @@ class TestModifierModuleLoading:
     async def test_modifier_module_loaded_during_init(self, tmp_path):
         """Test that modifier module is loaded during GameController initialization."""
         from src.game import GameController
-        from unittest.mock import patch, MagicMock, PropertyMock
+        from unittest.mock import MagicMock, PropertyMock
         import numpy as np
 
         rom_path = tmp_path / "test.gbc"
@@ -272,7 +271,7 @@ class TestModifierModuleLoading:
     async def test_modifier_module_none_for_unknown_game(self, tmp_path):
         """Test that modifier module is None for unknown games."""
         from src.game import GameController
-        from unittest.mock import patch, MagicMock, PropertyMock
+        from unittest.mock import MagicMock, PropertyMock
         import numpy as np
 
         rom_path = tmp_path / "test.gbc"

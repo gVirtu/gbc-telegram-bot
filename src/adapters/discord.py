@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import io
 import logging
-import time
 from typing import Any, Optional, TYPE_CHECKING
 
 import discord
@@ -183,7 +182,7 @@ class DiscordGameView:
 def render_discord_shop_screen(screen: "ShopScreen") -> Any:
     """Build a discord.ui.View from any ShopScreen."""
     import discord
-    from src.shop.flow.screens import CategoryListScreen, ItemListScreen, SelectionScreen
+    from src.shop.flow.screens import CategoryListScreen, ItemListScreen
     from src.i18n import translation_manager
 
     view = discord.ui.View(timeout=None)

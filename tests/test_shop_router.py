@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, AsyncMock, patch
 
 from src.shop.flow.actions import (
     OpenShop, NavigateCategories, NavigateCategoryItems,
-    BuyItem, MakeSelection, NavigateSelectionPage, Cancel,
+    BuyItem, MakeSelection, Cancel,
 )
 from src.shop.flow.screens import CategoryListScreen, ItemListScreen, SelectionScreen
 from src.shop.flow.handlers import (
@@ -215,7 +215,6 @@ async def test_buy_unknown_item_returns_category_list_screen():
 async def test_buy_item_returns_selection_screen_and_stores_session():
     from src.shop.flow.router import ShopRouter
     from src.shop.flow.session import get_session, clear_session
-    from src.shop.flow.screens import SelectionOption
     router = ShopRouter()
     ctx = _make_ctx()
     cat = _make_category(cat_id="game_shop", items_per_page=5)
@@ -259,7 +258,6 @@ async def test_buy_item_returns_selection_screen_and_stores_session():
 async def test_make_selection_final_step_returns_category_list():
     from src.shop.flow.router import ShopRouter
     from src.shop.flow.session import set_session, get_session
-    from src.shop.flow.handlers import FlowSession
     from src.shop.flow.screens import SelectionOption
     router = ShopRouter()
     ctx = _make_ctx()
@@ -295,8 +293,7 @@ async def test_make_selection_final_step_returns_category_list():
 @pytest.mark.asyncio
 async def test_make_selection_state_accumulates_across_steps():
     from src.shop.flow.router import ShopRouter
-    from src.shop.flow.session import set_session, get_session, clear_session
-    from src.shop.flow.handlers import FlowSession
+    from src.shop.flow.session import set_session
     from src.shop.flow.screens import SelectionOption
     router = ShopRouter()
     ctx = _make_ctx()
@@ -370,7 +367,6 @@ async def test_stale_make_selection_returns_category_list():
 async def test_cancel_clears_session_and_returns_item_list():
     from src.shop.flow.router import ShopRouter
     from src.shop.flow.session import set_session, get_session
-    from src.shop.flow.handlers import FlowSession
     from src.shop.flow.screens import SelectionOption
     router = ShopRouter()
     ctx = _make_ctx()

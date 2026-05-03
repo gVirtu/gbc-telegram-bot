@@ -4,8 +4,6 @@ This module tests the main application setup and helper functions.
 """
 
 import os
-import sys
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 # Set environment variables before importing
@@ -126,9 +124,6 @@ class TestImports:
             handler,
             app,
             logger,
-            setup_webhook,
-            delete_webhook,
-            main,
         )
         
         assert settings is not None

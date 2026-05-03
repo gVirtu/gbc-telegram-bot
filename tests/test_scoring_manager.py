@@ -4,14 +4,13 @@ import os
 import sqlite3
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 
 os.environ["PYTEST_CURRENT_TEST"] = "1"
 
 from src.db.connection import DatabaseConnection
-from src.models.scoring import PlayerProfile, ScoredInput
 from src.utils.scoring_manager import ScoringManager
 
 

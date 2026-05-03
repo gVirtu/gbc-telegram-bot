@@ -6,7 +6,6 @@ user inputs in time-based batches.
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
 
 from src.models.game_state import GameButton
 

@@ -1,8 +1,7 @@
 """Tests for TranslationManager."""
 
 import pytest
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock, PropertyMock
+from unittest.mock import patch, MagicMock, PropertyMock
 
 from src.i18n.translation_manager import TranslationManager, SUPPORTED_LANGUAGES
 from src.models.game_state import ChatConfig

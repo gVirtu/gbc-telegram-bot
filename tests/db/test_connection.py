@@ -1,7 +1,4 @@
 """Tests for database connection management."""
-import sqlite3
-import pytest
-from pathlib import Path
 from src.db.connection import DatabaseConnection, get_db_path
 
 

@@ -1,5 +1,4 @@
 """Tests for GBC graphics decoding utilities."""
-from unittest.mock import MagicMock
 
 from src.utils.gbc_graphics import decode_1bpp, decode_2bpp, gbc_color_to_rgba
 

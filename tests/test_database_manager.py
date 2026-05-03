@@ -1,7 +1,4 @@
 import pytest
-import sqlite3
-import json
-from pathlib import Path
 from datetime import datetime, timezone, timedelta
 
 from src.db.manager import DatabaseManager

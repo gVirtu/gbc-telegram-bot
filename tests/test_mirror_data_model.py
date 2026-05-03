@@ -2,7 +2,6 @@
 
 import sqlite3
 import pytest
-from pathlib import Path
 
 from src.db.manager import DatabaseManager
 from src.models.game_state import ChatConfig

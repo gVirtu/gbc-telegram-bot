@@ -3,7 +3,6 @@
 Tests that custom message text flows from /m command through to displayed messages.
 """
 
-import pytest
 
 from src.keyboard import create_game_message_text
 from src.models.game_state import ChatConfig

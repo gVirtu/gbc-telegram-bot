@@ -1,13 +1,9 @@
 """Integration tests for timelapse system end-to-end (DB-driven)."""
 
 import pytest
-import asyncio
 import numpy as np
-from io import BytesIO
 from pathlib import Path
-from datetime import datetime
 from unittest.mock import Mock, patch, AsyncMock, MagicMock
-from PIL import Image
 
 from src.tasks.timelapse_encoder import TimelapseEncodingQueue, TimelapseEncoder
 from src.db.manager import DatabaseManager

@@ -1,12 +1,10 @@
 """Local media cache for animations."""
 
 import logging
-import wave
 from io import BytesIO
 from pathlib import Path
 from typing import Optional
 
-import numpy as np
 
 from src.config import settings
 

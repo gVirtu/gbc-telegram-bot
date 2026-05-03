@@ -1,7 +1,6 @@
 """Tests for database migration system."""
 import pytest
 import importlib
-from pathlib import Path
 
 
 class TestMigrationDiscovery:

@@ -1,6 +1,5 @@
 """Tests for game modifier button modules."""
 
-import pytest
 from src.models.game_state import GameButton, ModifierButtonSpec
 
 

@@ -9,7 +9,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.handlers.input_handler import InputHandler
-from src.models.game_state import ChatGameState, GameButton, GameSession
+from src.models.game_state import ChatGameState, GameSession
 
 
 @pytest.fixture(autouse=True)

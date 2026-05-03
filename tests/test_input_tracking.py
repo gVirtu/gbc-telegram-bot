@@ -7,7 +7,6 @@ This module tests:
 """
 
 import pytest
-from datetime import datetime
 from unittest.mock import Mock, AsyncMock, MagicMock, patch
 
 from src.models.game_state import ChatGameState, GameButton, GameSession

@@ -334,7 +334,6 @@ class TestGenerateTbcFrames:
         """Test graceful handling when overlay file is missing."""
         from src.utils.frame_utils import generate_tbc_frames
         from src.utils.frame_utils import create_empty_frame
-        from pathlib import Path
         base_frame = create_empty_frame()
         monkeypatch.setattr(Path, 'exists', lambda self: False)
         result = generate_tbc_frames(base_frame, overlay_path=Path("/nonexistent.png"))
@@ -852,7 +851,6 @@ class TestRenderStatusBar:
 
     def test_shape_with_none_data_scale2(self):
         """Returns correct shape (32, 512, 3) when data is None at scale=2."""
-        import numpy as np
         from src.utils.frame_utils import render_status_bar
 
         result = render_status_bar(None, width=512, scale=2)
@@ -861,7 +859,6 @@ class TestRenderStatusBar:
 
     def test_blank_strip_when_data_none(self):
         """Returns a dark strip when data is None (no text rendered)."""
-        import numpy as np
         from src.utils.frame_utils import render_status_bar
 
         result = render_status_bar(None, width=768, scale=3)
@@ -884,7 +881,6 @@ class TestRenderStatusBar:
 
     def test_render_fn(self):
         """Status bar with valid data and a render_fn contains white text pixels."""
-        import numpy as np
         from src.utils.frame_utils import render_status_bar
         
         render_fn = MagicMock()

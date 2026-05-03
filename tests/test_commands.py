@@ -6,7 +6,6 @@ This module tests all bot commands including /start_game, /resume, /print,
 
 import os
 import pytest
-from io import BytesIO
 from unittest.mock import AsyncMock, MagicMock, patch
 
 # Set environment variables before importing
@@ -32,7 +31,6 @@ from src.handlers.commands import (
     _ensure_game_active,
     COMMAND_HANDLERS,
 )
-from src.models.game_state import GameButton
 
 
 def make_ctx(mock_adapter, args=None, chat_id=123456, user_id=456, raw=None):

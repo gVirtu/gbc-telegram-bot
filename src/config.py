@@ -183,7 +183,7 @@ class Settings(BaseSettings):
         default=12,
         description="Maximum number of buttons in a sequence",
         ge=1,
-        le=10,
+        le=100,
     )
     sequence_delay_seconds: float = Field(
         default=0.1,

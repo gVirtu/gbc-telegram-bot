@@ -1,7 +1,6 @@
 """Tests for frame_utils overlay functions: render_input_sidebar and composite_overlay."""
 
 import numpy as np
-import pytest
 from pathlib import Path
 
 from PIL import Image, ImageDraw

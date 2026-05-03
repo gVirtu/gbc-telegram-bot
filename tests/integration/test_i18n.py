@@ -2,7 +2,6 @@
 
 import os
 import pytest
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 # Set environment variables before importing
@@ -13,7 +12,7 @@ os.environ["WEBHOOK_SECRET"] = "test_secret_1234567890"
 from src.db.manager import DatabaseManager
 from src.models.game_state import ChatConfig
 from src.i18n.translation_manager import TranslationManager
-from src.handlers.commands import language_command, save_command
+from src.handlers.commands import language_command
 
 
 @pytest.fixture

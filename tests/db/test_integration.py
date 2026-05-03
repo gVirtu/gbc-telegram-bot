@@ -1,9 +1,7 @@
 """Integration tests for the complete migration system."""
 
 import pytest
-import sqlite3
 import importlib
-from pathlib import Path
 from datetime import datetime
 
 
@@ -68,7 +66,6 @@ class TestFullMigrationWorkflow:
     def test_migration_applied_timestamp_recorded(self, tmp_path):
         """Verify migration timestamps are recorded."""
         from src.db.connection import DatabaseConnection
-        from src.db.migrations.runner import MigrationRunner
         
         db_path = tmp_path / "test.db"
         conn = DatabaseConnection(db_path)

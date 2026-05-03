@@ -2,8 +2,7 @@
 
 import pytest
 from datetime import datetime
-from pathlib import Path
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import Mock, AsyncMock, patch
 
 from src.handlers.commands import recap_command, gif_command, _send_no_gameplay_message
 

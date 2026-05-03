@@ -464,7 +464,7 @@ def test_max_queue_size_default():
         webhook_secret="test_secret_1234567890",
     )
 
-    assert settings.max_queue_size == 10
+    assert settings.max_queue_size == 18
 
 def test_max_queue_size_custom():
     """Test max_queue_size accepts custom values."""
@@ -517,7 +517,7 @@ class TestBufferedQueueSettings:
         s = Settings(**base_kwargs)
         assert s.input_buffer_seconds == 1.5
         assert s.maximum_inputs_per_animation == 8
-        assert s.min_update_interval_seconds == 5.0
+        assert s.min_update_interval_seconds == 3.0
 
     def test_env_override(self, monkeypatch, base_kwargs):
         """Settings can be overridden via environment variables."""
@@ -559,16 +559,16 @@ class TestRecentInputsRetentionSettings:
             webhook_secret="test_secret_1234567890",
         )
 
-    def test_default_is_two(self, base_kwargs):
-        """recent_inputs_max_retention_days defaults to 2."""
+    def test_default_value(self, base_kwargs):
+        """recent_inputs_max_retention_days defaults."""
         s = Settings(**base_kwargs)
-        assert s.recent_inputs_max_retention_days == 2
+        assert s.recent_inputs_max_retention_days == 7
 
     def test_env_var_override(self, monkeypatch, base_kwargs):
         """RECENT_INPUTS_MAX_RETENTION_DAYS env var is parsed correctly."""
-        monkeypatch.setenv("RECENT_INPUTS_MAX_RETENTION_DAYS", "7")
+        monkeypatch.setenv("RECENT_INPUTS_MAX_RETENTION_DAYS", "14")
         s = Settings(**base_kwargs)
-        assert s.recent_inputs_max_retention_days == 7
+        assert s.recent_inputs_max_retention_days == 14
 
     def test_zero_is_valid(self, base_kwargs):
         """Value 0 is accepted (disables purge)."""

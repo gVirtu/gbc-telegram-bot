@@ -3,7 +3,6 @@ import os
 os.environ.setdefault("PYTEST_CURRENT_TEST", "1")
 
 import sqlite3
-import pytest
 from src.shop.shop_manager import ShopManager
 from src.shop.items import ShopItem
 

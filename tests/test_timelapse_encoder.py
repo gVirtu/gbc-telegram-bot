@@ -1,13 +1,10 @@
 """Tests for timelapse encoder functionality."""
 
-import json
 import os
 import pytest
 import numpy as np
-from io import BytesIO
 from pathlib import Path
-from datetime import datetime
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import patch, AsyncMock
 from PIL import Image
 
 from src.tasks.timelapse_encoder import TimelapseEncoder

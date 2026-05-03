@@ -1,7 +1,6 @@
 """Tests for game status bar module loading and data retrieval."""
 
-import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 
 class TestStatusBarModuleLoading:

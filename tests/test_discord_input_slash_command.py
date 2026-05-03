@@ -7,7 +7,7 @@ os.environ.setdefault("TELEGRAM_BOT_TOKEN", "test_token")
 os.environ.setdefault("WEBHOOK_URL", "https://test.example.com")
 os.environ.setdefault("WEBHOOK_SECRET", "test_secret_1234567890")
 
-from src.models.game_state import GameButton, GameSession, ChatGameState
+from src.models.game_state import GameSession, ChatGameState
 
 
 def _make_interaction(channel_id: int = 100, user_id: int = 999, user_name: str = "Alice"):

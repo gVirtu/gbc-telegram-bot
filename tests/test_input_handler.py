@@ -8,7 +8,6 @@ import asyncio
 import os
 import pytest
 import numpy as np
-from datetime import datetime
 from io import BytesIO
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -17,11 +16,9 @@ os.environ["TELEGRAM_BOT_TOKEN"] = "test_token"
 os.environ["WEBHOOK_URL"] = "https://test.example.com"
 os.environ["WEBHOOK_SECRET"] = "test_secret_1234567890"
 
-from telegram.error import TelegramError
 
 from src.handlers.input_handler import (
     InputHandler,
-    InputHandlerError,
     get_input_handler,
 )
 from src.models.game_state import ChatGameState, GameButton, GameSession

@@ -1,11 +1,8 @@
 """Tests for src/utils/media_cache.py."""
 
-import wave
 from io import BytesIO
 from unittest.mock import patch
 
-import numpy as np
-import pytest
 
 from src.utils.media_cache import save_last_animation, load_last_animation
 

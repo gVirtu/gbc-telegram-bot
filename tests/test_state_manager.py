@@ -4,14 +4,11 @@ This module tests file-based persistence including game state,
 configuration, and save slots.
 """
 
-import json
-import shutil
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
-from src.models.game_state import ChatConfig, ChatGameState, GameButton, SaveSlotInfo, TimelapseJobRow
+from src.models.game_state import ChatConfig, ChatGameState, GameButton
 from src.utils.state_manager import StateManager
 
 

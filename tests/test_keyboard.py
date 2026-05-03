@@ -1,7 +1,6 @@
 """Tests for keyboard layouts."""
 
-import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import src.config as _cfg
 from src.keyboard import (

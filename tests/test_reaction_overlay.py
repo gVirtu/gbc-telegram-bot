@@ -3,9 +3,7 @@
 import os
 os.environ.setdefault("PYTEST_CURRENT_TEST", "1")
 
-from pathlib import Path
 import numpy as np
-import pytest
 from PIL import Image
 
 from src.utils.frame_utils import apply_reaction_overlay

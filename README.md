@@ -2,7 +2,7 @@
 
 ### 🌐 [Live demos - Click here](https://linktr.ee/polishedcrystaltogether)
 
-![demo](https://github.com/user-attachments/assets/f5bcc560-0973-4f12-94f6-13954a99516d)
+![demo](https://raw.githubusercontent.com/gVirtu/gbc-together-bot/refs/heads/main/assets/demo.gif)
 
 Play GBC games collaboratively in Telegram chats or Discord servers, completely inline, without cluttering chat history.
 

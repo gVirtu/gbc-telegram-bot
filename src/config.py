@@ -158,7 +158,7 @@ class Settings(BaseSettings):
         description="Days to keep backups before purging (BACKUP_RETENTION_DAYS env var)",
     )
     recent_inputs_max_retention_days: int = Field(
-        default=2,
+        default=7,
         ge=0,
         description="Days to retain recent_inputs rows for overlay; 0 disables purge (RECENT_INPUTS_MAX_RETENTION_DAYS env var)",
     )
@@ -180,7 +180,7 @@ class Settings(BaseSettings):
 
     # Sequence input settings
     max_sequence_length: int = Field(
-        default=6,
+        default=12,
         description="Maximum number of buttons in a sequence",
         ge=1,
         le=10,
@@ -192,7 +192,7 @@ class Settings(BaseSettings):
         le=5.0,
     )
     max_queue_size: int = Field(
-        default=10,
+        default=18,
         description="Maximum number of items in the input queue",
         ge=1,
         le=50,
@@ -212,7 +212,7 @@ class Settings(BaseSettings):
         le=50,
     )
     min_update_interval_seconds: float = Field(
-        default=5.0,
+        default=3.0,
         description="Minimum seconds between message edits to avoid rate limits",
         ge=1.0,
         le=60.0,

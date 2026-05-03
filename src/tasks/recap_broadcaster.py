@@ -38,7 +38,7 @@ async def run_recap_broadcast_loop() -> None:
 
 async def _run_broadcast_cycle() -> None:
     """Run one broadcast cycle: send unsent recap parts to all opted-in chats."""
-    yesterday = (datetime.utcnow() - timedelta(days=1)).strftime("%Y%m%d")
+    yesterday = (datetime.utcnow() - timedelta(hours=23)).strftime("%Y%m%d")
     leader_ids = state_manager.get_leaders_with_flag("auto_send_recaps")
     logger.info(f"Recap broadcast cycle: {len(leader_ids)} opted-in leader(s) for date {yesterday}")
 
@@ -48,7 +48,7 @@ async def _run_broadcast_cycle() -> None:
 
         unsent_parts = await state_manager.get_unsent_recap_parts(leader_id, yesterday, is_rt)
         if not unsent_parts:
-            logger.debug(f"No unsent recap parts for leader {leader_id}, date {yesterday}; skipping")
+            logger.info(f"No unsent recap parts for leader {leader_id}, date {yesterday}; skipping")
             continue
 
         mirror_ids = state_manager.get_mirror_chat_ids(leader_id)

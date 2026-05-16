@@ -79,7 +79,7 @@ class TestBaseScore:
         with patch("src.utils.scoring_manager.settings") as mock_settings:
             mock_settings.player_input_max_score = 10
             mock_settings.daily_streak_score_bonus = 0
-            scored = manager.score_input("telegram", 1, 100, "a", f"{_today()}T00:00:00+00:00")
+            scored = manager.score_input("telegram", 1, 100, "a")
         assert scored.base_score == 10
 
     def test_same_user_inputs_reduce_score(self, manager, db_conn):
@@ -88,7 +88,7 @@ class TestBaseScore:
         with patch("src.utils.scoring_manager.settings") as mock_settings:
             mock_settings.player_input_max_score = 10
             mock_settings.daily_streak_score_bonus = 0
-            scored = manager.score_input("telegram", 1, 100, "a", f"{_today()}T00:00:00+00:00")
+            scored = manager.score_input("telegram", 1, 100, "a")
         assert scored.base_score == 10 - 3
 
     def test_score_never_goes_below_1(self, manager, db_conn):
@@ -97,7 +97,7 @@ class TestBaseScore:
         with patch("src.utils.scoring_manager.settings") as mock_settings:
             mock_settings.player_input_max_score = 10
             mock_settings.daily_streak_score_bonus = 0
-            scored = manager.score_input("telegram", 1, 100, "a", f"{_today()}T00:00:00+00:00")
+            scored = manager.score_input("telegram", 1, 100, "a")
         assert scored.base_score == 1
 
     def test_eleven_inputs_in_a_row(self, manager, db_conn):
@@ -111,7 +111,7 @@ class TestBaseScore:
             mock_settings.daily_streak_score_bonus = 0
             for i in range(11):
                 ts = f"{_today()}T00:00:{i:02d}+00:00"
-                scored = manager.score_input("telegram", 1, chat_id, "a", ts)
+                scored = manager.score_input("telegram", 1, chat_id, "a")
                 scores.append(scored.base_score)
                 # Simulate what append_recent_input does: insert the row
                 db_conn.execute(
@@ -127,7 +127,7 @@ class TestBaseScore:
         with patch("src.utils.scoring_manager.settings") as mock_settings:
             mock_settings.player_input_max_score = 10
             mock_settings.daily_streak_score_bonus = 0
-            scored = manager.score_input("telegram", 1, 100, "a", f"{_today()}T00:00:00+00:00")
+            scored = manager.score_input("telegram", 1, 100, "a")
         assert scored.base_score == 10
 
 
@@ -140,7 +140,7 @@ class TestStreakLogic:
         with patch("src.utils.scoring_manager.settings") as mock_settings:
             mock_settings.player_input_max_score = 10
             mock_settings.daily_streak_score_bonus = 50
-            scored = manager.score_input("telegram", 42, 100, "a", f"{_today()}T00:00:00+00:00")
+            scored = manager.score_input("telegram", 42, 100, "a")
         assert scored.streak_bonus == 50
         profile = manager.get_player_profile("telegram", 42)
         assert profile.current_streak == 1
@@ -151,8 +151,8 @@ class TestStreakLogic:
         with patch("src.utils.scoring_manager.settings") as mock_settings:
             mock_settings.player_input_max_score = 10
             mock_settings.daily_streak_score_bonus = 50
-            manager.score_input("telegram", 42, 100, "a", ts)
-            scored2 = manager.score_input("telegram", 42, 100, "b", f"{_today()}T01:00:00+00:00")
+            manager.score_input("telegram", 42, 100, "a")
+            scored2 = manager.score_input("telegram", 42, 100, "b")
         assert scored2.streak_bonus == 0
         profile = manager.get_player_profile("telegram", 42)
         assert profile.current_streak == 1
@@ -172,7 +172,7 @@ class TestStreakLogic:
                 ("telegram", 42, 60, 0, 1, 1, _yesterday(), yesterday_ts),
             )
             manager._conn.commit()
-            scored = manager.score_input("telegram", 42, 100, "a", today_ts)
+            scored = manager.score_input("telegram", 42, 100, "a")
         assert scored.streak_bonus == 2 * 50  # streak 2 × 50
         profile = manager.get_player_profile("telegram", 42)
         assert profile.current_streak == 2
@@ -191,7 +191,7 @@ class TestStreakLogic:
                 ("telegram", 42, 110, 0, 2, 2, _two_days_ago(), old_ts),
             )
             manager._conn.commit()
-            scored = manager.score_input("telegram", 42, 100, "a", today_ts)
+            scored = manager.score_input("telegram", 42, 100, "a")
         assert scored.streak_bonus == 1 * 50
         profile = manager.get_player_profile("telegram", 42)
         assert profile.current_streak == 1
@@ -211,11 +211,40 @@ class TestStreakLogic:
                 ("telegram", 42, 0, 0, 5, 5, _yesterday(), yesterday_ts),
             )
             manager._conn.commit()
-            manager.score_input("telegram", 42, 100, "a", today_ts)
+            manager.score_input("telegram", 42, 100, "a")
         profile = manager.get_player_profile("telegram", 42)
         assert profile.current_streak == 6
         assert profile.best_streak == 6
         assert profile.best_streak_date == _today()
+
+    def test_streak_only_increments_once_across_midnight_with_queued_inputs(self, manager):
+        """Queued inputs from yesterday processed after midnight must not inflate streak."""
+        from datetime import date, datetime, timezone
+        # Pre-set a profile: streak=5, last_input_at=yesterday at 23:59
+        manager._conn.execute(
+            """INSERT INTO user_player_profiles
+               (platform, user_id, total_score_earned, total_score_spent,
+                current_streak, best_streak, best_streak_date, last_input_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?);""",
+            ("telegram", 42, 500, 0, 5, 5, "2026-01-01", "2026-01-01T23:59:00+00:00"),
+        )
+        manager._conn.commit()
+        with patch("src.utils.scoring_manager.settings") as s:
+            s.player_input_max_score = 10
+            s.daily_streak_score_bonus = 50
+            with patch("src.utils.scoring_manager.datetime") as mock_dt:
+                # Processing happens after midnight on the new day
+                mock_dt.now.return_value = datetime(2026, 1, 2, 0, 0, 1, tzinfo=timezone.utc)
+                mock_dt.fromisoformat = datetime.fromisoformat
+                for i in range(3):
+                    ts = f"2026-01-01T23:59:{i:02d}+00:00"  # all timestamps from yesterday
+                    scored = manager.score_input("telegram", 42, 100, "a")
+
+        profile = manager.get_player_profile("telegram", 42)
+        assert profile.current_streak == 6, (
+            f"Expected streak=6 (only one increment for crossing midnight)"
+            f" but got {profile.current_streak}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -228,9 +257,9 @@ class TestTotalScoreEarned:
         with patch("src.utils.scoring_manager.settings") as mock_settings:
             mock_settings.player_input_max_score = 10
             mock_settings.daily_streak_score_bonus = 50
-            s1 = manager.score_input("telegram", 1, 100, "a", today_ts)
+            s1 = manager.score_input("telegram", 1, 100, "a")
             # same day, no streak bonus
-            s2 = manager.score_input("telegram", 1, 100, "b", f"{_today()}T00:01:00+00:00")
+            s2 = manager.score_input("telegram", 1, 100, "b")
         profile = manager.get_player_profile("telegram", 1)
         assert profile.total_score_earned == s1.total_score + s2.total_score
 
@@ -243,7 +272,7 @@ class TestErrorResilience:
     def test_db_failure_returns_zero_scores(self, manager):
         """Any DB error produces a zero-score ScoredInput so gameplay continues."""
         with patch.object(manager._conn, "execute", side_effect=RuntimeError("db gone")):
-            scored = manager.score_input("telegram", 1, 100, "a", f"{_today()}T00:00:00+00:00")
+            scored = manager.score_input("telegram", 1, 100, "a")
         assert scored.base_score == 0
         assert scored.streak_bonus == 0
         assert scored.total_score == 0
@@ -285,7 +314,7 @@ class TestPlayerProfileNameTagColor:
         with patch("src.utils.scoring_manager.settings") as s:
             s.player_input_max_score = 5
             s.daily_streak_score_bonus = 10
-            manager.score_input("telegram", 1, 1, "a", "2026-01-01T00:00:00")
+            manager.score_input("telegram", 1, 1, "a")
         profile = manager.get_player_profile("telegram", 1)
         assert profile is not None
         assert profile.name_tag_color == "#FFFFFF"
@@ -299,31 +328,31 @@ class TestScoredInputCurrentStreak:
         with patch("src.utils.scoring_manager.settings") as s:
             s.player_input_max_score = 5
             s.daily_streak_score_bonus = 10
-            result = manager.score_input("telegram", 99, 99, "a", "2026-01-01T00:00:00")
+            result = manager.score_input("telegram", 99, 99, "a")
         assert result.current_streak == 1
 
     def test_next_day_scored_input_increments_streak(self, manager):
-        from datetime import date
+        from datetime import datetime, timezone
         _ensure_game_state(manager._conn, chat_id=100)
-        day1 = date(2026, 1, 1)
-        day2 = date(2026, 1, 2)
+        day1_dt = datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+        day2_dt = datetime(2026, 1, 2, 0, 0, 0, tzinfo=timezone.utc)
         with patch("src.utils.scoring_manager.settings") as s:
             s.player_input_max_score = 5
             s.daily_streak_score_bonus = 10
             with patch("src.utils.scoring_manager.datetime") as mock_dt:
-                mock_dt.now.return_value.date.return_value = day1
+                mock_dt.now.return_value = day1_dt
                 mock_dt.fromisoformat = datetime.fromisoformat
-                manager.score_input("telegram", 100, 100, "a", "2026-01-01T00:00:00")
+                manager.score_input("telegram", 100, 100, "a")
             with patch("src.utils.scoring_manager.datetime") as mock_dt:
-                mock_dt.now.return_value.date.return_value = day2
+                mock_dt.now.return_value = day2_dt
                 mock_dt.fromisoformat = datetime.fromisoformat
-                result = manager.score_input("telegram", 100, 100, "b", "2026-01-02T00:00:00")
+                result = manager.score_input("telegram", 100, 100, "b")
         assert result.current_streak == 2
 
     def test_error_fallback_has_streak_0(self, manager):
         """score_input fallback on error returns current_streak=0."""
         with patch.object(manager, "_score_input_unsafe", side_effect=Exception("fail")):
-            result = manager.score_input("telegram", 1, 1, "a", "2026-01-01T00:00:00")
+            result = manager.score_input("telegram", 1, 1, "a")
         assert result.current_streak == 0
 
 
@@ -384,7 +413,6 @@ def test_score_input_persists_user_name(manager, db_conn):
         user_id=42,
         chat_id=1,
         button="a",
-        timestamp="2026-04-12T10:00:00",
         user_name="Alice",
     )
     cursor = db_conn.execute(
@@ -399,11 +427,11 @@ def test_score_input_updates_user_name(manager, db_conn):
     _ensure_game_state(db_conn, chat_id=1)
     manager.score_input(
         platform="telegram", user_id=42, chat_id=1,
-        button="a", timestamp="2026-04-12T10:00:00", user_name="OldName",
+        button="a", user_name="OldName",
     )
     manager.score_input(
         platform="telegram", user_id=42, chat_id=1,
-        button="b", timestamp="2026-04-12T10:01:00", user_name="NewName",
+        button="b", user_name="NewName",
     )
     cursor = db_conn.execute(
         "SELECT user_name FROM user_player_profiles WHERE user_id = 42;"

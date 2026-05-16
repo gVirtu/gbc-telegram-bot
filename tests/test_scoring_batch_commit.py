@@ -56,7 +56,7 @@ class TestScoreInputDeferredCommit:
         with patch("src.utils.scoring_manager.settings") as s:
             s.player_input_max_score = 5
             s.daily_streak_score_bonus = 10
-            manager.score_input("telegram", 1, 100, "A", "2026-01-01T00:00:00")
+            manager.score_input("telegram", 1, 100, "A")
 
         ext = _second_conn(db_path)
         rows = ext.execute(
@@ -70,7 +70,7 @@ class TestScoreInputDeferredCommit:
         with patch("src.utils.scoring_manager.settings") as s:
             s.player_input_max_score = 5
             s.daily_streak_score_bonus = 10
-            manager.score_input("telegram", 2, 101, "B", "2026-01-01T00:00:00", commit=False)
+            manager.score_input("telegram", 2, 101, "B", commit=False)
 
         ext = _second_conn(db_path)
         rows = ext.execute(
@@ -85,7 +85,7 @@ class TestScoreInputDeferredCommit:
             s.player_input_max_score = 5
             s.daily_streak_score_bonus = 10
             for i in range(3):
-                manager.score_input("telegram", 3, 102, "A", f"2026-01-01T00:0{i}:00", commit=False)
+                manager.score_input("telegram", 3, 102, "A", commit=False)
 
         manager._conn.commit()
 
@@ -104,7 +104,7 @@ class TestScoreInputDeferredCommit:
             s.player_input_max_score = 5
             s.daily_streak_score_bonus = 0
             for i in range(3):
-                scored = manager.score_input("telegram", 4, 103, "A", f"2026-01-01T00:0{i}:00", commit=False)
+                scored = manager.score_input("telegram", 4, 103, "A", commit=False)
                 # Insert into recent_inputs so diversity window grows
                 manager._conn.execute(
                     "INSERT INTO recent_inputs (chat_id, user_id, user_name, button, timestamp) VALUES (103, 4, 'u', 'A', ?);",

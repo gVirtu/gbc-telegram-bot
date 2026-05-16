@@ -37,7 +37,6 @@ class ScoringManager:
         user_id: int,
         chat_id: int,
         button: str,
-        timestamp: str,
         user_name: str = "",
         commit: bool = True,
     ) -> ScoredInput:
@@ -48,7 +47,6 @@ class ScoringManager:
             user_id: Platform user ID
             chat_id: Chat/channel ID
             button: Button value string
-            timestamp: ISO-format UTC timestamp of the input
             commit: Whether to commit after writing. Pass False when the caller
                 will issue a batched commit after processing multiple inputs.
 
@@ -56,7 +54,7 @@ class ScoringManager:
             ScoredInput with computed scores (all zeros on error)
         """
         try:
-            return self._score_input_unsafe(platform, user_id, chat_id, button, timestamp, user_name=user_name, commit=commit)
+            return self._score_input_unsafe(platform, user_id, chat_id, button, user_name=user_name, commit=commit)
         except Exception as e:
             logger.error(f"score_input failed for user {user_id} in chat {chat_id}: {e}")
             return ScoredInput(
@@ -131,12 +129,13 @@ class ScoringManager:
         user_id: int,
         chat_id: int,
         button: str,
-        timestamp: str,
         user_name: str = "",
         commit: bool = True,
     ) -> ScoredInput:
         max_score = settings.player_input_max_score
         streak_bonus_per_day = settings.daily_streak_score_bonus
+
+        now_utc = datetime.now(timezone.utc)
 
         # --- Base score: diversity window ---
         cursor = self._conn.execute(
@@ -152,7 +151,7 @@ class ScoringManager:
 
         # --- Streak logic ---
         profile = self.get_player_profile(platform, user_id)
-        today_utc = datetime.now(timezone.utc).date()
+        today_utc = now_utc.date()
 
         if profile is None:
             # Brand new player
@@ -214,7 +213,7 @@ class ScoringManager:
                 current_streak,
                 best_streak,
                 best_streak_date,
-                timestamp,
+                now_utc.isoformat(),
             ),
         )
         if commit:

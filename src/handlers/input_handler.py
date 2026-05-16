@@ -642,7 +642,6 @@ class InputHandler:
                     user_id=bi.user_id,
                     chat_id=chat_id,
                     button=bi.button.value,
-                    timestamp=bi.received_at.isoformat(),
                     user_name=bi.user_name,
                     commit=False,
                 )

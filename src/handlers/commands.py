@@ -1185,6 +1185,85 @@ async def shop_command(ctx: CommandContext) -> None:
     await _show_shop(ctx, source_chat_id, page=0)
 
 
+async def peek_symbol_command(ctx: CommandContext) -> None:
+    """Handle /peek_symbol command.
+
+    Reads bytes from memory at a given symbol address. Admin only.
+    Usage: /peek_symbol <symbol> <length=1>
+    """
+    is_allowed, error_msg = await check_admin_permission(ctx)
+    if not is_allowed:
+        await ctx.adapter.send_text(ctx.chat_id, error_msg)
+        return
+
+    chat_id = ctx.chat_id
+    leader_id = get_leader_chat_id(chat_id)
+
+    if leader_id != chat_id:
+        await ctx.adapter.send_text(chat_id, translation_manager.get("commands.error_mirror_only_leader", chat_id))
+        return
+
+    if not ctx.args:
+        usage = translation_manager.get("commands.peek_symbol.usage", chat_id)
+        await ctx.adapter.send_text(chat_id, usage)
+        return
+
+    symbol = ctx.args[0]
+
+    length = 1
+    if len(ctx.args) > 1:
+        try:
+            length = int(ctx.args[1])
+        except ValueError:
+            error_msg = translation_manager.get("commands.peek_symbol.invalid_length", chat_id)
+            await ctx.adapter.send_text(chat_id, error_msg)
+            return
+        if length <= 0:
+            error_msg = translation_manager.get("commands.peek_symbol.length_positive", chat_id)
+            await ctx.adapter.send_text(chat_id, error_msg)
+            return
+
+    controller = game_controller_manager.get_controller(leader_id)
+    if not controller or not controller.is_initialized():
+        error_msg = translation_manager.get("game.no_active_game", chat_id)
+        await ctx.adapter.send_text(chat_id, error_msg)
+        return
+
+    if controller.sym_path is None:
+        error_msg = translation_manager.get("commands.peek_symbol.no_symbols", chat_id)
+        await ctx.adapter.send_text(chat_id, error_msg)
+        return
+
+    pyboy = controller.pyboy
+    try:
+        bank, addr = pyboy.symbol_lookup(symbol)
+    except Exception:
+        error_msg = translation_manager.get(
+            "commands.peek_symbol.symbol_not_found", chat_id, symbol=symbol
+        )
+        await ctx.adapter.send_text(chat_id, error_msg)
+        return
+
+    try:
+        if length == 1:
+            values = [pyboy.memory[bank, addr]]
+        else:
+            values = list(pyboy.memory[bank, addr:addr + length])
+    except Exception as e:
+        logger.error(f"Failed to read memory for symbol {symbol}: {e}")
+        error_msg = translation_manager.get(
+            "commands.peek_symbol.read_error", chat_id, symbol=symbol
+        )
+        await ctx.adapter.send_text(chat_id, error_msg)
+        return
+
+    hex_str = " ".join(f"{v:02x}" for v in values)
+    response = translation_manager.get(
+        "commands.peek_symbol.success", chat_id, symbol=symbol, length=length, bytes=hex_str
+    )
+    await ctx.adapter.send_text(chat_id, response)
+
+
 # Command handlers dictionary
 COMMAND_HANDLERS = {
     "start": start_command,
@@ -1204,4 +1283,5 @@ COMMAND_HANDLERS = {
     "mirror": mirror_command,
     "feature": feature_command,
     "shop": shop_command,
+    "peek_symbol": peek_symbol_command,
 }

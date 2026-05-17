@@ -102,6 +102,15 @@
       "invalid_value": "O valor deve ser 'true' ou 'false'.",
       "enabled": "Feature '{flag}' ativada.",
       "disabled": "Feature '{flag}' desativada."
+    },
+    "peek_symbol": {
+      "success": "{symbol} ({length}) = {bytes}",
+      "symbol_not_found": "{symbol} não é um símbolo válido.",
+      "invalid_length": "O comprimento deve ser um número. Uso: /peek_symbol <symbol> <length=1>",
+      "length_positive": "O comprimento deve ser positivo. Uso: /peek_symbol <symbol> <length=1>",
+      "no_symbols": "Nenhuma tabela de símbolos carregada.",
+      "read_error": "Falha ao ler memória no símbolo {symbol}.",
+      "usage": "Uso: /peek_symbol <symbol> <length=1>"
     }
   },
   "permissions": {
@@ -181,7 +190,7 @@
     "player_commands_title": "\n*Comandos do jogador:*\n",
     "player_commands": "/resume - Retoma o jogo em uma nova mensagem\n/print - Captura a tela atual e envia na conversa\n/recap - Envia o último trecho de animação novamente\n/status - Mostra algumas informações de status\n/help - Mostra esta mensagem de ajuda",
     "admin_commands_title": "\n\n\n*Comandos do administrador:*\n",
-    "admin_commands": "/start\\_game - Inicia ou reinicia o jogo\n/save [slot] - Salva o jogo em um slot\n/load [slot] - Carrega o jogo de um slot\n/m [texto] - Define mensagem personalizada (sem texto = volta ao padrão)",
+    "admin_commands": "/start\\_game - Inicia ou reinicia o jogo\n/save [slot] - Salva o jogo em um slot\n/load [slot] - Carrega o jogo de um slot\n/m [texto] - Define mensagem personalizada (sem texto = volta ao padrão)\n/peek\\_symbol <symbol> [length=1] - Lê bytes hexadecimais do endereço de um símbolo",
     "button_descriptions": {
       "up": "Mover para cima",
       "down": "Mover para baixo",

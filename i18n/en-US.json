@@ -102,6 +102,15 @@
       "invalid_value": "Value must be 'true' or 'false'.",
       "enabled": "Feature '{flag}' enabled.",
       "disabled": "Feature '{flag}' disabled."
+    },
+    "peek_symbol": {
+      "success": "{symbol} ({length}) = {bytes}",
+      "symbol_not_found": "{symbol} is not a valid symbol.",
+      "invalid_length": "Length must be a number. Usage: /peek_symbol <symbol> <length=1>",
+      "length_positive": "Length must be positive. Usage: /peek_symbol <symbol> <length=1>",
+      "no_symbols": "No symbol table is loaded.",
+      "read_error": "Failed to read memory at symbol {symbol}.",
+      "usage": "Usage: /peek_symbol <symbol> <length=1>"
     }
   },
   "permissions": {
@@ -181,7 +190,7 @@
     "player_commands_title": "\n*Player commands:*\n",
     "player_commands": "/resume - Resumes the game in a new message\n/print - Captures the current screen and sends it to the chat\n/recap - Sends the last animation clip again\n/status - Shows some status information\n/help - Shows this help message",
     "admin_commands_title": "\n\n\n*Administrator commands:*\n",
-    "admin_commands": "/start\\_game - Starts or restarts the game\n/save [slot] - Saves the game to a slot\n/load [slot] - Loads the game from a slot\n/m [text] - Sets custom message (no text = revert to default)",
+    "admin_commands": "/start\\_game - Starts or restarts the game\n/save [slot] - Saves the game to a slot\n/load [slot] - Loads the game from a slot\n/m [text] - Sets custom message (no text = revert to default)\n/peek\\_symbol <symbol> [length=1] - Reads hex bytes from a symbol's address",
     "button_descriptions": {
       "up": "Move up",
       "down": "Move down",

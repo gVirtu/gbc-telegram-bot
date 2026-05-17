@@ -28,6 +28,7 @@ from src.handlers.commands import (
     message_command,
     language_command,
     start_command,
+    peek_symbol_command,
     _ensure_game_active,
     COMMAND_HANDLERS,
 )
@@ -1340,3 +1341,229 @@ class TestStartCommandHelp:
         ctx = make_ctx(mock_adapter, args=[], user_id=1005)
         await start_command(ctx)
         mock_adapter.send_text.assert_not_called()
+
+
+class TestPeekSymbolCommand:
+    """Test /peek_symbol command."""
+
+    def _setup_active_game(self, mock_mgr, symbol_addr=(0, 0xC000)):
+        """Set up an active game controller with symbols loaded."""
+        mock_controller = MagicMock()
+        mock_controller.is_initialized.return_value = True
+        mock_controller.sym_path = MagicMock()  # symbols are loaded
+        mock_controller.pyboy.symbol_lookup.return_value = symbol_addr
+        mock_mgr.get_controller.return_value = mock_controller
+        return mock_controller
+
+    @pytest.mark.asyncio
+    async def test_peek_symbol_non_admin_blocked(self, mock_adapter):
+        """Non-admin in group gets permission error."""
+        ctx = make_ctx(mock_adapter, args=["wOTPartyCount"])
+        ctx.adapter.is_admin = AsyncMock(return_value=False)
+
+        with patch("src.handlers.commands.settings") as mock_settings:
+            mock_settings.allowed_chat_ids = []
+
+            await peek_symbol_command(ctx)
+
+            mock_adapter.send_text.assert_called_once()
+            call_text = mock_adapter.send_text.call_args[0][1]
+            assert "admin" in call_text.lower() or "administrator" in call_text.lower()
+
+    @pytest.mark.asyncio
+    async def test_peek_symbol_in_command_handlers(self):
+        """Test that 'peek_symbol' is registered in COMMAND_HANDLERS."""
+        assert "peek_symbol" in COMMAND_HANDLERS
+        assert COMMAND_HANDLERS["peek_symbol"] == peek_symbol_command
+
+    @pytest.mark.asyncio
+    async def test_peek_symbol_no_args(self, mock_adapter, mock_ctx):
+        """No args shows usage."""
+        with patch("src.handlers.commands.settings") as mock_settings:
+            mock_settings.allowed_chat_ids = []
+
+            await peek_symbol_command(mock_ctx)
+
+            mock_adapter.send_text.assert_called_once()
+            call_text = mock_adapter.send_text.call_args[0][1]
+            assert "Usage" in call_text or "Uso" in call_text
+
+    @pytest.mark.asyncio
+    async def test_peek_symbol_mirror_chat(self, mock_adapter):
+        """Mirror chat gets leader-only error."""
+        ctx = make_ctx(mock_adapter, args=["wOTPartyCount"], chat_id=20)
+
+        with patch("src.handlers.commands.get_leader_chat_id", return_value=10):
+            with patch("src.handlers.commands.settings") as mock_settings:
+                mock_settings.allowed_chat_ids = []
+
+                await peek_symbol_command(ctx)
+
+                mock_adapter.send_text.assert_called_once()
+                call_text = mock_adapter.send_text.call_args[0][1]
+                assert "leader" in call_text.lower()
+
+    @pytest.mark.asyncio
+    async def test_peek_symbol_no_active_game(self, mock_adapter):
+        """No active game returns error, does NOT auto-start."""
+        ctx = make_ctx(mock_adapter, args=["wOTPartyCount"])
+
+        with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
+            mock_mgr.get_controller.return_value = None
+
+            with patch("src.handlers.commands.settings") as mock_settings:
+                mock_settings.allowed_chat_ids = []
+
+                await peek_symbol_command(ctx)
+
+                mock_adapter.send_text.assert_called_once()
+                call_text = mock_adapter.send_text.call_args[0][1]
+                assert "no active game" in call_text.lower() or "no_active_game" in call_text or "use /start_game" in call_text.lower()
+                # Should NOT auto-start
+                mock_mgr.get_or_create_controller.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_peek_symbol_no_symbols(self, mock_adapter):
+        """No symbol table loaded returns error."""
+        ctx = make_ctx(mock_adapter, args=["wOTPartyCount"])
+
+        with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
+            mock_controller = MagicMock()
+            mock_controller.is_initialized.return_value = True
+            mock_controller.sym_path = None  # no symbols loaded
+            mock_mgr.get_controller.return_value = mock_controller
+
+            with patch("src.handlers.commands.settings") as mock_settings:
+                mock_settings.allowed_chat_ids = []
+
+                await peek_symbol_command(ctx)
+
+                mock_adapter.send_text.assert_called_once()
+                call_text = mock_adapter.send_text.call_args[0][1]
+                assert "symbol" in call_text.lower()
+
+    @pytest.mark.asyncio
+    async def test_peek_symbol_invalid_symbol(self, mock_adapter):
+        """Unknown symbol returns not-found error."""
+        ctx = make_ctx(mock_adapter, args=["wInvalidSymbol"])
+
+        with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
+            mock_controller = MagicMock()
+            mock_controller.is_initialized.return_value = True
+            mock_controller.sym_path = MagicMock()
+            mock_controller.pyboy.symbol_lookup.side_effect = KeyError("symbol not found")
+            mock_mgr.get_controller.return_value = mock_controller
+
+            with patch("src.handlers.commands.settings") as mock_settings:
+                mock_settings.allowed_chat_ids = []
+
+                await peek_symbol_command(ctx)
+
+                mock_adapter.send_text.assert_called_once()
+                call_text = mock_adapter.send_text.call_args[0][1]
+                assert "not a valid symbol" in call_text.lower() or "wInvalidSymbol" in call_text
+
+    @pytest.mark.asyncio
+    async def test_peek_symbol_success_single_byte(self, mock_adapter):
+        """Valid symbol with default length returns hex byte."""
+        ctx = make_ctx(mock_adapter, args=["wOTPartyCount"])
+
+        with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
+            mock_controller = self._setup_active_game(mock_mgr)
+            # Single byte memory read returns 3
+            mock_controller.pyboy.memory.__getitem__.return_value = 3
+
+            with patch("src.handlers.commands.settings") as mock_settings:
+                mock_settings.allowed_chat_ids = []
+
+                await peek_symbol_command(ctx)
+
+                mock_adapter.send_text.assert_called_once()
+                call_text = mock_adapter.send_text.call_args[0][1]
+                assert "wOTPartyCount" in call_text
+                assert "03" in call_text
+
+    @pytest.mark.asyncio
+    async def test_peek_symbol_success_multi_byte(self, mock_adapter):
+        """Valid symbol with custom length returns hex bytes."""
+        ctx = make_ctx(mock_adapter, args=["wOTPartyData", "4"])
+
+        with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
+            mock_controller = self._setup_active_game(mock_mgr)
+            # Multi-byte: memory[bank, addr:addr+N] returns list of ints
+            mock_controller.pyboy.memory.__getitem__.side_effect = lambda key: (
+                [0x12, 0x34, 0xAB, 0xCD]
+                if isinstance(key, tuple) and len(key) == 2 and isinstance(key[1], slice)
+                else 3
+            )
+
+            with patch("src.handlers.commands.settings") as mock_settings:
+                mock_settings.allowed_chat_ids = []
+
+                await peek_symbol_command(ctx)
+
+                mock_adapter.send_text.assert_called_once()
+                call_text = mock_adapter.send_text.call_args[0][1]
+                assert "wOTPartyData" in call_text
+                assert "12 34 ab cd" in call_text.lower()
+                assert "(4)" in call_text
+
+    @pytest.mark.asyncio
+    async def test_peek_symbol_negative_length(self, mock_adapter):
+        """Negative length returns error."""
+        ctx = make_ctx(mock_adapter, args=["wOTPartyCount", "-1"])
+
+        with patch("src.handlers.commands.settings") as mock_settings:
+            mock_settings.allowed_chat_ids = []
+
+            await peek_symbol_command(ctx)
+
+            mock_adapter.send_text.assert_called_once()
+            call_text = mock_adapter.send_text.call_args[0][1]
+            assert "positive" in call_text.lower()
+
+    @pytest.mark.asyncio
+    async def test_peek_symbol_zero_length(self, mock_adapter):
+        """Zero length returns error."""
+        ctx = make_ctx(mock_adapter, args=["wOTPartyCount", "0"])
+
+        with patch("src.handlers.commands.settings") as mock_settings:
+            mock_settings.allowed_chat_ids = []
+
+            await peek_symbol_command(ctx)
+
+            mock_adapter.send_text.assert_called_once()
+            call_text = mock_adapter.send_text.call_args[0][1]
+            assert "positive" in call_text.lower()
+
+    @pytest.mark.asyncio
+    async def test_peek_symbol_invalid_length(self, mock_adapter):
+        """Non-numeric length returns error."""
+        ctx = make_ctx(mock_adapter, args=["wOTPartyCount", "abc"])
+
+        with patch("src.handlers.commands.settings") as mock_settings:
+            mock_settings.allowed_chat_ids = []
+
+            await peek_symbol_command(ctx)
+
+            mock_adapter.send_text.assert_called_once()
+            call_text = mock_adapter.send_text.call_args[0][1]
+            assert "number" in call_text.lower()
+
+    @pytest.mark.asyncio
+    async def test_peek_symbol_memory_read_error(self, mock_adapter):
+        """Memory read failure returns error."""
+        ctx = make_ctx(mock_adapter, args=["wOTPartyCount", "10"])
+
+        with patch("src.handlers.commands.game_controller_manager") as mock_mgr:
+            mock_controller = self._setup_active_game(mock_mgr)
+            mock_controller.pyboy.memory.__getitem__.side_effect = Exception("out of bounds")
+
+            with patch("src.handlers.commands.settings") as mock_settings:
+                mock_settings.allowed_chat_ids = []
+
+                await peek_symbol_command(ctx)
+
+                mock_adapter.send_text.assert_called_once()
+                call_text = mock_adapter.send_text.call_args[0][1]
+                assert "read" in call_text.lower() or "memory" in call_text.lower()

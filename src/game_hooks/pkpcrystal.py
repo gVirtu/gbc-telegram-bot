@@ -28,6 +28,8 @@ TRANSFORM_MOVE_ID = 0x90
 SCRIPT_STARTBATTLE = 0x5E
 SCRIPT_RELOADMAP = 0x5F
 SCRIPT_END = 0x8F
+TEXT_FAR = 0x08
+TEXT_TERM = 0x53
 
 
 def _build_dummy_party_mon(level: int) -> bytes:
@@ -174,12 +176,37 @@ def begin_hooks(pyboy, chat_id) -> dict:
             pyboy.memory[(0, script_addr)] = SCRIPT_STARTBATTLE
             pyboy.memory[(0, script_addr + 1)] = SCRIPT_RELOADMAP
             pyboy.memory[(0, script_addr + 2)] = SCRIPT_END
+            far_addr = script_addr + 3
+            try:
+                _bank, win_text_addr = pyboy.symbol_lookup("YoungsterGordonBeatenText")
+            except (ValueError, TypeError) as exc:
+                logger.warning("PlayerEvents hook: could not find YoungsterGordonBeatenText: %s", exc)
+                return
+            pyboy.memory[(0, far_addr)] = TEXT_FAR
+            pyboy.memory[(0, far_addr + 1)] = win_text_addr & 0xFF
+            pyboy.memory[(0, far_addr + 2)] = (win_text_addr >> 8) & 0xFF
+            pyboy.memory[(0, far_addr + 3)] = _bank
+            pyboy.memory[(0, far_addr + 4)] = TEXT_TERM
             try:
                 _bank, hb_addr = pyboy.symbol_lookup("hScriptBank")
                 _bank, hp_addr = pyboy.symbol_lookup("hScriptPos")
             except (ValueError, TypeError) as exc:
                 logger.warning("PlayerEvents hook: could not find HRAM symbols: %s", exc)
                 return
+            try:
+                _bank, win_ptr_addr = pyboy.symbol_lookup("wWinTextPointer")
+            except (ValueError, TypeError) as exc:
+                logger.warning("PlayerEvents hook: could not find wWinTextPointer: %s", exc)
+                return
+            old_svbk = pyboy.memory[0xFF70]
+            pyboy.memory[0xFF70] = 1
+            far_low = far_addr & 0xFF
+            far_high = (far_addr >> 8) & 0xFF
+            pyboy.memory[(_bank, win_ptr_addr)] = far_low
+            pyboy.memory[(_bank, win_ptr_addr + 1)] = far_high
+            pyboy.memory[(_bank, win_ptr_addr + 2)] = far_low
+            pyboy.memory[(_bank, win_ptr_addr + 3)] = far_high
+            pyboy.memory[0xFF70] = old_svbk
             pyboy.memory[hb_addr] = 0
             pyboy.memory[hp_addr] = script_addr & 0xFF
             pyboy.memory[hp_addr + 1] = (script_addr >> 8) & 0xFF

@@ -17,6 +17,8 @@ from src.game_hooks.pkpcrystal import (
     SCRIPT_RELOADMAP,
     SCRIPT_END,
     TRANSFORM_MOVE_ID,
+    TEXT_FAR,
+    TEXT_TERM,
 )
 
 
@@ -164,6 +166,8 @@ class TestHookABasicBehavior:
             "wOtherTrainerClass": (0, 0xD010),
             "wScriptMode": (0, 0xD011),
             "wBattleScriptFlags": (0, 0xD012),
+            "wWinTextPointer": (1, 0xD047),
+            "YoungsterGordonBeatenText": (0x17, 0x7C1B),
         }
         pyboy.symbol_lookup.side_effect = lambda sym: sym_addrs.get(sym, (0, 0xC000))
         begin_hooks(pyboy, chat_id=111)
@@ -180,6 +184,12 @@ class TestHookABasicBehavior:
         assert memory_store[0xC107] == SCRIPT_STARTBATTLE
         assert memory_store[0xC108] == SCRIPT_RELOADMAP
         assert memory_store[0xC109] == SCRIPT_END
+        far_addr = 0xC10A
+        assert memory_store[far_addr] == TEXT_FAR
+        assert memory_store[far_addr + 1] == (0x7C1B & 0xFF)
+        assert memory_store[far_addr + 2] == ((0x7C1B >> 8) & 0xFF)
+        assert memory_store[far_addr + 3] == 0x17
+        assert memory_store[far_addr + 4] == TEXT_TERM
         assert memory_store[0xFFEB] == 0
         assert memory_store[0xFFEC] == (0xC107 & 0xFF)
         assert memory_store[0xFFED] == ((0xC107 >> 8) & 0xFF)
@@ -187,6 +197,10 @@ class TestHookABasicBehavior:
         assert memory_store[0xD011] == 1
         assert memory_store[0xD010] == 1
         assert memory_store[0xD012] == 0x81
+        assert memory_store[0xD047] == (far_addr & 0xFF)
+        assert memory_store[0xD048] == ((far_addr >> 8) & 0xFF)
+        assert memory_store[0xD049] == (far_addr & 0xFF)
+        assert memory_store[0xD04A] == ((far_addr >> 8) & 0xFF)
 
 
 class TestHookBBasicBehavior:

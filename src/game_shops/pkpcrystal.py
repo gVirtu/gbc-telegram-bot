@@ -15,6 +15,7 @@ from src.shop.flow.router import default_purchase_handler
 from src.shop.flow.handlers import ShopPurchaseContext, PurchaseComplete, SelectionStep
 from src.shop.flow.screens import SelectionOption
 from src.utils.state_manager import state_manager
+from src.game_hooks.pkpcrystal import queue_battle_request
 from src.game_utils.pkpcrystal.reader import symbol_read_u8, symbol_read_u16le, get_pokemon_name, get_pokemon_catch_rate
 from src.game_utils.pkpcrystal.enum import BattleMode
 
@@ -248,6 +249,32 @@ def _catch_chance(hp_max: int, hp_current: int, rate_modified: int, bonus_status
     return a
 
 
+async def redeem_battle_handler(purchase_ctx: ShopPurchaseContext):
+    controller = purchase_ctx.game_controller
+
+    if controller is None:
+        logger.error(f"User {purchase_ctx.user_id} tried to purchase battle in chat {purchase_ctx.chat_id} without a game controller")
+        return PurchaseComplete(success=False, error_message=f"{SHOP_PREFIX}.errors.no_game_controller")
+
+    pyboy = controller.pyboy
+
+    mode = symbol_read_u8(pyboy, "wBattleMode")
+    if mode != 0:
+        return PurchaseComplete(success=False, error_message=f"{SHOP_PREFIX}.errors.in_battle")
+
+    script = symbol_read_u8(pyboy, "wScriptRunning")
+    if script != 0:
+        return PurchaseComplete(success=False, error_message=f"{SHOP_PREFIX}.errors.script_running")
+
+    party = symbol_read_u8(pyboy, "wPartyCount")
+    if party == 0:
+        return PurchaseComplete(success=False, error_message=f"{SHOP_PREFIX}.errors.no_party")
+
+    queue_battle_request(purchase_ctx.chat_id, purchase_ctx.user_id)
+    logger.info(f"User {purchase_ctx.user_id} queued battle request for chat {purchase_ctx.chat_id}")
+    return PurchaseComplete(success=True)
+
+
 register("PKPCRYSTAL", [
     # Avatars are mapped to Polished Crystal 3.2.3 indexes
     ShopCategory(
@@ -426,5 +453,15 @@ register("PKPCRYSTAL", [
             ShopItem("ultra_ball", f"{SHOP_PREFIX}.items.ultra_ball", 1200, {"modifier": 2}, purchase_handler=capture_mon_handler),
             ShopItem("master_ball", f"{SHOP_PREFIX}.items.master_ball", 9999, {"guaranteed": True}, purchase_handler=capture_mon_handler),
         ]
-    )
+    ),
+    ShopCategory(
+        id="pkpc_battles",
+        label=f"{SHOP_PREFIX}.categories.battles.label",
+        description=f"{SHOP_PREFIX}.categories.battles.description",
+        items_per_page=3,
+        items_per_row=1,
+        items=[
+            ShopItem("redeem_battle", f"{SHOP_PREFIX}.items.redeem_battle", 1, {}, purchase_handler=redeem_battle_handler),
+        ]
+    ),
 ])

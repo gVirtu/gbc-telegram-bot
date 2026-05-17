@@ -556,7 +556,7 @@ class GameController:
             return {}
 
         try:
-            return self._hook_module.begin_hooks(self.pyboy)
+            return self._hook_module.begin_hooks(self.pyboy, self.chat_id)
         except AttributeError:
             logger.warning("Hook module missing begin_hooks function")
             return {}

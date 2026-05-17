@@ -7,11 +7,49 @@ Provides game-specific hooks for:
 
 import logging
 from collections import defaultdict
+import random
+
+_battle_requests: dict[int, dict] = {}
+
+def queue_battle_request(chat_id: int, user_id: int) -> None:
+    _battle_requests[chat_id] = {"state": "pending", "user_id": user_id}
+
+def _resolve_battle_request(chat_id: int) -> dict | None:
+    return _battle_requests.get(chat_id)
+
+def _remove_battle_request(chat_id: int) -> None:
+    _battle_requests.pop(chat_id, None)
+
+
+DITTO = 0x84
+PARTYMON_STRUCT_LENGTH = 48
+MON_LEVEL = 31
+TRANSFORM_MOVE_ID = 0x90
+SCRIPT_STARTBATTLE = 0x5E
+SCRIPT_RELOADMAP = 0x5F
+SCRIPT_END = 0x8F
+
+
+def _build_dummy_party_mon(level: int) -> bytes:
+    buf = bytearray(48)
+    buf[0] = DITTO
+    buf[2] = TRANSFORM_MOVE_ID
+    buf[17] = 0xFF
+    buf[18] = 0xFF
+    buf[19] = 0xFF
+    buf[MON_LEVEL] = level
+    hp = (2 * 48 + 15 + 0) * level // 100 + level + 10
+    buf[34] = (hp >> 8) & 0xFF
+    buf[35] = hp & 0xFF
+    buf[36] = (hp >> 8) & 0xFF
+    buf[37] = hp & 0xFF
+    return bytes(buf)
+
 
 logger = logging.getLogger(__name__)
 
 
-def begin_hooks(pyboy) -> dict:
+def begin_hooks(pyboy, chat_id) -> dict:
     """Register Polished Crystal hooks.
 
     Args:
@@ -107,6 +145,103 @@ def begin_hooks(pyboy) -> dict:
         
     register_custom_hooks(pyboy)
 
+    def register_battle_hooks(pyboy, chat_id):
+        def hook_a_callback(ctx):
+            req = _resolve_battle_request(chat_id)
+            if req is None or req["state"] != "pending":
+                return
+            try:
+                mode = pyboy.memory[pyboy.symbol_lookup("wBattleMode")]
+                script = pyboy.memory[pyboy.symbol_lookup("wScriptRunning")]
+                party = pyboy.memory[pyboy.symbol_lookup("wPartyCount")]
+            except (ValueError, TypeError) as exc:
+                logger.warning("PlayerEvents hook: symbol lookup failed: %s", exc)
+                return
+            if mode != 0 or script != 0 or party == 0:
+                return
+            try:
+                player_level = pyboy.memory[pyboy.symbol_lookup("wPartyMon1Level")]
+            except (ValueError, TypeError) as exc:
+                logger.warning("PlayerEvents hook: could not read wPartyMon1Level: %s", exc)
+                return
+            req["level"] = player_level
+            try:
+                _bank, fq_addr = pyboy.symbol_lookup("wFootprintQueue")
+                script_addr = fq_addr + 7
+            except (ValueError, TypeError) as exc:
+                logger.warning("PlayerEvents hook: could not find wFootprintQueue: %s", exc)
+                return
+            pyboy.memory[(0, script_addr)] = SCRIPT_STARTBATTLE
+            pyboy.memory[(0, script_addr + 1)] = SCRIPT_RELOADMAP
+            pyboy.memory[(0, script_addr + 2)] = SCRIPT_END
+            try:
+                _bank, hb_addr = pyboy.symbol_lookup("hScriptBank")
+                _bank, hp_addr = pyboy.symbol_lookup("hScriptPos")
+            except (ValueError, TypeError) as exc:
+                logger.warning("PlayerEvents hook: could not find HRAM symbols: %s", exc)
+                return
+            pyboy.memory[hb_addr] = 0
+            pyboy.memory[hp_addr] = script_addr & 0xFF
+            pyboy.memory[hp_addr + 1] = (script_addr >> 8) & 0xFF
+            pyboy.memory[pyboy.symbol_lookup("wScriptRunning")] = 1
+            pyboy.memory[pyboy.symbol_lookup("wScriptMode")] = 1
+            pyboy.memory[pyboy.symbol_lookup("wOtherTrainerClass")] = 1
+            pyboy.memory[pyboy.symbol_lookup("wOtherTrainerID")] = 1
+            pyboy.memory[pyboy.symbol_lookup("wTrainerPal")] = 0
+            pyboy.memory[pyboy.symbol_lookup("wBattleScriptFlags")] = 0x81
+            req["state"] = "starting"
+            logger.info("PlayerEvents: injected battle script for chat %s", chat_id)
+
+        def hook_b_callback(ctx):
+            req = _resolve_battle_request(chat_id)
+            if req is None or req["state"] != "starting":
+                return
+            level = req.get("level", 10)
+            dummy_mon = _build_dummy_party_mon(level)
+            old_svbk = pyboy.memory[0xFF70]
+            pyboy.memory[0xFF70] = 1
+            try:
+                pyboy.memory[pyboy.symbol_lookup("wOTPartyCount")] = 1
+                _bank, ot_mon_addr = pyboy.symbol_lookup("wOTPartyMon1")
+                for i, b in enumerate(dummy_mon):
+                    pyboy.memory[(_bank, ot_mon_addr + i)] = b
+                _bank, nick_addr = pyboy.symbol_lookup("wOTPartyMonNicknames")
+                ditto_name = [0x83, 0x88, 0x93, 0x93, 0x8e]
+                for i, c in enumerate(ditto_name):
+                    pyboy.memory[(_bank, nick_addr + i)] = c
+                pyboy.memory[(_bank, nick_addr + len(ditto_name))] = 0x53
+                for i in range(len(ditto_name) + 1, 11):
+                    pyboy.memory[(_bank, nick_addr + i)] = 0x53
+                pyboy.memory[pyboy.symbol_lookup("wCurPartySpecies")] = DITTO
+                pyboy.memory[pyboy.symbol_lookup("wCurPartyLevel")] = level
+                pyboy.memory[pyboy.symbol_lookup("wCurForm")] = 0
+                pyboy.memory[pyboy.symbol_lookup("wMonType")] = 1
+                pyboy.memory[pyboy.symbol_lookup("wOtherTrainerType")] = 0
+                _bank, ai_addr = pyboy.symbol_lookup("wEnemyTrainerAIFlags")
+                pyboy.memory[(_bank, ai_addr)] = 0
+                pyboy.memory[(_bank, ai_addr + 1)] = 0
+                pyboy.memory[(_bank, ai_addr + 2)] = 0
+                _bank, reward_addr = pyboy.symbol_lookup("wBattleReward")
+                pyboy.memory[(_bank, reward_addr)] = 0
+                pyboy.memory[(_bank, reward_addr + 1)] = 0
+                pyboy.memory[(_bank, reward_addr + 2)] = 0
+            except (ValueError, TypeError) as exc:
+                logger.warning("Hook B: symbol lookup failed: %s", exc)
+                pyboy.memory[0xFF70] = old_svbk
+                return
+            pyboy.memory[0xFF70] = old_svbk
+            _remove_battle_request(chat_id)
+            logger.info("Hook B: wrote custom team for chat %s", chat_id)
+
+        try:
+            pyboy.hook_register(None, "PlayerEvents", hook_a_callback, None)
+            pyboy.hook_register(None, "ComputeTrainerReward", hook_b_callback, None)
+            logger.info("Registered battle hooks for chat %s", chat_id)
+        except (ValueError, TypeError) as exc:
+            logger.warning("Could not register battle hooks: %s", exc)
+
+    register_battle_hooks(pyboy, chat_id)
+
     return context
 
 
@@ -129,6 +264,12 @@ def end_hooks(pyboy, context: dict) -> None:
         pyboy.hook_deregister(None, action)
         
     deregister_custom_hooks(pyboy)
+    
+    for sym in ("PlayerEvents", "ComputeTrainerReward"):
+        try:
+            pyboy.hook_deregister(None, sym)
+        except (ValueError, TypeError):
+            pass
     
 
 def register_custom_hooks(pyboy):

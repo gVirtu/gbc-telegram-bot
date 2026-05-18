@@ -291,6 +291,10 @@
           "trainer_card_pokemon": {
             "label": "🧢 Trainer Card Pokémon",
             "description": "During any Pokémon battle, redeem a ball for a chance to add it to your trainer card. Different species may have different catch rates!"
+          },
+          "battles": {
+            "label": "🥊 Battles",
+            "description": "Challenge the player to a trainer battle against your Trainer Card team."
           }
         },
         "items": {
@@ -298,6 +302,7 @@
           "great_ball": "🔵 Great Ball",
           "ultra_ball": "🟡 Ultra Ball",
           "master_ball": "🟣 Master Ball",
+          "redeem_battle": "💥 Start Battle",
           "capture_avatar": "📸 Capture Avatar",
           "avatar_carrie": "Carrie",
           "avatar_cal": "Cal",
@@ -456,6 +461,10 @@
           "no_game_controller": "❌ Please start the game first.",
           "not_in_trainer_battle": "❌ You must be in a trainer battle to capture the opponent's avatar!",
           "not_in_battle": "❌ You must be in a battle to catch a Pokémon!",
+          "in_battle": "❌ You must not be in a battle to start one!",
+          "script_running": "❌ The player seems to be busy right now!",
+          "no_party": "❌ The player doesn't have a party!",
+          "no_party_mons": "❌ Your trainer card team is empty! Catch some Pokémon first.",
           "enemy_mon_already_caught": "❌ This Pokémon has already been caught!",
           "enemy_mon_cannot_be_captured": "❌ This Pokémon cannot be caught right now."
         },

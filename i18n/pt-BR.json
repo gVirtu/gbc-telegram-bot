@@ -291,6 +291,10 @@
           "trainer_card_pokemon": {
             "label": "🧢 Pokémon do Trainer Card",
             "description": "Durante qualquer batalha Pokémon, resgate uma Pokébola para ter a chance de adicioná-lo ao seu Trainer Card. Diferentes espécies podem ter diferentes chances de captura!"
+          },
+          "battles": {
+            "label": "🥊 Batalhas",
+            "description": "Desafie o jogador para uma batalha de treinador contra seu time do Trainer Card."
           }
         },
         "items": {
@@ -298,6 +302,7 @@
           "great_ball": "🔵 Grande Bola",
           "ultra_ball": "🟡 Ultra Bola",
           "master_ball": "🟣 Bola Mestra",
+          "redeem_battle": "💥 Iniciar Batalha",
           "capture_avatar": "📸 Capturar Avatar",
           "avatar_carrie": "Carrie",
           "avatar_cal": "Cal",
@@ -457,7 +462,11 @@
           "not_in_trainer_battle": "❌ Você deve estar em uma batalha contra um treinador para capturar o avatar do oponente!",
           "not_in_battle": "❌ Você deve estar em uma batalha para capturar um Pokémon!",
           "enemy_mon_already_caught": "❌ Este Pokémon já foi capturado!",
-          "enemy_mon_cannot_be_captured": "❌ Este Pokémon não pode ser capturado no momento."
+          "enemy_mon_cannot_be_captured": "❌ Este Pokémon não pode ser capturado no momento.",
+          "in_battle": "❌ O jogador está em uma batalha!",
+          "script_running": "❌ Um evento está em andamento!",
+          "no_party": "❌ O jogador não tem uma equipe!",
+          "no_party_mons": "❌ Seu time do Trainer Card está vazio! Capture alguns Pokémon primeiro."
         },
         "messages": {
           "capture_success": "🎉 Parabéns, você capturou {enemy_mon_name}! ({chance} de chance)\n\nEscolha a posição para adicionar ao seu card:\n\n⚠️ Selecionar uma posição com um Pokémon substituirá ele *permanentemente*.",

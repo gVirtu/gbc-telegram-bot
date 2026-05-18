@@ -7,6 +7,7 @@ Telegram webhook updates, including callback queries and commands.
 import asyncio
 import hashlib
 import logging
+import traceback
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -288,6 +289,7 @@ class WebhookHandler:
 
         except Exception as e:
             logger.error(f"Error processing update: {e}")
+            traceback.print_exc()
             raise
 
     def create_app(self) -> FastAPI:

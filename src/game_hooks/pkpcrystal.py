@@ -233,7 +233,7 @@ def _register_battle_hooks(pyboy, chat_id):
         symbol_write_u8(pyboy, "wScriptRunning", 1)
         symbol_write_u8(pyboy, "wScriptMode", 1)
         symbol_write_u8(pyboy, "wOtherTrainerClass", req.get("trainer_class", 1))
-        symbol_write_u8(pyboy, "wOtherTrainerID", 0)
+        symbol_write_u8(pyboy, "wOtherTrainerID", 1)
         symbol_write_u8(pyboy, "wTrainerPal", 0)
         symbol_write_u8(pyboy, "wBattleScriptFlags", 0x81)
         req["state"] = "starting"

@@ -17,9 +17,9 @@ from src.shop.flow.handlers import ShopPurchaseContext, PurchaseComplete, Select
 from src.shop.flow.screens import SelectionOption
 from src.utils.state_manager import state_manager
 from src.game_hooks.pkpcrystal import queue_battle_request
-from src.game_utils.pkpcrystal.reader import symbol_read_u8, symbol_read_u16le, get_pokemon_name, get_pokemon_catch_rate
+from src.game_utils.pkpcrystal.reader import symbol_read_u8, symbol_read_u16le, get_pokemon_name, get_pokemon_catch_rate, get_trainer_class_name_raw
 from src.game_utils.pkpcrystal.enum import BattleMode
-from src.game_utils.pkpcrystal.charmap import encode_name
+from src.game_utils.pkpcrystal.charmap import encode_name, CHARMAP
 from src.game_utils.pkpcrystal.party_builder import battle_struct_to_party, BATTLE_STRUCT_SIZE
 
 logger = logging.getLogger(__name__)
@@ -291,7 +291,6 @@ async def redeem_battle_handler(purchase_ctx: ShopPurchaseContext):
     for slot in range(6):
         mon_key = f"pkpcrystal_trainer_card_mon_{slot}"
         mon_hex = state_manager.get_user_preference(platform, user_id, mon_key)
-        logger.info(f"Mon key: {mon_key}, mon hex: {mon_hex}")
         if not mon_hex:
             continue
         try:
@@ -307,7 +306,13 @@ async def redeem_battle_handler(purchase_ctx: ShopPurchaseContext):
         logger.info(f"User {user_id} tried to purchase battle in chat {chat_id} with no stored mons")
         return PurchaseComplete(success=False, error_message=f"{SHOP_PREFIX}.errors.no_party_mons")
 
-    trainer_name_bytes = encode_name("TestMate")
+    trainer_class_name = get_trainer_class_name_raw(pyboy, trainer_class)
+    trainer_class_name_ngram_lens = [len(CHARMAP.get(char, ' ')) for char in trainer_class_name if char < 127]
+    actual_len = len(trainer_class_name) - len(trainer_class_name_ngram_lens) + sum(trainer_class_name_ngram_lens)
+    # class_name + space + trainer_name = 18 chars max
+    max_name_width = 18 - 1 - actual_len
+    trimmed_name = user_name[:max_name_width]
+    trainer_name_bytes = encode_name(trimmed_name)
 
     queue_battle_request(chat_id, user_id, platform, user_name, trainer_class, trainer_name_bytes, party_mons)
     logger.info(f"User {user_id} queued battle request for chat {chat_id}")

@@ -13,7 +13,7 @@ from src.utils.frame_utils import draw_text_to_fit
 from src.game_utils.pkpcrystal.enum import BattleMode, GrowthRate, EXP_PER_LEVEL
 from src.game_utils.pkpcrystal.reader import (
     symbol_read_u8, symbol_read_u16le, symbol_read_u24le,
-    read_u8, read_u16, get_nth_string_addr, decode_text, get_pokemon_name
+    read_u8, read_u16, get_nth_string_addr, decode_text, get_pokemon_name, get_trainer_class_name
 )
 from src.game_utils.pkpcrystal.assets import load_pokemon_asset
 
@@ -656,9 +656,7 @@ def _get_battle_data(pyboy):
         trainer_name = decode_text(pyboy, trainer_group_bank, trainer_id_ptr + 1)
         # logger.debug(f"Trainer Name: {trainer_name}")
         
-        trainer_class_names_bank, trainer_class_names_base_addr = pyboy.symbol_lookup("TrainerClassNames")
-        trainer_class_name_addr = get_nth_string_addr(pyboy, trainer_class_names_bank, trainer_class_names_base_addr, other_trainer_class - 1)
-        trainer_class_name = decode_text(pyboy, trainer_class_names_bank, trainer_class_name_addr)
+        trainer_class_name = get_trainer_class_name(pyboy, other_trainer_class)
 
         # logger.debug(f"Trainer Class Name Addr: {hex(trainer_class_name_addr)}")
         # logger.debug(f"Trainer Class Name: {trainer_class_name}")

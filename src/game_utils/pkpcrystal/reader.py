@@ -1,4 +1,4 @@
-from src.game_utils.pkpcrystal.charmap import CHARMAP
+from src.game_utils.pkpcrystal.charmap import CHARMAP, NAME_LENGTH
 
 def symbol_read_u8(pyboy, symbol: str) -> int:
     return pyboy.memory[pyboy.symbol_lookup(symbol)]
@@ -67,3 +67,27 @@ def get_pokemon_catch_rate(pyboy, species_id):
     base_catch_rate_offset = 8
     pokemon_base_stats_ptr = pokemon_base_addr + ((species_id - 1) * base_stats_width)
     return read_u8(pyboy, bank, pokemon_base_stats_ptr + base_catch_rate_offset)
+
+def get_trainer_class_name(pyboy, class_id):
+    trainer_class_names_bank, trainer_class_names_base_addr = pyboy.symbol_lookup("TrainerClassNames")
+    trainer_class_name_addr = get_nth_string_addr(pyboy, trainer_class_names_bank, trainer_class_names_base_addr, class_id - 1)
+    trainer_class_name = decode_text(pyboy, trainer_class_names_bank, trainer_class_name_addr)
+    return trainer_class_name
+
+def get_trainer_class_name_raw(pyboy, class_id):
+    trainer_class_names_bank, trainer_class_names_base_addr = pyboy.symbol_lookup("TrainerClassNames")
+    trainer_class_name_addr = get_nth_string_addr(pyboy, trainer_class_names_bank, trainer_class_names_base_addr, class_id - 1)
+
+    text = []
+    addr = trainer_class_name_addr
+
+    for _ in range(NAME_LENGTH):
+        c = pyboy.memory[(trainer_class_names_bank, addr)]
+
+        if c == 0x53:  # @ string terminator
+            break
+
+        text.append(c)
+        addr += 1
+
+    return text

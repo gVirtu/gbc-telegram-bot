@@ -1,9 +1,10 @@
 """Polished Crystal game-specific shop extensions.
-
+ 
 Handlers defined here have access to ctx.game_controller (a GameController) and
 ctx.session.state (a dict that persists across SelectionStep chains).
 """
 import logging
+import os
 import random
 
 from math import floor
@@ -18,6 +19,8 @@ from src.utils.state_manager import state_manager
 from src.game_hooks.pkpcrystal import queue_battle_request
 from src.game_utils.pkpcrystal.reader import symbol_read_u8, symbol_read_u16le, get_pokemon_name, get_pokemon_catch_rate
 from src.game_utils.pkpcrystal.enum import BattleMode
+from src.game_utils.pkpcrystal.charmap import encode_name
+from src.game_utils.pkpcrystal.party_builder import battle_struct_to_party, BATTLE_STRUCT_SIZE
 
 logger = logging.getLogger(__name__)
 
@@ -270,8 +273,44 @@ async def redeem_battle_handler(purchase_ctx: ShopPurchaseContext):
     if party == 0:
         return PurchaseComplete(success=False, error_message=f"{SHOP_PREFIX}.errors.no_party")
 
-    queue_battle_request(purchase_ctx.chat_id, purchase_ctx.user_id)
-    logger.info(f"User {purchase_ctx.user_id} queued battle request for chat {purchase_ctx.chat_id}")
+    platform = purchase_ctx.platform
+    user_id = purchase_ctx.user_id
+    user_name = purchase_ctx.user_name
+    chat_id = purchase_ctx.chat_id
+
+    avatar_path = state_manager.get_user_preference(platform, user_id, "pkpcrystal_avatar_path")
+    if avatar_path:
+        try:
+            trainer_class = int(os.path.splitext(os.path.basename(avatar_path))[0])
+        except (ValueError, TypeError):
+            trainer_class = 1
+    else:
+        trainer_class = 1
+
+    party_mons = []
+    for slot in range(6):
+        mon_key = f"pkpcrystal_trainer_card_mon_{slot}"
+        mon_hex = state_manager.get_user_preference(platform, user_id, mon_key)
+        logger.info(f"Mon key: {mon_key}, mon hex: {mon_hex}")
+        if not mon_hex:
+            continue
+        try:
+            raw = bytes.fromhex(mon_hex)
+            if len(raw) != BATTLE_STRUCT_SIZE or raw[0] == 0:
+                continue
+            party_mons.append(battle_struct_to_party(raw))
+        except Exception as e:
+            logger.error(f"Invalid mon data for user {user_id} (slot {slot}) in chat {chat_id}: {mon_hex}.\n\nError: {e}")
+            continue
+
+    if not party_mons:
+        logger.info(f"User {user_id} tried to purchase battle in chat {chat_id} with no stored mons")
+        return PurchaseComplete(success=False, error_message=f"{SHOP_PREFIX}.errors.no_party_mons")
+
+    trainer_name_bytes = encode_name("TestMate")
+
+    queue_battle_request(chat_id, user_id, platform, user_name, trainer_class, trainer_name_bytes, party_mons)
+    logger.info(f"User {user_id} queued battle request for chat {chat_id}")
     return PurchaseComplete(success=True)
 
 

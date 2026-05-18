@@ -184,3 +184,23 @@ CHARMAP = {
     0x4d: "Poké",
     0x4e: "Pokémon",
 }
+
+REVERSE_CHARMAP = {
+    char: byte
+    for byte, char in CHARMAP.items()
+    if byte >= 0x80 and len(char) == 1
+}
+
+NAME_LENGTH = 11
+MON_NAME_LENGTH = 11
+
+def encode_name(name: str, max_len: int = NAME_LENGTH) -> list[int]:
+    result = []
+    for ch in name:
+        if len(result) >= max_len - 1:
+            break
+        result.append(REVERSE_CHARMAP.get(ch, 0x00))
+    result.append(0x53)
+    while len(result) < max_len:
+        result.append(0x53)
+    return result

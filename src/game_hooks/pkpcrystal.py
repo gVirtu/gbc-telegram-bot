@@ -47,10 +47,28 @@ MON_LEVEL = 31
 SCRIPT_STARTBATTLE = 0x5E
 SCRIPT_RELOADMAP = 0x5F
 SCRIPT_END = 0x8F
+SCRIPT_OPENTEXT = 0x48
+SCRIPT_FARWRITETEXT = 0x4B
+SCRIPT_CLOSETEXT = 0x4A
+SCRIPT_PLAYSOUND = 0x83
+SCRIPT_WAITSFX = 0x84
 TEXT_FAR = 0x08
 TEXT_TERM = 0x53
 FOOTPRINT_QUEUE_SIZE = 7
 OT_NAME_ENTRY_SIZE = 11
+SFX_ITEM = 0x01
+
+BATTLE_SCRIPT = bytes([SCRIPT_STARTBATTLE, SCRIPT_RELOADMAP, SCRIPT_END])
+
+TEXT_BYTES = bytes([
+    0x91, 0xa4, 0xa2, 0xa4, 0xa8, 0xb5, 0xa4, 0xa3,
+    0x57,
+    0x84, 0x97, 0x8f,
+    0x7f,
+    0x82, 0xa0, 0xad, 0xa3, 0xb8,
+    0x9f,
+    0x53, 0x53,
+])
 
 
 logger = logging.getLogger(__name__)
@@ -179,65 +197,78 @@ def end_hooks(pyboy, context: dict) -> None:
 def _register_battle_hooks(pyboy, chat_id):
     def player_events_callback(ctx):
         req = _resolve_battle_request(chat_id)
-        if req is None or req["state"] != "pending":
+        if req is None:
             return
-        try:
-            mode = symbol_read_u8(pyboy, "wBattleMode")
-            script = symbol_read_u8(pyboy, "wScriptRunning")
-            party = symbol_read_u8(pyboy, "wPartyCount")
-        except (ValueError, TypeError) as exc:
-            logger.warning("PlayerEvents hook: symbol lookup failed: %s", exc)
-            return
-        if mode != 0 or script != 0 or party == 0:
-            return
-        try:
-            _bank, fq_addr = pyboy.symbol_lookup("wFootprintQueue")
+
+        if req["state"] == "pending":
+            try:
+                mode = symbol_read_u8(pyboy, "wBattleMode")
+                script = symbol_read_u8(pyboy, "wScriptRunning")
+                party = symbol_read_u8(pyboy, "wPartyCount")
+            except (ValueError, TypeError) as exc:
+                logger.warning("PlayerEvents hook: symbol lookup failed: %s", exc)
+                return
+            if mode != 0 or script != 0 or party == 0:
+                return
+            try:
+                _bank, fq_addr = pyboy.symbol_lookup("wFootprintQueue")
+                script_addr = fq_addr + FOOTPRINT_QUEUE_SIZE
+            except (ValueError, TypeError) as exc:
+                logger.warning("PlayerEvents hook: could not find wFootprintQueue: %s", exc)
+                return
+            write_bytes(pyboy, 0, script_addr, BATTLE_SCRIPT)
+            try:
+                _bank, hb_addr = pyboy.symbol_lookup("hScriptBank")
+                _, hp_addr = pyboy.symbol_lookup("hScriptPos")
+            except (ValueError, TypeError) as exc:
+                logger.warning("PlayerEvents hook: could not find HRAM symbols: %s", exc)
+                return
+            write_u8_wram0(pyboy, hb_addr, 0)
+            write_u16le_wram0(pyboy, hp_addr, script_addr)
+            symbol_write_u8(pyboy, "wScriptRunning", 1)
+            symbol_write_u8(pyboy, "wScriptMode", 1)
+            symbol_write_u8(pyboy, "wOtherTrainerClass", req.get("trainer_class", 1))
+            symbol_write_u8(pyboy, "wOtherTrainerID", 1)
+            symbol_write_u8(pyboy, "wTrainerPal", 0)
+            symbol_write_u8(pyboy, "wBattleScriptFlags", 0x81)
+            req["state"] = "starting"
+            logger.info("PlayerEvents: injected battle script for chat %s", chat_id)
+
+        elif req["state"] == "reward_pending":
+            try:
+                _bank, fq_addr = pyboy.symbol_lookup("wFootprintQueue")
+            except (ValueError, TypeError) as exc:
+                logger.warning("PlayerEvents reward hook: could not find wFootprintQueue: %s", exc)
+                _remove_battle_request(chat_id)
+                return
             script_addr = fq_addr + FOOTPRINT_QUEUE_SIZE
-        except (ValueError, TypeError) as exc:
-            logger.warning("PlayerEvents hook: could not find wFootprintQueue: %s", exc)
-            return
-        write_bytes(pyboy, 0, script_addr, bytes([SCRIPT_STARTBATTLE, SCRIPT_RELOADMAP, SCRIPT_END]))
-        far_addr = script_addr + 3
-        try:
-            _bank, win_text_addr = pyboy.symbol_lookup("YoungsterGordonBeatenText")
-        except (ValueError, TypeError) as exc:
-            logger.warning("PlayerEvents hook: could not find YoungsterGordonBeatenText: %s", exc)
-            return
-        write_bytes(pyboy, 0, far_addr, bytes([
-            TEXT_FAR,
-            win_text_addr & 0xFF,
-            (win_text_addr >> 8) & 0xFF,
-            _bank,
-            TEXT_TERM,
-        ]))
-        try:
-            _bank, hb_addr = pyboy.symbol_lookup("hScriptBank")
-            _, hp_addr = pyboy.symbol_lookup("hScriptPos")
-        except (ValueError, TypeError) as exc:
-            logger.warning("PlayerEvents hook: could not find HRAM symbols: %s", exc)
-            return
-        try:
-            _bank, win_ptr_addr = pyboy.symbol_lookup("wWinTextPointer")
-        except (ValueError, TypeError) as exc:
-            logger.warning("PlayerEvents hook: could not find wWinTextPointer: %s", exc)
-            return
-        with wramx_bank(pyboy):
-            write_bytes(pyboy, _bank, win_ptr_addr, bytes([
-                far_addr & 0xFF,
-                (far_addr >> 8) & 0xFF,
-                far_addr & 0xFF,
-                (far_addr >> 8) & 0xFF,
-            ]))
-        write_u8_wram0(pyboy, hb_addr, 0)
-        write_u16le_wram0(pyboy, hp_addr, script_addr)
-        symbol_write_u8(pyboy, "wScriptRunning", 1)
-        symbol_write_u8(pyboy, "wScriptMode", 1)
-        symbol_write_u8(pyboy, "wOtherTrainerClass", req.get("trainer_class", 1))
-        symbol_write_u8(pyboy, "wOtherTrainerID", 1)
-        symbol_write_u8(pyboy, "wTrainerPal", 0)
-        symbol_write_u8(pyboy, "wBattleScriptFlags", 0x81)
-        req["state"] = "starting"
-        logger.info("PlayerEvents: injected battle script for chat %s", chat_id)
+            reward_script = bytes([
+                SCRIPT_OPENTEXT,
+                SCRIPT_FARWRITETEXT, 0, 0, 0,
+                SCRIPT_PLAYSOUND, SFX_ITEM,
+                SCRIPT_WAITSFX,
+                SCRIPT_CLOSETEXT,
+                SCRIPT_END,
+            ])
+            text_addr = script_addr + len(reward_script)
+            reward_script = bytearray(reward_script)
+            reward_script[3] = text_addr & 0xFF
+            reward_script[4] = (text_addr >> 8) & 0xFF
+            write_bytes(pyboy, 0, script_addr, bytes(reward_script))
+            write_bytes(pyboy, 0, text_addr, TEXT_BYTES)
+            try:
+                _bank, hb_addr = pyboy.symbol_lookup("hScriptBank")
+                _, hp_addr = pyboy.symbol_lookup("hScriptPos")
+            except (ValueError, TypeError) as exc:
+                logger.warning("PlayerEvents reward hook: could not find HRAM symbols: %s", exc)
+                _remove_battle_request(chat_id)
+                return
+            write_u8_wram0(pyboy, hb_addr, 0)
+            write_u16le_wram0(pyboy, hp_addr, script_addr)
+            symbol_write_u8(pyboy, "wScriptRunning", 1)
+            symbol_write_u8(pyboy, "wScriptMode", 1)
+            _remove_battle_request(chat_id)
+            logger.info("PlayerEvents: injected reward text for chat %s", chat_id)
 
     def compute_trainer_reward_callback(ctx):
         req = _resolve_battle_request(chat_id)
@@ -281,10 +312,25 @@ def _register_battle_hooks(pyboy, chat_id):
             except (ValueError, TypeError) as exc:
                 logger.warning("ComputeTrainerReward hook: symbol lookup failed: %s", exc)
                 return
-        _remove_battle_request(chat_id)
+        req["state"] = "in_battle"
         logger.info("ComputeTrainerReward: wrote custom team (%d mons) for chat %s", count, chat_id)
 
     def reloadmap_after_battle_callback(ctx):
+        req = _resolve_battle_request(chat_id)
+        if req is not None and req["state"] == "in_battle":
+            try:
+                result = symbol_read_u8(pyboy, "wBattleResult")
+                if result == 0:
+                    with wramx_bank(pyboy):
+                        _, candy_addr = pyboy.symbol_lookup("wExpCandySAmount")
+                        current = pyboy.memory[(_, candy_addr)]
+                        pyboy.memory[(_, candy_addr)] = min(current + 1, 255)
+                    req["state"] = "reward_pending"
+                else:
+                    _remove_battle_request(chat_id)
+            except (ValueError, TypeError) as exc:
+                logger.warning("reloadmapafterbattle hook: symbol lookup failed: %s", exc)
+                _remove_battle_request(chat_id)
         symbol_write_u8(pyboy, "wInBattleTowerBattle", 0)
 
     try:

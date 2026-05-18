@@ -10,9 +10,17 @@ from src.game_hooks.pkpcrystal import (
     queue_battle_request,
     begin_hooks,
     PARTYMON_STRUCT_LENGTH,
+    BATTLE_SCRIPT,
     SCRIPT_STARTBATTLE,
     SCRIPT_RELOADMAP,
     SCRIPT_END,
+    SCRIPT_OPENTEXT,
+    SCRIPT_FARWRITETEXT,
+    SCRIPT_CLOSETEXT,
+    SCRIPT_PLAYSOUND,
+    SCRIPT_WAITSFX,
+    SFX_ITEM,
+    TEXT_BYTES,
     TEXT_FAR,
     TEXT_TERM,
 )
@@ -371,8 +379,6 @@ class TestHookABasicBehavior:
             "wOtherTrainerClass": (0, 0xD010),
             "wScriptMode": (0, 0xD011),
             "wBattleScriptFlags": (0, 0xD012),
-            "wWinTextPointer": (1, 0xD047),
-            "YoungsterGordonBeatenText": (0x17, 0x7C1B),
         }
         pyboy.symbol_lookup.side_effect = lambda sym: sym_addrs.get(sym, (0, 0xC000))
         begin_hooks(pyboy, chat_id=111)
@@ -384,25 +390,17 @@ class TestHookABasicBehavior:
         assert callback is not None
         callback(None)
         assert _battle_requests[111]["state"] == "starting"
-        assert memory_store[0xC107] == SCRIPT_STARTBATTLE
-        assert memory_store[0xC108] == SCRIPT_RELOADMAP
-        assert memory_store[0xC109] == SCRIPT_END
-        far_addr = 0xC10A
-        assert memory_store[far_addr] == TEXT_FAR
-        assert memory_store[far_addr + 1] == (0x7C1B & 0xFF)
-        assert memory_store[far_addr + 2] == ((0x7C1B >> 8) & 0xFF)
-        assert memory_store[far_addr + 3] == 0x17
-        assert memory_store[far_addr + 4] == TEXT_TERM
+
+        script_addr = 0xC107
+        assert memory_store[script_addr] == SCRIPT_STARTBATTLE
+        assert memory_store[script_addr + 1] == SCRIPT_RELOADMAP
+        assert memory_store[script_addr + 2] == SCRIPT_END
         assert memory_store[0xFFEB] == 0
-        assert memory_store[0xFFEC] == (0xC107 & 0xFF)
-        assert memory_store[0xFFED] == ((0xC107 >> 8) & 0xFF)
+        assert memory_store[0xFFEC] == (script_addr & 0xFF)
+        assert memory_store[0xFFED] == ((script_addr >> 8) & 0xFF)
         assert memory_store[0xD002] == 1
         assert memory_store[0xD011] == 1
         assert memory_store[0xD012] == 0x81
-        assert memory_store[0xD047] == (far_addr & 0xFF)
-        assert memory_store[0xD048] == ((far_addr >> 8) & 0xFF)
-        assert memory_store[0xD049] == (far_addr & 0xFF)
-        assert memory_store[0xD04A] == ((far_addr >> 8) & 0xFF)
 
 
 # ─── Hook B ───────────────────────────────────────────────────────────
@@ -468,7 +466,7 @@ class TestHookBBasicBehavior:
             callback = _get_hook_callback(pyboy, "ComputeTrainerReward")
             assert callback is not None
             callback(None)
-        assert _resolve_battle_request(111) is None
+        assert _resolve_battle_request(111)["state"] == "in_battle"
         assert memory_store[0xCFFF] == 1
         for i in range(PARTY_STRUCT_SIZE):
             assert memory_store[0xD000 + i] == party[i], f"Mismatch at offset {i}"
@@ -565,6 +563,113 @@ class TestHookBBasicBehavior:
         expected = [0x8F, 0x88, 0x8A, 0x80, 0x82, 0x87, 0x94, 0x53, 0x53, 0x53, 0x53]
         for i in range(MON_NAME_LENGTH):
             assert memory_store[0xD200 + i] == expected[i], f"Nickname byte {i}"
+
+
+# ─── ReloadmapAfterBattle ───────────────────────────────────────────────
+
+class TestReloadmapAfterBattle:
+    @pytest.fixture(autouse=True)
+    def clear_cache(self):
+        _battle_requests.clear()
+
+    def _setup_reload(self, pyboy, memory_store):
+        syms = {
+            "wInBattleTowerBattle": (0, 0xCE94),
+            "wBattleResult": (0, 0xD0F6),
+            "wExpCandySAmount": (1, 0xDBC9),
+        }
+        pyboy.symbol_lookup.side_effect = lambda sym: syms.get(sym, (0, 0xC000))
+        _battle_requests[111] = {"state": "in_battle"}
+        begin_hooks(pyboy, chat_id=111)
+        return _get_hook_callback(pyboy, "Script_reloadmapafterbattle")
+
+    def test_gives_candy_and_sets_reward_pending_on_win(self):
+        pyboy, memory_store = _make_mock_pyboy()
+        callback = self._setup_reload(pyboy, memory_store)
+        memory_store[0xD0F6] = 0
+        memory_store[0xDBC9] = 5
+        memory_store[0xFF70] = 1
+        callback(None)
+        assert memory_store[0xDBC9] == 6
+        assert _battle_requests[111]["state"] == "reward_pending"
+        assert memory_store[0xCE94] == 0
+
+    def test_does_not_give_candy_on_loss(self):
+        pyboy, memory_store = _make_mock_pyboy()
+        callback = self._setup_reload(pyboy, memory_store)
+        memory_store[0xD0F6] = 1
+        callback(None)
+        assert _resolve_battle_request(111) is None
+
+    def test_does_not_give_candy_on_draw(self):
+        pyboy, memory_store = _make_mock_pyboy()
+        callback = self._setup_reload(pyboy, memory_store)
+        memory_store[0xD0F6] = 2
+        callback(None)
+        assert _resolve_battle_request(111) is None
+
+    def test_skips_without_cache(self):
+        pyboy, memory_store = _make_mock_pyboy()
+        syms = {"wInBattleTowerBattle": (0, 0xCE94)}
+        pyboy.symbol_lookup.side_effect = lambda sym: syms.get(sym, (0, 0xC000))
+        begin_hooks(pyboy, chat_id=111)
+        callback = _get_hook_callback(pyboy, "Script_reloadmapafterbattle")
+        memory_store[0xCE94] = 1
+        callback(None)
+        assert memory_store[0xCE94] == 0
+
+    def test_caps_candy_at_255(self):
+        pyboy, memory_store = _make_mock_pyboy()
+        callback = self._setup_reload(pyboy, memory_store)
+        memory_store[0xD0F6] = 0
+        memory_store[0xDBC9] = 255
+        memory_store[0xFF70] = 1
+        callback(None)
+        assert memory_store[0xDBC9] == 255
+
+
+# ─── Hook A reward_pending ──────────────────────────────────────────────
+
+class TestHookARewardPending:
+    @pytest.fixture(autouse=True)
+    def clear_cache(self):
+        _battle_requests.clear()
+
+    def test_injects_reward_text_on_reward_pending(self):
+        pyboy, memory_store = _make_mock_pyboy()
+        sym_addrs = {
+            "wFootprintQueue": (0, 0xC100),
+            "hScriptBank": (0, 0xFFEB),
+            "hScriptPos": (0, 0xFFEC),
+        }
+        pyboy.symbol_lookup.side_effect = lambda sym: sym_addrs.get(sym, (0, 0xC000))
+        begin_hooks(pyboy, chat_id=111)
+        _battle_requests[111] = {"state": "reward_pending"}
+        callback = _get_hook_callback(pyboy, "PlayerEvents")
+        assert callback is not None
+        callback(None)
+
+        script_addr = 0xC107
+        reward_script_len = 10
+        text_addr = script_addr + reward_script_len
+        assert memory_store[script_addr] == SCRIPT_OPENTEXT
+        assert memory_store[script_addr + 1] == SCRIPT_FARWRITETEXT
+        assert memory_store[script_addr + 2] == 0
+        assert memory_store[script_addr + 3] == (text_addr & 0xFF)
+        assert memory_store[script_addr + 4] == ((text_addr >> 8) & 0xFF)
+        assert memory_store[script_addr + 5] == SCRIPT_PLAYSOUND
+        assert memory_store[script_addr + 6] == SFX_ITEM
+        assert memory_store[script_addr + 7] == SCRIPT_WAITSFX
+        assert memory_store[script_addr + 8] == SCRIPT_CLOSETEXT
+        assert memory_store[script_addr + 9] == SCRIPT_END
+
+        for i, b in enumerate(TEXT_BYTES):
+            assert memory_store[text_addr + i] == b, f"Text byte {i} mismatch"
+
+        assert memory_store[0xFFEB] == 0
+        assert memory_store[0xFFEC] == (script_addr & 0xFF)
+        assert memory_store[0xFFED] == ((script_addr >> 8) & 0xFF)
+        assert _resolve_battle_request(111) is None
 
 
 def _make_mock_pyboy_svbk(pyboy, memory_store):

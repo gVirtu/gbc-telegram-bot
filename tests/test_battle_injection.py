@@ -10,6 +10,7 @@ from src.game_hooks.pkpcrystal import (
     queue_battle_request,
     begin_hooks,
     PARTYMON_STRUCT_LENGTH,
+    _read_player_party_levels,
     BATTLE_SCRIPT,
     SCRIPT_STARTBATTLE,
     SCRIPT_RELOADMAP,
@@ -78,6 +79,10 @@ def _make_mock_pyboy():
 
     def memory_getitem(key):
         if isinstance(key, tuple):
+            if isinstance(key[1], slice):
+                start = key[1].start
+                stop = key[1].stop
+                return [memory_store.get(i, 0) for i in range(start, stop)]
             return memory_store.get(key[1], 0)
         return memory_store.get(key, 0)
 
@@ -468,8 +473,15 @@ class TestHookBBasicBehavior:
             callback(None)
         assert _resolve_battle_request(111)["state"] == "in_battle"
         assert memory_store[0xCFFF] == 1
-        for i in range(PARTY_STRUCT_SIZE):
+        for i in range(6):
             assert memory_store[0xD000 + i] == party[i], f"Mismatch at offset {i}"
+        for i in range(33, PARTY_STRUCT_SIZE):
+            assert memory_store[0xD000 + i] == party[i], f"Mismatch at offset {i}"
+        assert memory_store[0xD000 + 16] == party[31]
+        assert memory_store[0xD000 + 19] == party[34]
+        assert memory_store[0xD000 + 20] == party[35]
+        assert memory_store[0xD000 + 21] == party[36]
+        assert memory_store[0xD000 + 22] == party[37]
         assert memory_store[0xD300] == 42
         assert memory_store[0xD301] == 7
         assert memory_store[0xCE94] == 1
@@ -503,8 +515,11 @@ class TestHookBBasicBehavior:
             assert callback is not None
             callback(None)
         assert memory_store[0xCFFF] == 2
-        for i in range(PARTY_STRUCT_SIZE):
+        for i in range(6):
             assert memory_store[0xD000 + i] == party0[i], f"Mismatch at mon0 offset {i}"
+        for i in range(33, PARTY_STRUCT_SIZE):
+            assert memory_store[0xD000 + i] == party0[i], f"Mismatch at mon0 offset {i}"
+        for i in range(PARTY_STRUCT_SIZE):
             assert memory_store[0xD030 + i] == party1[i], f"Mismatch at mon1 offset {i}"
         assert memory_store[0xD300] == 0x99
         assert memory_store[0xD301] == 5
@@ -784,6 +799,8 @@ class TestPurchaseHandler:
             return prefs.get(key)
         raw = _make_mock_battle_struct(species=25, level=5)
         prefs["pkpcrystal_trainer_card_mon_0"] = raw.hex()
+        for i in range(41):
+            memory_store[0xC000 + i] = 0x53
         with patch("src.game_shops.pkpcrystal.state_manager.get_user_preference", side_effect=mock_pref):
             result = await redeem_battle_handler(ctx)
         assert result.success is True
@@ -900,3 +917,91 @@ class TestPurchaseHandler:
         assert entry["party_mons"][0][0] == 25
         assert entry["trainer_name_bytes"][0] == REVERSE_CHARMAP["T"]
         assert entry["trainer_name_bytes"][1] == REVERSE_CHARMAP["e"]
+
+
+class TestReadPlayerPartyLevels:
+    @pytest.fixture(autouse=True)
+    def clear_cache(self):
+        _battle_requests.clear()
+
+    def test_reads_party_levels(self):
+        pyboy = MagicMock()
+        sym_addrs = {
+            "wPartyCount": (0, 0xD000),
+            "wPartyMon1": (0, 0xD100),
+        }
+        pyboy.symbol_lookup.side_effect = lambda sym: sym_addrs.get(sym, (0, 0xC000))
+        memory_store = {0xD000: 3}
+
+        def memory_getitem(key):
+            if isinstance(key, tuple):
+                return memory_store.get(key[1], 0)
+            return memory_store.get(key, 0)
+
+        pyboy.memory.__getitem__.side_effect = memory_getitem
+        memory_store[0xD100 + 0 * 48 + 31] = 5
+        memory_store[0xD100 + 1 * 48 + 31] = 10
+        memory_store[0xD100 + 2 * 48 + 31] = 15
+
+        result = _read_player_party_levels(pyboy)
+        assert result == [5, 10, 15]
+
+    def test_returns_empty_list_when_no_party(self):
+        pyboy = MagicMock()
+        sym_addrs = {
+            "wPartyCount": (0, 0xD000),
+            "wPartyMon1": (0, 0xD100),
+        }
+        pyboy.symbol_lookup.side_effect = lambda sym: sym_addrs.get(sym, (0, 0xC000))
+        memory_store = {0xD000: 0}
+
+        def memory_getitem(key):
+            if isinstance(key, tuple):
+                return memory_store.get(key[1], 0)
+            return memory_store.get(key, 0)
+
+        pyboy.memory.__getitem__.side_effect = memory_getitem
+
+        result = _read_player_party_levels(pyboy)
+        assert result == []
+
+
+class TestStatRebalancingIntegration:
+    @pytest.fixture(autouse=True)
+    def clear_cache(self):
+        _battle_requests.clear()
+
+    def test_rebalancing_applies_before_script_injection(self):
+        pyboy, memory_store = _make_mock_pyboy()
+        sym_addrs = {
+            "wBattleMode": (0, 0xD001),
+            "wScriptRunning": (0, 0xD002),
+            "wPartyCount": (0, 0xD003),
+            "wFootprintQueue": (0, 0xC100),
+            "hScriptBank": (0, 0xFFEB),
+            "hScriptPos": (0, 0xFFEC),
+            "wOtherTrainerClass": (0, 0xD010),
+            "wScriptMode": (0, 0xD011),
+            "wBattleScriptFlags": (0, 0xD012),
+        }
+        pyboy.symbol_lookup.side_effect = lambda sym: sym_addrs.get(sym, (0, 0xC000))
+        memory_store[0xD001] = 0
+        memory_store[0xD002] = 0
+        memory_store[0xD003] = 3
+
+        original_mon = bytes(range(48))
+        party_mons = [original_mon]
+
+        begin_hooks(pyboy, chat_id=111)
+        queue_battle_request(111, 222, "test", "TestUser", 1, [0x80] * 11, party_mons)
+
+        with (
+            patch("src.game_hooks.pkpcrystal._read_player_party_levels", return_value=[5, 10, 15]),
+            patch("src.game_hooks.pkpcrystal.compute_target_levels", return_value=[20]),
+            patch("src.game_hooks.pkpcrystal.recalc_pkmn_stats", return_value=bytes(bytearray(original_mon))),
+        ):
+            callback = _get_hook_callback(pyboy, "PlayerEvents")
+            assert callback is not None
+            callback(None)
+
+        assert _battle_requests[111]["state"] == "starting"

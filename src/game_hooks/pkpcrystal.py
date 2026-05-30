@@ -20,7 +20,8 @@ from src.game_utils.pkpcrystal.writer import (
     write_bytes,
     wramx_bank,
 )
-from src.game_utils.pkpcrystal.party_builder import PARTY_STRUCT_SIZE, B_SPECIES, P_LEVEL
+from src.game_utils.pkpcrystal.party_builder import PARTY_STRUCT_SIZE, B_SPECIES, P_LEVEL, P_HP, P_MAXHP, P_ATTACK
+from src.game_utils.pkpcrystal.stat_recalc import recalc_pkmn_stats, compute_target_levels
 
 _battle_requests: dict[int, dict] = {}
 
@@ -194,6 +195,18 @@ def end_hooks(pyboy, context: dict) -> None:
     deregister_custom_hooks(pyboy)
 
 
+def _read_player_party_levels(pyboy) -> list[int]:
+    count = symbol_read_u8(pyboy, "wPartyCount")
+    bank, addr = pyboy.symbol_lookup("wPartyMon1")
+    logger.debug("_read_player_party_levels: count=%d, wPartyMon1 bank=%d addr=0x%04X", count, bank, addr)
+    levels = []
+    for i in range(count):
+        level = pyboy.memory[(bank, addr + i * PARTYMON_STRUCT_LENGTH + MON_LEVEL)]
+        logger.debug("_read_player_party_levels: mon %d level=%d (addr=0x%04X)", i, level, addr + i * PARTYMON_STRUCT_LENGTH + MON_LEVEL)
+        levels.append(level)
+    return levels
+
+
 def _register_battle_hooks(pyboy, chat_id):
     def player_events_callback(ctx):
         req = _resolve_battle_request(chat_id)
@@ -210,6 +223,11 @@ def _register_battle_hooks(pyboy, chat_id):
                 return
             if mode != 0 or script != 0 or party == 0:
                 return
+            player_levels = _read_player_party_levels(pyboy)
+            target_levels = compute_target_levels(player_levels, len(req["party_mons"]))
+            logger.debug("PlayerEvents: rebalancing player_levels=%s target_levels=%s opponent_count=%d",
+                        player_levels, target_levels, len(req["party_mons"]))
+            req["party_mons"] = [recalc_pkmn_stats(pyboy, mon, lvl) for mon, lvl in zip(req["party_mons"], target_levels)]
             try:
                 _bank, fq_addr = pyboy.symbol_lookup("wFootprintQueue")
                 script_addr = fq_addr + FOOTPRINT_QUEUE_SIZE
@@ -295,6 +313,32 @@ def _register_battle_hooks(pyboy, chat_id):
                     nickname_bytes = encode_name(species_name, max_len=MON_NAME_LENGTH)
                     write_bytes(pyboy, _bank, nick_addr, bytes(nickname_bytes))
                 first_mon = party_mons[0]
+                # wOTPartyMon1 and wEnemyMon share memory (UNION). Party struct
+                # offsets differ from battle struct offsets. The battle engine reads
+                # HP from battle offset 19, but we wrote it at party offset 34.
+                # Overlay battle struct format at shared memory bytes 6-32.
+                # Battle struct stores 16-bit values BIG-ENDIAN [high, low],
+                # opposite of party struct's little-endian [low, high].
+                battle_overlay = bytes([
+                    first_mon[17], first_mon[18], first_mon[19],  # DVs -> battle[6-8]
+                    first_mon[20], first_mon[21],                  # nature, form -> battle[9-10]
+                    first_mon[22], first_mon[23], first_mon[24], first_mon[25],  # PP -> battle[11-14]
+                    first_mon[26],                                  # happiness -> battle[15]
+                    first_mon[31],                                  # level -> battle[16]
+                    first_mon[32],                                  # status -> battle[17]
+                    0,                                              # unused -> battle[18]
+                    first_mon[34], first_mon[35],                   # HP (big-endian)
+                    first_mon[36], first_mon[37],                   # MaxHP (big-endian)
+                    first_mon[38], first_mon[39],                   # ATK (big-endian)
+                    first_mon[40], first_mon[41],                   # DEF (big-endian)
+                    first_mon[42], first_mon[43],                   # SPE (big-endian)
+                    first_mon[44], first_mon[45],                   # SATK (big-endian)
+                    # NOTE: SDEF (battle[31-32]) intentionally omitted
+                    # b/c shared mem offsets 31-32 = party struct's level (31)
+                    # and status (32). SendInUserPkmn copies correct SDEF from
+                    # party[46-47] → battle[31-32] later.
+                ])
+                write_bytes(pyboy, _bank, ot_mons_base + 6, battle_overlay)
                 symbol_write_u8(pyboy, "wCurPartySpecies", first_mon[B_SPECIES])
                 symbol_write_u8(pyboy, "wCurPartyLevel", first_mon[P_LEVEL])
                 symbol_write_u8(pyboy, "wCurForm", 0)

@@ -466,7 +466,9 @@
           "in_battle": "❌ O jogador está em uma batalha!",
           "script_running": "❌ Um evento está em andamento!",
           "no_party": "❌ O jogador não tem uma equipe!",
-          "no_party_mons": "❌ Seu time do Trainer Card está vazio! Capture alguns Pokémon primeiro."
+          "no_party_mons": "❌ Seu time do Trainer Card está vazio! Capture alguns Pokémon primeiro.",
+          "not_in_pokemon_center": "❌ Você precisa estar em um Centro Pokémon para iniciar uma batalha!",
+          "party_not_fully_healed": "❌ Todos os Pokémon da sua equipe precisam estar com HP máximo para iniciar uma batalha!"
         },
         "messages": {
           "capture_success": "🎉 Parabéns, você capturou {enemy_mon_name}! ({chance} de chance)\n\nEscolha a posição para adicionar ao seu card:\n\n⚠️ Selecionar uma posição com um Pokémon substituirá ele *permanentemente*.",

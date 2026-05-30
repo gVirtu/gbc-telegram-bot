@@ -17,6 +17,7 @@ from src.shop.flow.handlers import ShopPurchaseContext, PurchaseComplete, Select
 from src.shop.flow.screens import SelectionOption
 from src.utils.state_manager import state_manager
 from src.game_hooks.pkpcrystal import queue_battle_request
+from src.game_utils.pkpcrystal.pokecenter_maps import POKECENTER_MAPS
 from src.game_utils.pkpcrystal.reader import symbol_read_u8, symbol_read_u16le, get_pokemon_name, get_pokemon_catch_rate, get_trainer_class_name_raw
 from src.game_utils.pkpcrystal.enum import BattleMode
 from src.game_utils.pkpcrystal.charmap import encode_name, CHARMAP
@@ -272,6 +273,17 @@ async def redeem_battle_handler(purchase_ctx: ShopPurchaseContext):
     party = symbol_read_u8(pyboy, "wPartyCount")
     if party == 0:
         return PurchaseComplete(success=False, error_message=f"{SHOP_PREFIX}.errors.no_party")
+
+    map_group = symbol_read_u8(pyboy, "wMapGroup")
+    map_number = symbol_read_u8(pyboy, "wMapNumber")
+    if (map_group, map_number) not in POKECENTER_MAPS:
+        return PurchaseComplete(success=False, error_message=f"{SHOP_PREFIX}.errors.not_in_pokemon_center")
+
+    for slot in range(1, party + 1):
+        hp = symbol_read_u16le(pyboy, f"wPartyMon{slot}HP")
+        max_hp = symbol_read_u16le(pyboy, f"wPartyMon{slot}MaxHP")
+        if hp != max_hp:
+            return PurchaseComplete(success=False, error_message=f"{SHOP_PREFIX}.errors.party_not_fully_healed")
 
     platform = purchase_ctx.platform
     user_id = purchase_ctx.user_id

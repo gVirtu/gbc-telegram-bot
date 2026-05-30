@@ -1,0 +1,30 @@
+# (map_group, map_number) pairs for every Pokémon Center in Polished Crystal.
+# Sources: roms/polishedcrystal/constants/map_constants.asm
+
+POKECENTER_MAPS: set[tuple[int, int]] = {
+    (1, 1),   # OLIVINE_POKECENTER_1F          (group 1, map 1)
+    (2, 3),   # MAHOGANY_POKECENTER_1F         (group 2, map 3)
+    (4, 3),   # ECRUTEAK_POKECENTER_1F         (group 4, map 3)
+    (5, 6),   # BLACKTHORN_POKECENTER_1F       (group 5, map 6)
+    (6, 1),   # CINNABAR_POKECENTER_1F         (group 6, map 1)
+    (7, 4),   # CERULEAN_POKECENTER_1F         (group 7, map 4)
+    (7, 8),   # ROUTE_10_POKECENTER_1F         (group 7, map 8)
+    (8, 1),   # AZALEA_POKECENTER_1F           (group 8, map 1)
+    (10, 8),  # VIOLET_POKECENTER_1F           (group 10, map 8)
+    (10, 11), # ROUTE_32_POKECENTER_1F         (group 10, map 11)
+    (12, 5),  # VERMILION_POKECENTER_1F        (group 12, map 5)
+    (14, 3),  # ROUTE_3_POKECENTER_1F          (group 14, map 3)
+    (14, 8),  # PEWTER_POKECENTER_1F           (group 14, map 8)
+    (16, 4),  # INDIGO_PLATEAU_POKECENTER_1F   (group 16, map 4)
+    (17, 12), # FUCHSIA_POKECENTER_1F          (group 17, map 12)
+    (18, 6),  # LAVENDER_POKECENTER_1F         (group 18, map 6)
+    (19, 3),  # SILVER_CAVE_POKECENTER_1F      (group 19, map 3)
+    (20, 1),  # POKECENTER_2F                  (group 20, map 1)
+    (21, 20), # CELADON_POKECENTER_1F          (group 21, map 20)
+    (22, 5),  # CIANWOOD_POKECENTER_1F         (group 22, map 5)
+    (23, 11), # VIRIDIAN_POKECENTER_1F         (group 23, map 11)
+    (25, 4),  # SAFFRON_POKECENTER_1F          (group 25, map 4)
+    (26, 6),  # CHERRYGROVE_POKECENTER_1F      (group 26, map 6)
+    (31, 8),  # SHAMOUTI_POKECENTER_1F         (group 31, map 8)
+    (36, 5),  # SNOWTOP_POKECENTER_1F          (group 36, map 5)
+}

@@ -1,5 +1,5 @@
 from src.game_utils.pkpcrystal.party_builder import (
-    P_SPECIES, P_DVS, P_DVS_LEN, P_EVS, P_EVS_LEN,
+    PARTY_STRUCT_SIZE, P_SPECIES, P_DVS, P_DVS_LEN, P_EVS, P_EVS_LEN,
     P_NATURE, P_LEVEL, P_STATUS,
     P_HP, P_HP_LEN, P_MAXHP, P_MAXHP_LEN,
     P_ATTACK, P_DEFENSE, P_SPEED, P_SPATK, P_SPDEF,
@@ -77,6 +77,25 @@ def compute_target_levels(player_levels: list[int], num_opponent: int) -> list[i
         sorted_levels = [highest] * num_opponent
     result = [max(2, min(100, lvl)) for lvl in sorted_levels]
     return sorted(result)
+
+
+def get_trainer_card_recalc_levels(pyboy, mon_slots: list[tuple[int, bytes]]) -> dict[int, int] | None:
+    from src.game_utils.pkpcrystal.reader import symbol_read_u8
+
+    party_count = symbol_read_u8(pyboy, "wPartyCount")
+    if party_count == 0:
+        return None
+
+    bank, addr = pyboy.symbol_lookup("wPartyMon1")
+    player_levels = []
+    for i in range(party_count):
+        level = pyboy.memory[(bank, addr + i * PARTY_STRUCT_SIZE + P_LEVEL)]
+        player_levels.append(level)
+
+    num_opponent = len(mon_slots)
+    target_levels = compute_target_levels(player_levels, num_opponent)
+
+    return {slot: level for (slot, _), level in zip(mon_slots, target_levels)}
 
 
 def recalc_pkmn_stats(pyboy, party_mon, target_level):

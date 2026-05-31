@@ -1005,3 +1005,84 @@ class TestStatRebalancingIntegration:
             callback(None)
 
         assert _battle_requests[111]["state"] == "starting"
+
+
+class TestGetTrainerCardRecalcLevels:
+    def test_returns_none_when_party_empty(self):
+        from src.game_utils.pkpcrystal.stat_recalc import get_trainer_card_recalc_levels
+
+        pyboy, memory_store = _make_mock_pyboy()
+        sym_addrs = {
+            "wPartyCount": (0, 0xD003),
+        }
+        pyboy.symbol_lookup.side_effect = lambda sym: sym_addrs.get(sym, (0, 0xC000))
+        memory_store[0xD003] = 0
+
+        result = get_trainer_card_recalc_levels(pyboy, [(0, b'\x00')])
+        assert result is None
+
+    def test_returns_levels_for_single_mon(self):
+        from src.game_utils.pkpcrystal.stat_recalc import get_trainer_card_recalc_levels
+
+        pyboy, memory_store = _make_mock_pyboy()
+        sym_addrs = {
+            "wPartyCount": (0, 0xD003),
+            "wPartyMon1": (0, 0xD100),
+        }
+        pyboy.symbol_lookup.side_effect = lambda sym: sym_addrs.get(sym, (0, 0xC000))
+        memory_store[0xD003] = 3
+        memory_store[0xD100 + 0 * 48 + 31] = 12
+        memory_store[0xD100 + 1 * 48 + 31] = 18
+        memory_store[0xD100 + 2 * 48 + 31] = 22
+
+        result = get_trainer_card_recalc_levels(pyboy, [(0, b'\x01' + b'\x00' * 41)])
+        assert result is not None
+        assert result[0] == 22
+
+    def test_returns_levels_for_multiple_mons(self):
+        from src.game_utils.pkpcrystal.stat_recalc import get_trainer_card_recalc_levels
+
+        pyboy, memory_store = _make_mock_pyboy()
+        sym_addrs = {
+            "wPartyCount": (0, 0xD003),
+            "wPartyMon1": (0, 0xD100),
+        }
+        pyboy.symbol_lookup.side_effect = lambda sym: sym_addrs.get(sym, (0, 0xC000))
+        memory_store[0xD003] = 4
+        memory_store[0xD100 + 0 * 48 + 31] = 10
+        memory_store[0xD100 + 1 * 48 + 31] = 15
+        memory_store[0xD100 + 2 * 48 + 31] = 20
+        memory_store[0xD100 + 3 * 48 + 31] = 25
+
+        mon_slots = [
+            (0, b'\x01' + b'\x00' * 41),
+            (2, b'\x01' + b'\x00' * 41),
+            (4, b'\x01' + b'\x00' * 41),
+        ]
+        result = get_trainer_card_recalc_levels(pyboy, mon_slots)
+        assert result is not None
+        assert result[0] == 15
+        assert result[2] == 20
+        assert result[4] == 25
+
+    def test_slot_order_preserved(self):
+        from src.game_utils.pkpcrystal.stat_recalc import get_trainer_card_recalc_levels
+
+        pyboy, memory_store = _make_mock_pyboy()
+        sym_addrs = {
+            "wPartyCount": (0, 0xD003),
+            "wPartyMon1": (0, 0xD100),
+        }
+        pyboy.symbol_lookup.side_effect = lambda sym: sym_addrs.get(sym, (0, 0xC000))
+        memory_store[0xD003] = 2
+        memory_store[0xD100 + 0 * 48 + 31] = 30
+        memory_store[0xD100 + 1 * 48 + 31] = 10
+
+        mon_slots = [
+            (0, b'\x01' + b'\x00' * 41),
+            (1, b'\x01' + b'\x00' * 41),
+        ]
+        result = get_trainer_card_recalc_levels(pyboy, mon_slots)
+        assert result is not None
+        assert result[0] == 10
+        assert result[1] == 30

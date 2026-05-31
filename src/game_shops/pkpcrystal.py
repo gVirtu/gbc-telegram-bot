@@ -33,6 +33,7 @@ from src.game_utils.pkpcrystal.reader import (
 from src.game_utils.pkpcrystal.enum import BattleMode
 from src.game_utils.pkpcrystal.charmap import encode_name, CHARMAP
 from src.game_utils.pkpcrystal.party_builder import battle_struct_to_party, BATTLE_STRUCT_SIZE
+from src.game_utils.pkpcrystal.stat_recalc import get_trainer_card_recalc_levels
 
 logger = logging.getLogger(__name__)
 
@@ -356,7 +357,7 @@ async def teach_level_move_handler(purchase_ctx: ShopPurchaseContext):
     user_id = purchase_ctx.user_id
     pyboy = controller.pyboy
 
-    options = []
+    mon_slots = []
     for slot in range(6):
         mon_hex = state_manager.get_user_preference(platform, user_id, f"pkpcrystal_trainer_card_mon_{slot}")
         if not mon_hex:
@@ -368,15 +369,25 @@ async def teach_level_move_handler(purchase_ctx: ShopPurchaseContext):
         except ValueError:
             continue
 
+        mon_slots.append((slot, raw))
+
+    if not mon_slots:
+        return PurchaseComplete(success=False, error_message=f"{SHOP_PREFIX}.errors.no_party_mons")
+
+    recalc_levels = get_trainer_card_recalc_levels(pyboy, mon_slots)
+    if recalc_levels is None:
+        return PurchaseComplete(success=False, error_message=f"{SHOP_PREFIX}.errors.no_party")
+
+    purchase_ctx.session.state["teach_recalc_levels"] = recalc_levels
+
+    options = []
+    for slot, raw in mon_slots:
         species_name = get_pokemon_name(pyboy, raw[0])
-        level = raw[16]
+        level = recalc_levels[slot]
         options.append(SelectionOption(
             label=f"{species_name} Lv.{level}",
             value=str(slot),
         ))
-
-    if not options:
-        return PurchaseComplete(success=False, error_message=f"{SHOP_PREFIX}.errors.no_party_mons")
 
     return SelectionStep(
         prompt=f"{SHOP_PREFIX}.messages.teach_level_move_select_mon",
@@ -399,7 +410,8 @@ async def _on_select_teach_mon(value: str, purchase_ctx: ShopPurchaseContext):
     mon_hex = state_manager.get_user_preference(platform, user_id, f"pkpcrystal_trainer_card_mon_{slot}")
     raw = bytes.fromhex(mon_hex)
     species_id = raw[0]
-    level = raw[16]
+    recalc_levels = session.state.get("teach_recalc_levels", {})
+    level = recalc_levels.get(slot, raw[16])
     current_move_ids = [raw[2], raw[3], raw[4], raw[5]]
 
     species_name = get_pokemon_name(pyboy, species_id)
@@ -552,7 +564,7 @@ async def teach_tmhm_move_handler(purchase_ctx: ShopPurchaseContext):
     user_id = purchase_ctx.user_id
     pyboy = controller.pyboy
 
-    options = []
+    mon_slots = []
     for slot in range(6):
         mon_hex = state_manager.get_user_preference(platform, user_id, f"pkpcrystal_trainer_card_mon_{slot}")
         if not mon_hex:
@@ -564,8 +576,19 @@ async def teach_tmhm_move_handler(purchase_ctx: ShopPurchaseContext):
         except ValueError:
             continue
 
+        mon_slots.append((slot, raw))
+
+    if not mon_slots:
+        return PurchaseComplete(success=False, error_message=f"{SHOP_PREFIX}.errors.no_party_mons")
+
+    recalc_levels = get_trainer_card_recalc_levels(pyboy, mon_slots)
+    if recalc_levels is None:
+        return PurchaseComplete(success=False, error_message=f"{SHOP_PREFIX}.errors.no_party")
+
+    options = []
+    for slot, raw in mon_slots:
         species_name = get_pokemon_name(pyboy, raw[0])
-        level = raw[16]
+        level = recalc_levels[slot]
         options.append(SelectionOption(
             label=f"{species_name} Lv.{level}",
             value=str(slot),
@@ -666,7 +689,7 @@ async def teach_egg_move_handler(purchase_ctx: ShopPurchaseContext):
     user_id = purchase_ctx.user_id
     pyboy = controller.pyboy
 
-    options = []
+    mon_slots = []
     for slot in range(6):
         mon_hex = state_manager.get_user_preference(platform, user_id, f"pkpcrystal_trainer_card_mon_{slot}")
         if not mon_hex:
@@ -678,8 +701,19 @@ async def teach_egg_move_handler(purchase_ctx: ShopPurchaseContext):
         except ValueError:
             continue
 
+        mon_slots.append((slot, raw))
+
+    if not mon_slots:
+        return PurchaseComplete(success=False, error_message=f"{SHOP_PREFIX}.errors.no_party_mons")
+
+    recalc_levels = get_trainer_card_recalc_levels(pyboy, mon_slots)
+    if recalc_levels is None:
+        return PurchaseComplete(success=False, error_message=f"{SHOP_PREFIX}.errors.no_party")
+
+    options = []
+    for slot, raw in mon_slots:
         species_name = get_pokemon_name(pyboy, raw[0])
-        level = raw[16]
+        level = recalc_levels[slot]
         options.append(SelectionOption(
             label=f"{species_name} Lv.{level}",
             value=str(slot),
@@ -906,7 +940,7 @@ async def inspect_trainer_card_handler(purchase_ctx: ShopPurchaseContext):
     user_id = purchase_ctx.user_id
     pyboy = controller.pyboy
 
-    party_mons = []
+    mon_slots = []
     for slot in range(6):
         mon_hex = state_manager.get_user_preference(platform, user_id, f"pkpcrystal_trainer_card_mon_{slot}")
         if not mon_hex:
@@ -915,17 +949,22 @@ async def inspect_trainer_card_handler(purchase_ctx: ShopPurchaseContext):
             raw = bytes.fromhex(mon_hex)
             if len(raw) != BATTLE_STRUCT_SIZE or raw[0] == 0:
                 continue
-            party_mons.append(battle_struct_to_party(raw))
+            mon_slots.append((slot, raw))
         except Exception as e:
             logger.error(f"Invalid mon data for user {user_id} (slot {slot}) in chat {purchase_ctx.chat_id}: {mon_hex}.\n\nError: {e}")
             continue
 
-    if not party_mons:
+    if not mon_slots:
         logger.info(f"User {user_id} tried to inspect trainer card in chat {purchase_ctx.chat_id} with no stored mons")
         return PurchaseComplete(success=False, error_message=f"{SHOP_PREFIX}.errors.no_party_mons")
 
+    recalc_levels = get_trainer_card_recalc_levels(pyboy, mon_slots)
+    if recalc_levels is None:
+        return PurchaseComplete(success=False, error_message=f"{SHOP_PREFIX}.errors.no_party")
+
     mons = []
-    for party_bytes in party_mons:
+    for slot, raw in mon_slots:
+        party_bytes = battle_struct_to_party(raw)
         pmon = parse_party_struct(party_bytes)
         mons.append(_resolve_mon_data(
             pyboy,
@@ -934,7 +973,7 @@ async def inspect_trainer_card_handler(purchase_ctx: ShopPurchaseContext):
             move_ids=pmon["move_ids"],
             p1=pmon["personality"][0],
             p2=pmon["personality"][1],
-            level=pmon["level"],
+            level=recalc_levels[slot],
             evs_raw=pmon["evs"],
             nickname=None,
         ))

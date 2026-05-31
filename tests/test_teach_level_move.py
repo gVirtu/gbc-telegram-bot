@@ -202,6 +202,8 @@ class TestTeachLevelMoveHandler:
 
         ctx = MagicMock()
         ctx.game_controller = MagicMock()
+        ctx.session = MagicMock()
+        ctx.session.state = {}
         ctx.check_balance = AsyncMock(return_value=True)
         ctx.platform = "test"
         ctx.user_id = 1
@@ -214,12 +216,13 @@ class TestTeachLevelMoveHandler:
         with (
             patch("src.game_shops.pkpcrystal.state_manager.get_user_preference", side_effect=mock_pref),
             patch("src.game_shops.pkpcrystal.get_pokemon_name", return_value="Bulbasaur"),
+            patch("src.game_shops.pkpcrystal.get_trainer_card_recalc_levels", return_value={0: 80}),
         ):
             result = await teach_level_move_handler(ctx)
 
         assert isinstance(result, SelectionStep)
         assert len(result.options) == 1
-        assert result.options[0].label == "Bulbasaur Lv.10"
+        assert result.options[0].label == "Bulbasaur Lv.80"
         assert result.options[0].value == "0"
 
     @pytest.mark.asyncio
@@ -239,6 +242,8 @@ class TestTeachLevelMoveHandler:
 
         ctx = MagicMock()
         ctx.game_controller = MagicMock()
+        ctx.session = MagicMock()
+        ctx.session.state = {}
         ctx.check_balance = AsyncMock(return_value=True)
         ctx.platform = "test"
         ctx.user_id = 1
@@ -246,11 +251,41 @@ class TestTeachLevelMoveHandler:
         with (
             patch("src.game_shops.pkpcrystal.state_manager.get_user_preference", side_effect=mock_pref),
             patch("src.game_shops.pkpcrystal.get_pokemon_name", return_value="Bulbasaur"),
+            patch("src.game_shops.pkpcrystal.get_trainer_card_recalc_levels", return_value={1: 15}),
         ):
             result = await teach_level_move_handler(ctx)
 
         assert isinstance(result, SelectionStep)
         assert len(result.options) == 1
+        assert result.options[0].label == "Bulbasaur Lv.15"
+
+    @pytest.mark.asyncio
+    async def test_no_party_error(self):
+        from src.game_shops.pkpcrystal import teach_level_move_handler
+        raw = _make_mock_battle_struct(species=0x01, level=10)
+
+        ctx = MagicMock()
+        ctx.game_controller = MagicMock()
+        ctx.session = MagicMock()
+        ctx.session.state = {}
+        ctx.check_balance = AsyncMock(return_value=True)
+        ctx.platform = "test"
+        ctx.user_id = 1
+
+        def mock_pref(platform, uid, key):
+            if key == "pkpcrystal_trainer_card_mon_0":
+                return raw.hex()
+            return None
+
+        with (
+            patch("src.game_shops.pkpcrystal.state_manager.get_user_preference", side_effect=mock_pref),
+            patch("src.game_shops.pkpcrystal.get_pokemon_name", return_value="Bulbasaur"),
+            patch("src.game_shops.pkpcrystal.get_trainer_card_recalc_levels", return_value=None),
+        ):
+            result = await teach_level_move_handler(ctx)
+
+        assert result.success is False
+        assert "no_party" in result.error_message
 
 
 class TestOnSelectTeachMon:
@@ -383,6 +418,38 @@ class TestOnSelectTeachMon:
 
         assert isinstance(result, SelectionStep)
         assert len(result.options) == 1
+
+    @pytest.mark.asyncio
+    async def test_filters_moves_above_recalc_level(self):
+        from src.game_shops.pkpcrystal import _on_select_teach_mon
+        raw = _make_mock_battle_struct(species=0x01, level=5, moves=[0x21, 0, 0, 0])
+        prefs = {"pkpcrystal_trainer_card_mon_0": raw.hex()}
+
+        session = FlowSession(item=MagicMock(), cat_id="pkpc_battles", cat_page=0, chat_id=99)
+        session.state["teach_recalc_levels"] = {0: 25}
+
+        ctx = MagicMock()
+        ctx.platform = "test"
+        ctx.user_id = 1
+        ctx.chat_id = 99
+        ctx.user_name = "TestUser"
+        ctx.item = MagicMock()
+        ctx.session = session
+        ctx.game_controller = MagicMock()
+
+        with (
+            patch("src.game_shops.pkpcrystal.state_manager.get_user_preference", side_effect=lambda p, u, k: prefs.get(k)),
+            patch("src.game_shops.pkpcrystal.get_pokemon_name", return_value="Bulbasaur"),
+            patch("src.game_shops.pkpcrystal.get_species_learnset",
+                  return_value=[(1, 0x21), (2, 0x2D), (7, 0x4A), (10, 0x45), (17, 0x2B)]),
+            patch("src.game_shops.pkpcrystal.get_move_name", return_value="Tackle"),
+            patch("src.game_shops.pkpcrystal.shop_manager.purchase", return_value=MagicMock(success=True)),
+            patch("src.game_shops.pkpcrystal.random.sample", return_value=[(0x2D, "Growl"), (0x4A, "Vine Whip")]),
+        ):
+            result = await _on_select_teach_mon("0", ctx)
+
+        assert isinstance(result, SelectionStep)
+        assert len(result.options) == 2
 
 
 class TestOnSelectTeachMove:
@@ -615,6 +682,8 @@ class TestTeachTmhmMoveHandler:
 
         ctx = MagicMock()
         ctx.game_controller = MagicMock()
+        ctx.session = MagicMock()
+        ctx.session.state = {}
         ctx.check_balance = AsyncMock(return_value=True)
         ctx.platform = "test"
         ctx.user_id = 1
@@ -627,11 +696,42 @@ class TestTeachTmhmMoveHandler:
         with (
             patch("src.game_shops.pkpcrystal.state_manager.get_user_preference", side_effect=mock_pref),
             patch("src.game_shops.pkpcrystal.get_pokemon_name", return_value="Bulbasaur"),
+            patch("src.game_shops.pkpcrystal.get_trainer_card_recalc_levels", return_value={0: 50}),
         ):
             result = await teach_tmhm_move_handler(ctx)
 
         assert isinstance(result, SelectionStep)
+        assert len(result.options) == 1
+        assert result.options[0].label == "Bulbasaur Lv.50"
         assert result.on_select is not None
+
+    @pytest.mark.asyncio
+    async def test_no_party_error(self):
+        from src.game_shops.pkpcrystal import teach_tmhm_move_handler
+        raw = _make_mock_battle_struct(species=0x01, level=10)
+
+        ctx = MagicMock()
+        ctx.game_controller = MagicMock()
+        ctx.session = MagicMock()
+        ctx.session.state = {}
+        ctx.check_balance = AsyncMock(return_value=True)
+        ctx.platform = "test"
+        ctx.user_id = 1
+
+        def mock_pref(platform, uid, key):
+            if key == "pkpcrystal_trainer_card_mon_0":
+                return raw.hex()
+            return None
+
+        with (
+            patch("src.game_shops.pkpcrystal.state_manager.get_user_preference", side_effect=mock_pref),
+            patch("src.game_shops.pkpcrystal.get_pokemon_name", return_value="Bulbasaur"),
+            patch("src.game_shops.pkpcrystal.get_trainer_card_recalc_levels", return_value=None),
+        ):
+            result = await teach_tmhm_move_handler(ctx)
+
+        assert result.success is False
+        assert "no_party" in result.error_message
 
 
 class TestOnSelectTmhmMon:
@@ -769,6 +869,79 @@ class TestTeachEggMoveHandler:
         result = await teach_egg_move_handler(ctx)
         assert result.success is False
         assert "insufficient_funds" in result.error_message
+
+    @pytest.mark.asyncio
+    async def test_no_party_mons(self):
+        from src.game_shops.pkpcrystal import teach_egg_move_handler
+        ctx = MagicMock()
+        ctx.game_controller = MagicMock()
+        ctx.session = MagicMock()
+        ctx.session.state = {}
+        ctx.check_balance = AsyncMock(return_value=True)
+        ctx.platform = "test"
+        ctx.user_id = 1
+        with patch("src.game_shops.pkpcrystal.state_manager.get_user_preference", return_value=None):
+            result = await teach_egg_move_handler(ctx)
+        assert result.success is False
+        assert "no_party_mons" in result.error_message
+
+    @pytest.mark.asyncio
+    async def test_returns_mon_selection(self):
+        from src.game_shops.pkpcrystal import teach_egg_move_handler
+        raw = _make_mock_battle_struct(species=0x01, level=10)
+
+        ctx = MagicMock()
+        ctx.game_controller = MagicMock()
+        ctx.session = MagicMock()
+        ctx.session.state = {}
+        ctx.check_balance = AsyncMock(return_value=True)
+        ctx.platform = "test"
+        ctx.user_id = 1
+
+        def mock_pref(platform, uid, key):
+            if key == "pkpcrystal_trainer_card_mon_0":
+                return raw.hex()
+            return None
+
+        with (
+            patch("src.game_shops.pkpcrystal.state_manager.get_user_preference", side_effect=mock_pref),
+            patch("src.game_shops.pkpcrystal.get_pokemon_name", return_value="Bulbasaur"),
+            patch("src.game_shops.pkpcrystal.get_trainer_card_recalc_levels", return_value={0: 50}),
+        ):
+            result = await teach_egg_move_handler(ctx)
+
+        assert isinstance(result, SelectionStep)
+        assert len(result.options) == 1
+        assert result.options[0].label == "Bulbasaur Lv.50"
+        assert result.on_select is not None
+
+    @pytest.mark.asyncio
+    async def test_no_party_error(self):
+        from src.game_shops.pkpcrystal import teach_egg_move_handler
+        raw = _make_mock_battle_struct(species=0x01, level=10)
+
+        ctx = MagicMock()
+        ctx.game_controller = MagicMock()
+        ctx.session = MagicMock()
+        ctx.session.state = {}
+        ctx.check_balance = AsyncMock(return_value=True)
+        ctx.platform = "test"
+        ctx.user_id = 1
+
+        def mock_pref(platform, uid, key):
+            if key == "pkpcrystal_trainer_card_mon_0":
+                return raw.hex()
+            return None
+
+        with (
+            patch("src.game_shops.pkpcrystal.state_manager.get_user_preference", side_effect=mock_pref),
+            patch("src.game_shops.pkpcrystal.get_pokemon_name", return_value="Bulbasaur"),
+            patch("src.game_shops.pkpcrystal.get_trainer_card_recalc_levels", return_value=None),
+        ):
+            result = await teach_egg_move_handler(ctx)
+
+        assert result.success is False
+        assert "no_party" in result.error_message
 
 
 class TestOnSelectEggMon:

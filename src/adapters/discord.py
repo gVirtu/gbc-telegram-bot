@@ -194,7 +194,7 @@ def render_discord_shop_screen(screen: "ShopScreen") -> Any:
             view.add_item(discord.ui.Button(
                 label=label,
                 custom_id=f"shop_cat_{cat.id}_0",
-                row=i,
+                row=i//2,
                 style=discord.ButtonStyle.primary,
             ))
         nav_row = len(screen.categories)

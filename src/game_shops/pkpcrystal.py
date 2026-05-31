@@ -926,7 +926,11 @@ async def inspect_team_handler(purchase_ctx: ShopPurchaseContext):
         ))
 
     report = _format_party_report(mons)
-    return PurchaseComplete(success=True, success_message=f"{SHOP_PREFIX}.messages.inspect_team", bindings={"report": report})
+    
+    async def on_success(purchase_ctx: ShopPurchaseContext):
+        return PurchaseComplete(success=True, success_message=f"{SHOP_PREFIX}.messages.inspect_team", bindings={"report": report})
+        
+    return await default_purchase_handler(purchase_ctx, on_success=on_success)
 
 
 async def inspect_trainer_card_handler(purchase_ctx: ShopPurchaseContext):
@@ -979,7 +983,11 @@ async def inspect_trainer_card_handler(purchase_ctx: ShopPurchaseContext):
         ))
 
     report = _format_party_report(mons)
-    return PurchaseComplete(success=True, success_message=f"{SHOP_PREFIX}.messages.inspect_trainer_card", bindings={"report": report})
+    
+    async def on_success(purchase_ctx: ShopPurchaseContext):
+        return PurchaseComplete(success=True, success_message=f"{SHOP_PREFIX}.messages.inspect_trainer_card", bindings={"report": report})
+
+    return await default_purchase_handler(purchase_ctx, on_success=on_success)
 
 
 register("PKPCRYSTAL", [

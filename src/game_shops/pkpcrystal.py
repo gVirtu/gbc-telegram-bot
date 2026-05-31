@@ -1126,10 +1126,10 @@ register("PKPCRYSTAL", [
         items_per_page=4,
         items_per_row=1,
         items=[
-            ShopItem("inspect_trainer_card", f"{SHOP_PREFIX}.items.inspect_trainer_card", 50, {}, purchase_handler=inspect_trainer_card_handler),
-            ShopItem("poke_ball", f"{SHOP_PREFIX}.items.poke_ball", 300, {"modifier": 1}, purchase_handler=capture_mon_handler),
-            ShopItem("great_ball", f"{SHOP_PREFIX}.items.great_ball", 600, {"modifier": 1.5}, purchase_handler=capture_mon_handler),
-            ShopItem("ultra_ball", f"{SHOP_PREFIX}.items.ultra_ball", 1200, {"modifier": 2}, purchase_handler=capture_mon_handler),
+            ShopItem("inspect_trainer_card", f"{SHOP_PREFIX}.items.inspect_trainer_card", 10, {}, purchase_handler=inspect_trainer_card_handler),
+            ShopItem("poke_ball", f"{SHOP_PREFIX}.items.poke_ball", 150, {"modifier": 1}, purchase_handler=capture_mon_handler),
+            ShopItem("great_ball", f"{SHOP_PREFIX}.items.great_ball", 300, {"modifier": 1.5}, purchase_handler=capture_mon_handler),
+            ShopItem("ultra_ball", f"{SHOP_PREFIX}.items.ultra_ball", 600, {"modifier": 2}, purchase_handler=capture_mon_handler),
             ShopItem("master_ball", f"{SHOP_PREFIX}.items.master_ball", 9999, {"guaranteed": True}, purchase_handler=capture_mon_handler),
         ]
     ),
@@ -1140,10 +1140,10 @@ register("PKPCRYSTAL", [
         items_per_page=3,
         items_per_row=1,
         items=[
-            ShopItem("redeem_battle", f"{SHOP_PREFIX}.items.redeem_battle", 1, {}, purchase_handler=redeem_battle_handler),
-            ShopItem("teach_level_move", f"{SHOP_PREFIX}.items.teach_level_move", 1, {}, purchase_handler=teach_level_move_handler),
-            ShopItem("teach_tmhm_move", f"{SHOP_PREFIX}.items.teach_tmhm_move", 1, {}, purchase_handler=teach_tmhm_move_handler),
-            ShopItem("teach_egg_move", f"{SHOP_PREFIX}.items.teach_egg_move", 1, {}, purchase_handler=teach_egg_move_handler),
+            ShopItem("redeem_battle", f"{SHOP_PREFIX}.items.redeem_battle", 2500, {}, purchase_handler=redeem_battle_handler),
+            ShopItem("teach_level_move", f"{SHOP_PREFIX}.items.teach_level_move", 300, {}, purchase_handler=teach_level_move_handler),
+            ShopItem("teach_tmhm_move", f"{SHOP_PREFIX}.items.teach_tmhm_move", 600, {}, purchase_handler=teach_tmhm_move_handler),
+            ShopItem("teach_egg_move", f"{SHOP_PREFIX}.items.teach_egg_move", 900, {}, purchase_handler=teach_egg_move_handler),
         ]
     ),
 ])

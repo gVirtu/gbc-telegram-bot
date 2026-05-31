@@ -98,6 +98,8 @@ def get_trainer_class_name_raw(pyboy, class_id):
 BASEDATA_STRIDE = 34
 BASEDATA_GENDER = 12
 BASEDATA_ABILITIES = 13
+BASEDATA_TMHM = 20
+TMHM_BYTES = 14
 GENDER_UNKNOWN_NYBBLE = 15
 
 PARTYMON_STRUCT_LENGTH = 48
@@ -181,6 +183,27 @@ def get_species_learnset(pyboy, species_id: int) -> list[tuple[int, int]]:
         addr += 2
 
     return learnset
+
+
+def get_species_tmhm_moves(pyboy, species_id: int) -> list[int]:
+    """Return list of move_ids the species can learn via TM/HM, from BaseData bitmask."""
+    bank, base_addr = pyboy.symbol_lookup("BaseData")
+    entry = base_addr + ((species_id - 1) * BASEDATA_STRIDE)
+    bitmask = [read_u8(pyboy, bank, entry + BASEDATA_TMHM + i) for i in range(TMHM_BYTES)]
+
+    tmhm_bank, tmhm_addr = pyboy.symbol_lookup("TMHMMoves")
+
+    moves = []
+    for byte_idx in range(TMHM_BYTES):
+        bits = bitmask[byte_idx]
+        for bit in range(8):
+            if bits & (1 << bit):
+                tmnum = byte_idx * 8 + bit
+                move_id = read_u8(pyboy, tmhm_bank, tmhm_addr + tmnum)
+                if move_id != 0:
+                    moves.append(move_id)
+
+    return moves
 
 
 # ── Party member reads ───────────────────────────────────────────

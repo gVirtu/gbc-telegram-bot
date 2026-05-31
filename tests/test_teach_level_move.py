@@ -400,6 +400,7 @@ class TestOnSelectTeachMove:
         session.state["teach_species_name"] = "Bulbasaur"
         session.state["teach_candidates"] = candidates
         session.state["teach_current_moves"] = current_moves
+        session.state["teach_message_prefix"] = "teach_level_move"
 
         ctx = MagicMock()
         ctx.session = session
@@ -424,6 +425,7 @@ class TestOnSelectTeachMove:
         session.state["teach_species_name"] = "Bulbasaur"
         session.state["teach_candidates"] = candidates
         session.state["teach_current_moves"] = current_moves
+        session.state["teach_message_prefix"] = "teach_level_move"
 
         ctx = MagicMock()
         ctx.platform = "test"
@@ -460,6 +462,7 @@ class TestOnSelectTeachReplace:
         session.state["teach_species_name"] = "Bulbasaur"
         session.state["teach_move_to_learn"] = 0x2B
         session.state["teach_move_to_learn_name"] = "Razor Leaf"
+        session.state["teach_message_prefix"] = "teach_level_move"
 
         ctx = MagicMock()
         ctx.platform = "test"
@@ -493,6 +496,7 @@ class TestOnSelectTeachReplace:
         session.state["teach_species_name"] = "Bulbasaur"
         session.state["teach_move_to_learn"] = 0x2B
         session.state["teach_move_to_learn_name"] = "Razor Leaf"
+        session.state["teach_message_prefix"] = "teach_level_move"
 
         ctx = MagicMock()
         ctx.platform = "test"
@@ -567,3 +571,178 @@ class TestFullFlow:
             mock_set.assert_called_once()
             updated_raw = bytes.fromhex(mock_set.call_args[0][3])
             assert updated_raw[2] == 0x2B  # slot 0 overwritten with Razor Leaf
+
+
+# ─── teach_tmhm_move tests ──────────────────────────────────────────
+
+class TestTeachTmhmMoveHandler:
+    @pytest.mark.asyncio
+    async def test_no_controller(self):
+        from src.game_shops.pkpcrystal import teach_tmhm_move_handler
+        ctx = MagicMock()
+        ctx.game_controller = None
+        result = await teach_tmhm_move_handler(ctx)
+        assert result.success is False
+        assert "no_game_controller" in result.error_message
+
+    @pytest.mark.asyncio
+    async def test_insufficient_balance(self):
+        from src.game_shops.pkpcrystal import teach_tmhm_move_handler
+        ctx = MagicMock()
+        ctx.game_controller = MagicMock()
+        ctx.check_balance = AsyncMock(return_value=False)
+        result = await teach_tmhm_move_handler(ctx)
+        assert result.success is False
+        assert "insufficient_funds" in result.error_message
+
+    @pytest.mark.asyncio
+    async def test_no_party_mons(self):
+        from src.game_shops.pkpcrystal import teach_tmhm_move_handler
+        ctx = MagicMock()
+        ctx.game_controller = MagicMock()
+        ctx.check_balance = AsyncMock(return_value=True)
+        ctx.platform = "test"
+        ctx.user_id = 1
+        with patch("src.game_shops.pkpcrystal.state_manager.get_user_preference", return_value=None):
+            result = await teach_tmhm_move_handler(ctx)
+        assert result.success is False
+        assert "no_party_mons" in result.error_message
+
+    @pytest.mark.asyncio
+    async def test_returns_mon_selection(self):
+        from src.game_shops.pkpcrystal import teach_tmhm_move_handler
+        raw = _make_mock_battle_struct(species=0x01, level=10)
+
+        ctx = MagicMock()
+        ctx.game_controller = MagicMock()
+        ctx.check_balance = AsyncMock(return_value=True)
+        ctx.platform = "test"
+        ctx.user_id = 1
+
+        def mock_pref(platform, uid, key):
+            if key == "pkpcrystal_trainer_card_mon_0":
+                return raw.hex()
+            return None
+
+        with (
+            patch("src.game_shops.pkpcrystal.state_manager.get_user_preference", side_effect=mock_pref),
+            patch("src.game_shops.pkpcrystal.get_pokemon_name", return_value="Bulbasaur"),
+        ):
+            result = await teach_tmhm_move_handler(ctx)
+
+        assert isinstance(result, SelectionStep)
+        assert result.on_select is not None
+
+
+class TestOnSelectTmhmMon:
+    @pytest.mark.asyncio
+    async def test_no_compatible_tmhm_moves(self):
+        from src.game_shops.pkpcrystal import _on_select_tmhm_mon
+        raw = _make_mock_battle_struct(species=0x01, level=10)
+        prefs = {"pkpcrystal_trainer_card_mon_0": raw.hex()}
+
+        session = FlowSession(item=MagicMock(), cat_id="pkpc_battles", cat_page=0, chat_id=99)
+
+        ctx = MagicMock()
+        ctx.platform = "test"
+        ctx.user_id = 1
+        ctx.chat_id = 99
+        ctx.user_name = "TestUser"
+        ctx.item = MagicMock()
+        ctx.session = session
+        ctx.game_controller = MagicMock()
+
+        with (
+            patch("src.game_shops.pkpcrystal.state_manager.get_user_preference", side_effect=lambda p, u, k: prefs.get(k)),
+            patch("src.game_shops.pkpcrystal.get_pokemon_name", return_value="Bulbasaur"),
+            patch("src.game_shops.pkpcrystal.get_species_tmhm_moves", return_value=[]),
+            patch("src.game_shops.pkpcrystal.shop_manager.purchase") as mock_purchase,
+        ):
+            result = await _on_select_tmhm_mon("0", ctx)
+
+        assert isinstance(result, PurchaseComplete), f"Expected PurchaseComplete, got {type(result).__name__}"
+        assert result.success is False
+        assert "no_moves" in result.error_message
+        mock_purchase.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_deducts_points_and_returns_move_selection(self):
+        from src.game_shops.pkpcrystal import _on_select_tmhm_mon
+        raw = _make_mock_battle_struct(species=0x01, level=10)
+        prefs = {"pkpcrystal_trainer_card_mon_0": raw.hex()}
+
+        session = FlowSession(item=MagicMock(), cat_id="pkpc_battles", cat_page=0, chat_id=99)
+
+        ctx = MagicMock()
+        ctx.platform = "test"
+        ctx.user_id = 1
+        ctx.chat_id = 99
+        ctx.user_name = "TestUser"
+        ctx.item = MagicMock()
+        ctx.session = session
+        ctx.game_controller = MagicMock()
+
+        with (
+            patch("src.game_shops.pkpcrystal.state_manager.get_user_preference", side_effect=lambda p, u, k: prefs.get(k)),
+            patch("src.game_shops.pkpcrystal.get_pokemon_name", return_value="Bulbasaur"),
+            patch("src.game_shops.pkpcrystal.get_species_tmhm_moves", return_value=[0x56, 0x91, 0x5E, 0x3A, 0x42]),
+            patch("src.game_shops.pkpcrystal.get_move_name", return_value="TM Move"),
+            patch("src.game_shops.pkpcrystal.shop_manager.purchase", return_value=MagicMock(success=True)),
+            patch("src.game_shops.pkpcrystal.random.sample", return_value=[(0x56, "Flamethrower"), (0x91, "Ice Beam")]),
+        ):
+            result = await _on_select_tmhm_mon("0", ctx)
+
+        assert isinstance(result, SelectionStep)
+        assert len(result.options) == 2
+        assert session.state["teach_message_prefix"] == "teach_tmhm_move"
+
+
+class TestTmhmFullFlow:
+    @pytest.mark.asyncio
+    async def test_tmhm_full_flow_all_slots_filled(self):
+        from src.game_shops.pkpcrystal import (
+            _on_select_tmhm_mon, _on_select_teach_move, _on_select_teach_replace,
+        )
+        raw = _make_mock_battle_struct(species=0x01, level=10, moves=[0x21, 0x2D, 0x4A, 0x45])
+
+        prefs = {"pkpcrystal_trainer_card_mon_0": raw.hex()}
+
+        session = FlowSession(item=MagicMock(), cat_id="pkpc_battles", cat_page=0, chat_id=99)
+
+        ctx = MagicMock()
+        ctx.platform = "test"
+        ctx.user_id = 1
+        ctx.chat_id = 99
+        ctx.user_name = "TestUser"
+        ctx.item = MagicMock()
+        ctx.session = session
+        ctx.game_controller = MagicMock()
+
+        with (
+            patch("src.game_shops.pkpcrystal.state_manager.get_user_preference", side_effect=lambda p, u, k: prefs.get(k)),
+            patch("src.game_shops.pkpcrystal.get_pokemon_name", return_value="Bulbasaur"),
+            patch("src.game_shops.pkpcrystal.get_move_name", side_effect=lambda pyboy, mid: {
+                0x21: "Scratch", 0x2D: "Growl", 0x4A: "Vine Whip",
+                0x45: "Leech Seed", 0x56: "Flamethrower", 0x91: "Ice Beam",
+            }.get(mid, f"Move_{mid:02X}")),
+            patch("src.game_shops.pkpcrystal.get_species_tmhm_moves", return_value=[0x56, 0x91]),
+            patch("src.game_shops.pkpcrystal.shop_manager.purchase", return_value=MagicMock(success=True)),
+            patch("src.game_shops.pkpcrystal.random.sample", return_value=[(0x56, "Flamethrower")]),
+            patch("src.game_shops.pkpcrystal.state_manager.set_user_preference") as mock_set,
+        ):
+            step1 = await _on_select_tmhm_mon("0", ctx)
+            assert isinstance(step1, SelectionStep), f"Expected SelectionStep, got {step1}"
+            assert step1.on_select == _on_select_teach_move
+
+            step2 = await _on_select_teach_move("0", ctx)
+            assert isinstance(step2, SelectionStep), f"Expected SelectionStep, got {step2}"
+            assert step2.on_select == _on_select_teach_replace
+            assert len(step2.options) == 4
+
+            final = await _on_select_teach_replace("0", ctx)
+
+            assert final.success is True
+            assert "replaced" in final.success_message
+            mock_set.assert_called_once()
+            updated_raw = bytes.fromhex(mock_set.call_args[0][3])
+            assert updated_raw[2] == 0x56  # slot 0 overwritten with Flamethrower

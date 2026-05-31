@@ -309,6 +309,7 @@
           "inspect_trainer_card": "🔍 Inspecionar Time do Trainer Card",
           "redeem_battle": "💥 Iniciar Batalha",
           "teach_level_move": "📚 Tutor de Movimentos (Nível)",
+          "teach_tmhm_move": "💿 Tutor de TM/HM",
           "capture_avatar": "📸 Capturar Avatar",
           "inspect_team": "🔍 Inspecionar Time",
           "avatar_carrie": "Carrie",
@@ -476,7 +477,8 @@
           "no_party_mons": "❌ Seu time do Trainer Card está vazio! Capture alguns Pokémon primeiro.",
           "not_in_pokemon_center": "❌ Você precisa estar em um Centro Pokémon para iniciar uma batalha!",
           "party_not_fully_healed": "❌ Todos os Pokémon da sua equipe precisam estar com HP máximo para iniciar uma batalha!",
-          "teach_level_move_no_moves": "❌ Este Pokémon não tem nenhum outro movimento para aprender no nível atual."
+          "teach_level_move_no_moves": "❌ Este Pokémon não tem nenhum outro movimento para aprender no nível atual.",
+          "teach_tmhm_move_no_moves": "❌ Este Pokémon não pode aprender nenhum novo movimento de TM/HM."
         },
         "messages": {
           "capture_success": "🎉 Parabéns, você capturou {enemy_mon_name}! ({chance} de chance)\n\nEscolha a posição para adicionar ao seu card:\n\n⚠️ Selecionar uma posição com um Pokémon substituirá ele *permanentemente*.",
@@ -496,7 +498,11 @@
           "teach_level_move_select_move": "Escolha um movimento para {species_name} aprender.\n\nMovimentos atuais: {current_moves}",
           "teach_level_move_select_replace": "Qual movimento {species_name} deve esquecer para aprender {new_move}?",
           "teach_level_move_learned": "{species_name} aprendeu {new_move}!",
-          "teach_level_move_replaced": "{species_name} esqueceu {old_move} e aprendeu {new_move}!"
+          "teach_level_move_replaced": "{species_name} esqueceu {old_move} e aprendeu {new_move}!",
+          "teach_tmhm_move_select_mon": "Escolha um Pokémon para aprender um TM/HM.",
+          "teach_tmhm_move_select_move": "Escolha um TM/HM para {species_name} aprender.\n\nMovimentos atuais: {current_moves}",
+          "teach_tmhm_move_learned": "{species_name} aprendeu {new_move}!",
+          "teach_tmhm_move_replaced": "{species_name} esqueceu {old_move} e aprendeu {new_move}!"
         }
       }
     }

@@ -101,6 +101,7 @@ BASEDATA_ABILITIES = 13
 GENDER_UNKNOWN_NYBBLE = 15
 
 PARTYMON_STRUCT_LENGTH = 48
+P_ITEM = 1
 P_MOVES = 2
 P_EVS = 11
 P_PERSONALITY = 20
@@ -199,3 +200,29 @@ def read_party_mon_personality(pyboy, slot):
 def get_party_mon_nickname(pyboy, slot):
     bank, addr = pyboy.symbol_lookup(f"wPartyMon{slot}Nickname")
     return decode_text(pyboy, bank, addr, max_len=11)
+
+
+# ── Byte-level party struct parsing ──────────────────────────────
+
+def parse_party_struct(data: bytes):
+    return {
+        "species_id": read_u8_from_bytes(data, PARTYMON_STRUCT_LENGTH, 0),
+        "item_id": read_u8_from_bytes(data, PARTYMON_STRUCT_LENGTH, P_ITEM),
+        "move_ids": [data[P_MOVES + i] for i in range(4)],
+        "personality": (
+            read_u8_from_bytes(data, PARTYMON_STRUCT_LENGTH, P_PERSONALITY),
+            read_u8_from_bytes(data, PARTYMON_STRUCT_LENGTH, P_PERSONALITY + 1),
+        ),
+        "level": read_u8_from_bytes(data, PARTYMON_STRUCT_LENGTH, P_LEVEL),
+        "evs": [read_u8_from_bytes(data, PARTYMON_STRUCT_LENGTH, P_EVS + i) for i in range(6)],
+    }
+
+
+def _read_u8_from_bytes(data: bytes, expected_len: int, offset: int) -> int:
+    if len(data) != expected_len:
+        raise ValueError(f"Expected {expected_len} bytes, got {len(data)}")
+    return data[offset]
+
+
+# Alias for readability
+read_u8_from_bytes = _read_u8_from_bytes

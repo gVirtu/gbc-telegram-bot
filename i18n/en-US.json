@@ -306,6 +306,7 @@
           "great_ball": "🔵 Great Ball",
           "ultra_ball": "🟡 Ultra Ball",
           "master_ball": "🟣 Master Ball",
+          "inspect_trainer_card": "🔍 Inspect Trainer Card Team",
           "redeem_battle": "💥 Start Battle",
           "capture_avatar": "📸 Capture Avatar",
           "inspect_team": "🔍 Inspect Team",
@@ -480,6 +481,7 @@
           "capture_failed": "Oh no, the {enemy_mon_name} broke free! Try again? ({chance} catch chance)",
           "party_empty": "The party is empty.",
           "inspect_team": "{report}",
+          "inspect_trainer_card": "{report}",
           "positions": {
             "top_left": "Top left {mon_0}",
             "top_center": "Top center {mon_1}",

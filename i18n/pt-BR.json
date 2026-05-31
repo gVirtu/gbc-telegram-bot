@@ -306,6 +306,7 @@
           "great_ball": "🔵 Grande Bola",
           "ultra_ball": "🟡 Ultra Bola",
           "master_ball": "🟣 Bola Mestra",
+          "inspect_trainer_card": "🔍 Inspecionar Time do Trainer Card",
           "redeem_battle": "💥 Iniciar Batalha",
           "capture_avatar": "📸 Capturar Avatar",
           "inspect_team": "🔍 Inspecionar Time",
@@ -480,6 +481,7 @@
           "capture_failed": "Ah não, {enemy_mon_name} escapou! Tentar de novo? ({chance} de chance)",
           "party_empty": "O time está vazio.",
           "inspect_team": "{report}",
+          "inspect_trainer_card": "{report}",
           "positions": {
             "top_left": "Superior esquerdo {mon_0}",
             "top_center": "Superior central {mon_1}",

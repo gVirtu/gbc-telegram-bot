@@ -18,7 +18,17 @@ from src.shop.flow.screens import SelectionOption
 from src.utils.state_manager import state_manager
 from src.game_hooks.pkpcrystal import queue_battle_request
 from src.game_utils.pkpcrystal.pokecenter_maps import POKECENTER_MAPS
-from src.game_utils.pkpcrystal.reader import symbol_read_u8, symbol_read_u16le, get_pokemon_name, get_pokemon_catch_rate, get_trainer_class_name_raw
+from src.game_utils.pkpcrystal.reader import (
+    symbol_read_u8, symbol_read_u16le,
+    get_pokemon_name, get_pokemon_catch_rate, get_trainer_class_name_raw,
+    get_item_name, get_move_name, get_ability_name,
+    get_species_abilities, is_species_genderless,
+    read_party_mon_species, read_party_mon_level, read_party_mon_item,
+    read_party_mon_moves, read_party_mon_evs, read_party_mon_personality,
+    get_party_mon_nickname,
+    IS_EGG_MASK, GENDER_MASK, GENDER_MALE,
+    SHINY_MASK, ABILITY_MASK, ABILITY_1, ABILITY_2,
+)
 from src.game_utils.pkpcrystal.enum import BattleMode
 from src.game_utils.pkpcrystal.charmap import encode_name, CHARMAP
 from src.game_utils.pkpcrystal.party_builder import battle_struct_to_party, BATTLE_STRUCT_SIZE
@@ -331,7 +341,104 @@ async def redeem_battle_handler(purchase_ctx: ShopPurchaseContext):
     return PurchaseComplete(success=True)
 
 
+EV_LABELS = ["HP", "Atk", "Def", "SpA", "SpD", "Spe"]
+EV_STRUCT_ORDER = [0, 1, 2, 4, 5, 3]
+
+
+async def inspect_team_handler(purchase_ctx: ShopPurchaseContext):
+    controller = purchase_ctx.game_controller
+
+    if controller is None:
+        logger.error(f"User {purchase_ctx.user_id} tried to inspect team in chat {purchase_ctx.chat_id} without a game controller")
+        return PurchaseComplete(success=False, error_message=f"{SHOP_PREFIX}.errors.no_game_controller")
+
+    pyboy = controller.pyboy
+
+    party_count = symbol_read_u8(pyboy, "wPartyCount")
+    if party_count == 0:
+        return PurchaseComplete(success=True, success_message=f"{SHOP_PREFIX}.messages.party_empty")
+
+    mon_blocks = []
+    for slot in range(1, party_count + 1):
+        p1, p2 = read_party_mon_personality(pyboy, slot)
+
+        if p2 & IS_EGG_MASK:
+            mon_blocks.append("Egg")
+            continue
+
+        species_id = read_party_mon_species(pyboy, slot)
+        species_name = get_pokemon_name(pyboy, species_id)
+
+        nickname = get_party_mon_nickname(pyboy, slot)
+        show_nickname = nickname and nickname != species_name
+
+        level = read_party_mon_level(pyboy, slot)
+
+        gender_str = ""
+        if not is_species_genderless(pyboy, species_id):
+            gender_str = " (M)" if (p2 & GENDER_MASK) == GENDER_MALE else " (F)"
+
+        item_id = read_party_mon_item(pyboy, slot)
+        item_str = ""
+        if item_id != 0:
+            item_name = get_item_name(pyboy, item_id)
+            if item_name:
+                item_str = f" @ {item_name}"
+
+        header = f"{nickname} ({species_name}){gender_str}{item_str}" if show_nickname else f"{species_name}{gender_str}{item_str}"
+        lines = [header]
+
+        abilities = get_species_abilities(pyboy, species_id)
+        ability_bits = p1 & ABILITY_MASK
+        ability_idx = 0
+        if ability_bits != ABILITY_1:
+            ability_idx += 1
+        if ability_bits != ABILITY_2:
+            ability_idx += 1
+        ability_id = abilities[ability_idx]
+        if ability_id != 0:
+            ability_name = get_ability_name(pyboy, ability_id)
+            if ability_name:
+                lines.append(f"Ability: {ability_name}")
+
+        lines.append(f"Level: {level}")
+
+        if p1 & SHINY_MASK:
+            lines.append("Shiny: Yes")
+
+        evs = read_party_mon_evs(pyboy, slot)
+        ev_parts = []
+        for i, ev_idx in enumerate(EV_STRUCT_ORDER):
+            val = evs[ev_idx]
+            if val != 0:
+                ev_parts.append(f"{val} {EV_LABELS[i]}")
+        if ev_parts:
+            lines.append(f"EVs: {' / '.join(ev_parts)}")
+
+        moves = read_party_mon_moves(pyboy, slot)
+        for move_id in moves:
+            if move_id != 0:
+                move_name = get_move_name(pyboy, move_id)
+                if move_name:
+                    lines.append(f"- {move_name}")
+
+        mon_blocks.append("\n".join(lines))
+
+    report = "\n\n".join(mon_blocks)
+    return PurchaseComplete(success=True, success_message=f"{SHOP_PREFIX}.messages.inspect_team", bindings={"report": report})
+
+
 register("PKPCRYSTAL", [
+    ShopCategory(
+        id="pkpc_gameplay",
+        label=f"{SHOP_PREFIX}.categories.gameplay.label",
+        description=f"{SHOP_PREFIX}.categories.gameplay.description",
+        items_per_page=3,
+        items_per_row=1,
+        items=[
+            ShopItem("inspect_team", f"{SHOP_PREFIX}.items.inspect_team", 50, {}, purchase_handler=inspect_team_handler),
+        ]
+    ),
     # Avatars are mapped to Polished Crystal 3.2.3 indexes
     ShopCategory(
         id="pkpc_avatars",

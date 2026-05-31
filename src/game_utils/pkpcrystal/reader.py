@@ -91,3 +91,111 @@ def get_trainer_class_name_raw(pyboy, class_id):
         addr += 1
 
     return text
+
+
+# ── Name table lookups ──────────────────────────────────────────
+
+BASEDATA_STRIDE = 34
+BASEDATA_GENDER = 12
+BASEDATA_ABILITIES = 13
+GENDER_UNKNOWN_NYBBLE = 15
+
+PARTYMON_STRUCT_LENGTH = 48
+P_MOVES = 2
+P_EVS = 11
+P_PERSONALITY = 20
+P_LEVEL = 31
+
+SHINY_MASK = 0x80
+ABILITY_MASK = 0x60
+ABILITY_1 = 0x20
+ABILITY_2 = 0x40
+HIDDEN_ABILITY = 0x60
+NATURE_MASK = 0x1F
+GENDER_MASK = 0x80
+IS_EGG_MASK = 0x40
+GENDER_MALE = 0x00
+GENDER_FEMALE = 0x80
+
+
+def get_item_name(pyboy, item_id):
+    if item_id == 0:
+        return None
+    bank, base_addr = pyboy.symbol_lookup("ItemNames")
+    addr = get_nth_string_addr(pyboy, bank, base_addr, item_id)
+    return decode_text(pyboy, bank, addr)
+
+
+def get_move_name(pyboy, move_id):
+    if move_id == 0:
+        return None
+    bank, base_addr = pyboy.symbol_lookup("MoveNames")
+    addr = get_nth_string_addr(pyboy, bank, base_addr, move_id - 1)
+    return decode_text(pyboy, bank, addr)
+
+
+def get_ability_name(pyboy, ability_id):
+    if ability_id == 0:
+        return None
+    bank, base_addr = pyboy.symbol_lookup("AbilityNames")
+    ptr = read_u16(pyboy, bank, base_addr + (ability_id) * 2)
+    return decode_text(pyboy, bank, ptr)
+
+
+def get_species_abilities(pyboy, species_id):
+    bank, base_addr = pyboy.symbol_lookup("BaseData")
+    entry = base_addr + ((species_id - 1) * BASEDATA_STRIDE)
+    return [
+        read_u8(pyboy, bank, entry + BASEDATA_ABILITIES),
+        read_u8(pyboy, bank, entry + BASEDATA_ABILITIES + 1),
+        read_u8(pyboy, bank, entry + BASEDATA_ABILITIES + 2),
+    ]
+
+
+def is_species_genderless(pyboy, species_id):
+    bank, base_addr = pyboy.symbol_lookup("BaseData")
+    entry = base_addr + ((species_id - 1) * BASEDATA_STRIDE)
+    gender_byte = read_u8(pyboy, bank, entry + BASEDATA_GENDER)
+    return (gender_byte >> 4) == GENDER_UNKNOWN_NYBBLE
+
+
+# ── Party member reads ───────────────────────────────────────────
+
+def _party_mon_addr(pyboy, slot):
+    bank, addr = pyboy.symbol_lookup(f"wPartyMon{slot}")
+    return bank, addr
+
+
+def read_party_mon_species(pyboy, slot):
+    return symbol_read_u8(pyboy, f"wPartyMon{slot}Species")
+
+
+def read_party_mon_level(pyboy, slot):
+    return symbol_read_u8(pyboy, f"wPartyMon{slot}Level")
+
+
+def read_party_mon_item(pyboy, slot):
+    return symbol_read_u8(pyboy, f"wPartyMon{slot}Item")
+
+
+def read_party_mon_moves(pyboy, slot):
+    bank, addr = _party_mon_addr(pyboy, slot)
+    return [read_u8(pyboy, bank, addr + P_MOVES + i) for i in range(4)]
+
+
+def read_party_mon_evs(pyboy, slot):
+    bank, addr = _party_mon_addr(pyboy, slot)
+    return [read_u8(pyboy, bank, addr + P_EVS + i) for i in range(6)]
+
+
+def read_party_mon_personality(pyboy, slot):
+    bank, addr = _party_mon_addr(pyboy, slot)
+    return (
+        read_u8(pyboy, bank, addr + P_PERSONALITY),
+        read_u8(pyboy, bank, addr + P_PERSONALITY + 1),
+    )
+
+
+def get_party_mon_nickname(pyboy, slot):
+    bank, addr = pyboy.symbol_lookup(f"wPartyMon{slot}Nickname")
+    return decode_text(pyboy, bank, addr, max_len=11)

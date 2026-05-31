@@ -288,6 +288,10 @@
             "label": "🖼️ Trainer Avatars",
             "description": "During a trainer battle, redeem '📸 Capture Avatar' to get a permanent avatar of the opponent trainer!"
           },
+          "gameplay": {
+            "label": "🎮 Gameplay",
+            "description": "Items that modify or inspect the current game state."
+          },
           "trainer_card_pokemon": {
             "label": "🧢 Trainer Card Pokémon",
             "description": "During any Pokémon battle, redeem a ball for a chance to add it to your trainer card. Different species may have different catch rates!"
@@ -304,6 +308,7 @@
           "master_ball": "🟣 Master Ball",
           "redeem_battle": "💥 Start Battle",
           "capture_avatar": "📸 Capture Avatar",
+          "inspect_team": "🔍 Inspect Team",
           "avatar_carrie": "Carrie",
           "avatar_cal": "Cal",
           "avatar_jacky": "Jacky",
@@ -473,6 +478,8 @@
         "messages": {
           "capture_success": "🎉 Congratulations, {enemy_mon_name} was caught! ({chance} catch chance)\n\nChoose the slot to place it in:\n\n⚠️ Selecting a slot with a Pokémon will replace it *permanently*.",
           "capture_failed": "Oh no, the {enemy_mon_name} broke free! Try again? ({chance} catch chance)",
+          "party_empty": "The party is empty.",
+          "inspect_team": "{report}",
           "positions": {
             "top_left": "Top left {mon_0}",
             "top_center": "Top center {mon_1}",

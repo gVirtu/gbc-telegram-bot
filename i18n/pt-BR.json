@@ -288,6 +288,10 @@
             "label": "🖼️ Avatares de Treinador",
             "description": "Durante uma batalha de treinador, resgate '📸 Capturar Avatar' para obter um avatar permanente do treinador adversário!"
           },
+          "gameplay": {
+            "label": "🎮 Jogabilidade",
+            "description": "Itens que modificam ou inspecionam o estado atual do jogo."
+          },
           "trainer_card_pokemon": {
             "label": "🧢 Pokémon do Trainer Card",
             "description": "Durante qualquer batalha Pokémon, resgate uma Pokébola para ter a chance de adicioná-lo ao seu Trainer Card. Diferentes espécies podem ter diferentes chances de captura!"
@@ -304,6 +308,7 @@
           "master_ball": "🟣 Bola Mestra",
           "redeem_battle": "💥 Iniciar Batalha",
           "capture_avatar": "📸 Capturar Avatar",
+          "inspect_team": "🔍 Inspecionar Time",
           "avatar_carrie": "Carrie",
           "avatar_cal": "Cal",
           "avatar_jacky": "Jacky",
@@ -473,6 +478,8 @@
         "messages": {
           "capture_success": "🎉 Parabéns, você capturou {enemy_mon_name}! ({chance} de chance)\n\nEscolha a posição para adicionar ao seu card:\n\n⚠️ Selecionar uma posição com um Pokémon substituirá ele *permanentemente*.",
           "capture_failed": "Ah não, {enemy_mon_name} escapou! Tentar de novo? ({chance} de chance)",
+          "party_empty": "O time está vazio.",
+          "inspect_team": "{report}",
           "positions": {
             "top_left": "Superior esquerdo {mon_0}",
             "top_center": "Superior central {mon_1}",

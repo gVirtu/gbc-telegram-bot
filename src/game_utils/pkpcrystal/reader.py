@@ -160,6 +160,29 @@ def is_species_genderless(pyboy, species_id):
     return (gender_byte >> 4) == GENDER_UNKNOWN_NYBBLE
 
 
+def get_species_learnset(pyboy, species_id: int) -> list[tuple[int, int]]:
+    """Return list of (level, move_id) for a species' level-up learnset from EvosAttacks."""
+    bank, ptr_table = pyboy.symbol_lookup("EvosAttacksPointers")
+    entry_addr = ptr_table + (species_id - 1) * 2
+    data_addr = read_u16(pyboy, bank, entry_addr)
+
+    addr = data_addr
+    while read_u8(pyboy, bank, addr) != 0xFF:
+        addr += 1
+    addr += 1
+
+    learnset = []
+    while True:
+        level = read_u8(pyboy, bank, addr)
+        if level == 0xFF:
+            break
+        move_id = read_u8(pyboy, bank, addr + 1)
+        learnset.append((level, move_id))
+        addr += 2
+
+    return learnset
+
+
 # ── Party member reads ───────────────────────────────────────────
 
 def _party_mon_addr(pyboy, slot):

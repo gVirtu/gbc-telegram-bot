@@ -308,6 +308,7 @@
           "master_ball": "🟣 Master Ball",
           "inspect_trainer_card": "🔍 Inspect Trainer Card Team",
           "redeem_battle": "💥 Start Battle",
+          "teach_level_move": "📚 Level-Up Move Tutor",
           "capture_avatar": "📸 Capture Avatar",
           "inspect_team": "🔍 Inspect Team",
           "avatar_carrie": "Carrie",
@@ -474,7 +475,8 @@
           "enemy_mon_already_caught": "❌ This Pokémon has already been caught!",
           "enemy_mon_cannot_be_captured": "❌ This Pokémon cannot be caught right now.",
           "not_in_pokemon_center": "❌ You must be in a Pokémon Center to start a battle!",
-          "party_not_fully_healed": "❌ All Pokémon in your party must have full HP to start a battle!"
+          "party_not_fully_healed": "❌ All Pokémon in your party must have full HP to start a battle!",
+          "teach_level_move_no_moves": "❌ This Pokémon has no other moves to learn at its current level."
         },
         "messages": {
           "capture_success": "🎉 Congratulations, {enemy_mon_name} was caught! ({chance} catch chance)\n\nChoose the slot to place it in:\n\n⚠️ Selecting a slot with a Pokémon will replace it *permanently*.",
@@ -489,7 +491,12 @@
             "bottom_left": "Bottom left {mon_3}",
             "bottom_center": "Bottom center {mon_4}",
             "bottom_right": "Bottom right {mon_5}"
-          }
+          },
+          "teach_level_move_select_mon": "Choose a Pokémon to teach a move.",
+          "teach_level_move_select_move": "Choose a move for {species_name} to learn.\n\nCurrent moves: {current_moves}",
+          "teach_level_move_select_replace": "Which move should {species_name} forget to learn {new_move}?",
+          "teach_level_move_learned": "{species_name} learned {new_move}!",
+          "teach_level_move_replaced": "{species_name} forgot {old_move} and learned {new_move}!"
         }
       }
     }

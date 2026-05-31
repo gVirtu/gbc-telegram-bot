@@ -65,7 +65,7 @@ class ShopPurchaseContext:
     async def check_balance(self) -> bool:
         """Return True if the user can afford item.cost (accounting for one_time_purchase)."""
         from src.shop.shop_manager import shop_manager
-        can_afford, _ = shop_manager.validate_purchase(self.platform, self.user_id, self.item)
+        can_afford, _ = shop_manager.validate_purchase(self.platform, self.user_id, self.item, self.item.cost)
         return can_afford
 
     async def record_purchase(self, cost: int | None = None) -> None:

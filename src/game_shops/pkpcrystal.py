@@ -22,7 +22,7 @@ from src.game_utils.pkpcrystal.reader import (
     symbol_read_u8, symbol_read_u16le,
     get_pokemon_name, get_pokemon_catch_rate, get_trainer_class_name_raw,
     get_item_name, get_move_name, get_ability_name,
-    get_species_abilities, is_species_genderless,
+    get_species_abilities, get_species_learnset, is_species_genderless,
     read_party_mon_species, read_party_mon_level, read_party_mon_item,
     read_party_mon_moves, read_party_mon_evs, read_party_mon_personality,
     get_party_mon_nickname,
@@ -340,6 +340,197 @@ async def redeem_battle_handler(purchase_ctx: ShopPurchaseContext):
     queue_battle_request(chat_id, user_id, platform, user_name, trainer_class, trainer_name_bytes, party_mons)
     logger.info(f"User {user_id} queued battle request for chat {chat_id}")
     return PurchaseComplete(success=True)
+
+
+async def teach_level_move_handler(purchase_ctx: ShopPurchaseContext):
+    controller = purchase_ctx.game_controller
+
+    if controller is None:
+        logger.error(f"User {purchase_ctx.user_id} tried to teach level move in chat {purchase_ctx.chat_id} without a game controller")
+        return PurchaseComplete(success=False, error_message=f"{SHOP_PREFIX}.errors.no_game_controller")
+
+    if not await purchase_ctx.check_balance():
+        return PurchaseComplete(success=False, error_message="shop.insufficient_funds")
+
+    platform = purchase_ctx.platform
+    user_id = purchase_ctx.user_id
+    pyboy = controller.pyboy
+
+    options = []
+    for slot in range(6):
+        mon_hex = state_manager.get_user_preference(platform, user_id, f"pkpcrystal_trainer_card_mon_{slot}")
+        if not mon_hex:
+            continue
+        try:
+            raw = bytes.fromhex(mon_hex)
+            if len(raw) != BATTLE_STRUCT_SIZE or raw[0] == 0:
+                continue
+        except ValueError:
+            continue
+
+        species_name = get_pokemon_name(pyboy, raw[0])
+        level = raw[16]
+        options.append(SelectionOption(
+            label=f"{species_name} Lv.{level}",
+            value=str(slot),
+        ))
+
+    if not options:
+        return PurchaseComplete(success=False, error_message=f"{SHOP_PREFIX}.errors.no_party_mons")
+
+    return SelectionStep(
+        prompt=f"{SHOP_PREFIX}.messages.teach_level_move_select_mon",
+        options=options,
+        per_page=6,
+        on_select=_on_select_teach_mon,
+    )
+
+
+async def _on_select_teach_mon(value: str, purchase_ctx: ShopPurchaseContext):
+    slot = int(value)
+    platform = purchase_ctx.platform
+    user_id = purchase_ctx.user_id
+    chat_id = purchase_ctx.chat_id
+    user_name = purchase_ctx.user_name
+    item = purchase_ctx.item
+    session = purchase_ctx.session
+    pyboy = purchase_ctx.game_controller.pyboy
+
+    mon_hex = state_manager.get_user_preference(platform, user_id, f"pkpcrystal_trainer_card_mon_{slot}")
+    raw = bytes.fromhex(mon_hex)
+    species_id = raw[0]
+    level = raw[16]
+    current_move_ids = [raw[2], raw[3], raw[4], raw[5]]
+
+    species_name = get_pokemon_name(pyboy, species_id)
+
+    learnset = get_species_learnset(pyboy, species_id)
+
+    seen = set()
+    valid_moves = []
+    for learn_level, move_id in learnset:
+        if learn_level > level:
+            continue
+        if move_id in current_move_ids:
+            continue
+        if move_id in seen:
+            continue
+        seen.add(move_id)
+        move_name = get_move_name(pyboy, move_id)
+        if move_name:
+            valid_moves.append((move_id, move_name))
+
+    if not valid_moves:
+        return PurchaseComplete(success=False, error_message=f"{SHOP_PREFIX}.errors.teach_level_move_no_moves")
+
+    candidates = random.sample(valid_moves, min(4, len(valid_moves)))
+
+    result = shop_manager.purchase(platform, user_id, item, chat_id, user_name)
+    if not result.success:
+        return PurchaseComplete(success=False, error_message=result.error_i18n_key)
+
+    current_moves = []
+    for move_id in current_move_ids:
+        if move_id == 0:
+            current_moves.append((0, None))
+        else:
+            current_moves.append((move_id, get_move_name(pyboy, move_id)))
+
+    current_moves_str = ", ".join(name for _, name in current_moves if name) or "—"
+
+    session.state["teach_mon_slot"] = slot
+    session.state["teach_mon_hex"] = mon_hex
+    session.state["teach_species_name"] = species_name
+    session.state["teach_candidates"] = candidates
+    session.state["teach_current_moves"] = current_moves
+
+    move_options = [
+        SelectionOption(label=move_name, value=str(i))
+        for i, (_, move_name) in enumerate(candidates)
+    ]
+
+    return SelectionStep(
+        prompt=f"{SHOP_PREFIX}.messages.teach_level_move_select_move",
+        options=move_options,
+        per_page=4,
+        bindings={"species_name": species_name, "current_moves": current_moves_str},
+        on_select=_on_select_teach_move,
+    )
+
+
+async def _on_select_teach_move(value: str, purchase_ctx: ShopPurchaseContext):
+    session = purchase_ctx.session
+    idx = int(value)
+    candidates = session.state["teach_candidates"]
+    move_id, move_name = candidates[idx]
+
+    session.state["teach_move_to_learn"] = move_id
+    session.state["teach_move_to_learn_name"] = move_name
+
+    current_moves = session.state["teach_current_moves"]
+    species_name = session.state["teach_species_name"]
+
+    empty_slot = None
+    for i, (mid, _) in enumerate(current_moves):
+        if mid == 0:
+            empty_slot = i
+            break
+
+    if empty_slot is not None:
+        return await _write_teach_move_and_complete(purchase_ctx, empty_slot)
+
+    replace_options = [
+        SelectionOption(label=name, value=str(i))
+        for i, (_, name) in enumerate(current_moves)
+    ]
+
+    return SelectionStep(
+        prompt=f"{SHOP_PREFIX}.messages.teach_level_move_select_replace",
+        options=replace_options,
+        per_page=4,
+        bindings={"species_name": species_name, "new_move": move_name},
+        on_select=_on_select_teach_replace,
+    )
+
+
+async def _on_select_teach_replace(value: str, purchase_ctx: ShopPurchaseContext):
+    slot = int(value)
+    return await _write_teach_move_and_complete(purchase_ctx, slot)
+
+
+async def _write_teach_move_and_complete(purchase_ctx: ShopPurchaseContext, move_slot: int):
+    session = purchase_ctx.session
+    platform = purchase_ctx.platform
+    user_id = purchase_ctx.user_id
+    pyboy = purchase_ctx.game_controller.pyboy
+
+    mon_hex = session.state["teach_mon_hex"]
+    new_move_id = session.state["teach_move_to_learn"]
+    species_name = session.state["teach_species_name"]
+    new_move_name = session.state["teach_move_to_learn_name"]
+
+    raw = bytearray(bytes.fromhex(mon_hex))
+    old_move_id = raw[2 + move_slot]
+    raw[2 + move_slot] = new_move_id
+
+    mon_slot = session.state["teach_mon_slot"]
+    state_manager.set_user_preference(platform, user_id, f"pkpcrystal_trainer_card_mon_{mon_slot}", raw.hex())
+
+    if old_move_id == 0:
+        bindings = {"species_name": species_name, "new_move": new_move_name}
+        return PurchaseComplete(
+            success=True,
+            success_message=f"{SHOP_PREFIX}.messages.teach_level_move_learned",
+            bindings=bindings,
+        )
+
+    old_move_name = get_move_name(pyboy, old_move_id)
+    bindings = {"species_name": species_name, "old_move": old_move_name, "new_move": new_move_name}
+    return PurchaseComplete(
+        success=True,
+        success_message=f"{SHOP_PREFIX}.messages.teach_level_move_replaced",
+        bindings=bindings,
+    )
 
 
 EV_LABELS = ["HP", "Atk", "Def", "SpA", "SpD", "Spe"]
@@ -721,6 +912,7 @@ register("PKPCRYSTAL", [
         items_per_row=1,
         items=[
             ShopItem("redeem_battle", f"{SHOP_PREFIX}.items.redeem_battle", 1, {}, purchase_handler=redeem_battle_handler),
+            ShopItem("teach_level_move", f"{SHOP_PREFIX}.items.teach_level_move", 1, {}, purchase_handler=teach_level_move_handler),
         ]
     ),
 ])

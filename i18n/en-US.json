@@ -310,6 +310,7 @@
           "redeem_battle": "💥 Start Battle",
           "teach_level_move": "📚 Level-Up Move Tutor",
           "teach_tmhm_move": "💿 TM/HM Tutor",
+          "teach_egg_move": "🥚 Egg Move Tutor",
           "capture_avatar": "📸 Capture Avatar",
           "inspect_team": "🔍 Inspect Team",
           "avatar_carrie": "Carrie",
@@ -478,7 +479,8 @@
           "not_in_pokemon_center": "❌ You must be in a Pokémon Center to start a battle!",
           "party_not_fully_healed": "❌ All Pokémon in your party must have full HP to start a battle!",
           "teach_level_move_no_moves": "❌ This Pokémon has no other moves to learn at its current level.",
-          "teach_tmhm_move_no_moves": "❌ This Pokémon can't learn any new TM/HM moves."
+          "teach_tmhm_move_no_moves": "❌ This Pokémon can't learn any new TM/HM moves.",
+          "teach_egg_move_no_moves": "❌ This Pokémon has no new egg moves to learn."
         },
         "messages": {
           "capture_success": "🎉 Congratulations, {enemy_mon_name} was caught! ({chance} catch chance)\n\nChoose the slot to place it in:\n\n⚠️ Selecting a slot with a Pokémon will replace it *permanently*.",
@@ -502,7 +504,11 @@
           "teach_tmhm_move_select_mon": "Choose a Pokémon to teach a TM/HM move.",
           "teach_tmhm_move_select_move": "Choose a TM/HM move for {species_name} to learn.\n\nCurrent moves: {current_moves}",
           "teach_tmhm_move_learned": "{species_name} learned {new_move}!",
-          "teach_tmhm_move_replaced": "{species_name} forgot {old_move} and learned {new_move}!"
+          "teach_tmhm_move_replaced": "{species_name} forgot {old_move} and learned {new_move}!",
+          "teach_egg_move_select_mon": "Choose a Pokémon to teach an egg move.",
+          "teach_egg_move_select_move": "Choose an egg move for {species_name} to learn.\n\nCurrent moves: {current_moves}",
+          "teach_egg_move_learned": "{species_name} learned {new_move}!",
+          "teach_egg_move_replaced": "{species_name} forgot {old_move} and learned {new_move}!"
         }
       }
     }

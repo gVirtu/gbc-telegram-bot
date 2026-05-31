@@ -22,7 +22,7 @@ from src.game_utils.pkpcrystal.reader import (
     symbol_read_u8, symbol_read_u16le,
     get_pokemon_name, get_pokemon_catch_rate, get_trainer_class_name_raw,
     get_item_name, get_move_name, get_ability_name,
-    get_species_abilities, get_species_learnset, get_species_tmhm_moves, is_species_genderless,
+    get_species_abilities, get_species_learnset, get_species_tmhm_moves, get_species_egg_moves, is_species_genderless,
     read_party_mon_species, read_party_mon_level, read_party_mon_item,
     read_party_mon_moves, read_party_mon_evs, read_party_mon_personality,
     get_party_mon_nickname,
@@ -652,6 +652,120 @@ async def _on_select_tmhm_mon(value: str, purchase_ctx: ShopPurchaseContext):
     )
 
 
+async def teach_egg_move_handler(purchase_ctx: ShopPurchaseContext):
+    controller = purchase_ctx.game_controller
+
+    if controller is None:
+        logger.error(f"User {purchase_ctx.user_id} tried to teach egg move in chat {purchase_ctx.chat_id} without a game controller")
+        return PurchaseComplete(success=False, error_message=f"{SHOP_PREFIX}.errors.no_game_controller")
+
+    if not await purchase_ctx.check_balance():
+        return PurchaseComplete(success=False, error_message="shop.insufficient_funds")
+
+    platform = purchase_ctx.platform
+    user_id = purchase_ctx.user_id
+    pyboy = controller.pyboy
+
+    options = []
+    for slot in range(6):
+        mon_hex = state_manager.get_user_preference(platform, user_id, f"pkpcrystal_trainer_card_mon_{slot}")
+        if not mon_hex:
+            continue
+        try:
+            raw = bytes.fromhex(mon_hex)
+            if len(raw) != BATTLE_STRUCT_SIZE or raw[0] == 0:
+                continue
+        except ValueError:
+            continue
+
+        species_name = get_pokemon_name(pyboy, raw[0])
+        level = raw[16]
+        options.append(SelectionOption(
+            label=f"{species_name} Lv.{level}",
+            value=str(slot),
+        ))
+
+    if not options:
+        return PurchaseComplete(success=False, error_message=f"{SHOP_PREFIX}.errors.no_party_mons")
+
+    return SelectionStep(
+        prompt=f"{SHOP_PREFIX}.messages.teach_egg_move_select_mon",
+        options=options,
+        per_page=6,
+        on_select=_on_select_egg_mon,
+    )
+
+
+async def _on_select_egg_mon(value: str, purchase_ctx: ShopPurchaseContext):
+    slot = int(value)
+    platform = purchase_ctx.platform
+    user_id = purchase_ctx.user_id
+    chat_id = purchase_ctx.chat_id
+    user_name = purchase_ctx.user_name
+    item = purchase_ctx.item
+    session = purchase_ctx.session
+    pyboy = purchase_ctx.game_controller.pyboy
+
+    mon_hex = state_manager.get_user_preference(platform, user_id, f"pkpcrystal_trainer_card_mon_{slot}")
+    raw = bytes.fromhex(mon_hex)
+    species_id = raw[0]
+    current_move_ids = [raw[2], raw[3], raw[4], raw[5]]
+
+    species_name = get_pokemon_name(pyboy, species_id)
+
+    egg_moves = get_species_egg_moves(pyboy, species_id)
+
+    seen = set()
+    valid_moves = []
+    for move_id in egg_moves:
+        if move_id in current_move_ids:
+            continue
+        if move_id in seen:
+            continue
+        seen.add(move_id)
+        move_name = get_move_name(pyboy, move_id)
+        if move_name:
+            valid_moves.append((move_id, move_name))
+
+    if not valid_moves:
+        return PurchaseComplete(success=False, error_message=f"{SHOP_PREFIX}.errors.teach_egg_move_no_moves")
+
+    candidates = random.sample(valid_moves, min(4, len(valid_moves)))
+
+    result = shop_manager.purchase(platform, user_id, item, chat_id, user_name)
+    if not result.success:
+        return PurchaseComplete(success=False, error_message=result.error_i18n_key)
+
+    current_moves = []
+    for move_id in current_move_ids:
+        if move_id == 0:
+            current_moves.append((0, None))
+        else:
+            current_moves.append((move_id, get_move_name(pyboy, move_id)))
+
+    current_moves_str = ", ".join(name for _, name in current_moves if name) or "—"
+
+    session.state["teach_mon_slot"] = slot
+    session.state["teach_mon_hex"] = mon_hex
+    session.state["teach_species_name"] = species_name
+    session.state["teach_candidates"] = candidates
+    session.state["teach_current_moves"] = current_moves
+    session.state["teach_message_prefix"] = "teach_egg_move"
+
+    move_options = [
+        SelectionOption(label=move_name, value=str(i))
+        for i, (_, move_name) in enumerate(candidates)
+    ]
+
+    return SelectionStep(
+        prompt=f"{SHOP_PREFIX}.messages.teach_egg_move_select_move",
+        options=move_options,
+        per_page=4,
+        bindings={"species_name": species_name, "current_moves": current_moves_str},
+        on_select=_on_select_teach_move,
+    )
+
+
 def _format_mon_report(mon: dict) -> str:
     if mon.get("is_egg"):
         return "Egg"
@@ -1029,6 +1143,7 @@ register("PKPCRYSTAL", [
             ShopItem("redeem_battle", f"{SHOP_PREFIX}.items.redeem_battle", 1, {}, purchase_handler=redeem_battle_handler),
             ShopItem("teach_level_move", f"{SHOP_PREFIX}.items.teach_level_move", 1, {}, purchase_handler=teach_level_move_handler),
             ShopItem("teach_tmhm_move", f"{SHOP_PREFIX}.items.teach_tmhm_move", 1, {}, purchase_handler=teach_tmhm_move_handler),
+            ShopItem("teach_egg_move", f"{SHOP_PREFIX}.items.teach_egg_move", 1, {}, purchase_handler=teach_egg_move_handler),
         ]
     ),
 ])

@@ -746,3 +746,103 @@ class TestTmhmFullFlow:
             mock_set.assert_called_once()
             updated_raw = bytes.fromhex(mock_set.call_args[0][3])
             assert updated_raw[2] == 0x56  # slot 0 overwritten with Flamethrower
+
+
+# ─── teach_egg_move tests ───────────────────────────────────────────
+
+class TestTeachEggMoveHandler:
+    @pytest.mark.asyncio
+    async def test_no_controller(self):
+        from src.game_shops.pkpcrystal import teach_egg_move_handler
+        ctx = MagicMock()
+        ctx.game_controller = None
+        result = await teach_egg_move_handler(ctx)
+        assert result.success is False
+        assert "no_game_controller" in result.error_message
+
+    @pytest.mark.asyncio
+    async def test_insufficient_balance(self):
+        from src.game_shops.pkpcrystal import teach_egg_move_handler
+        ctx = MagicMock()
+        ctx.game_controller = MagicMock()
+        ctx.check_balance = AsyncMock(return_value=False)
+        result = await teach_egg_move_handler(ctx)
+        assert result.success is False
+        assert "insufficient_funds" in result.error_message
+
+
+class TestOnSelectEggMon:
+    @pytest.mark.asyncio
+    async def test_no_valid_egg_moves(self):
+        from src.game_shops.pkpcrystal import _on_select_egg_mon
+        raw = _make_mock_battle_struct(species=0x01, level=10, moves=[0x21, 0x2D, 0x4A, 0x45])
+        prefs = {"pkpcrystal_trainer_card_mon_0": raw.hex()}
+
+        session = FlowSession(item=MagicMock(), cat_id="pkpc_battles", cat_page=0, chat_id=99)
+
+        ctx = MagicMock()
+        ctx.platform = "test"
+        ctx.user_id = 1
+        ctx.chat_id = 99
+        ctx.user_name = "TestUser"
+        ctx.item = MagicMock()
+        ctx.session = session
+        ctx.game_controller = MagicMock()
+
+        with (
+            patch("src.game_shops.pkpcrystal.state_manager.get_user_preference", side_effect=lambda p, u, k: prefs.get(k)),
+            patch("src.game_shops.pkpcrystal.get_pokemon_name", return_value="Bulbasaur"),
+            patch("src.game_shops.pkpcrystal.get_species_egg_moves", return_value=[]),
+            patch("src.game_shops.pkpcrystal.shop_manager.purchase") as mock_purchase,
+        ):
+            result = await _on_select_egg_mon("0", ctx)
+
+        assert isinstance(result, PurchaseComplete)
+        assert result.success is False
+        assert "no_moves" in result.error_message
+        mock_purchase.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_egg_move_full_flow(self):
+        from src.game_shops.pkpcrystal import _on_select_egg_mon, _on_select_teach_move, _on_select_teach_replace
+        raw = _make_mock_battle_struct(species=0x01, level=10, moves=[0x21, 0x2D, 0x4A, 0x45])
+
+        prefs = {"pkpcrystal_trainer_card_mon_0": raw.hex()}
+
+        session = FlowSession(item=MagicMock(), cat_id="pkpc_battles", cat_page=0, chat_id=99)
+
+        ctx = MagicMock()
+        ctx.platform = "test"
+        ctx.user_id = 1
+        ctx.chat_id = 99
+        ctx.user_name = "TestUser"
+        ctx.item = MagicMock()
+        ctx.session = session
+        ctx.game_controller = MagicMock()
+
+        with (
+            patch("src.game_shops.pkpcrystal.state_manager.get_user_preference", side_effect=lambda p, u, k: prefs.get(k)),
+            patch("src.game_shops.pkpcrystal.get_pokemon_name", return_value="Bulbasaur"),
+            patch("src.game_shops.pkpcrystal.get_move_name", side_effect=lambda pyboy, mid: {
+                0x21: "Scratch", 0x2D: "Growl", 0x4A: "Vine Whip",
+                0x45: "Leech Seed", 0xCC: "Petal Dance",
+            }.get(mid, f"Move_{mid:02X}")),
+            patch("src.game_shops.pkpcrystal.get_species_egg_moves", return_value=[0xCC]),
+            patch("src.game_shops.pkpcrystal.shop_manager.purchase", return_value=MagicMock(success=True)),
+            patch("src.game_shops.pkpcrystal.random.sample", return_value=[(0xCC, "Petal Dance")]),
+            patch("src.game_shops.pkpcrystal.state_manager.set_user_preference") as mock_set,
+        ):
+            step1 = await _on_select_egg_mon("0", ctx)
+            assert isinstance(step1, SelectionStep), f"Expected SelectionStep, got {step1}"
+            assert step1.on_select == _on_select_teach_move
+
+            step2 = await _on_select_teach_move("0", ctx)
+            assert isinstance(step2, SelectionStep)
+            assert step2.on_select == _on_select_teach_replace
+
+            final = await _on_select_teach_replace("0", ctx)
+            assert final.success is True
+            assert "replaced" in final.success_message
+            mock_set.assert_called_once()
+            updated_raw = bytes.fromhex(mock_set.call_args[0][3])
+            assert updated_raw[2] == 0xCC

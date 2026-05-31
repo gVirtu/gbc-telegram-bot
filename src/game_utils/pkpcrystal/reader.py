@@ -206,6 +206,25 @@ def get_species_tmhm_moves(pyboy, species_id: int) -> list[int]:
     return moves
 
 
+def get_species_egg_moves(pyboy, species_id: int) -> list[int]:
+    """Return list of move_ids the species can learn as egg moves."""
+    bank, ptr_table = pyboy.symbol_lookup("EggSpeciesMovesPointers")
+    entry_addr = ptr_table + (species_id - 1) * 2
+    data_addr = read_u16(pyboy, bank, entry_addr)
+
+    addr = data_addr + 2
+
+    moves = []
+    while True:
+        move_id = read_u8(pyboy, bank, addr)
+        if move_id == 0xFF:
+            break
+        moves.append(move_id)
+        addr += 1
+
+    return moves
+
+
 # ── Party member reads ───────────────────────────────────────────
 
 def _party_mon_addr(pyboy, slot):

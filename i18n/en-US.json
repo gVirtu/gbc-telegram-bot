@@ -512,5 +512,10 @@
         }
       }
     }
+  },
+  "sidebar": {
+    "rank_number": "RANK #{n}",
+    "rank_mvp": "THE MVP",
+    "rank_next": "NEXT:"
   }
 }

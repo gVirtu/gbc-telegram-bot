@@ -182,3 +182,43 @@ class TestGetPlayerAlltimeInputCount:
         _insert_alltime_count(db_manager, 1, 5, 50)
         _insert_alltime_count(db_manager, 2, 5, 999)
         assert db_manager.get_player_alltime_input_count(1, 5) == 50
+
+
+class TestGetPlayerRank:
+    def test_returns_zero_zero_when_no_rows(self, db_manager):
+        assert db_manager.get_player_rank(1, 99) == (0, 0)
+
+    def test_rank_1_with_no_one_ahead(self, db_manager):
+        _insert_alltime_count(db_manager, 1, 42, 500)
+        assert db_manager.get_player_rank(1, 42) == (1, None)
+
+    def test_rank_2_with_next(self, db_manager):
+        _insert_alltime_count(db_manager, 1, 42, 500)
+        _insert_alltime_count(db_manager, 1, 10, 100)
+        assert db_manager.get_player_rank(1, 10) == (2, 500)
+
+    def test_tied_ranks_same_rank(self, db_manager):
+        _insert_alltime_count(db_manager, 1, 42, 500)
+        _insert_alltime_count(db_manager, 1, 10, 100)
+        _insert_alltime_count(db_manager, 1, 20, 100)
+        assert db_manager.get_player_rank(1, 10)[0] == 2
+        assert db_manager.get_player_rank(1, 20)[0] == 2
+        assert db_manager.get_player_rank(1, 10)[1] == 500
+        assert db_manager.get_player_rank(1, 20)[1] == 500
+
+    def test_tied_top_rank(self, db_manager):
+        _insert_alltime_count(db_manager, 1, 42, 500)
+        _insert_alltime_count(db_manager, 1, 10, 500)
+        assert db_manager.get_player_rank(1, 42) == (1, None)
+        assert db_manager.get_player_rank(1, 10) == (1, None)
+
+    def test_only_matches_chat_id(self, db_manager):
+        _insert_alltime_count(db_manager, 1, 5, 100)
+        _insert_alltime_count(db_manager, 2, 5, 999)
+        assert db_manager.get_player_rank(1, 5) == (1, None)
+
+    def test_rank_3_with_gap(self, db_manager):
+        _insert_alltime_count(db_manager, 1, 42, 500)
+        _insert_alltime_count(db_manager, 1, 10, 100)
+        _insert_alltime_count(db_manager, 1, 20, 50)
+        assert db_manager.get_player_rank(1, 20) == (3, 100)

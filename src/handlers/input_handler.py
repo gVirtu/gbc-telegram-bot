@@ -592,7 +592,31 @@ class InputHandler:
                         "today": state_manager.get_player_today_input_count(chat_id, solo_uid),
                         "alltime": state_manager.get_player_alltime_input_count(chat_id, solo_uid),
                         "color": user_colors.get(solo_uname, (255, 255, 255)),
+                        "rank": None,
+                        "next_count": None,
+                        "rank_text": None,
                     }
+                    try:
+                        rank, next_count = state_manager.get_player_rank(chat_id, solo_uid)
+                        header_stats["single_player"]["rank"] = rank
+                        header_stats["single_player"]["next_count"] = next_count
+                        player_alltime = header_stats["single_player"]["alltime"]
+                        if next_count is not None:
+                            to_next = next_count - player_alltime
+                        else:
+                            to_next = None
+                        header_stats["single_player"]["to_next_base"] = to_next
+                        header_stats["single_player"]["rank_number_text"] = (
+                            translation_manager.get("sidebar.rank_number", chat_id, n=rank)
+                        )
+                        header_stats["single_player"]["rank_next_text"] = (
+                            translation_manager.get("sidebar.rank_next", chat_id)
+                        ) if rank > 1 else (
+                            translation_manager.get("sidebar.rank_mvp", chat_id)
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to fetch player rank for {solo_uid} in chat {chat_id}: {e}")
+                        pass
                 except Exception as e:
                     logger.warning(f"Failed to fetch single-player stats for chat {chat_id}: {e}")
 

@@ -424,7 +424,7 @@ class TestRenderInputSidebarSinglePlayer:
         s = self.SCALE
         # card_y = date_row_height + 28*scale = 10*s + 28*s = 38*s (at scale=1 → 38)
         card_y = 10 * s + 28 * s
-        card_h = 2 * s + 28 * s + 2 * s + 10 * s + 2 * s
+        card_h = 2 * s + 28 * s + 2 * s + 10 * s + 2 * s + 10 * s + 2 * s
         card_w = 56 * s
         return arr[card_y:card_y + card_h, 0:card_w]
 
@@ -447,7 +447,7 @@ class TestRenderInputSidebarSinglePlayer:
         s = self.SCALE
         # Card spans roughly y=38 to y=82 at scale=1 (38 + 44).
         # Rows past the card bottom should be all-black (no inputs) and identical.
-        card_bottom = 10 * s + 28 * s + (2 * s + 28 * s + 2 * s + 10 * s + 2 * s)  # ~82
+        card_bottom = 10 * s + 28 * s + (2 * s + 28 * s + 2 * s + 10 * s + 2 * s + 10 * s + 2 * s)  # ~82
         check_row = card_bottom + 5  # well below the card
         assert np.array_equal(arr_with[check_row], arr_without[check_row])
 
@@ -458,3 +458,85 @@ class TestRenderInputSidebarSinglePlayer:
         region_0 = self._card_region(arr_0)
         region_5 = self._card_region(arr_5)
         assert not np.array_equal(region_0, region_5)
+
+
+class TestRenderCurrentPlayerCardRank:
+    SCALE = 1
+
+    def _card(self, period_key="today", n_new=0, rank=None, next_count=None, **sp_kwargs):
+        s = self.SCALE
+        card_w = 56 * s
+        card_h = 56 * s  # 2+28+2+10+2+10+2 = 56
+        img = Image.new("RGB", (card_w, card_h + 10), (0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        sp = _single_player(**sp_kwargs)
+        if rank is not None:
+            sp["rank"] = rank
+            sp["next_count"] = next_count
+            if next_count is None:
+                sp["rank_number_text"] = f"RANK {rank}"
+                sp["rank_next_text"] = "THE MVP"
+            else:
+                player_alltime = sp.get("alltime", 0)
+                to_next_base = next_count - player_alltime
+                sp["to_next_base"] = to_next_base
+                sp["rank_number_text"] = f"RANK {rank}"
+                sp["rank_next_text"] = f"NEXT:"
+
+        _render_current_player_card(
+            img=img, draw=draw,
+            single_player=sp,
+            period_key=period_key,
+            n_new_inputs=n_new,
+            scale=s,
+            card_x=0, card_y=0,
+            font_path=None,
+            small_font=None,
+        )
+        return np.array(img)
+
+    def _sample_rank_colors(self, arr):
+        """Return set of non-black (R,G,B) tuples from the rank text area, excluding border columns."""
+        rank_area = arr[44:50, 1:-1, :]
+        mask = np.any(rank_area != (0, 0, 0), axis=2)
+        if not np.any(mask):
+            return set()
+        return {tuple(int(c) for c in p) for p in rank_area[mask]}
+
+    def _approx_color(self, colors, expected, tolerance=8):
+        return any(all(abs(c[i] - expected[i]) <= tolerance for i in range(3)) for c in colors)
+
+    def test_card_height_is_56_at_scale_1(self):
+        arr = self._card(rank=1, next_count=None)
+        assert tuple(arr[55, 0]) == (255, 255, 255)
+        assert tuple(arr[56, 0]) == (0, 0, 0)
+
+    def test_rank_row_has_text(self):
+        arr = self._card(period_key="alltime", rank=2, next_count=500, alltime=100)
+        rank_area = arr[43:49, 1:-1, :]
+        assert np.any(rank_area > 0)
+
+    def test_rank_1_shows_mvp(self):
+        arr_rank1 = self._card(rank=1, next_count=None)
+        arr_rank2 = self._card(rank=2, next_count=500)
+        assert not np.array_equal(arr_rank1[43:49, 1:-1], arr_rank2[43:49, 1:-1])
+
+    def test_rank_row_absent_when_no_rank_key(self):
+        arr = self._card()
+        rank_area = arr[43:49, 1:-1, :]
+        assert np.all(rank_area == 0)
+        assert tuple(arr[51, 0]) == (255, 255, 255)
+
+    def test_rank_colors(self):
+        colors_1 = self._sample_rank_colors(self._card(rank=1, next_count=None))
+        assert self._approx_color(colors_1, (249, 206, 100))
+
+        colors_2 = self._sample_rank_colors(
+            self._card(period_key="alltime", rank=2, next_count=500, alltime=10)
+        )
+        assert self._approx_color(colors_2, (177, 176, 182))
+
+        colors_3 = self._sample_rank_colors(
+            self._card(period_key="alltime", rank=3, next_count=500, alltime=10)
+        )
+        assert self._approx_color(colors_3, (230, 141, 63))

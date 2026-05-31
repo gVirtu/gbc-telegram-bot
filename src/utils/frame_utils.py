@@ -382,7 +382,8 @@ def _render_current_player_card(
     card_w = 56 * scale
     avatar_sz = 28 * scale
     line_h = 10 * scale
-    card_h = padding + avatar_sz + padding + line_h + padding
+    rank_h = 10 * scale
+    card_h = padding + avatar_sz + padding + line_h + padding + rank_h + padding
     font_path_str = str(font_path) if font_path else None
 
     draw.rectangle(
@@ -440,6 +441,52 @@ def _render_current_player_card(
         font=small_font,
         align="center",
     )
+
+    player_rank = single_player.get("rank")
+    rank_number_text = single_player.get("rank_number_text")
+    rank_next_text = single_player.get("rank_next_text")
+    to_next_base = single_player.get("to_next_base")
+
+    if player_rank is not None and rank_number_text is not None and rank_next_text is not None:
+        if int(player_rank) == 1:
+            rank_color = (249, 206, 100)
+        elif int(player_rank) == 2:
+            rank_color = (177, 176, 182)
+        elif int(player_rank) == 3:
+            rank_color = (230, 141, 63)
+        else:
+            rank_color = (255, 255, 255)
+
+        rank_font = _load_font(font_path_str, 7 * scale)
+        rank_y = card_y + padding + avatar_sz + padding + line_h
+        draw_text_to_fit(
+            img,
+            draw,
+            x=card_x + 2,
+            y=rank_y,
+            name=rank_number_text,
+            color=rank_color,
+            max_w=card_w - 2,
+            font=rank_font,
+            align="center"
+        )
+
+        if to_next_base is not None:
+            to_next_str = f" {(to_next_base - n_new_inputs):,}"
+        else:
+            to_next_str = ""
+
+        draw_text_to_fit(
+            img,
+            draw,
+            x=card_x + 2,
+            y=rank_y + (6 * scale),
+            name=f"{rank_next_text}{to_next_str}",
+            color=(255, 255, 255),
+            max_w=card_w - 2,
+            font=rank_font,
+            align="center"
+        )
 
 
 def render_input_sidebar(

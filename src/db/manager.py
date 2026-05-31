@@ -514,6 +514,31 @@ class DatabaseManager:
         ).fetchone()
         return int(row["input_count"]) if row else 0
 
+    def get_player_rank(self, chat_id: int, user_id: int) -> tuple:
+        """Return (rank, next_count) for a player in the given chat.
+
+        Rank is the DENSE_RANK position by all-time input count (1 = highest).
+        next_count is the input_count of the player one rank above, or None if rank 1.
+        Returns (0, 0) if the user has no recorded inputs.
+        """
+        sql = (
+            "WITH ranked AS ("
+            "  SELECT user_id, input_count,"
+            "    DENSE_RANK() OVER (ORDER BY input_count DESC) AS rnk"
+            "  FROM user_input_counts WHERE chat_id = ?"
+            ") "
+            "SELECT r.user_id, r.input_count, r.rnk,"
+            "  (SELECT r2.input_count FROM (SELECT DISTINCT input_count, rnk FROM ranked) r2"
+            "   WHERE r2.rnk = r.rnk - 1) AS next_count "
+            "FROM ranked r WHERE r.user_id = ?;"
+        )
+        row = self.connection.execute(sql, (chat_id, user_id)).fetchone()
+        if row is None:
+            return (0, 0)
+        rank = int(row["rnk"])
+        next_count = int(row["next_count"]) if row["next_count"] is not None else None
+        return (rank, next_count)
+
     def purge_old_recent_inputs(self, older_than_days: int) -> int:
         """Delete recent_inputs rows older than N days.
 

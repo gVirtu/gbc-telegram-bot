@@ -347,8 +347,7 @@ class TestHookContextStructure:
         from src.game_hooks.pkpcrystal import register_game_event_hooks
 
         controller = MagicMock()
-        controller._capture_tick_count = 10
-        controller._capture_interval = 2
+        controller.get_capture_frame_offset.return_value = 5
 
         context = {"_events": []}
 

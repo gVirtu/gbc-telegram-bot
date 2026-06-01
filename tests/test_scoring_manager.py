@@ -445,10 +445,10 @@ def test_score_input_updates_user_name(manager, db_conn):
 
 class TestScoreEvent:
     def test_score_event_new_user(self, manager, db_conn):
-        manager.score_event("telegram", "abc-123", 500)
+        manager.score_event("telegram", 999, 500)
         cursor = db_conn.execute(
             "SELECT * FROM user_player_profiles WHERE platform = ? AND user_id = ?;",
-            ("telegram", "abc-123"),
+            ("telegram", 999),
         )
         row = cursor.fetchone()
         assert row is not None
@@ -465,15 +465,15 @@ class TestScoreEvent:
             s.player_input_max_score = 5
             s.daily_streak_score_bonus = 10
             manager.score_input("telegram", 42, 1, "a")
-        manager.score_event("telegram", "42", 300)
+        manager.score_event("telegram", 42, 300)
         profile = manager.get_player_profile("telegram", 42)
         assert profile.total_score_earned == 15 + 300
 
     def test_score_event_no_commit(self, manager, db_conn):
-        manager.score_event("telegram", "xyz", 100, commit=False)
+        manager.score_event("telegram", 888, 100, commit=False)
         cursor = db_conn.execute(
             "SELECT * FROM user_player_profiles WHERE platform = ? AND user_id = ?;",
-            ("telegram", "xyz"),
+            ("telegram", 888),
         )
         row = cursor.fetchone()
         assert row is not None

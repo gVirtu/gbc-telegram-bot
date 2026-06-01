@@ -6,7 +6,7 @@ JSON storage with SQLite, maintaining the same public API as StateManager.
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -93,12 +93,21 @@ class DatabaseManager:
             config.mirrors_chat_id,
             json.dumps(config.feature_flags),
             config.last_avatar_update_at.isoformat() if config.last_avatar_update_at else None,
-            config.created_at.isoformat() if config.created_at else datetime.utcnow().isoformat(),
-            datetime.utcnow().isoformat()
+            config.created_at.isoformat() if config.created_at else datetime.now(timezone.utc).isoformat(),
+            datetime.now(timezone.utc).isoformat()
         ))
         self.connection.commit()
         logger.debug(f"Saved chat config for chat {config.chat_id}")
     
+    @staticmethod
+    def _parse_datetime_utc(value: str | None) -> datetime | None:
+        if value is None:
+            return None
+        dt = datetime.fromisoformat(value)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+
     def load_chat_config(self, chat_id: int) -> Optional[ChatConfig]:
         """Load chat configuration from database.
         
@@ -127,9 +136,9 @@ class DatabaseManager:
             platform=row['platform'] if 'platform' in row.keys() else 'telegram',
             mirrors_chat_id=row['mirrors_chat_id'] if 'mirrors_chat_id' in row.keys() else None,
             feature_flags=json.loads(row['feature_flags']) if 'feature_flags' in row.keys() and row['feature_flags'] else {},
-            last_avatar_update_at=datetime.fromisoformat(row['last_avatar_update_at']) if 'last_avatar_update_at' in row.keys() and row['last_avatar_update_at'] else None,
-            created_at=datetime.fromisoformat(row['created_at']),
-            updated_at=datetime.fromisoformat(row['updated_at'])
+            last_avatar_update_at=self._parse_datetime_utc(row['last_avatar_update_at']) if 'last_avatar_update_at' in row.keys() and row['last_avatar_update_at'] else None,
+            created_at=self._parse_datetime_utc(row['created_at']),
+            updated_at=self._parse_datetime_utc(row['updated_at'])
         )
         
         logger.debug(f"Loaded chat config for chat {chat_id}")
@@ -252,8 +261,8 @@ class DatabaseManager:
             state.last_input_time.isoformat() if state.last_input_time else None,
             state.last_animation_file_id,
             state.global_frame_count,
-            state.created_at.isoformat() if state.created_at else datetime.utcnow().isoformat(),
-            datetime.utcnow().isoformat()
+            state.created_at.isoformat() if state.created_at else datetime.now(timezone.utc).isoformat(),
+            datetime.now(timezone.utc).isoformat()
         ))
         
         # Save user input counts
@@ -547,8 +556,8 @@ class DatabaseManager:
         if older_than_days == 0:
             return 0
 
-        from datetime import datetime, timedelta
-        cutoff = (datetime.utcnow() - timedelta(days=older_than_days)).isoformat()
+        from datetime import datetime, timedelta, timezone
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=older_than_days)).isoformat()
         cursor = self.connection.execute(
             "DELETE FROM recent_inputs WHERE timestamp < ?;",
             (cutoff,)
@@ -588,7 +597,7 @@ class DatabaseManager:
             f.write(state_data)
         
         # Save metadata to database
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         sql = """
         INSERT INTO save_slots 
             (chat_id, slot_number, is_auto_save, description, created_at, updated_at, state_file_path)
@@ -900,7 +909,7 @@ class DatabaseManager:
             part_number: Part number (1-based) for split recaps
             is_rt: Whether this is a realtime recap
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         sql = """
         INSERT INTO recap_files
             (chat_id, date, part_number, is_rt, file_id, frame_count, duration_sec, file_size_bytes, created_at, updated_at)
@@ -944,7 +953,7 @@ class DatabaseManager:
         """
 
         self.connection.execute(sql, (
-            file_id, datetime.utcnow().isoformat(), chat_id, date, part_number, is_rt
+            file_id, datetime.now(timezone.utc).isoformat(), chat_id, date, part_number, is_rt
         ))
         self.connection.commit()
         logger.debug(f"Updated recap file_id for chat {chat_id}, date {date}, part {part_number}, is_rt={is_rt}")
@@ -1051,7 +1060,7 @@ class DatabaseManager:
             current_part_number: The part number being finalized
             is_rt: Whether this is a realtime recap
         """
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         next_part = current_part_number + 1
 
         self.connection.execute(
@@ -1075,7 +1084,7 @@ class DatabaseManager:
         is_rt: bool,
     ) -> None:
         """Mark a recap part as auto-sent by setting auto_sent_at timestamp."""
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         self.connection.execute(
             "UPDATE recap_files SET auto_sent_at = ? WHERE chat_id = ? AND date = ? AND part_number = ? AND is_rt = ?;",
             (now, chat_id, date, part_number, is_rt),
@@ -1126,14 +1135,14 @@ class DatabaseManager:
         chat_id: int,
         cartridge_title: str,
         events: list[dict],
-        user_ids: list[str],
+        user_ids: list[int],
         platform: str,
         commit: bool = True,
     ) -> list[int]:
         """Insert game events and user associations. Returns list of event IDs.
         When commit=False, the caller is responsible for committing the transaction."""
         event_ids: list[int] = []
-        created_at = datetime.utcnow().isoformat()
+        created_at = datetime.now(timezone.utc).isoformat()
 
         for event in events:
             cursor = self.connection.execute(
@@ -1151,12 +1160,12 @@ class DatabaseManager:
             event_id = cursor.lastrowid
             event_ids.append(event_id)
 
-            for user_id in user_ids:
-                self.connection.execute(
-                    "INSERT OR IGNORE INTO game_event_users (event_id, platform, user_id) "
-                    "VALUES (?, ?, ?);",
-                    (event_id, platform, user_id),
-                )
+            user_tuples = [(event_id, platform, uid) for uid in user_ids]
+            self.connection.executemany(
+                "INSERT OR IGNORE INTO game_event_users (event_id, platform, user_id) "
+                "VALUES (?, ?, ?);",
+                user_tuples,
+            )
 
         if commit:
             self.connection.commit()
@@ -1177,16 +1186,26 @@ class DatabaseManager:
             (chat_id, min_frame_offset),
         ).fetchall()
 
-        result = []
-        for row in rows:
-            event_id = row["id"]
-            user_rows = self.connection.execute(
-                "SELECT user_id FROM game_event_users WHERE event_id = ?;",
-                (event_id,),
-            ).fetchall()
-            user_ids_list = [ur["user_id"] for ur in user_rows]
+        if not rows:
+            return []
 
-            result.append({
+        event_ids = [row["id"] for row in rows]
+        placeholders = ",".join("?" for _ in event_ids)
+        user_rows = self.connection.execute(
+            f"SELECT event_id, user_id FROM game_event_users WHERE event_id IN ({placeholders}) ORDER BY event_id, user_id;",
+            tuple(event_ids),
+        ).fetchall()
+
+        users_by_event: dict[int, list[int]] = {}
+        for ur in user_rows:
+            eid = ur["event_id"]
+            uid = ur["user_id"]
+            if eid not in users_by_event:
+                users_by_event[eid] = []
+            users_by_event[eid].append(uid)
+
+        return [
+            {
                 "id": row["id"],
                 "chat_id": row["chat_id"],
                 "cartridge_title": row["cartridge_title"],
@@ -1194,10 +1213,10 @@ class DatabaseManager:
                 "awarded_score": row["awarded_score"],
                 "frame_offset": row["frame_offset"],
                 "created_at": row["created_at"],
-                "user_ids": user_ids_list,
-            })
-
-        return result
+                "user_ids": users_by_event.get(row["id"], []),
+            }
+            for row in rows
+        ]
 
     # ==================== Reaction Queue ====================
 

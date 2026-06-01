@@ -403,7 +403,7 @@ def register_game_event_hooks(controller, context):
     events = context["_events"]
 
     def wild_battle_hook(ctx):
-        local_offset = controller._capture_tick_count // controller._capture_interval
+        local_offset = controller.get_capture_frame_offset()
         events.append({
             "event_type": "wild_battle_start",
             "awarded_score": GAME_EVENT_SCORES["wild_battle_start"],

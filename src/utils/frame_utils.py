@@ -13,7 +13,7 @@ import tempfile
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
-from typing import Callable, Iterable, List, Optional, Tuple
+from typing import Any, Callable, Iterable, List, Optional, Tuple
 
 import numpy as np
 from PIL import Image, ImageDraw
@@ -21,16 +21,27 @@ from PIL import Image, ImageDraw
 logger = logging.getLogger(__name__)
 
 _streak_icon_cache: dict[int, Optional[Image.Image]] = {}
+_font_cache: dict[tuple, Any] = {}
 
 @functools.lru_cache(maxsize=64)
 def _load_font(font_path_str: Optional[str], size: int):
     from PIL import ImageFont
+
+    cache_key = (font_path_str, size)
+    cached = _font_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     if font_path_str:
         try:
-            return ImageFont.truetype(font_path_str, size=size)
+            font = ImageFont.truetype(font_path_str, size=size)
         except Exception:
-            pass
-    return ImageFont.load_default()
+            font = ImageFont.load_default()
+    else:
+        font = ImageFont.load_default()
+
+    _font_cache[cache_key] = font
+    return font
 
 
 def _load_streak_icon(height_px: int) -> Optional[Image.Image]:
@@ -142,11 +153,11 @@ def render_event_toasts(
         awarded_score = event.get("awarded_score", 0)
         text = f"{event_type} +{awarded_score}"
 
-        try:
+        if hasattr(ImageDraw.Draw, "textbbox"):
             bbox = ImageDraw.Draw(pil_img).textbbox((0, 0), text, font=font)
             text_w = bbox[2] - bbox[0]
             text_h = bbox[3] - bbox[1]
-        except Exception:
+        else:
             text_w = len(text) * 5 * scale
             text_h = 8 * scale
 

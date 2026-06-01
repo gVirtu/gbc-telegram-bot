@@ -542,6 +542,14 @@ class GameController:
         self._capture_tick_count = 0
         return frames
 
+    def get_capture_frame_offset(self) -> int:
+        """Return the current capture frame offset.
+
+        Computed as accumulated tick count divided by the capture interval,
+        representing how many capture frames have elapsed so far.
+        """
+        return self._capture_tick_count // self._capture_interval
+
     def get_last_captured_audio(self) -> list:
         """Return the audio chunks captured during the last capture window."""
         return self._last_captured_audio

@@ -19,7 +19,7 @@ def upgrade(conn: sqlite3.Connection) -> None:
         CREATE TABLE IF NOT EXISTS game_event_users (
             event_id  INTEGER NOT NULL REFERENCES game_events(id) ON DELETE CASCADE,
             platform  TEXT NOT NULL,
-            user_id   TEXT NOT NULL,
+            user_id   INTEGER NOT NULL,
             PRIMARY KEY (event_id, platform, user_id)
         );
 

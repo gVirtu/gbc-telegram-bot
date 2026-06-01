@@ -9,7 +9,7 @@ Covers:
 """
 
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.adapters.base import CommandContext
@@ -35,13 +35,13 @@ class TestChatConfigFeatureFlags:
         assert d["last_avatar_update_at"] is None
 
     def test_to_dict_includes_last_avatar_update_at_value(self):
-        ts = datetime(2026, 3, 8, 12, 0, 0)
+        ts = datetime(2026, 3, 8, 12, 0, 0, tzinfo=timezone.utc)
         config = ChatConfig(chat_id=1, last_avatar_update_at=ts)
         d = config.to_dict()
         assert d["last_avatar_update_at"] == ts.isoformat()
 
     def test_from_dict_round_trip_feature_flags(self):
-        ts = datetime(2026, 3, 8, 12, 0, 0)
+        ts = datetime(2026, 3, 8, 12, 0, 0, tzinfo=timezone.utc)
         config = ChatConfig(
             chat_id=1,
             feature_flags={"update_group_avatar": True},
@@ -98,7 +98,7 @@ class TestDbFeatureFlags:
         assert loaded.feature_flags == {}
 
     def test_save_and_load_last_avatar_update_at(self, db_manager):
-        ts = datetime(2026, 3, 8, 10, 0, 0)
+        ts = datetime(2026, 3, 8, 10, 0, 0, tzinfo=timezone.utc)
         config = ChatConfig(chat_id=103, last_avatar_update_at=ts)
         db_manager.save_chat_config(config)
         loaded = db_manager.load_chat_config(103)
@@ -227,21 +227,21 @@ class TestShouldUpdateAvatar:
     def test_returns_false_when_updated_recently(self):
         config = ChatConfig(
             chat_id=1,
-            last_avatar_update_at=datetime.utcnow() - timedelta(minutes=30)
+            last_avatar_update_at=datetime.now(timezone.utc) - timedelta(minutes=30)
         )
         assert _should_update_avatar(config) is False
 
     def test_returns_true_when_cooldown_expired(self):
         config = ChatConfig(
             chat_id=1,
-            last_avatar_update_at=datetime.utcnow() - timedelta(hours=2)
+            last_avatar_update_at=datetime.now(timezone.utc) - timedelta(hours=2)
         )
         assert _should_update_avatar(config) is True
 
     def test_exactly_at_boundary_is_true(self):
         config = ChatConfig(
             chat_id=1,
-            last_avatar_update_at=datetime.utcnow() - AVATAR_UPDATE_INTERVAL
+            last_avatar_update_at=datetime.now(timezone.utc) - AVATAR_UPDATE_INTERVAL
         )
         assert _should_update_avatar(config) is True
 

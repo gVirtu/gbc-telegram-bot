@@ -431,7 +431,7 @@ class TestGameEventsOperations:
             {"event_type": "level_up", "awarded_score": 100, "frame_offset": 10},
             {"event_type": "boss_defeated", "awarded_score": 500, "frame_offset": 50},
         ]
-        user_ids = ["111", "222"]
+        user_ids = [111, 222]
         event_ids = db_manager.insert_game_events(
             chat_id=123,
             cartridge_title="Zelda",
@@ -457,7 +457,7 @@ class TestGameEventsOperations:
                 "SELECT user_id FROM game_event_users WHERE event_id = ? ORDER BY user_id;",
                 (ev_id,),
             ).fetchall()
-            assert [r["user_id"] for r in user_rows] == ["111", "222"]
+            assert [r["user_id"] for r in user_rows] == [111, 222]
 
     def test_get_game_events_for_chat(self, db_manager):
         events = [
@@ -469,16 +469,16 @@ class TestGameEventsOperations:
             chat_id=456,
             cartridge_title="Pokemon",
             events=events,
-            user_ids=["aaa"],
+            user_ids=[333],
             platform="discord",
         )
 
         result = db_manager.get_game_events_for_chat(456, min_frame_offset=15)
         assert len(result) == 2
         assert result[0]["frame_offset"] == 20
-        assert result[0]["user_ids"] == ["aaa"]
+        assert result[0]["user_ids"] == [333]
         assert result[1]["frame_offset"] == 30
-        assert result[1]["user_ids"] == ["aaa"]
+        assert result[1]["user_ids"] == [333]
 
     def test_insert_game_events_no_commit(self, db_manager):
         from src.db.connection import DatabaseConnection
@@ -488,7 +488,7 @@ class TestGameEventsOperations:
             chat_id=789,
             cartridge_title="Metroid",
             events=events,
-            user_ids=["xyz"],
+            user_ids=[444],
             platform="telegram",
             commit=False,
         )

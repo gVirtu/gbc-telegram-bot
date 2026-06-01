@@ -67,7 +67,7 @@ class ScoringManager:
                 total_score=0,
             )
 
-    def score_event(self, platform: str, user_id: str, score: int, commit: bool = True) -> None:
+    def score_event(self, platform: str, user_id: int, awarded_score: int, commit: bool = True) -> None:
         """Add score directly to user_player_profiles.total_score_earned.
 
         Does NOT affect streaks, recent_inputs, or diversity scoring.
@@ -82,7 +82,7 @@ class ScoringManager:
                VALUES (?, ?, ?, 0, 0, 0, NULL, NULL)
                ON CONFLICT(platform, user_id) DO UPDATE SET
                    total_score_earned = total_score_earned + excluded.total_score_earned;""",
-            (platform, user_id, score),
+            (platform, user_id, awarded_score),
         )
         if commit:
             self._conn.commit()

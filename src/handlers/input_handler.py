@@ -9,7 +9,7 @@ multi-user batch animation.
 import asyncio
 import logging
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -54,7 +54,10 @@ def _should_update_avatar(config) -> bool:
     """Return True if the avatar cooldown has passed."""
     if config.last_avatar_update_at is None:
         return True
-    return datetime.utcnow() - config.last_avatar_update_at >= AVATAR_UPDATE_INTERVAL
+    last_update = config.last_avatar_update_at
+    if last_update.tzinfo is None:
+        last_update = last_update.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) - last_update >= AVATAR_UPDATE_INTERVAL
 
 
 def _save_raw_frames_sync(
@@ -776,40 +779,50 @@ class InputHandler:
 
         # Score game events (separate transaction — hooks may have fired during animation ticks)
         batch_events: list = []
-        if "_events" in hook_context and hook_context["_events"]:
-            unique_user_ids = list({str(bi.user_id) for bi in batch})
+        hook_events = hook_context.get("_events", [])
+        if hook_events:
+            unique_user_ids = list({bi.user_id for bi in batch})
 
-            for event in hook_context["_events"]:
+            for event in hook_events:
                 event["frame_offset"] = base_global_frame_count + event["frame_offset"]
 
-            for user_id in unique_user_ids:
-                for event in hook_context["_events"]:
-                    scoring_manager.score_event(
-                        platform=config.platform,
-                        user_id=user_id,
-                        score=event["awarded_score"],
-                        commit=False,
-                    )
-
-            events_data = [
-                {
+            events_data = []
+            for e in hook_events:
+                if not all(k in e for k in ("event_type", "awarded_score", "frame_offset")):
+                    logger.error(f"Malformed game event dict, skipping: {e}")
+                    continue
+                events_data.append({
                     "event_type": e["event_type"],
                     "awarded_score": e["awarded_score"],
                     "frame_offset": e["frame_offset"],
-                }
-                for e in hook_context["_events"]
-            ]
-            state_manager.insert_game_events(
-                chat_id=chat_id,
-                cartridge_title=controller.pyboy.cartridge_title,
-                events=events_data,
-                user_ids=unique_user_ids,
-                platform=config.platform,
-                commit=False,
-            )
-            state_manager.connection.commit()
-            batch_events = list(hook_context["_events"])
-            hook_context["_events"].clear()
+                })
+
+            try:
+                for user_id in unique_user_ids:
+                    for event in hook_events:
+                        scoring_manager.score_event(
+                            platform=config.platform,
+                            user_id=user_id,
+                            awarded_score=event["awarded_score"],
+                            commit=False,
+                        )
+
+                state_manager.insert_game_events(
+                    chat_id=chat_id,
+                    cartridge_title=controller.pyboy.cartridge_title,
+                    events=events_data,
+                    user_ids=unique_user_ids,
+                    platform=config.platform,
+                    commit=False,
+                )
+                state_manager.connection.commit()
+            except Exception:
+                state_manager.connection.rollback()
+                logger.error(f"Failed to persist game events for chat {chat_id}", exc_info=True)
+            else:
+                batch_events = list(hook_events)
+            finally:
+                hook_events.clear()
 
         # Generate TBC from last raw frame (scaled)
         last_raw = raw_frames[-1] if raw_frames else np.array(controller.get_frame())
@@ -1005,7 +1018,7 @@ class InputHandler:
         try:
             png_bytes = controller.get_frame_as_png().getvalue()
             await adapter.update_chat_photo(chat_id, png_bytes)
-            config.last_avatar_update_at = datetime.utcnow()
+            config.last_avatar_update_at = datetime.now(timezone.utc)
             state_manager.save_chat_config(config)
             logger.info(f"Updated group avatar for chat {chat_id}")
         except Exception as e:

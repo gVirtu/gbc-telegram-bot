@@ -100,6 +100,19 @@ class DatabaseConnection:
         """
         conn = self.get_connection()
         return conn.execute(sql, parameters)
+
+    def executemany(self, sql: str, seq_of_params: list[tuple]) -> sqlite3.Cursor:
+        """Execute a parameterized SQL statement against all parameter sequences.
+
+        Args:
+            sql: SQL statement to execute
+            seq_of_params: List of parameter tuples
+
+        Returns:
+            Cursor object
+        """
+        conn = self.get_connection()
+        return conn.executemany(sql, seq_of_params)
     
     def executescript(self, sql: str) -> sqlite3.Cursor:
         """Execute multiple SQL statements.
@@ -117,6 +130,11 @@ class DatabaseConnection:
         """Commit current transaction."""
         if self._connection:
             self._connection.commit()
+
+    def rollback(self) -> None:
+        """Rollback current transaction."""
+        if self._connection:
+            self._connection.rollback()
     
     def close(self) -> None:
         """Close database connection."""

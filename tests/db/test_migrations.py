@@ -20,6 +20,14 @@ class TestMigrationDiscovery:
         assert len(migrations) > 0
         assert any(m.name == "001_baseline" for m in migrations)
 
+    def test_migration_versions_are_unique(self):
+        """Verify no duplicate version numbers across migrations."""
+        from src.db.migrations import discover_migrations
+
+        migrations = discover_migrations()
+        versions = [m.version for m in migrations]
+        assert len(versions) == len(set(versions))
+
 
 class TestMigrationBaseClass:
     """Test Migration base class."""
@@ -148,6 +156,60 @@ class TestMigrationRunner:
         cursor = conn.execute("PRAGMA table_info(game_states);")
         cols = [row["name"] for row in cursor.fetchall()]
         assert "global_frame_count" in cols
+        conn.close()
+
+    def test_migration_026_creates_game_events_tables(self, tmp_path):
+        """Migration 026 creates game_events and game_event_users tables."""
+        from src.db.connection import DatabaseConnection
+
+        db_path = tmp_path / "test026.db"
+        conn = DatabaseConnection(db_path)
+        conn.initialize()
+
+        cursor = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='game_events';"
+        )
+        assert cursor.fetchone() is not None
+
+        cursor = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='game_event_users';"
+        )
+        assert cursor.fetchone() is not None
+
+        cursor = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='index' AND name='idx_game_events_chat_frame';"
+        )
+        assert cursor.fetchone() is not None
+        conn.close()
+
+    def test_migration_026_downgrade_drops_tables(self, tmp_path):
+        """Migration 026 downgrade drops game_events and related objects."""
+        import src.db.migrations.runner
+        from src.db.connection import DatabaseConnection
+
+        db_path = tmp_path / "test026d.db"
+        conn = DatabaseConnection(db_path)
+        conn.initialize()
+
+        runner = src.db.migrations.runner.MigrationRunner(conn)
+        assert runner.is_migration_applied(26)
+        runner.rollback_migration(26)
+        assert not runner.is_migration_applied(26)
+
+        cursor = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='game_events';"
+        )
+        assert cursor.fetchone() is None
+
+        cursor = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='game_event_users';"
+        )
+        assert cursor.fetchone() is None
+
+        cursor = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='index' AND name='idx_game_events_chat_frame';"
+        )
+        assert cursor.fetchone() is None
         conn.close()
 
 

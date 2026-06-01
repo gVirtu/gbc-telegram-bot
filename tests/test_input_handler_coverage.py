@@ -576,7 +576,7 @@ class TestProcessBatchEdgeCases:
 
         # Start with _total=0 so threshold=60. Patch _tick_and_capture_animation_frames
         # to simulate the game advancing so _total reaches 60 (meeting the threshold).
-        initial_context = {"autoPressA": {"_total": 0}}
+        initial_context = {"_counters": {"autoPressA": {"_total": 0}}}
         controller.begin_hooks.return_value = initial_context
 
         call_count = [0]
@@ -584,7 +584,7 @@ class TestProcessBatchEdgeCases:
             call_count[0] += 1
             if call_count[0] == 1:
                 # First call: simulate autoPressA threshold being reached
-                initial_context["autoPressA"]["_total"] = 60
+                initial_context["_counters"]["autoPressA"]["_total"] = 60
             # Subsequent calls: _total stays at 60, threshold becomes 120, while exits
             return 60  # return frame count (≥ capture_fps so no padding needed)
 
@@ -613,7 +613,7 @@ class TestProcessBatchEdgeCases:
         handler._sessions[123456] = _session()
         adapter = _make_adapter()
         controller = _mock_controller_for_batch()
-        controller.begin_hooks.return_value = {"dangerousActions": {"_total": 1}}
+        controller.begin_hooks.return_value = {"_counters": {"dangerousActions": {"_total": 1}}}
 
         with patch("src.handlers.input_handler.game_controller_manager") as mock_gcm, \
              patch("src.handlers.input_handler.state_manager") as mock_sm, \
@@ -800,11 +800,11 @@ class TestTickAndCaptureAnimationFramesEarlyBreak:
         controller = MagicMock()
 
         frames = []
-        hook_context = {"inputWaitCalls": {"_total": 0}}
+        hook_context = {"_counters": {"inputWaitCalls": {"_total": 0}}}
 
         # Simulate game advancing: first tick pushes _total past the threshold
         def mutate_on_tick(n):
-            hook_context["inputWaitCalls"]["_total"] = 61  # > threshold of 60
+            hook_context["_counters"]["inputWaitCalls"]["_total"] = 61  # > threshold of 60
 
         controller.tick.side_effect = mutate_on_tick
 
@@ -823,7 +823,7 @@ class TestTickAndCaptureAnimationFramesEarlyBreak:
         handler = _handler()
         controller = MagicMock()
 
-        hook_context = {"inputWaitCalls": {"_total": 0}}
+        hook_context = {"_counters": {"inputWaitCalls": {"_total": 0}}}
 
         handler._tick_and_capture_animation_frames(
             controller=controller,
@@ -839,7 +839,7 @@ class TestTickAndCaptureAnimationFramesEarlyBreak:
         """Returns the number of frames actually ticked (no early break)."""
         handler = _handler()
         controller = MagicMock()
-        hook_context = {"inputWaitCalls": {"_total": 0}}
+        hook_context = {"_counters": {"inputWaitCalls": {"_total": 0}}}
 
         count = handler._tick_and_capture_animation_frames(
             controller=controller,
@@ -854,10 +854,10 @@ class TestTickAndCaptureAnimationFramesEarlyBreak:
         """Returns the number of frames ticked before early break."""
         handler = _handler()
         controller = MagicMock()
-        hook_context = {"inputWaitCalls": {"_total": 0}}
+        hook_context = {"_counters": {"inputWaitCalls": {"_total": 0}}}
 
         def mutate_on_tick(n):
-            hook_context["inputWaitCalls"]["_total"] = 61  # > threshold 60
+            hook_context["_counters"]["inputWaitCalls"]["_total"] = 61  # > threshold 60
 
         controller.tick.side_effect = mutate_on_tick
 

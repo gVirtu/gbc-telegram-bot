@@ -72,19 +72,23 @@ TEXT_BYTES = bytes([
 ])
 
 
+GAME_EVENT_SCORES = {
+    "wild_battle_start": 50,
+}
+
 logger = logging.getLogger(__name__)
 
 
-def begin_hooks(pyboy, chat_id) -> dict:
+def begin_hooks(controller) -> dict:
     """Register Polished Crystal hooks.
 
     Args:
-        pyboy: PyBoy emulator instance
+        controller: GameController instance
 
     Returns:
-        Context dict with counters for dangerous actions and input wait calls
+        Context dict with nested counters and events
     """
-    context = {
+    counters = {
         "dangerousActions": {
             "TossMenu": 0,
             "BillsPC_Release": 0,
@@ -131,6 +135,11 @@ def begin_hooks(pyboy, chat_id) -> dict:
             "_total": 0
         }
     }
+
+    context = {
+        "_counters": counters,
+        "_events": [],
+    }
     
     weights = {
         "DoPlayerMovement.GetAction": 3,
@@ -151,14 +160,14 @@ def begin_hooks(pyboy, chat_id) -> dict:
     # Aggregate all actions linked to what categories they are in
     hook_counters = defaultdict(list)
     
-    for counter_category in context.keys():
-        for action in context[counter_category].keys():
+    for counter_category in counters.keys():
+        for action in counters[counter_category].keys():
             if action == '_total':
                 continue
             hook_counters[action].append(counter_category)
 
     def make_hook(categories: list, action: str):
-        sub_dicts = [context[cat] for cat in categories]
+        sub_dicts = [context["_counters"][cat] for cat in categories]
         weight = weights.get(action, 1)
         def hook(ctx):
             for d in sub_dicts:
@@ -167,32 +176,35 @@ def begin_hooks(pyboy, chat_id) -> dict:
         return hook
 
     for action in hook_counters.keys():
-        pyboy.hook_register(None, action, make_hook(hook_counters[action], action), context)
+        controller.pyboy.hook_register(None, action, make_hook(hook_counters[action], action), context)
         
-    register_custom_hooks(pyboy, chat_id)
+    register_game_event_hooks(controller, context)
+    register_custom_hooks(controller)
 
     return context
 
 
-def end_hooks(pyboy, context: dict) -> None:
+def end_hooks(controller, context: dict) -> None:
     """Deregister Polished Crystal hooks.
 
     Args:
-        pyboy: PyBoy emulator instance
+        controller: GameController instance
         context: Context dict from begin_hooks
     """
 
+    counters = context.get("_counters", {})
     actions = set()
-    for counter_category in context.keys():
-        for action in context[counter_category].keys():
+    for counter_category in counters.keys():
+        for action in counters[counter_category].keys():
             actions.add(action)
             
     for action in actions:
         if action == '_total':
             continue
-        pyboy.hook_deregister(None, action)
+        controller.pyboy.hook_deregister(None, action)
         
-    deregister_custom_hooks(pyboy)
+    deregister_game_event_hooks(controller)
+    deregister_custom_hooks(controller)
 
 
 def _read_player_party_levels(pyboy) -> list[int]:
@@ -386,16 +398,36 @@ def _register_battle_hooks(pyboy, chat_id):
         logger.warning("Could not register battle hooks: %s", exc)
 
 
-def register_custom_hooks(pyboy, chat_id):
-    _register_check_phone_call_hook(pyboy)
-    _register_battle_hooks(pyboy, chat_id)
+def register_game_event_hooks(controller, context):
+    """Register PyBoy hooks that detect in-game events and append them to context['_events']."""
+    events = context["_events"]
+
+    def wild_battle_hook(ctx):
+        local_offset = controller._capture_tick_count // controller._capture_interval
+        events.append({
+            "event_type": "wild_battle_start",
+            "awarded_score": GAME_EVENT_SCORES["wild_battle_start"],
+            "frame_offset": local_offset,
+        })
+
+    controller.pyboy.hook_register(None, "DoBattle.wild", wild_battle_hook, None)
 
 
-def deregister_custom_hooks(pyboy):
-    deregister_check_phone_call_hook(pyboy)
+def deregister_game_event_hooks(controller):
+    """Deregister game event hooks."""
+    controller.pyboy.hook_deregister(None, "DoBattle.wild")
+
+
+def register_custom_hooks(controller):
+    _register_check_phone_call_hook(controller.pyboy)
+    _register_battle_hooks(controller.pyboy, controller.chat_id)
+
+
+def deregister_custom_hooks(controller):
+    deregister_check_phone_call_hook(controller.pyboy)
     for sym in ("PlayerEvents", "ComputeTrainerReward", "Script_reloadmapafterbattle"):
         try:
-            pyboy.hook_deregister(None, sym)
+            controller.pyboy.hook_deregister(None, sym)
         except (ValueError, TypeError):
             pass
 

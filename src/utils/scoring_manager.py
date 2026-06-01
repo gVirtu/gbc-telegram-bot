@@ -67,6 +67,26 @@ class ScoringManager:
                 total_score=0,
             )
 
+    def score_event(self, platform: str, user_id: str, score: int, commit: bool = True) -> None:
+        """Add score directly to user_player_profiles.total_score_earned.
+
+        Does NOT affect streaks, recent_inputs, or diversity scoring.
+
+        When commit=False, the caller is responsible for committing the transaction
+        (used within batch processing to keep all scoring in a single transaction).
+        """
+        self._conn.execute(
+            """INSERT INTO user_player_profiles
+               (platform, user_id, total_score_earned, total_score_spent,
+                current_streak, best_streak, best_streak_date, last_input_at)
+               VALUES (?, ?, ?, 0, 0, 0, NULL, NULL)
+               ON CONFLICT(platform, user_id) DO UPDATE SET
+                   total_score_earned = total_score_earned + excluded.total_score_earned;""",
+            (platform, user_id, score),
+        )
+        if commit:
+            self._conn.commit()
+
     def get_player_profile(self, platform: str, user_id: int) -> PlayerProfile | None:
         """Fetch a player's scoring profile.
 

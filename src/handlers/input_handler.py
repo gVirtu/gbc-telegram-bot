@@ -36,6 +36,7 @@ from src.utils.frame_utils import (  # noqa: F401 (needed for test patching)
     build_timelapse_transform,
     generate_tbc_frames,
     hex_to_rgb,
+    render_event_toasts,
     render_status_bar,
 )
 from src.utils import prof_trace
@@ -213,14 +214,14 @@ class InputHandler:
         Returns:
             Number of frames actually ticked.
         """
-        wait_call_threshold = hook_context.get("inputWaitCalls", {}).get("_total", 0) + game_fps
+        wait_call_threshold = hook_context.get("_counters", {}).get("inputWaitCalls", {}).get("_total", 0) + game_fps
         count = 0
 
         for _frame_num in range(animation_frames):
             controller.tick(1)
             count += 1
-            if hook_context.get("inputWaitCalls", {}).get("_total", 0) > wait_call_threshold:
-                input_wait_calls = hook_context.get("inputWaitCalls", {})
+            if hook_context.get("_counters", {}).get("inputWaitCalls", {}).get("_total", 0) > wait_call_threshold:
+                input_wait_calls = hook_context.get("_counters", {}).get("inputWaitCalls", {})
                 relevant_wait_calls = {k: v for k, v in input_wait_calls.items() if v > 0}
                 logger.debug(f"Input wait loop detected, finishing animation early ({relevant_wait_calls})")
                 break
@@ -711,7 +712,7 @@ class InputHandler:
 
         # Continue animating after last button press
         animation_frames = int(settings.animation_duration * game_fps)
-        auto_press_call_threshold = hook_context.get("autoPressA", {}).get("_total", 0) + game_fps
+        auto_press_call_threshold = hook_context.get("_counters", {}).get("autoPressA", {}).get("_total", 0) + game_fps
 
         actual_ticked = self._tick_and_capture_animation_frames(
             controller,
@@ -739,14 +740,14 @@ class InputHandler:
         auto_press_iterations = 0
 
         while (
-            hook_context.get("autoPressA", {}).get("_total", 0) >= auto_press_call_threshold
+            hook_context.get("_counters", {}).get("autoPressA", {}).get("_total", 0) >= auto_press_call_threshold
             and auto_press_iterations < MAX_AUTO_PRESS_ITERATIONS
         ):
             logger.debug(f"Auto-pressing A (iteration {auto_press_iterations + 1}/{MAX_AUTO_PRESS_ITERATIONS})...")
 
             controller.send_input(GameButton.A, frames=settings.input_hold_frames)
 
-            auto_press_call_threshold = hook_context.get("autoPressA", {}).get("_total", 0) + game_fps
+            auto_press_call_threshold = hook_context.get("_counters", {}).get("autoPressA", {}).get("_total", 0) + game_fps
 
             self._tick_and_capture_animation_frames(
                 controller,
@@ -766,12 +767,49 @@ class InputHandler:
         audio_chunks = controller.get_last_captured_audio()
         controller.end_hooks(hook_context)
 
-        if hook_context.get("dangerousActions", {}).get("_total", 0) > 0:
-            logger.info(f"Dangerous action ({str(hook_context.get('dangerousActions', {}))}) blocked for chat {chat_id}")
+        if hook_context.get("_counters", {}).get("dangerousActions", {}).get("_total", 0) > 0:
+            logger.info(f"Dangerous action ({str(hook_context.get('_counters', {}).get('dangerousActions', {}))}) blocked for chat {chat_id}")
             controller.load_state(checkpoint)
             error_msg = translation_manager.get("game.safe_mode_blocked", chat_id)
             await self._send_error_message(chat_id, error_msg, adapter)
             return {"animation_duration": None}
+
+        # Score game events (separate transaction — hooks may have fired during animation ticks)
+        batch_events: list = []
+        if "_events" in hook_context and hook_context["_events"]:
+            unique_user_ids = list({str(bi.user_id) for bi in batch})
+
+            for event in hook_context["_events"]:
+                event["frame_offset"] = base_global_frame_count + event["frame_offset"]
+
+            for user_id in unique_user_ids:
+                for event in hook_context["_events"]:
+                    scoring_manager.score_event(
+                        platform=config.platform,
+                        user_id=user_id,
+                        score=event["awarded_score"],
+                        commit=False,
+                    )
+
+            events_data = [
+                {
+                    "event_type": e["event_type"],
+                    "awarded_score": e["awarded_score"],
+                    "frame_offset": e["frame_offset"],
+                }
+                for e in hook_context["_events"]
+            ]
+            state_manager.insert_game_events(
+                chat_id=chat_id,
+                cartridge_title=controller.pyboy.cartridge_title,
+                events=events_data,
+                user_ids=unique_user_ids,
+                platform=config.platform,
+                commit=False,
+            )
+            state_manager.connection.commit()
+            batch_events = list(hook_context["_events"])
+            hook_context["_events"].clear()
 
         # Generate TBC from last raw frame (scaled)
         last_raw = raw_frames[-1] if raw_frames else np.array(controller.get_frame())
@@ -826,6 +864,7 @@ class InputHandler:
                     scaled = reaction_transform_fn(scaled, index)
             else:
                 scaled = frame  # TBC frames are already 2x-scaled
+            scaled = render_event_toasts(scaled, batch_events, base_global_frame_count + index * _bc_step, scale=2)
             composited = sidebar_transform_fn(scaled)
             if _status_bar_cache[0] is None:
                 _status_bar_cache[0] = render_status_bar(status_bar_data, composited.shape[1], scale=2, render_fn=status_bar_render_fn)
@@ -894,6 +933,8 @@ class InputHandler:
                             "cartridge_title": controller.pyboy.cartridge_title if controller.pyboy else None,
                             "base_global_frame_count": base_global_frame_count,
                             "header_stats": header_stats,
+                            "events": batch_events,
+                            "chat_id": str(chat_id),
                         }
 
                         ts_str = datetime.now().strftime('%Y%m%d_%H%M%S')

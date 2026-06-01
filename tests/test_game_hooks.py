@@ -68,7 +68,7 @@ class TestBeginHooksWithModule:
     """Test begin_hooks with a loaded module."""
 
     def test_begin_hooks_calls_module(self):
-        """Test begin_hooks calls the module function."""
+        """Test begin_hooks calls the module function with restructured context."""
         from src.game import GameController
 
         controller = GameController(123456)
@@ -77,17 +77,21 @@ class TestBeginHooksWithModule:
         controller.pyboy = mock_pyboy
         controller._initialized = True
 
-        # Load the real module
         controller._hook_module = controller._load_hook_module("PKPCRYSTAL")
 
         result = controller.begin_hooks()
 
-        assert "dangerousActions" in result
-        assert "inputWaitCalls" in result
-        assert "_total" in result["dangerousActions"]
+        assert "_counters" in result
+        assert "_events" in result
+        assert isinstance(result["_events"], list)
+        assert len(result["_events"]) == 0
+        assert "dangerousActions" in result["_counters"]
+        assert "inputWaitCalls" in result["_counters"]
+        assert "autoPressA" in result["_counters"]
+        assert "_total" in result["_counters"]["dangerousActions"]
 
     def test_end_hooks_calls_module(self):
-        """Test end_hooks calls the module function."""
+        """Test end_hooks calls the module function with nested context."""
         from src.game import GameController
 
         controller = GameController(123456)
@@ -99,8 +103,11 @@ class TestBeginHooksWithModule:
         controller._hook_module = controller._load_hook_module("PKPCRYSTAL")
 
         context = {
-            "dangerousActions": {"TossMenu": 0, "_total": 0},
-            "inputWaitCalls": {"WaitButton": 0, "_total": 0}
+            "_counters": {
+                "dangerousActions": {"TossMenu": 0, "_total": 0},
+                "inputWaitCalls": {"WaitButton": 0, "_total": 0},
+            },
+            "_events": [],
         }
 
         # Should not raise
@@ -291,3 +298,74 @@ class TestModifierModuleLoading:
 
             assert controller._modifier_module is None
             assert controller.get_modifier_specs() == []
+
+
+class TestHookContextStructure:
+    """Test the restructured hook context dict."""
+
+    def test_begin_hooks_context_structure(self):
+        """Test begin_hooks returns properly nested context."""
+        from src.game import GameController
+
+        controller = GameController(123456)
+        mock_pyboy = MagicMock()
+        controller.pyboy = mock_pyboy
+        controller._initialized = True
+        controller._hook_module = controller._load_hook_module("PKPCRYSTAL")
+
+        result = controller.begin_hooks()
+
+        assert isinstance(result, dict)
+        assert "_counters" in result
+        assert "_events" in result
+        assert isinstance(result["_events"], list)
+        assert len(result["_events"]) == 0
+        assert set(result["_counters"].keys()) == {"dangerousActions", "inputWaitCalls", "autoPressA"}
+
+    def test_game_event_scores_constant(self):
+        """Test GAME_EVENT_SCORES contains expected keys."""
+        from src.game_hooks.pkpcrystal import GAME_EVENT_SCORES
+
+        assert isinstance(GAME_EVENT_SCORES, dict)
+        assert "wild_battle_start" in GAME_EVENT_SCORES
+        assert GAME_EVENT_SCORES["wild_battle_start"] == 50
+
+    def test_register_game_event_hooks_exists(self):
+        """Test register_game_event_hooks is a callable."""
+        from src.game_hooks.pkpcrystal import register_game_event_hooks
+
+        assert callable(register_game_event_hooks)
+
+    def test_deregister_game_event_hooks_exists(self):
+        """Test deregister_game_event_hooks is a callable."""
+        from src.game_hooks.pkpcrystal import deregister_game_event_hooks
+
+        assert callable(deregister_game_event_hooks)
+
+    def test_register_game_event_hooks_registers_wild_battle(self):
+        """Test register_game_event_hooks registers the wild battle hook."""
+        from src.game_hooks.pkpcrystal import register_game_event_hooks
+
+        controller = MagicMock()
+        controller._capture_tick_count = 10
+        controller._capture_interval = 2
+
+        context = {"_events": []}
+
+        register_game_event_hooks(controller, context)
+
+        controller.pyboy.hook_register.assert_called_once()
+        args, kwargs = controller.pyboy.hook_register.call_args
+        assert args[1] == "DoBattle.wild"
+
+    def test_deregister_game_event_hooks_deregisters_wild_battle(self):
+        """Test deregister_game_event_hooks deregisters the wild battle hook."""
+        from src.game_hooks.pkpcrystal import deregister_game_event_hooks
+
+        controller = MagicMock()
+
+        deregister_game_event_hooks(controller)
+
+        controller.pyboy.hook_deregister.assert_called_once()
+        args, kwargs = controller.pyboy.hook_deregister.call_args
+        assert args[1] == "DoBattle.wild"

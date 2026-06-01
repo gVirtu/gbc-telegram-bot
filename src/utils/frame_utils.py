@@ -92,6 +92,90 @@ def hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
     return r, g, b
 
 
+def render_event_toasts(
+    img: np.ndarray,
+    events: list[dict],
+    global_frame_index: int,
+    scale: int = 2,
+) -> np.ndarray:
+    """Render game event toast notifications onto the frame.
+
+    Args:
+        img: Game frame as numpy array (already scaled, before sidebar).
+        events: List of event dicts with keys: event_type, awarded_score, frame_offset.
+        global_frame_index: Current global frame index being rendered.
+        scale: Integer scale factor (2 for live animation, 3 for timelapse).
+
+    Returns:
+        Modified numpy array with toasts rendered.
+    """
+    FADE_DURATION = 45
+
+    visible = [
+        e for e in events
+        if e.get("frame_offset", 0) <= global_frame_index < e.get("frame_offset", 0) + FADE_DURATION
+    ]
+    
+    if not visible:
+        return img
+
+    h, w = img.shape[:2]
+    visible.sort(key=lambda e: e["frame_offset"])
+    visible = visible[-5:]
+
+    font_path = Path(__file__).parent.parent.parent / "assets" / "fonts" / "unifont-17.0.04.otf"
+    font = _load_font(str(font_path), size=8 * scale)
+
+    pad_v = 1 * scale
+    pad_h = 2 * scale
+    toast_gap = 2 * scale
+
+    pil_img = Image.fromarray(img)
+
+    for i, event in enumerate(visible):
+        frame_offset = event["frame_offset"]
+        alpha = max(0.0, min(1.0, 1.0 - (global_frame_index - frame_offset) / FADE_DURATION))
+        if alpha <= 0.0:
+            continue
+
+        event_type = event.get("event_type", "event")
+        awarded_score = event.get("awarded_score", 0)
+        text = f"{event_type} +{awarded_score}"
+
+        try:
+            bbox = ImageDraw.Draw(pil_img).textbbox((0, 0), text, font=font)
+            text_w = bbox[2] - bbox[0]
+            text_h = bbox[3] - bbox[1]
+        except Exception:
+            text_w = len(text) * 5 * scale
+            text_h = 8 * scale
+
+        toast_w = text_w + 2 * pad_h
+        toast_h = text_h + 2 * pad_v
+
+        toast_x = w - toast_w
+        toast_y = h - (len(visible) - i) * (toast_h + toast_gap)
+        
+        fill_alpha = int(255 * alpha)
+
+        overlay = Image.new("RGBA", pil_img.size, (0, 0, 0, 0))
+        overlay_draw = ImageDraw.Draw(overlay)
+        overlay_draw.rectangle(
+            [toast_x, toast_y, toast_x + toast_w, toast_y + toast_h],
+            fill=(0, 0, 0, fill_alpha),
+        )
+        overlay_draw.text(
+            (toast_x + pad_h, toast_y + pad_v),
+            text,
+            fill=(255, 255, 255, fill_alpha),
+            font=font,
+            fontmode="1",
+        )
+        pil_img = Image.alpha_composite(pil_img.convert("RGBA"), overlay).convert("RGB")
+
+    return np.array(pil_img, dtype=np.uint8)
+
+
 def hash_frame(frame: np.ndarray) -> str:
     """Create a SHA256 hash of a frame buffer for deduplication.
     
@@ -1385,6 +1469,17 @@ def build_timelapse_transform(
     base_global_frame_count = compositing_context.get("base_global_frame_count", 0)
     header_stats = compositing_context.get("header_stats")
 
+    events = compositing_context.get("events", [])
+    if not events:
+        try:
+            from src.utils.state_manager import state_manager
+            chat_id_int = int(compositing_context.get("chat_id", "0"))
+            min_off = compositing_context.get("base_global_frame_count", 0)
+            db_events = state_manager.get_game_events_for_chat(chat_id_int, min_off)
+            events = db_events
+        except Exception:
+            events = []
+
     status_bar_data = compositing_context.get("status_bar_data")
 
     cartridge_title = compositing_context.get("cartridge_title")
@@ -1418,6 +1513,7 @@ def build_timelapse_transform(
         ))
         if reaction_transform is not None:
             scaled = reaction_transform(scaled, index)
+        scaled = render_event_toasts(scaled, events, base_global_frame_count + index, scale=3)
         composited = sidebar_transform(scaled)
         status_bar = render_status_bar(status_bar_data, composited.shape[1], scale=3, render_fn=status_bar_render_fn)
         return np.vstack([composited, status_bar])

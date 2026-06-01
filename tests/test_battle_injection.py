@@ -99,6 +99,15 @@ def _make_mock_pyboy():
     return pyboy, memory_store
 
 
+def _make_mock_controller(pyboy, chat_id=111):
+    controller = MagicMock()
+    controller.pyboy = pyboy
+    controller.chat_id = chat_id
+    controller._capture_tick_count = 0
+    controller._capture_interval = 1
+    return controller
+
+
 def _get_hook_callback(pyboy, hook_name):
     for call_ in pyboy.hook_register.call_args_list:
         args, _ = call_
@@ -313,7 +322,7 @@ class TestHookABasicBehavior:
     def test_hook_a_skips_without_cache(self):
         pyboy, memory_store = _make_mock_pyboy()
         memory_store[0xC000] = 1
-        begin_hooks(pyboy, chat_id=111)
+        begin_hooks(_make_mock_controller(pyboy, chat_id=111))
         callback = _get_hook_callback(pyboy, "PlayerEvents")
         assert callback is not None
         callback(None)
@@ -321,7 +330,7 @@ class TestHookABasicBehavior:
 
     def test_hook_a_skips_wrong_state(self):
         pyboy, memory_store = _make_mock_pyboy()
-        begin_hooks(pyboy, chat_id=111)
+        begin_hooks(_make_mock_controller(pyboy, chat_id=111))
         queue_battle_request(111, 222, "test", "TestUser", 1, [0x80] * 11, [bytes(PARTY_STRUCT_SIZE)])
         _battle_requests[111]["state"] = "starting"
         callback = _get_hook_callback(pyboy, "PlayerEvents")
@@ -338,7 +347,7 @@ class TestHookABasicBehavior:
             "wPartyCount": (0, 0xD003),
         }
         pyboy.symbol_lookup.side_effect = lambda sym: sym_addrs.get(sym, (0, 0xC000))
-        begin_hooks(pyboy, chat_id=111)
+        begin_hooks(_make_mock_controller(pyboy, chat_id=111))
         queue_battle_request(111, 222, "test", "TestUser", 1, [0x80] * 11, [bytes(PARTY_STRUCT_SIZE)])
         memory_store[0xD001] = 1
         callback = _get_hook_callback(pyboy, "PlayerEvents")
@@ -362,7 +371,7 @@ class TestHookABasicBehavior:
             "YoungsterGordonBeatenText": (0x17, 0x7C1B),
         }
         pyboy.symbol_lookup.side_effect = lambda sym: sym_addrs.get(sym, (0, 0xC000))
-        begin_hooks(pyboy, chat_id=111)
+        begin_hooks(_make_mock_controller(pyboy, chat_id=111))
         queue_battle_request(111, 222, "test", "TestUser", 42, [0x80] * 11, [bytes(PARTY_STRUCT_SIZE)])
         memory_store[0xD001] = 0
         memory_store[0xD002] = 0
@@ -386,7 +395,7 @@ class TestHookABasicBehavior:
             "wBattleScriptFlags": (0, 0xD012),
         }
         pyboy.symbol_lookup.side_effect = lambda sym: sym_addrs.get(sym, (0, 0xC000))
-        begin_hooks(pyboy, chat_id=111)
+        begin_hooks(_make_mock_controller(pyboy, chat_id=111))
         queue_battle_request(111, 222, "test", "TestUser", 1, [0x80] * 11, [bytes(PARTY_STRUCT_SIZE)])
         memory_store[0xD001] = 0
         memory_store[0xD002] = 0
@@ -417,7 +426,7 @@ class TestHookBBasicBehavior:
 
     def test_hook_b_skips_without_cache(self):
         pyboy, memory_store = _make_mock_pyboy()
-        begin_hooks(pyboy, chat_id=111)
+        begin_hooks(_make_mock_controller(pyboy, chat_id=111))
         callback = _get_hook_callback(pyboy, "ComputeTrainerReward")
         assert callback is not None
         callback(None)
@@ -425,7 +434,7 @@ class TestHookBBasicBehavior:
 
     def test_hook_b_skips_without_starting(self):
         pyboy, memory_store = _make_mock_pyboy()
-        begin_hooks(pyboy, chat_id=111)
+        begin_hooks(_make_mock_controller(pyboy, chat_id=111))
         queue_battle_request(111, 222, "test", "TestUser", 1, [0x80] * 11, [bytes(PARTY_STRUCT_SIZE)])
         callback = _get_hook_callback(pyboy, "ComputeTrainerReward")
         assert callback is not None
@@ -435,7 +444,7 @@ class TestHookBBasicBehavior:
 
     def test_hook_b_skips_with_empty_party(self):
         pyboy, memory_store = _make_mock_pyboy()
-        begin_hooks(pyboy, chat_id=111)
+        begin_hooks(_make_mock_controller(pyboy, chat_id=111))
         _battle_requests[111] = {"state": "starting", "party_mons": []}
         callback = _get_hook_callback(pyboy, "ComputeTrainerReward")
         assert callback is not None
@@ -465,7 +474,7 @@ class TestHookBBasicBehavior:
         pyboy.symbol_lookup.side_effect = lambda sym: sym_addrs.get(sym, (0, 0xC000))
         _make_mock_pyboy_svbk(pyboy, memory_store)
         with patch("src.game_hooks.pkpcrystal.get_pokemon_name", return_value="GOLDUCK"):
-            begin_hooks(pyboy, chat_id=111)
+            begin_hooks(_make_mock_controller(pyboy, chat_id=111))
             name_bytes = [0x86, 0xA8, 0xA0, 0xAD, 0x53, 0x53, 0x53, 0x53, 0x53, 0x53, 0x53]
             _battle_requests[111] = {"state": "starting", "party_mons": [party], "user_id": 222, "trainer_name_bytes": name_bytes}
             callback = _get_hook_callback(pyboy, "ComputeTrainerReward")
@@ -509,7 +518,7 @@ class TestHookBBasicBehavior:
         pyboy.symbol_lookup.side_effect = lambda sym: sym_addrs.get(sym, (0, 0xC000))
         _make_mock_pyboy_svbk(pyboy, memory_store)
         with patch("src.game_hooks.pkpcrystal.get_pokemon_name", return_value="UNOWN"):
-            begin_hooks(pyboy, chat_id=111)
+            begin_hooks(_make_mock_controller(pyboy, chat_id=111))
             _battle_requests[111] = {"state": "starting", "party_mons": [party0, party1], "user_id": 222}
             callback = _get_hook_callback(pyboy, "ComputeTrainerReward")
             assert callback is not None
@@ -543,7 +552,7 @@ class TestHookBBasicBehavior:
         pyboy.symbol_lookup.side_effect = lambda sym: sym_addrs.get(sym, (0, 0xC000))
         _make_mock_pyboy_svbk(pyboy, memory_store)
         with patch("src.game_hooks.pkpcrystal.get_pokemon_name", return_value="BULBASAUR"):
-            begin_hooks(pyboy, chat_id=111)
+            begin_hooks(_make_mock_controller(pyboy, chat_id=111))
             _battle_requests[111] = {"state": "starting", "party_mons": [party], "user_id": 222}
             callback = _get_hook_callback(pyboy, "ComputeTrainerReward")
             assert callback is not None
@@ -570,7 +579,7 @@ class TestHookBBasicBehavior:
         pyboy.symbol_lookup.side_effect = lambda sym: sym_addrs.get(sym, (0, 0xC000))
         _make_mock_pyboy_svbk(pyboy, memory_store)
         with patch("src.game_hooks.pkpcrystal.get_pokemon_name", return_value="PIKACHU"):
-            begin_hooks(pyboy, chat_id=111)
+            begin_hooks(_make_mock_controller(pyboy, chat_id=111))
             _battle_requests[111] = {"state": "starting", "party_mons": [party], "user_id": 222}
             callback = _get_hook_callback(pyboy, "ComputeTrainerReward")
             assert callback is not None
@@ -595,7 +604,7 @@ class TestReloadmapAfterBattle:
         }
         pyboy.symbol_lookup.side_effect = lambda sym: syms.get(sym, (0, 0xC000))
         _battle_requests[111] = {"state": "in_battle"}
-        begin_hooks(pyboy, chat_id=111)
+        begin_hooks(_make_mock_controller(pyboy, chat_id=111))
         return _get_hook_callback(pyboy, "Script_reloadmapafterbattle")
 
     def test_gives_candy_and_sets_reward_pending_on_win(self):
@@ -627,7 +636,7 @@ class TestReloadmapAfterBattle:
         pyboy, memory_store = _make_mock_pyboy()
         syms = {"wInBattleTowerBattle": (0, 0xCE94)}
         pyboy.symbol_lookup.side_effect = lambda sym: syms.get(sym, (0, 0xC000))
-        begin_hooks(pyboy, chat_id=111)
+        begin_hooks(_make_mock_controller(pyboy, chat_id=111))
         callback = _get_hook_callback(pyboy, "Script_reloadmapafterbattle")
         memory_store[0xCE94] = 1
         callback(None)
@@ -658,7 +667,7 @@ class TestHookARewardPending:
             "hScriptPos": (0, 0xFFEC),
         }
         pyboy.symbol_lookup.side_effect = lambda sym: sym_addrs.get(sym, (0, 0xC000))
-        begin_hooks(pyboy, chat_id=111)
+        begin_hooks(_make_mock_controller(pyboy, chat_id=111))
         _battle_requests[111] = {"state": "reward_pending"}
         callback = _get_hook_callback(pyboy, "PlayerEvents")
         assert callback is not None
@@ -997,7 +1006,7 @@ class TestStatRebalancingIntegration:
         original_mon = bytes(range(48))
         party_mons = [original_mon]
 
-        begin_hooks(pyboy, chat_id=111)
+        begin_hooks(_make_mock_controller(pyboy, chat_id=111))
         queue_battle_request(111, 222, "test", "TestUser", 1, [0x80] * 11, party_mons)
 
         with (

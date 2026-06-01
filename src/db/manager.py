@@ -1119,6 +1119,86 @@ class DatabaseManager:
             for row in rows
         ]
 
+    # ==================== Game Events ====================
+
+    def insert_game_events(
+        self,
+        chat_id: int,
+        cartridge_title: str,
+        events: list[dict],
+        user_ids: list[str],
+        platform: str,
+        commit: bool = True,
+    ) -> list[int]:
+        """Insert game events and user associations. Returns list of event IDs.
+        When commit=False, the caller is responsible for committing the transaction."""
+        event_ids: list[int] = []
+        created_at = datetime.utcnow().isoformat()
+
+        for event in events:
+            cursor = self.connection.execute(
+                "INSERT INTO game_events (chat_id, cartridge_title, event_type, awarded_score, frame_offset, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?);",
+                (
+                    chat_id,
+                    cartridge_title,
+                    event["event_type"],
+                    event["awarded_score"],
+                    event["frame_offset"],
+                    created_at,
+                ),
+            )
+            event_id = cursor.lastrowid
+            event_ids.append(event_id)
+
+            for user_id in user_ids:
+                self.connection.execute(
+                    "INSERT OR IGNORE INTO game_event_users (event_id, platform, user_id) "
+                    "VALUES (?, ?, ?);",
+                    (event_id, platform, user_id),
+                )
+
+        if commit:
+            self.connection.commit()
+
+        return event_ids
+
+    def get_game_events_for_chat(
+        self,
+        chat_id: int,
+        min_frame_offset: int,
+    ) -> list[dict]:
+        """Return events with frame_offset >= min_frame_offset, each with associated user_ids."""
+        rows = self.connection.execute(
+            "SELECT id, chat_id, cartridge_title, event_type, awarded_score, frame_offset, created_at "
+            "FROM game_events "
+            "WHERE chat_id = ? AND frame_offset >= ? "
+            "ORDER BY frame_offset ASC;",
+            (chat_id, min_frame_offset),
+        ).fetchall()
+
+        result = []
+        for row in rows:
+            event_id = row["id"]
+            user_rows = self.connection.execute(
+                "SELECT user_id FROM game_event_users WHERE event_id = ?;",
+                (event_id,),
+            ).fetchall()
+            user_ids_list = [ur["user_id"] for ur in user_rows]
+
+            result.append({
+                "id": row["id"],
+                "chat_id": row["chat_id"],
+                "cartridge_title": row["cartridge_title"],
+                "event_type": row["event_type"],
+                "awarded_score": row["awarded_score"],
+                "frame_offset": row["frame_offset"],
+                "created_at": row["created_at"],
+                "user_ids": user_ids_list,
+            })
+
+        return result
+
     # ==================== Reaction Queue ====================
 
     def enqueue_reaction(

@@ -421,3 +421,95 @@ class TestDatabaseManagerMigrationHandling:
         # Verify cleared
         loaded = db_manager.load_chat_config(222)
         assert loaded.language is None
+
+
+class TestGameEventsOperations:
+    """Test game events insertion and querying."""
+
+    def test_insert_game_events(self, db_manager):
+        events = [
+            {"event_type": "level_up", "awarded_score": 100, "frame_offset": 10},
+            {"event_type": "boss_defeated", "awarded_score": 500, "frame_offset": 50},
+        ]
+        user_ids = ["111", "222"]
+        event_ids = db_manager.insert_game_events(
+            chat_id=123,
+            cartridge_title="Zelda",
+            events=events,
+            user_ids=user_ids,
+            platform="telegram",
+        )
+        assert len(event_ids) == 2
+        assert event_ids[0] > 0
+        assert event_ids[1] > event_ids[0]
+
+        rows = db_manager.connection.execute(
+            "SELECT * FROM game_events WHERE chat_id = ? ORDER BY id;",
+            (123,),
+        ).fetchall()
+        assert len(rows) == 2
+        assert rows[0]["event_type"] == "level_up"
+        assert rows[0]["awarded_score"] == 100
+        assert rows[0]["cartridge_title"] == "Zelda"
+
+        for ev_id in event_ids:
+            user_rows = db_manager.connection.execute(
+                "SELECT user_id FROM game_event_users WHERE event_id = ? ORDER BY user_id;",
+                (ev_id,),
+            ).fetchall()
+            assert [r["user_id"] for r in user_rows] == ["111", "222"]
+
+    def test_get_game_events_for_chat(self, db_manager):
+        events = [
+            {"event_type": "collect", "awarded_score": 10, "frame_offset": 10},
+            {"event_type": "collect", "awarded_score": 20, "frame_offset": 20},
+            {"event_type": "collect", "awarded_score": 30, "frame_offset": 30},
+        ]
+        db_manager.insert_game_events(
+            chat_id=456,
+            cartridge_title="Pokemon",
+            events=events,
+            user_ids=["aaa"],
+            platform="discord",
+        )
+
+        result = db_manager.get_game_events_for_chat(456, min_frame_offset=15)
+        assert len(result) == 2
+        assert result[0]["frame_offset"] == 20
+        assert result[0]["user_ids"] == ["aaa"]
+        assert result[1]["frame_offset"] == 30
+        assert result[1]["user_ids"] == ["aaa"]
+
+    def test_insert_game_events_no_commit(self, db_manager):
+        from src.db.connection import DatabaseConnection
+
+        events = [{"event_type": "score", "awarded_score": 50, "frame_offset": 5}]
+        event_ids = db_manager.insert_game_events(
+            chat_id=789,
+            cartridge_title="Metroid",
+            events=events,
+            user_ids=["xyz"],
+            platform="telegram",
+            commit=False,
+        )
+        assert len(event_ids) == 1
+
+        alt_conn = DatabaseConnection(db_manager.connection.db_path)
+        alt_conn.initialize()
+        try:
+            rows = alt_conn.execute(
+                "SELECT * FROM game_events WHERE chat_id = ?;",
+                (789,),
+            ).fetchall()
+            assert len(rows) == 0
+        finally:
+            alt_conn.close()
+
+        db_manager.connection.commit()
+
+        rows = db_manager.connection.execute(
+            "SELECT * FROM game_events WHERE chat_id = ?;",
+            (789,),
+        ).fetchall()
+        assert len(rows) == 1
+        assert rows[0]["event_type"] == "score"

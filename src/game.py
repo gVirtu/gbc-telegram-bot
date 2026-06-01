@@ -164,6 +164,7 @@ class GameController:
             self._modifier_module = self._load_modifier_module(self.pyboy.cartridge_title)
             self._status_bar_module = self._load_status_bar_module(self.pyboy.cartridge_title)
             self._avatar_provider_module = self._load_avatar_provider_module(self.pyboy.cartridge_title)
+            self._game_events_module = self._load_game_events_module(self.pyboy.cartridge_title)
             if self._status_bar_module and hasattr(self._status_bar_module, 'init'):
                 self._status_bar_module.init(self.pyboy)
             logger.info(f"Game '{self.pyboy.cartridge_title}' initialized successfully for chat {self.chat_id}")
@@ -226,6 +227,29 @@ class GameController:
             return module
         except ImportError:
             logger.debug(f"No modifier module found for: {cartridge_title}")
+            return None
+
+    def _load_game_events_module(self, cartridge_title: str) -> Optional[ModuleType]:
+        """Dynamically load game events module for a cartridge.
+
+        Args:
+            cartridge_title: PyBoy cartridge title (e.g., "PKPCRYSTAL")
+
+        Returns:
+            Module if found, None otherwise
+        """
+        if not cartridge_title:
+            return None
+
+        module_name = f"src.game_events.{cartridge_title.lower()}"
+
+        try:
+            import importlib
+            module = importlib.import_module(module_name)
+            logger.debug(f"Loaded game events module: {module_name}")
+            return module
+        except ImportError:
+            logger.debug(f"No game events module found for: {cartridge_title}")
             return None
 
     def _load_status_bar_module(self, cartridge_title: str) -> Optional[ModuleType]:

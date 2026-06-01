@@ -322,13 +322,29 @@ class TestHookContextStructure:
         assert len(result["_events"]) == 0
         assert set(result["_counters"].keys()) == {"dangerousActions", "inputWaitCalls", "autoPressA"}
 
-    def test_game_event_scores_constant(self):
-        """Test GAME_EVENT_SCORES contains expected keys."""
-        from src.game_hooks.pkpcrystal import GAME_EVENT_SCORES
+    def test_game_event_hook_creates_dict_with_title_and_score(self):
+        """Test that the wild battle hook appends an event dict with title and awarded_score from GAME_EVENTS."""
+        from src.game_hooks.pkpcrystal import register_game_event_hooks
 
-        assert isinstance(GAME_EVENT_SCORES, dict)
-        assert "wild_battle_start" in GAME_EVENT_SCORES
-        assert GAME_EVENT_SCORES["wild_battle_start"] == 50
+        controller = MagicMock()
+        controller.get_capture_frame_offset.return_value = 5
+
+        context = {"_events": []}
+
+        register_game_event_hooks(controller, context)
+
+        controller.pyboy.hook_register.assert_called_once()
+        args, kwargs = controller.pyboy.hook_register.call_args
+        hook_fn = args[2]
+
+        hook_fn(None)
+
+        assert len(context["_events"]) == 1
+        event = context["_events"][0]
+        assert event["event_type"] == "wild_battle_start"
+        assert event["title"] == "Wild Battle Started"
+        assert event["awarded_score"] == 50
+        assert event["frame_offset"] == 5
 
     def test_register_game_event_hooks_exists(self):
         """Test register_game_event_hooks is a callable."""

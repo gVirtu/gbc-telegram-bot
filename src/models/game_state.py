@@ -89,6 +89,19 @@ class ModifierButtonSpec:
 
 
 @dataclass
+class EventSpec:
+    """Spec for a game event that can be detected and rewarded.
+
+    Attributes:
+        title: Human-readable display name (e.g. "Wild Battle Started")
+        score: Points awarded when this event occurs
+    """
+
+    title: str
+    score: int
+
+
+@dataclass
 class ChatGameState:
     """Represents the current game state for a chat.
 

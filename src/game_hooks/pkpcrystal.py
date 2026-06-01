@@ -71,11 +71,6 @@ TEXT_BYTES = bytes([
     0x53, 0x53,
 ])
 
-
-GAME_EVENT_SCORES = {
-    "wild_battle_start": 50,
-}
-
 logger = logging.getLogger(__name__)
 
 
@@ -400,13 +395,16 @@ def _register_battle_hooks(pyboy, chat_id):
 
 def register_game_event_hooks(controller, context):
     """Register PyBoy hooks that detect in-game events and append them to context['_events']."""
+    from src.game_events.pkpcrystal import GAME_EVENTS
     events = context["_events"]
 
     def wild_battle_hook(ctx):
         local_offset = controller.get_capture_frame_offset()
+        spec = GAME_EVENTS.get("wild_battle_start")
         events.append({
             "event_type": "wild_battle_start",
-            "awarded_score": GAME_EVENT_SCORES["wild_battle_start"],
+            "title": spec.title if spec else None,
+            "awarded_score": spec.score if spec else 0,
             "frame_offset": local_offset,
         })
 

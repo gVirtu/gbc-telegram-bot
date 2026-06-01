@@ -113,18 +113,20 @@ def render_event_toasts(
 
     Args:
         img: Game frame as numpy array (already scaled, before sidebar).
-        events: List of event dicts with keys: event_type, awarded_score, frame_offset.
+        events: List of event dicts with keys: event_type, title, awarded_score, frame_offset.
         global_frame_index: Current global frame index being rendered.
         scale: Integer scale factor (2 for live animation, 3 for timelapse).
 
     Returns:
         Modified numpy array with toasts rendered.
     """
-    FADE_DURATION = 45
+    HOLD_DURATION = 30
+    FADE_DURATION = 30
+    TOTAL_DURATION = HOLD_DURATION + FADE_DURATION
 
     visible = [
         e for e in events
-        if e.get("frame_offset", 0) <= global_frame_index < e.get("frame_offset", 0) + FADE_DURATION
+        if e.get("frame_offset", 0) <= global_frame_index < e.get("frame_offset", 0) + TOTAL_DURATION
     ]
     
     if not visible:
@@ -145,13 +147,18 @@ def render_event_toasts(
 
     for i, event in enumerate(visible):
         frame_offset = event["frame_offset"]
-        alpha = max(0.0, min(1.0, 1.0 - (global_frame_index - frame_offset) / FADE_DURATION))
+        elapsed = global_frame_index - frame_offset
+        if elapsed < HOLD_DURATION:
+            alpha = 1.0
+        else:
+            alpha = max(0.0, min(1.0, 1.0 - (elapsed - HOLD_DURATION) / FADE_DURATION))
         if alpha <= 0.0:
             continue
 
         event_type = event.get("event_type", "event")
+        title = event.get("title") or event_type
         awarded_score = event.get("awarded_score", 0)
-        text = f"{event_type} +{awarded_score}"
+        text = f"{title} +{awarded_score}"
 
         if hasattr(ImageDraw.Draw, "textbbox"):
             bbox = ImageDraw.Draw(pil_img).textbbox((0, 0), text, font=font)
@@ -185,6 +192,28 @@ def render_event_toasts(
         pil_img = Image.alpha_composite(pil_img.convert("RGBA"), overlay).convert("RGB")
 
     return np.array(pil_img, dtype=np.uint8)
+
+
+def _resolve_event_titles(events: list[dict], cartridge_title: str | None) -> None:
+    """Resolve human-readable titles for events that lack them (e.g. from DB).
+
+    Looks up GAME_EVENTS for the given cartridge and sets 'title' on each
+    event dict. Falls back to the raw event_type if the spec is not found.
+    """
+    if not events or not cartridge_title:
+        return
+
+    try:
+        import importlib
+        m = importlib.import_module(f"src.game_events.{cartridge_title.lower()}")
+        game_events = getattr(m, "GAME_EVENTS", {})
+    except ImportError:
+        return
+
+    for event in events:
+        if "title" not in event:
+            spec = game_events.get(event.get("event_type", ""))
+            event["title"] = spec.title if spec else event.get("event_type", "event")
 
 
 def hash_frame(frame: np.ndarray) -> str:
@@ -1491,9 +1520,11 @@ def build_timelapse_transform(
         except Exception:
             events = []
 
+    cartridge_title = compositing_context.get("cartridge_title")
+    _resolve_event_titles(events, cartridge_title)
+
     status_bar_data = compositing_context.get("status_bar_data")
 
-    cartridge_title = compositing_context.get("cartridge_title")
     status_bar_render_fn = None
     if cartridge_title:
         try:

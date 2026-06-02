@@ -292,9 +292,12 @@ async def redeem_battle_handler(purchase_ctx: ShopPurchaseContext):
         return PurchaseComplete(success=False, error_message=f"{SHOP_PREFIX}.errors.not_in_pokemon_center")
 
     for slot in range(1, party + 1):
+        gender_is_egg_ext_species_form = symbol_read_u8(pyboy, f"wPartyMon{slot}ExtSpecies")
+        is_egg = bool(gender_is_egg_ext_species_form & IS_EGG_MASK)
+        
         hp = symbol_read_u16le(pyboy, f"wPartyMon{slot}HP")
         max_hp = symbol_read_u16le(pyboy, f"wPartyMon{slot}MaxHP")
-        if hp != max_hp:
+        if hp != max_hp and not is_egg:
             return PurchaseComplete(success=False, error_message=f"{SHOP_PREFIX}.errors.party_not_fully_healed")
 
     platform = purchase_ctx.platform

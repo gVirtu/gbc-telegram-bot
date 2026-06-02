@@ -95,10 +95,18 @@ class EventSpec:
     Attributes:
         title: Human-readable display name (e.g. "Wild Battle Started")
         score: Points awarded when this event occurs
+        addr: PyBoy hook address — string symbol (e.g. "DoBattle.wild"),
+            int raw address, or None if no hook needed
+        bank: ROM bank for raw addresses (None for symbol-based lookup)
+        condition: Optional callable(controller) -> bool; if False, the event
+            is not appended even if the hook fires
     """
 
     title: str
     score: int
+    addr: Optional[str | int] = None
+    bank: Optional[int] = None
+    condition: Optional[Callable] = None
 
 
 @dataclass

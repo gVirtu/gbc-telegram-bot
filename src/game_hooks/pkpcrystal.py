@@ -198,7 +198,7 @@ def end_hooks(controller, context: dict) -> None:
             continue
         controller.pyboy.hook_deregister(None, action)
         
-    deregister_game_event_hooks(controller)
+    deregister_game_event_hooks(controller, context)
     deregister_custom_hooks(controller)
 
 
@@ -396,24 +396,67 @@ def _register_battle_hooks(pyboy, chat_id):
 def register_game_event_hooks(controller, context):
     """Register PyBoy hooks that detect in-game events and append them to context['_events']."""
     from src.game_events.pkpcrystal import GAME_EVENTS
+
     events = context["_events"]
 
-    def wild_battle_hook(ctx):
-        local_offset = controller.get_capture_frame_offset()
-        spec = GAME_EVENTS.get("wild_battle_start")
-        events.append({
-            "event_type": "wild_battle_start",
-            "title": spec.title if spec else None,
-            "awarded_score": spec.score if spec else 0,
-            "frame_offset": local_offset,
-        })
+    hooks = {}
+    for event_key, spec in GAME_EVENTS.items():
+        if spec.addr is None:
+            continue
+        key = (spec.bank, spec.addr)
+        if key not in hooks:
+            hooks[key] = []
+        hooks[key].append((event_key, spec))
 
-    controller.pyboy.hook_register(None, "DoBattle.wild", wild_battle_hook, None)
+    registered = []
+    for (bank, addr), specs in hooks.items():
+        def _make_event_hook(matched_specs):
+            def hook(_ctx):
+                frame_offset = controller.get_capture_frame_offset()
+                for ek, sp in matched_specs:
+                    if sp.condition is not None:
+                        try:
+                            if not sp.condition(controller):
+                                continue
+                        except Exception:
+                            logger.exception(
+                                "Event condition raised for %s", ek
+                            )
+                            continue
+                    events.append({
+                        "event_type": ek,
+                        "title": sp.title,
+                        "awarded_score": sp.score,
+                        "frame_offset": frame_offset,
+                    })
+            return hook
+
+        try:
+            controller.pyboy.hook_register(
+                bank, addr, _make_event_hook(specs), None
+            )
+            registered.append((bank, addr))
+            logger.debug("Registered game event hook: %s (%d specs)", addr, len(specs))
+        except Exception:
+            logger.exception(
+                "Failed to register game event hook for addr=%s bank=%s",
+                addr, bank,
+            )
+
+    context["_game_event_addrs"] = registered
 
 
-def deregister_game_event_hooks(controller):
+def deregister_game_event_hooks(controller, context):
     """Deregister game event hooks."""
-    controller.pyboy.hook_deregister(None, "DoBattle.wild")
+    addrs = context.get("_game_event_addrs", [])
+    for bank, addr in addrs:
+        try:
+            controller.pyboy.hook_deregister(bank, addr)
+        except Exception:
+            logger.debug(
+                "Error deregistering game event hook: addr=%s bank=%s",
+                addr, bank, exc_info=True,
+            )
 
 
 def register_custom_hooks(controller):

@@ -21,13 +21,13 @@ from src.game_utils.pkpcrystal.pokecenter_maps import POKECENTER_MAPS
 from src.game_utils.pkpcrystal.reader import (
     symbol_read_u8, symbol_read_u16le,
     get_pokemon_name, get_pokemon_catch_rate, get_trainer_class_name_raw,
-    get_item_name, get_move_name, get_ability_name,
+    get_item_name, get_move_name, get_ability_name, get_nature_name,
     get_species_abilities, get_species_learnset, get_species_tmhm_moves, get_species_egg_moves, is_species_genderless,
     read_party_mon_species, read_party_mon_level, read_party_mon_item,
     read_party_mon_moves, read_party_mon_evs, read_party_mon_personality,
     get_party_mon_nickname,
     IS_EGG_MASK, GENDER_MASK, GENDER_MALE,
-    SHINY_MASK, ABILITY_MASK, ABILITY_1, ABILITY_2,
+    SHINY_MASK, ABILITY_MASK, ABILITY_1, ABILITY_2, NATURE_MASK,
     parse_party_struct,
 )
 from src.game_utils.pkpcrystal.enum import BattleMode
@@ -831,6 +831,10 @@ def _format_mon_report(mon: dict) -> str:
         ev_parts = [f"{val} {label}" for val, label in evs]
         lines.append(f"EVs: {' / '.join(ev_parts)}")
 
+    nature_name = mon.get("nature_name")
+    if nature_name:
+        lines.append(f"{nature_name} Nature")
+
     for move_name in mon.get("move_names", []):
         lines.append(f"- {move_name}")
 
@@ -838,7 +842,8 @@ def _format_mon_report(mon: dict) -> str:
 
 
 def _format_party_report(mons: list[dict]) -> str:
-    return "\n\n".join(_format_mon_report(mon) for mon in mons)
+    reports = '\n\n'.join(_format_mon_report(mon) for mon in mons)
+    return f"```\n{reports}\n```"
 
 
 def _resolve_mon_data(pyboy, species_id, item_id, move_ids, p1, p2, level, evs_raw, nickname=None):
@@ -869,6 +874,11 @@ def _resolve_mon_data(pyboy, species_id, item_id, move_ids, p1, p2, level, evs_r
 
     is_shiny = bool(p1 & SHINY_MASK)
 
+    nature_name = None
+    nature_id = p1 & NATURE_MASK
+    if nature_id < 25:
+        nature_name = get_nature_name(pyboy, nature_id)
+
     evs = []
     for i, ev_idx in enumerate(EV_STRUCT_ORDER):
         val = evs_raw[ev_idx]
@@ -891,6 +901,7 @@ def _resolve_mon_data(pyboy, species_id, item_id, move_ids, p1, p2, level, evs_r
         "ability_name": ability_name,
         "level": level,
         "is_shiny": is_shiny,
+        "nature_name": nature_name,
         "evs": evs,
         "move_names": move_names,
     }

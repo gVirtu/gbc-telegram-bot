@@ -145,6 +145,15 @@ def get_ability_name(pyboy, ability_id):
     return decode_text(pyboy, bank, ptr)
 
 
+def get_nature_name(pyboy, nature_id):
+    if nature_id >= 25:
+        return None
+    bank, base_addr = pyboy.symbol_lookup("NatureNames")
+    entry_addr = base_addr + nature_id
+    offset = read_u8(pyboy, bank, entry_addr)
+    return decode_text(pyboy, bank, entry_addr + offset)
+
+
 def get_species_abilities(pyboy, species_id):
     bank, base_addr = pyboy.symbol_lookup("BaseData")
     entry = base_addr + ((species_id - 1) * BASEDATA_STRIDE)

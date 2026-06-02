@@ -627,6 +627,7 @@ def _get_battle_data(pyboy):
     if BattleMode(mode) == BattleMode.TRAINER:
         other_trainer_class = symbol_read_u8(pyboy, "wOtherTrainerClass")
         other_trainer_id = symbol_read_u8(pyboy, "wOtherTrainerID")
+        in_battle_tower_battle = symbol_read_u8(pyboy, "wInBattleTowerBattle")
         
         # logger.debug(f"Other Trainer Class: {other_trainer_class}")
         # logger.debug(f"Other Trainer ID: {other_trainer_id}")
@@ -641,20 +642,24 @@ def _get_battle_data(pyboy):
 
         # logger.debug(f"Trainer Group: {hex(trainer_group_bank)}:{hex(trainer_group_ptr)}")
         
-        trainer_id_ptr = trainer_group_ptr
-        i = other_trainer_id
-        
-        while i > 1:
-            # Skip this trainer's length (given by the first byte) + 1 (the length byte itself)
-            trainer_data_length = read_u8(pyboy, trainer_group_bank, trainer_id_ptr)
-            trainer_id_ptr += trainer_data_length + 1
+        if bool(in_battle_tower_battle):
+            name_bank, name_addr = pyboy.symbol_lookup("wOTPlayerName")
+            trainer_name = decode_text(pyboy, name_bank, name_addr)
+        else:
+            trainer_id_ptr = trainer_group_ptr
+            i = other_trainer_id
+            
+            while i > 1:
+                # Skip this trainer's length (given by the first byte) + 1 (the length byte itself)
+                trainer_data_length = read_u8(pyboy, trainer_group_bank, trainer_id_ptr)
+                trainer_id_ptr += trainer_data_length + 1
 
-            i -= 1
-        
-        # logger.debug(f"Trainer ID Pointer: {hex(trainer_group_bank)}:{hex(trainer_id_ptr)}")
+                i -= 1
+            
+            # logger.debug(f"Trainer ID Pointer: {hex(trainer_group_bank)}:{hex(trainer_id_ptr)}")
 
-        trainer_name = decode_text(pyboy, trainer_group_bank, trainer_id_ptr + 1)
-        # logger.debug(f"Trainer Name: {trainer_name}")
+            trainer_name = decode_text(pyboy, trainer_group_bank, trainer_id_ptr + 1)
+            # logger.debug(f"Trainer Name: {trainer_name}")
         
         trainer_class_name = get_trainer_class_name(pyboy, other_trainer_class)
 

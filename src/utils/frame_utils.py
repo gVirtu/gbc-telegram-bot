@@ -137,7 +137,7 @@ def render_event_toasts(
     visible = visible[-5:]
 
     font_path = Path(__file__).parent.parent.parent / "assets" / "fonts" / "unifont-17.0.04.otf"
-    font = _load_font(str(font_path), size=8 * scale)
+    font = _load_font(str(font_path), size=7 * scale)
 
     pad_v = 1 * scale
     pad_h = 2 * scale
@@ -160,15 +160,16 @@ def render_event_toasts(
         awarded_score = event.get("awarded_score", 0)
         text = f"{title} +{awarded_score}"
 
+        draw = ImageDraw.Draw(pil_img)
+        text_w = int(draw.textlength(text, font=font))
         if hasattr(ImageDraw.Draw, "textbbox"):
-            bbox = ImageDraw.Draw(pil_img).textbbox((0, 0), text, font=font)
-            text_w = bbox[2] - bbox[0]
+            bbox = draw.textbbox((0, 0), text, font=font)
             text_h = bbox[3] - bbox[1]
         else:
-            text_w = len(text) * 5 * scale
             text_h = 8 * scale
 
-        toast_w = text_w + 2 * pad_h
+        triangle_size = 8 * scale
+        toast_w = text_w + 2 * pad_h + triangle_size
         toast_h = text_h + 2 * pad_v
 
         toast_x = w - toast_w
@@ -178,12 +179,17 @@ def render_event_toasts(
 
         overlay = Image.new("RGBA", pil_img.size, (0, 0, 0, 0))
         overlay_draw = ImageDraw.Draw(overlay)
-        overlay_draw.rectangle(
-            [toast_x, toast_y, toast_x + toast_w, toast_y + toast_h],
+        overlay_draw.polygon(
+            [
+                (toast_x + triangle_size, toast_y),
+                (toast_x + toast_w, toast_y),
+                (toast_x + toast_w, toast_y + toast_h),
+                (toast_x, toast_y + toast_h),
+            ],
             fill=(0, 0, 0, fill_alpha),
         )
         overlay_draw.text(
-            (toast_x + pad_h, toast_y + pad_v),
+            (toast_x + triangle_size + pad_h, toast_y + pad_v),
             text,
             fill=(255, 255, 255, fill_alpha),
             font=font,

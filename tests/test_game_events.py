@@ -33,7 +33,7 @@ class TestGameEventsModule:
         assert "wild_battle_start" in GAME_EVENTS
         spec = GAME_EVENTS["wild_battle_start"]
         assert isinstance(spec, EventSpec)
-        assert spec.title == "Wild Battle Started"
+        assert spec.title == "Wild Battle!"
         assert spec.score == 5
         assert spec.addr == "DoBattle.wild"
         assert spec.condition is not None  # must filter out trainer battles
@@ -41,7 +41,7 @@ class TestGameEventsModule:
     def test_pkpcrystal_game_events_have_twelve_entries(self):
         from src.game_events.pkpcrystal import GAME_EVENTS
 
-        assert len(GAME_EVENTS) == 12
+        assert len(GAME_EVENTS) == 14
 
     def test_pkpcrystal_all_entries_have_addr_and_score(self):
         from src.game_events.pkpcrystal import GAME_EVENTS

@@ -352,7 +352,7 @@ class TestHookContextStructure:
         assert len(events) == 1
         event = events[0]
         assert event["event_type"] == "wild_battle_start"
-        assert event["title"] == "Wild Battle Started"
+        assert event["title"] == "Wild Battle!"
         assert event["awarded_score"] == 5
         assert event["frame_offset"] == 5
 

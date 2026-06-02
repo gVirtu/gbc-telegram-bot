@@ -62,7 +62,7 @@ def setup_webhook() -> None:
             )
             logger.info(f"Webhook set successfully: {webhook_url}")
         except Exception as e:
-            logger.error(f"Failed to set webhook: {e}")
+            logger.error(f"Failed to set webhook: {e}", exc_info=True)
 
     asyncio.run(_setup())
 
@@ -87,7 +87,7 @@ def delete_webhook() -> None:
             await bot.delete_webhook()
             logger.info("Webhook deleted successfully")
         except Exception as e:
-            logger.error(f"Failed to delete webhook: {e}")
+            logger.error(f"Failed to delete webhook: {e}", exc_info=True)
         finally:
             await bot.session.close()
 
@@ -115,7 +115,7 @@ def main():
 
         logger.info("Configuration validated successfully")
     except Exception as e:
-        logger.error(f"Configuration error: {e}")
+        logger.error(f"Configuration error: {e}", exc_info=True)
         sys.exit(1)
 
     logger.info(f"Starting bot on port {settings.port}")

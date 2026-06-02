@@ -170,7 +170,7 @@ class GameController:
             logger.info(f"Game '{self.pyboy.cartridge_title}' initialized successfully for chat {self.chat_id}")
             
         except Exception as e:
-            logger.error(f"Failed to initialize PyBoy for chat {self.chat_id}: {e}")
+            logger.error(f"Failed to initialize PyBoy for chat {self.chat_id}: {e}", exc_info=True)
             traceback.print_exc()
             self.pyboy = None
             raise RuntimeError(f"Failed to initialize emulator: {e}") from e
@@ -593,7 +593,7 @@ class GameController:
             logger.warning("Hook module missing begin_hooks function")
             return {}
         except Exception as e:
-            logger.error(f"Hook registration failed: {e}")
+            logger.error(f"Hook registration failed: {e}", exc_info=True)
             return {}
 
 
@@ -611,7 +611,7 @@ class GameController:
         except AttributeError:
             logger.warning("Hook module missing end_hooks function")
         except Exception as e:
-            logger.error(f"Hook deregistration failed: {e}")
+            logger.error(f"Hook deregistration failed: {e}", exc_info=True)
         
     def stop(self) -> None:
         """Stop the emulator and clean up resources."""
@@ -707,7 +707,7 @@ class GameControllerManager:
                             controller.load_state(state_data)
                             logger.info(f"Auto-started game for chat {chat_id} from slot {target_slot}")
                         except Exception as e:
-                            logger.error(f"Game restarting due to failed to load slot {target_slot} for chat {chat_id}: {e}")
+                            logger.error(f"Game restarting due to failed to load slot {target_slot} for chat {chat_id}: {e}", exc_info=True)
 
         return self._controllers[chat_id]
     
@@ -746,7 +746,7 @@ class GameControllerManager:
             try:
                 controller.stop()
             except Exception as e:
-                logger.error(f"Error stopping controller for chat {chat_id}: {e}")
+                logger.error(f"Error stopping controller for chat {chat_id}: {e}", exc_info=True)
         
         self._controllers.clear()
 

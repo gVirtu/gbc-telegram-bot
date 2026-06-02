@@ -643,7 +643,7 @@ class DiscordAdapter(BotAdapter):
             message = await channel.fetch_message(message_id)
             await message.delete()
         except Exception as e:
-            logger.error(f"Failed to delete Discord message {message_id}: {e}")
+            logger.error(f"Failed to delete Discord message {message_id}: {e}", exc_info=True)
 
     async def build_game_keyboard(
         self,
@@ -702,7 +702,7 @@ class DiscordAdapter(BotAdapter):
                 or member.guild_permissions.manage_guild
             )
         except Exception as e:
-            logger.error(f"Failed to check Discord admin for user {user_id}: {e}")
+            logger.error(f"Failed to check Discord admin for user {user_id}: {e}", exc_info=True)
             return False
 
     async def update_chat_photo(self, chat_id: int, image_bytes: bytes) -> None:

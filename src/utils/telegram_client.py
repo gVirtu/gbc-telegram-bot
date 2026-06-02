@@ -48,7 +48,7 @@ def _rate_limited_method(method_name: str):
                 )
                 raise
             except TelegramError as e:
-                logger.error(f"Telegram error in {method_name} for chat {chat_id}: {e}")
+                logger.error(f"Telegram error in {method_name} for chat {chat_id}: {e}", exc_info=True)
                 raise
         
         return wrapper

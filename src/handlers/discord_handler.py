@@ -60,7 +60,7 @@ def create_discord_bot() -> Any:
             synced = await bot.tree.sync()
             logger.info(f"Synced {len(synced)} Discord slash command(s)")
         except Exception as e:
-            logger.error(f"Failed to sync Discord slash commands: {e}")
+            logger.error(f"Failed to sync Discord slash commands: {e}", exc_info=True)
 
         # Register adapter once bot is ready
         adapter = DiscordAdapter(bot)

@@ -56,7 +56,7 @@ class ScoringManager:
         try:
             return self._score_input_unsafe(platform, user_id, chat_id, button, user_name=user_name, commit=commit)
         except Exception as e:
-            logger.error(f"score_input failed for user {user_id} in chat {chat_id}: {e}")
+            logger.error(f"score_input failed for user {user_id} in chat {chat_id}: {e}", exc_info=True)
             return ScoredInput(
                 platform=platform,
                 user_id=user_id,

@@ -64,7 +64,7 @@ def migrate_chat_configs(data_dir: Path, db_manager: DatabaseManager, dry_run: b
             count += 1
             logger.info(f"Migrated config for chat {chat_id}")
         except Exception as e:
-            logger.error(f"Failed to migrate config {config_file}: {e}")
+            logger.error(f"Failed to migrate config {config_file}: {e}", exc_info=True)
     
     return count
 
@@ -121,7 +121,7 @@ def migrate_game_states(data_dir: Path, db_manager: DatabaseManager, dry_run: bo
             count += 1
             logger.info(f"Migrated game state for chat {chat_id}")
         except Exception as e:
-            logger.error(f"Failed to migrate game state {state_file}: {e}")
+            logger.error(f"Failed to migrate game state {state_file}: {e}", exc_info=True)
     
     return count
 
@@ -197,7 +197,7 @@ def migrate_save_slots(data_dir: Path, db_manager: DatabaseManager, new_states_d
                 count += 1
                 logger.info(f"Migrated save slot {slot_number} for chat {chat_id}")
             except Exception as e:
-                logger.error(f"Failed to migrate save slot {slot_file}: {e}")
+                logger.error(f"Failed to migrate save slot {slot_file}: {e}", exc_info=True)
     
     return count
 

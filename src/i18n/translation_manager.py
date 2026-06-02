@@ -73,7 +73,7 @@ class TranslationManager:
                     self._translations[language] = json.load(f)
                 logger.info(f"Loaded translations for {language}")
             except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse translation file {file_path}: {e}")
+                logger.error(f"Failed to parse translation file {file_path}: {e}", exc_info=True)
                 if language == "pt-BR":
                     raise
 
@@ -214,7 +214,7 @@ class TranslationManager:
                 logger.error(f"Missing variable {e} for translation key '{key}'")
                 return text  # Return unformatted text
             except Exception as e:
-                logger.error(f"Failed to format translation '{key}': {e}")
+                logger.error(f"Failed to format translation '{key}': {e}", exc_info=True)
                 return text
 
         return text

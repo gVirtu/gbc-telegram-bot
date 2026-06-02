@@ -655,7 +655,7 @@ class DatabaseManager:
             logger.info(f"Loaded state from slot {slot_number} for chat {chat_id}")
             return data
         except Exception as e:
-            logger.error(f"Failed to load state from slot {slot_number} for chat {chat_id}: {e}")
+            logger.error(f"Failed to load state from slot {slot_number} for chat {chat_id}: {e}", exc_info=True)
             return None
     
     def get_slot_info(self, chat_id: int, slot_number: int) -> Optional[SaveSlotInfo]:

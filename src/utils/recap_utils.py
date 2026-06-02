@@ -102,7 +102,7 @@ async def send_recap_to_chat(
             sent_any = True
 
         except Exception as e:
-            logger.error(f"Error sending recap part {part.part_number} for chat {leader_id}: {e}")
+            logger.error(f"Error sending recap part {part.part_number} for chat {leader_id}: {e}", exc_info=True)
 
         if not is_last_in_batch:
             await asyncio.sleep(settings.recap_part_send_delay_seconds)

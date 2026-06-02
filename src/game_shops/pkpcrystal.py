@@ -323,7 +323,7 @@ async def redeem_battle_handler(purchase_ctx: ShopPurchaseContext):
                 continue
             party_mons.append(battle_struct_to_party(raw))
         except Exception as e:
-            logger.error(f"Invalid mon data for user {user_id} (slot {slot}) in chat {chat_id}: {mon_hex}.\n\nError: {e}")
+            logger.error(f"Invalid mon data for user {user_id} (slot {slot}) in chat {chat_id}: {mon_hex}.\n\nError: {e}", exc_info=True)
             continue
 
     if not party_mons:
@@ -955,7 +955,7 @@ async def inspect_trainer_card_handler(purchase_ctx: ShopPurchaseContext):
                 continue
             mon_slots.append((slot, raw))
         except Exception as e:
-            logger.error(f"Invalid mon data for user {user_id} (slot {slot}) in chat {purchase_ctx.chat_id}: {mon_hex}.\n\nError: {e}")
+            logger.error(f"Invalid mon data for user {user_id} (slot {slot}) in chat {purchase_ctx.chat_id}: {mon_hex}.\n\nError: {e}", exc_info=True)
             continue
 
     if not mon_slots:

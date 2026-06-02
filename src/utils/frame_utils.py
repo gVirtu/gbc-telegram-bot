@@ -1140,7 +1140,7 @@ def generate_tbc_frames(
             frames.append(last_frame)
 
     except Exception as e:
-        logger.error(f"Error generating TBC frames: {e}")
+        logger.error(f"Error generating TBC frames: {e}", exc_info=True)
         return []
 
     return frames

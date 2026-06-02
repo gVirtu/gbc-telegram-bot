@@ -95,7 +95,7 @@ async def _ensure_game_active(
         return True, None
 
     except Exception as e:
-        logger.error(f"Failed to auto-start game for chat {chat_id}: {e}")
+        logger.error(f"Failed to auto-start game for chat {chat_id}: {e}", exc_info=True)
         error_msg = translation_manager.get("commands.start_game.auto_start_error", chat_id)
         return False, error_msg
 
@@ -133,7 +133,7 @@ async def start_game_command(ctx: CommandContext) -> None:
         logger.info(f"Started game for chat {chat_id}, message {message_id}")
 
     except Exception as e:
-        logger.error(f"Error starting game for chat {chat_id}: {e}")
+        logger.error(f"Error starting game for chat {chat_id}: {e}", exc_info=True)
         error_msg = translation_manager.get("commands.start_game.error", chat_id)
         await ctx.adapter.send_text(chat_id, error_msg)
 
@@ -173,7 +173,7 @@ async def resume_command(ctx: CommandContext) -> None:
             await ctx.adapter.send_text(chat_id, error_msg)
 
     except Exception as e:
-        logger.error(f"Error resuming game for chat {chat_id} (leader: {leader_id}): {e}")
+        logger.error(f"Error resuming game for chat {chat_id} (leader: {leader_id}): {e}", exc_info=True)
         error_msg = translation_manager.get("commands.resume.error", chat_id)
         await ctx.adapter.send_text(chat_id, error_msg)
 
@@ -235,7 +235,7 @@ async def reboot_command(ctx: CommandContext) -> None:
             await ctx.adapter.send_text(chat_id, error_msg)
 
     except Exception as e:
-        logger.error(f"Error rebooting game for chat {chat_id}: {e}")
+        logger.error(f"Error rebooting game for chat {chat_id}: {e}", exc_info=True)
         error_msg = translation_manager.get("commands.reboot.error", chat_id)
         await ctx.adapter.send_text(chat_id, error_msg)
 
@@ -313,7 +313,7 @@ async def save_command(ctx: CommandContext) -> None:
         logger.info(f"Saved game for chat {chat_id} to slot {slot_number}")
 
     except Exception as e:
-        logger.error(f"Error saving game for chat {chat_id}: {e}")
+        logger.error(f"Error saving game for chat {chat_id}: {e}", exc_info=True)
         error_msg = translation_manager.get("commands.save.error", chat_id)
         await ctx.adapter.send_text(chat_id, error_msg)
 
@@ -439,7 +439,7 @@ async def load_command(ctx: CommandContext) -> None:
         logger.info(f"Loaded game for chat {chat_id} from slot {slot_number}")
 
     except Exception as e:
-        logger.error(f"Error loading game for chat {chat_id}: {e}")
+        logger.error(f"Error loading game for chat {chat_id}: {e}", exc_info=True)
         error_msg = translation_manager.get("commands.load.error", chat_id)
         await ctx.adapter.send_text(chat_id, error_msg)
 
@@ -529,7 +529,7 @@ async def print_command(ctx: CommandContext) -> None:
         logger.info(f"Sent print frame for chat {chat_id} (leader {leader_id})")
 
     except Exception as e:
-        logger.error(f"Error printing frame for chat {chat_id}: {e}")
+        logger.error(f"Error printing frame for chat {chat_id}: {e}", exc_info=True)
         error_msg = translation_manager.get("commands.print.error", chat_id)
         await ctx.adapter.send_text(chat_id, error_msg)
 
@@ -1250,7 +1250,7 @@ async def peek_symbol_command(ctx: CommandContext) -> None:
         else:
             values = list(pyboy.memory[bank, addr:addr + length])
     except Exception as e:
-        logger.error(f"Failed to read memory for symbol {symbol}: {e}")
+        logger.error(f"Failed to read memory for symbol {symbol}: {e}", exc_info=True)
         error_msg = translation_manager.get(
             "commands.peek_symbol.read_error", chat_id, symbol=symbol
         )

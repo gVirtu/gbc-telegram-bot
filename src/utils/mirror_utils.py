@@ -133,7 +133,7 @@ async def broadcast_game_update(
             size_kb = media_buffers_per_type["mp4"].getbuffer().nbytes // 1024
             logger.info(f"MP4 encode done: chat={leader_chat_id} elapsed={elapsed:.2f}s size={size_kb}KB")
         except Exception as e:
-            logger.error(f"MP4 encode failed for chat {leader_chat_id}: {e}")
+            logger.error(f"MP4 encode failed for chat {leader_chat_id}: {e}", exc_info=True)
         finally:
             if tmp_path and os.path.exists(tmp_path):
                 os.remove(tmp_path)
@@ -158,7 +158,7 @@ async def broadcast_game_update(
             size_kb = media_buffers_per_type["avif"].getbuffer().nbytes // 1024
             logger.info(f"AVIF encode done: chat={leader_chat_id} elapsed={elapsed:.2f}s size={size_kb}KB")
         except Exception as e:
-            logger.error(f"AVIF encode failed for chat {leader_chat_id}: {e}")
+            logger.error(f"AVIF encode failed for chat {leader_chat_id}: {e}", exc_info=True)
         finally:
             if tmp_avif_path and os.path.exists(tmp_avif_path):
                 os.remove(tmp_avif_path)
@@ -199,7 +199,7 @@ async def broadcast_game_update(
                     state_manager.save_game_state(state)
                 sent = True
             except Exception as e:
-                logger.error(f"Failed to broadcast game update to chat {target_id}: {e}")
+                logger.error(f"Failed to broadcast game update to chat {target_id}: {e}", exc_info=True)
 
         if not sent:
             # Seed initial message with current frame
@@ -211,7 +211,7 @@ async def broadcast_game_update(
                 state_manager.save_game_state(new_state)
                 sent = True
             except Exception as e:
-                logger.error(f"Failed to seed initial game message to chat {target_id}: {e}")
+                logger.error(f"Failed to seed initial game message to chat {target_id}: {e}", exc_info=True)
                 
     # All broadcasted media types are saved to the leader chat cache
     for media_type, media_buffer in media_buffers_per_type.items():
@@ -242,4 +242,4 @@ async def broadcast_text(leader_chat_id: int, text: str) -> None:
         try:
             await adapter.send_text(target_id, text)
         except Exception as e:
-            logger.error(f"Failed to broadcast text to chat {target_id}: {e}")
+            logger.error(f"Failed to broadcast text to chat {target_id}: {e}", exc_info=True)

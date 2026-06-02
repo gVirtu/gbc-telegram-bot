@@ -288,7 +288,7 @@ class WebhookHandler:
                 logger.debug(f"Unhandled update type: {update.to_dict()}")
 
         except Exception as e:
-            logger.error(f"Error processing update: {e}")
+            logger.error(f"Error processing update: {e}", exc_info=True)
             traceback.print_exc()
             raise
 
@@ -310,7 +310,7 @@ class WebhookHandler:
                 db_manager.initialize()
                 logger.info("Database initialized with migrations")
             except MigrationError as e:
-                logger.error(f"Failed to run database migrations: {e}")
+                logger.error(f"Failed to run database migrations: {e}", exc_info=True)
                 raise
 
             # Initialize rate limiter
@@ -458,7 +458,7 @@ class WebhookHandler:
                             status_code=status.HTTP_200_OK,
                         )
                     except Exception as e:
-                        logger.error(f"Error in webhook: {e}")
+                        logger.error(f"Error in webhook: {e}", exc_info=True)
                         return JSONResponse(
                             content={"status": "error", "message": str(e)},
                             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -489,7 +489,7 @@ class WebhookHandler:
                     status_code=status.HTTP_200_OK,
                 )
             except Exception as e:
-                logger.error(f"Error in webhook: {e}")
+                logger.error(f"Error in webhook: {e}", exc_info=True)
                 return JSONResponse(
                     content={"status": "error", "message": str(e)},
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

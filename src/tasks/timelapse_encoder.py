@@ -77,7 +77,7 @@ class TimelapseEncoder:
                 is_rt=is_rt,
             )
         except Exception as e:
-            logger.error(f"Failed to update recap metadata: {e}")
+            logger.error(f"Failed to update recap metadata: {e}", exc_info=True)
 
     async def _check_and_split_if_needed(
         self,
@@ -259,7 +259,7 @@ class TimelapseEncoder:
                 )
                 await self._check_and_split_if_needed(chat_id, date, video_path, is_rt, current_part)
             except Exception as e:
-                logger.error(f"Failed to encode timelapse for chat {chat_id}, date {date}: {e}")
+                logger.error(f"Failed to encode timelapse for chat {chat_id}, date {date}: {e}", exc_info=True)
             finally:
                 fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
@@ -280,7 +280,7 @@ class TimelapseEncoder:
                 await self._do_encode_and_append(job)
                 return  # success
             except Exception as e:
-                logger.error(f"Timelapse encode attempt {attempt + 1}/{max_attempts} for job {job.id}: {e}")
+                logger.error(f"Timelapse encode attempt {attempt + 1}/{max_attempts} for job {job.id}: {e}", exc_info=True)
                 if attempt < max_attempts - 1:
                     delay = backoff_delays[attempt]
                     logger.info(f"Retrying job {job.id} in {delay}s...")
@@ -391,7 +391,7 @@ class TimelapseEncodingQueue:
                         shutil.rmtree(folder)
                         logger.debug(f"Deleted frame folder: {folder}")
                 except Exception as e:
-                    logger.error(f"Failed to encode timelapse job {job.id} for chat {chat_id}: {e}")
+                    logger.error(f"Failed to encode timelapse job {job.id} for chat {chat_id}: {e}", exc_info=True)
                     state_manager.update_job_status(job.id, 'failed')
         finally:
             self._active.discard(chat_id)

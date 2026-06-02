@@ -267,13 +267,13 @@ class InputHandler:
                 try:
                     await adapter.answer_interaction(raw, translation_manager.get("game.no_active_game", chat_id))
                 except Exception as e:
-                    logger.error(f"Error processing modifier for chat {chat_id}: {e}")
+                    logger.error(f"Error processing modifier for chat {chat_id}: {e}", exc_info=True)
                 return
             if session.state.message_id != message_id:
                 try:
                     await adapter.answer_interaction(raw, translation_manager.get("game.message_outdated", chat_id))
                 except Exception as e:
-                    logger.error(f"Error processing modifier for chat {chat_id}: {e}")
+                    logger.error(f"Error processing modifier for chat {chat_id}: {e}", exc_info=True)
                 return
             key = callback_data[len("modifier_"):]
             await self._handle_modifier_button_press(raw, chat_id, message_id, key, adapter, leader_id=leader_id)
@@ -283,7 +283,7 @@ class InputHandler:
             try:
                 await adapter.answer_interaction(raw, "Invalid button")
             except Exception as e:
-                logger.error(f"Error processing input for chat {chat_id}: {e}")
+                logger.error(f"Error processing input for chat {chat_id}: {e}", exc_info=True)
             return
 
         button = get_button_from_callback(callback_data)
@@ -294,7 +294,7 @@ class InputHandler:
                 error_msg = translation_manager.get("game.no_active_game", chat_id)
                 await adapter.answer_interaction(raw, error_msg)
             except Exception as e:
-                logger.error(f"Error processing input for chat {chat_id}: {e}")
+                logger.error(f"Error processing input for chat {chat_id}: {e}", exc_info=True)
             return
 
         # Validate message is current (uses originating chat's message_id)
@@ -303,7 +303,7 @@ class InputHandler:
                 error_msg = translation_manager.get("game.message_outdated", chat_id)
                 await adapter.answer_interaction(raw, error_msg)
             except Exception as e:
-                logger.error(f"Error processing input for chat {chat_id}: {e}")
+                logger.error(f"Error processing input for chat {chat_id}: {e}", exc_info=True)
             return
 
         # Add input to buffer keyed to leader
@@ -314,7 +314,7 @@ class InputHandler:
             try:
                 await adapter.answer_interaction(raw, translation_manager.get(message_key, chat_id, **message_params))
             except Exception as e:
-                logger.error(f"Error answering callback for chat {chat_id}: {e}")
+                logger.error(f"Error answering callback for chat {chat_id}: {e}", exc_info=True)
             return
 
         # Signal drain or reset debounce timer (keyed to leader)
@@ -350,14 +350,14 @@ class InputHandler:
                     self._process_queue_loop(leader_id, leader_msg_id, leader_adapter or adapter)
                 )
             except Exception as e:
-                logger.error(f"Error starting queue processing for chat {chat_id}: {e}")
+                logger.error(f"Error starting queue processing for chat {chat_id}: {e}", exc_info=True)
                 await self._send_error_message(chat_id, translation_manager.get('game.input_processing_error', chat_id), adapter)
         else:
             try:
                 if adapter.platform != "discord":
                     await adapter.answer_interaction(raw, translation_manager.get(message_key, chat_id, **message_params))
             except Exception as e:
-                logger.error(f"Error answering callback for chat {chat_id}: {e}")
+                logger.error(f"Error answering callback for chat {chat_id}: {e}", exc_info=True)
 
     async def handle_sequence_input(
         self,
@@ -425,7 +425,7 @@ class InputHandler:
                     self._process_queue_loop(leader_id, leader_msg_id, leader_adapter or adapter)
                 )
             except Exception as e:
-                logger.error(f"Error starting queue processing for chat {chat_id}: {e}")
+                logger.error(f"Error starting queue processing for chat {chat_id}: {e}", exc_info=True)
 
         return True, ""
 
@@ -462,7 +462,7 @@ class InputHandler:
             if adapter.platform != "discord":
                 await adapter.answer_interaction(raw, message)
         except Exception as e:
-            logger.error(f"Error answering modifier callback for chat {chat_id}: {e}")
+            logger.error(f"Error answering modifier callback for chat {chat_id}: {e}", exc_info=True)
 
     # ==================== Processing loop ====================
 
@@ -496,7 +496,7 @@ class InputHandler:
                     self._aggregate_to_recent_inputs(session.state, batch)
                     result = await self._process_batch(chat_id, message_id, batch, adapter)
                 except Exception as e:
-                    logger.error(f"Error processing batch for chat {chat_id}: {e}")
+                    logger.error(f"Error processing batch for chat {chat_id}: {e}", exc_info=True)
                     result = {"animation_duration": None}
 
                 state_manager.save_game_state(session.state, save_user_input_counts=True)
@@ -711,7 +711,7 @@ class InputHandler:
         try:
             state_manager.connection.commit()
         except Exception as e:
-            logger.error(f"Failed to commit batch scoring writes for chat {chat_id}: {e}")
+            logger.error(f"Failed to commit batch scoring writes for chat {chat_id}: {e}", exc_info=True)
 
         # Continue animating after last button press
         animation_frames = int(settings.animation_duration * game_fps)
@@ -789,7 +789,7 @@ class InputHandler:
             events_data = []
             for e in hook_events:
                 if not all(k in e for k in ("event_type", "awarded_score", "frame_offset")):
-                    logger.error(f"Malformed game event dict, skipping: {e}")
+                    logger.error(f"Malformed game event dict, skipping: {e}", exc_info=True)
                     continue
                 events_data.append({
                     "event_type": e["event_type"],
@@ -982,7 +982,7 @@ class InputHandler:
                     state_manager.delete_reactions([reaction["id"] for reaction in reactions])
 
             except Exception as e:
-                logger.error(f"Failed to generate animation for chat {chat_id}: {e}")
+                logger.error(f"Failed to generate animation for chat {chat_id}: {e}", exc_info=True)
                 try:
                     png_buffer = controller.get_frame_as_png()
                     await adapter.edit_game_message(chat_id, message_id, caption, input_keyboard, png_buffer, media_type="photo")
@@ -1022,7 +1022,7 @@ class InputHandler:
             state_manager.save_chat_config(config)
             logger.info(f"Updated group avatar for chat {chat_id}")
         except Exception as e:
-            logger.error(f"Failed to update group avatar for {chat_id}: {e}")
+            logger.error(f"Failed to update group avatar for {chat_id}: {e}", exc_info=True)
             try:
                 await adapter.send_text(chat_id, translation_manager.get("game.avatar_update_failed", chat_id))
             except Exception:
@@ -1063,7 +1063,7 @@ class InputHandler:
         try:
             await adapter.edit_game_keyboard(chat_id=chat_id, message_id=message_id, keyboard=keyboard)
         except Exception as e:
-            logger.error(f"Failed to edit keyboard for message {message_id} in chat {chat_id}: {e}")
+            logger.error(f"Failed to edit keyboard for message {message_id} in chat {chat_id}: {e}", exc_info=True)
 
     async def _edit_message_media(
         self, chat_id: int, message_id: int, media_buffer, caption: str, adapter: BotAdapter,
@@ -1073,7 +1073,7 @@ class InputHandler:
         try:
             return await adapter.edit_game_message(chat_id, message_id, caption, keyboard, media_buffer, media_type=media_type)
         except Exception as e:
-            logger.error(f"Failed to edit media for message {message_id} in chat {chat_id}: {e}")
+            logger.error(f"Failed to edit media for message {message_id} in chat {chat_id}: {e}", exc_info=True)
             return None
 
     async def _send_error_message(self, chat_id: int, text: str, adapter: BotAdapter) -> None:
@@ -1081,7 +1081,7 @@ class InputHandler:
         try:
             await adapter.send_text(chat_id, f"❌ {text}")
         except Exception as e:
-            logger.error(f"Failed to send error message to chat {chat_id}: {e}")
+            logger.error(f"Failed to send error message to chat {chat_id}: {e}", exc_info=True)
 
     # ==================== Game lifecycle ====================
 

@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import logging
 import shutil
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -152,7 +152,7 @@ class StateManager(DatabaseManager):
         Returns:
             The new row's ID.
         """
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         sql = """
             INSERT INTO timelapse_jobs
                 (chat_id, folder_path, timestamp, fps, compositing_context, status, created_at, updated_at)
@@ -204,7 +204,7 @@ class StateManager(DatabaseManager):
             job_id: DB row ID.
             status: New status string ('pending', 'processing', 'done', 'failed').
         """
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         self.connection.execute(
             "UPDATE timelapse_jobs SET status = ?, updated_at = ? WHERE id = ?",
             (status, now, job_id),
@@ -217,7 +217,7 @@ class StateManager(DatabaseManager):
         Returns:
             Number of rows reset.
         """
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         cursor = self.connection.execute(
             "UPDATE timelapse_jobs SET status = 'pending', updated_at = ? WHERE status = 'processing'",
             (now,),
@@ -236,7 +236,7 @@ class StateManager(DatabaseManager):
         """
         if older_than_days <= 0:
             return 0
-        cutoff = (datetime.utcnow() - timedelta(days=older_than_days)).isoformat()
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=older_than_days)).isoformat()
         cursor = self.connection.execute(
             "DELETE FROM timelapse_jobs WHERE status = 'done' AND updated_at < ?",
             (cutoff,),

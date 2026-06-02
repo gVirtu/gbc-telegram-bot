@@ -7,7 +7,7 @@ noop logic internally (skips if no activity in the past 60 minutes).
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from src.utils.backup_manager import BackupManager
 
@@ -20,7 +20,7 @@ async def run_backup_loop(backup_manager: BackupManager, settings) -> None:
     On startup, sleeps until the next top-of-hour, then loops every 3600s.
     """
     # Startup: sleep until next top-of-hour
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     next_hour = (now + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
     sleep_seconds = (next_hour - now).total_seconds()
     logger.debug(f"First backup cycle in {sleep_seconds:.0f}s at {next_hour.isoformat()}Z")

@@ -9,7 +9,7 @@ access to the adapter, chat_id, user_id, user_name, and args.
 
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
@@ -611,7 +611,7 @@ async def recap_command(ctx: CommandContext) -> None:
             await ctx.adapter.send_text(chat_id, invalid_msg)
             return
     else:
-        date_str = datetime.now().strftime("%Y%m%d")
+        date_str = datetime.now(timezone.utc).strftime("%Y%m%d")
 
     recap_record = await state_manager.get_recap_file(leader_id, date_str)
 

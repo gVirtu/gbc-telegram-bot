@@ -27,7 +27,7 @@ In the icicle chart, width = cumulative CPU time. Key nodes to look for:
 import cProfile
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -51,7 +51,7 @@ def stop(profiler: cProfile.Profile | None, label: str) -> None:
         return
     profiler.disable()
     _profile_dir.mkdir(parents=True, exist_ok=True)
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")
     path = _profile_dir / f"{label}_{ts}.prof"
     profiler.dump_stats(str(path))
     logger.info("[PROFILE] Saved profile to %s", path)

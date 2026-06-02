@@ -5,7 +5,7 @@ user inputs in time-based batches.
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 
 from src.models.game_state import GameButton
 
@@ -26,7 +26,7 @@ class BufferedInput:
     user_id: int
     user_name: str
     button: GameButton
-    received_at: datetime = field(default_factory=datetime.utcnow)
+    received_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""

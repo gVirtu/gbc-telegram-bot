@@ -10,7 +10,7 @@ import logging
 import os
 import subprocess
 import tempfile
-from datetime import datetime
+from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Callable, Iterable, List, Optional, Tuple
@@ -776,7 +776,7 @@ def render_input_sidebar(
 
         y -= line_height
 
-    date_str = datetime.utcnow().strftime("%d/%m/%Y")
+    date_str = datetime.now(timezone.utc).strftime("%d/%m/%Y")
     draw.text((padding, 0), date_str, fill=(255, 255, 255), font=font, fontmode="1")
 
     if header_stats is not None:

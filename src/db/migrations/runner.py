@@ -3,7 +3,7 @@
 import logging
 import sqlite3
 from typing import List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 from src.db.connection import DatabaseConnection
 from src.db.migrations import discover_migrations
@@ -144,7 +144,7 @@ class MigrationRunner:
                ON CONFLICT(version) DO UPDATE SET
                    reverted_at = NULL,
                    applied_at = excluded.applied_at;""",
-            (version, name, datetime.utcnow().isoformat())
+            (version, name, datetime.now(timezone.utc).isoformat())
         )
         self.connection.commit()
     
@@ -158,7 +158,7 @@ class MigrationRunner:
             """UPDATE migration_history 
                SET reverted_at = ?
                WHERE version = ? AND reverted_at IS NULL;""",
-            (datetime.utcnow().isoformat(), version)
+            (datetime.now(timezone.utc).isoformat(), version)
         )
         self.connection.commit()
     

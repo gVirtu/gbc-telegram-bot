@@ -950,7 +950,7 @@ class InputHandler:
                             "chat_id": str(chat_id),
                         }
 
-                        ts_str = datetime.now().strftime('%Y%m%d_%H%M%S')
+                        ts_str = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
                         uid_str = uuid.uuid4().hex[:8]
                         folder = (
                             settings.data_dir / "frames" / str(chat_id) / f"{ts_str}_{uid_str}"
@@ -961,7 +961,7 @@ class InputHandler:
                             None, _save_raw_frames_sync, raw_frames, folder, timelapse_audio
                         )
 
-                        timestamp = datetime.now().isoformat()
+                        timestamp = datetime.now(timezone.utc).isoformat()
                         state_manager.insert_timelapse_job(
                             chat_id=str(chat_id),
                             folder_path=str(folder),

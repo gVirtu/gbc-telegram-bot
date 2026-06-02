@@ -4,7 +4,7 @@ This module tests all data models including ChatGameState, ChatConfig,
 SaveSlotInfo, and GameSession.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -126,7 +126,7 @@ class TestChatGameState:
         assert state.message_id == 100
         assert state.input_in_progress is True
         assert state.last_input == GameButton.B
-        assert state.last_input_time == datetime(2024, 1, 1, 12, 0, 0)
+        assert state.last_input_time == datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
     
     def test_from_dict_with_none(self):
         """Test deserialization with None values."""
@@ -227,7 +227,7 @@ class TestSaveSlotInfo:
     
     def test_with_all_fields(self):
         """Test creation with all fields."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         slot = SaveSlotInfo(
             slot_number=2,
             created_at=now,
@@ -263,7 +263,7 @@ class TestSaveSlotInfo:
         assert slot.slot_number == 3
         assert slot.is_auto_save is False
         assert slot.description == "Test save"
-        assert slot.created_at == datetime(2024, 1, 1, 10, 0, 0)
+        assert slot.created_at == datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
 
 
 class TestGameSession:
@@ -303,14 +303,14 @@ class TestGameSession:
     def test_is_idle_true(self, game_session):
         """Test is_idle returns True for old activity."""
         # Set last activity to 2 hours ago
-        game_session.last_activity = datetime.utcnow() - timedelta(hours=2)
+        game_session.last_activity = datetime.now(timezone.utc) - timedelta(hours=2)
         
         assert game_session.is_idle(timeout_seconds=3600) is True
     
     def test_is_idle_custom_timeout(self, game_session):
         """Test is_idle with custom timeout."""
         # Set last activity to 5 minutes ago
-        game_session.last_activity = datetime.utcnow() - timedelta(minutes=5)
+        game_session.last_activity = datetime.now(timezone.utc) - timedelta(minutes=5)
         
         # Should be idle with 1 minute timeout
         assert game_session.is_idle(timeout_seconds=60) is True

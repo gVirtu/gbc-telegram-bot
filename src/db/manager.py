@@ -293,10 +293,10 @@ class DatabaseManager:
             message_id=row['message_id'],
             input_in_progress=bool(row['input_in_progress']),
             last_input=GameButton(row['last_input']) if row['last_input'] else None,
-            last_input_time=datetime.fromisoformat(row['last_input_time']) if row['last_input_time'] else None,
+            last_input_time=self._parse_datetime_utc(row['last_input_time']),
             last_animation_file_id=row['last_animation_file_id'],
-            created_at=datetime.fromisoformat(row['created_at']),
-            updated_at=datetime.fromisoformat(row['updated_at']),
+            created_at=self._parse_datetime_utc(row['created_at']),
+            updated_at=self._parse_datetime_utc(row['updated_at']),
             user_input_counts=self._load_user_input_counts(chat_id),
             global_frame_count=row['global_frame_count'] if row['global_frame_count'] is not None else 0,
         )
@@ -677,8 +677,8 @@ class DatabaseManager:
         
         return SaveSlotInfo(
             slot_number=row['slot_number'],
-            created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else None,
-            updated_at=datetime.fromisoformat(row['updated_at']) if row['updated_at'] else None,
+            created_at=self._parse_datetime_utc(row['created_at']),
+            updated_at=self._parse_datetime_utc(row['updated_at']),
             is_auto_save=bool(row['is_auto_save']),
             description=row['description']
         )
@@ -700,8 +700,8 @@ class DatabaseManager:
         for row in cursor.fetchall():
             slots.append(SaveSlotInfo(
                 slot_number=row['slot_number'],
-                created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else None,
-                updated_at=datetime.fromisoformat(row['updated_at']) if row['updated_at'] else None,
+                created_at=self._parse_datetime_utc(row['created_at']),
+                updated_at=self._parse_datetime_utc(row['updated_at']),
                 is_auto_save=bool(row['is_auto_save']),
                 description=row['description']
             ))
@@ -884,8 +884,8 @@ class DatabaseManager:
             frame_count=row['frame_count'],
             duration_sec=row['duration_sec'],
             file_size_bytes=row['file_size_bytes'],
-            created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else None,
-            updated_at=datetime.fromisoformat(row['updated_at']) if row['updated_at'] else None
+            created_at=self._parse_datetime_utc(row['created_at']),
+            updated_at=self._parse_datetime_utc(row['updated_at'])
         )
 
     async def upsert_recap_metadata(
@@ -1035,9 +1035,9 @@ class DatabaseManager:
                 frame_count=row['frame_count'],
                 duration_sec=row['duration_sec'],
                 file_size_bytes=row['file_size_bytes'],
-                created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else None,
-                updated_at=datetime.fromisoformat(row['updated_at']) if row['updated_at'] else None,
-                auto_sent_at=datetime.fromisoformat(row['auto_sent_at']) if row['auto_sent_at'] else None,
+                created_at=self._parse_datetime_utc(row['created_at']),
+                updated_at=self._parse_datetime_utc(row['updated_at']),
+                auto_sent_at=self._parse_datetime_utc(row['auto_sent_at']),
             )
             for row in rows
         ]
@@ -1121,9 +1121,9 @@ class DatabaseManager:
                 frame_count=row['frame_count'],
                 duration_sec=row['duration_sec'],
                 file_size_bytes=row['file_size_bytes'],
-                created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else None,
-                updated_at=datetime.fromisoformat(row['updated_at']) if row['updated_at'] else None,
-                auto_sent_at=datetime.fromisoformat(row['auto_sent_at']) if row['auto_sent_at'] else None,
+                created_at=self._parse_datetime_utc(row['created_at']),
+                updated_at=self._parse_datetime_utc(row['updated_at']),
+                auto_sent_at=self._parse_datetime_utc(row['auto_sent_at']),
             )
             for row in rows
         ]

@@ -6,7 +6,7 @@ plus their non-media-only mirror chats.
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from src.adapters.base import get_adapter
 from src.config import settings
@@ -22,7 +22,7 @@ async def run_recap_broadcast_loop() -> None:
     """Async loop: broadcast recaps at 00:00 UTC daily."""
     while True:
         try:
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             next_run = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
             sleep_seconds = (next_run - now).total_seconds()
             logger.debug(f"Next recap broadcast in {sleep_seconds:.0f}s at {next_run.isoformat()}Z")
@@ -38,7 +38,7 @@ async def run_recap_broadcast_loop() -> None:
 
 async def _run_broadcast_cycle() -> None:
     """Run one broadcast cycle: send unsent recap parts to all opted-in chats."""
-    yesterday = (datetime.utcnow() - timedelta(hours=23)).strftime("%Y%m%d")
+    yesterday = (datetime.now(timezone.utc) - timedelta(hours=23)).strftime("%Y%m%d")
     leader_ids = state_manager.get_leaders_with_flag("auto_send_recaps")
     logger.info(f"Recap broadcast cycle: {len(leader_ids)} opted-in leader(s) for date {yesterday}")
 

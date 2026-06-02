@@ -1,7 +1,7 @@
 """Tests for /recap and /gif commands."""
 
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import Mock, AsyncMock, patch
 
 from src.handlers.commands import recap_command, gif_command, _send_no_gameplay_message
@@ -190,7 +190,7 @@ class TestRecapCommand:
                 await recap_command(ctx)
 
                 # Should query today's date
-                today = datetime.now().strftime("%Y%m%d")
+                today = datetime.now(timezone.utc).strftime("%Y%m%d")
                 mock_state_manager.get_recap_file.assert_called_once_with(123, today)
 
     @pytest.mark.asyncio

@@ -12,7 +12,7 @@ import fcntl
 import logging
 import os
 import shutil
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -146,7 +146,7 @@ class TimelapseEncoder:
         fps: int,
         audio_chunks=None,
     ) -> None:
-        ts = datetime.now().timestamp()
+        ts = datetime.now(timezone.utc).timestamp()
         segment_path = video_path.parent / f"segment_{ts}.mp4"
         concat_list_path = video_path.parent / f"concat_{ts}.txt"
         output_path = video_path.with_suffix(".tmp.mp4")

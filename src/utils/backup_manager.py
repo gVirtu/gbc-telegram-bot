@@ -5,7 +5,7 @@ No new DB table is used; active-chat detection queries the existing recent_input
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ class BackupManager:
 
         Returns False if no game controller is available.
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         hour_str = now.strftime("%Y%m%d_%H")
         path = self._settings.get_chat_backup_dir(chat_id) / f"backup_{hour_str}.state"
 
@@ -112,7 +112,7 @@ class BackupManager:
 
         Returns the number of files deleted.
         """
-        cutoff = datetime.utcnow() - timedelta(days=self._settings.backup_retention_days)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=self._settings.backup_retention_days)
         cutoff_str = cutoff.strftime("%Y%m%d")
         backup_dir = self._settings.data_dir / "backups" / str(chat_id)
         if not backup_dir.exists():

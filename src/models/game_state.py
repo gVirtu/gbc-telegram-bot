@@ -7,12 +7,21 @@ including game state, chat configuration, and input tracking.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional, Callable
 
 
 KNOWN_FEATURE_FLAGS: frozenset[str] = frozenset({"update_group_avatar", "media_only_mirror", "realtime_recaps", "auto_send_recaps"})
+
+
+def _parse_dt(value: str | None) -> datetime | None:
+    if value is None:
+        return None
+    dt = datetime.fromisoformat(value)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
 
 
 class GameButton(str, Enum):
@@ -135,8 +144,8 @@ class ChatGameState:
     last_animation_file_id: Optional[str] = None
     user_input_counts: dict[str, int] = field(default_factory=dict)
     global_frame_count: int = 0
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
@@ -161,17 +170,17 @@ class ChatGameState:
             message_id=data.get("message_id"),
             input_in_progress=data.get("input_in_progress", False),
             last_input=GameButton(data["last_input"]) if data.get("last_input") else None,
-            last_input_time=datetime.fromisoformat(data["last_input_time"]) if data.get("last_input_time") else None,
+            last_input_time=_parse_dt(data.get("last_input_time")),
             last_animation_file_id=data.get("last_animation_file_id"),
             user_input_counts=data.get("user_input_counts", {}),
             global_frame_count=data.get("global_frame_count", 0),
-            created_at=datetime.fromisoformat(data["created_at"]),
-            updated_at=datetime.fromisoformat(data["updated_at"]),
+            created_at=_parse_dt(data.get("created_at")),
+            updated_at=_parse_dt(data.get("updated_at")),
         )
     
     def update_timestamp(self) -> None:
         """Update the updated_at timestamp."""
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(timezone.utc)
 
 
 @dataclass
@@ -206,8 +215,8 @@ class ChatConfig:
     mirrors_chat_id: Optional[int] = None
     feature_flags: dict[str, bool] = field(default_factory=dict)
     last_avatar_update_at: Optional[datetime] = None
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
@@ -243,14 +252,14 @@ class ChatConfig:
             platform=data.get("platform", "telegram"),
             mirrors_chat_id=data.get("mirrors_chat_id"),
             feature_flags=data.get("feature_flags", {}),
-            last_avatar_update_at=datetime.fromisoformat(data["last_avatar_update_at"]) if data.get("last_avatar_update_at") else None,
-            created_at=datetime.fromisoformat(data["created_at"]),
-            updated_at=datetime.fromisoformat(data["updated_at"]),
+            last_avatar_update_at=_parse_dt(data.get("last_avatar_update_at")),
+            created_at=_parse_dt(data.get("created_at")),
+            updated_at=_parse_dt(data.get("updated_at")),
         )
     
     def update_timestamp(self) -> None:
         """Update the updated_at timestamp."""
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(timezone.utc)
 
 
 @dataclass
@@ -286,8 +295,8 @@ class SaveSlotInfo:
         """Create instance from dictionary."""
         return cls(
             slot_number=data["slot_number"],
-            created_at=datetime.fromisoformat(data["created_at"]) if data.get("created_at") else None,
-            updated_at=datetime.fromisoformat(data["updated_at"]) if data.get("updated_at") else None,
+            created_at=_parse_dt(data.get("created_at")),
+            updated_at=_parse_dt(data.get("updated_at")),
             is_auto_save=data.get("is_auto_save", False),
             description=data.get("description"),
         )
@@ -351,9 +360,9 @@ class RecapFileRecord:
             frame_count=data.get("frame_count", 0),
             duration_sec=data.get("duration_sec", 0.0),
             file_size_bytes=data.get("file_size_bytes", 0),
-            created_at=datetime.fromisoformat(data["created_at"]) if data.get("created_at") else None,
-            updated_at=datetime.fromisoformat(data["updated_at"]) if data.get("updated_at") else None,
-            auto_sent_at=datetime.fromisoformat(data["auto_sent_at"]) if data.get("auto_sent_at") else None,
+            created_at=_parse_dt(data.get("created_at")),
+            updated_at=_parse_dt(data.get("updated_at")),
+            auto_sent_at=_parse_dt(data.get("auto_sent_at")),
         )
 
 
@@ -373,12 +382,12 @@ class GameSession:
 
     chat_id: int
     state: ChatGameState
-    last_activity: datetime = field(default_factory=datetime.utcnow)
+    last_activity: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     total_inputs: int = 0
     
     def record_activity(self) -> None:
         """Record user activity (input received)."""
-        self.last_activity = datetime.utcnow()
+        self.last_activity = datetime.now(timezone.utc)
         self.total_inputs += 1
     
     def is_idle(self, timeout_seconds: int = 3600) -> bool:
@@ -390,7 +399,7 @@ class GameSession:
         Returns:
             True if session is idle, False otherwise
         """
-        idle_time = (datetime.utcnow() - self.last_activity).total_seconds()
+        idle_time = (datetime.now(timezone.utc) - self.last_activity).total_seconds()
         return idle_time > timeout_seconds
 
 

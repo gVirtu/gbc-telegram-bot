@@ -22,6 +22,7 @@ class CategoryListScreen:
     platform: str
     user_id: int
     status: str | None = None   # resolved string (not an i18n key)
+    extra_messages: list[str] = field(default_factory=list)
 
 
 @dataclass

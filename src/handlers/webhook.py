@@ -197,6 +197,12 @@ class WebhookHandler:
             adapter=self._telegram_adapter,
         )
         screen = await shop_router.handle(action, ctx)
+
+        from src.shop.flow.screens import CategoryListScreen
+        if isinstance(screen, CategoryListScreen):
+            for msg in screen.extra_messages:
+                await self._telegram_adapter.send_text(callback_query.message.chat_id, msg, parse_mode="Markdown")
+
         text = build_shop_text(screen)
         keyboard = render_telegram_shop_screen(screen)
         await callback_query.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")

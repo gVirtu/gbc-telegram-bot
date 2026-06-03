@@ -29,6 +29,7 @@ from src.game_utils.pkpcrystal.reader import (
     IS_EGG_MASK, GENDER_MASK, GENDER_MALE,
     SHINY_MASK, ABILITY_MASK, ABILITY_1, ABILITY_2, NATURE_MASK,
     parse_party_struct,
+    read_box_count, read_box_name, read_box_mon_raw, NUM_BOXES, MONS_PER_BOX,
 )
 from src.game_utils.pkpcrystal.enum import BattleMode
 from src.game_utils.pkpcrystal.charmap import encode_name, CHARMAP
@@ -947,6 +948,91 @@ async def inspect_team_handler(purchase_ctx: ShopPurchaseContext):
     return await default_purchase_handler(purchase_ctx, on_success=on_success)
 
 
+async def inspect_box_handler(purchase_ctx: ShopPurchaseContext):
+    controller = purchase_ctx.game_controller
+
+    if controller is None:
+        logger.error(f"User {purchase_ctx.user_id} tried to inspect box in chat {purchase_ctx.chat_id} without a game controller")
+        return PurchaseComplete(success=False, error_message=f"{SHOP_PREFIX}.errors.no_game_controller")
+
+    pyboy = controller.pyboy
+
+    options = []
+    for i in range(NUM_BOXES):
+        count = read_box_count(pyboy, i)
+        name = read_box_name(pyboy, i)
+        label = f"{name} ({count}/{MONS_PER_BOX})"
+        options.append(SelectionOption(label=label, value=str(i)))
+
+    return SelectionStep(
+        prompt=f"{SHOP_PREFIX}.messages.select_box",
+        options=options,
+        per_page=6,
+        bindings={},
+        on_select=_on_select_box,
+    )
+
+
+async def _on_select_box(value: str, purchase_ctx: ShopPurchaseContext):
+    box_index = int(value)
+    platform = purchase_ctx.platform
+    user_id = purchase_ctx.user_id
+    chat_id = purchase_ctx.chat_id
+    user_name = purchase_ctx.user_name
+    item = purchase_ctx.item
+    session = purchase_ctx.session
+    pyboy = purchase_ctx.game_controller.pyboy
+
+    result = shop_manager.purchase(platform, user_id, item, chat_id, user_name)
+    if not result.success:
+        return PurchaseComplete(success=False, error_message=result.error_i18n_key)
+
+    mons = []
+    for slot in range(MONS_PER_BOX):
+        raw = read_box_mon_raw(pyboy, box_index, slot)
+        if raw is None:
+            mons.append(None)
+            continue
+        mons.append(_resolve_mon_data(
+            pyboy,
+            species_id=raw["species_id"],
+            item_id=raw["item_id"],
+            move_ids=raw["move_ids"],
+            p1=raw["p1"],
+            p2=raw["p2"],
+            level=raw["level"],
+            evs_raw=raw["evs_raw"],
+            nickname=raw["nickname"],
+        ))
+
+    extra = []
+    chunk = []
+    size = 0
+    for mon in mons:
+        if mon is None or mon.get("is_egg"):
+            continue
+        r = _format_mon_report(mon)
+        if size + len(r) + 2 > 1600:
+            extra.append("```\n" + "\n\n".join(chunk) + "\n```")
+            chunk = [r]
+            size = len(r)
+        else:
+            chunk.append(r)
+            size += len(r) + 2
+
+    if chunk:
+        extra.append("```\n" + "\n\n".join(chunk) + "\n```")
+
+    box_name = read_box_name(pyboy, box_index)
+
+    return PurchaseComplete(
+        success=True,
+        success_message=f"{SHOP_PREFIX}.messages.inspect_box",
+        bindings={"box_name": box_name},
+        extra_messages=extra,
+    )
+
+
 async def inspect_trainer_card_handler(purchase_ctx: ShopPurchaseContext):
     controller = purchase_ctx.game_controller
 
@@ -1013,6 +1099,7 @@ register("PKPCRYSTAL", [
         items_per_row=1,
         items=[
             ShopItem("inspect_team", f"{SHOP_PREFIX}.items.inspect_team", 50, {}, purchase_handler=inspect_team_handler),
+            ShopItem("inspect_box", f"{SHOP_PREFIX}.items.inspect_box", 10, {}, purchase_handler=inspect_box_handler),
         ]
     ),
     # Avatars are mapped to Polished Crystal 3.2.3 indexes

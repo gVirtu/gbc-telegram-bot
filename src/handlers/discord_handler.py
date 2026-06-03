@@ -427,12 +427,17 @@ def create_discord_bot() -> Any:
                 view = render_discord_shop_screen(screen)
 
                 from src.shop.flow.actions import OpenShop
+                from src.shop.flow.screens import CategoryListScreen
                 if isinstance(action, OpenShop) and custom_id == "open_shop":
                     await interaction.response.send_message(
                         content=content, view=view, ephemeral=True
                     )
                 else:
                     await interaction.response.edit_message(content=content, view=view)
+
+                if isinstance(screen, CategoryListScreen):
+                    for msg in screen.extra_messages:
+                        await interaction.followup.send(content=msg, ephemeral=True)
                 return
             # ── END: Shop interactions ──
 

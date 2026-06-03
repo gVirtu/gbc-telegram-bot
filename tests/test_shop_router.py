@@ -444,3 +444,59 @@ async def test_game_specific_categories_appear_for_matching_cartridge():
     assert any(c.id == "game_cat" for c in screen.categories)
     # cleanup
     del src.game_shops._EXTENSIONS["TEST_GAME"]
+
+
+@pytest.mark.asyncio
+async def test_extra_messages_on_screen():
+    from src.shop.flow.router import ShopRouter
+    router = ShopRouter()
+    ctx = _make_ctx()
+    cat = _make_category(cat_id="name_tags", items_per_page=5)
+
+    async def handler_with_extra(purchase_ctx):
+        return PurchaseComplete(success=True, extra_messages=["msg1", "msg2"])
+
+    cat.items[0].purchase_handler = handler_with_extra
+
+    with patch("src.shop.flow.router.shop_manager") as mock_sm, \
+         patch("src.shop.flow.router.game_controller_manager") as mock_gcm, \
+         patch("src.shop.flow.router.translation_manager") as mock_tm:
+        mock_sm.get_balance.return_value = 5000
+        mock_gcm.get_controller.return_value = None
+        mock_sm.get_categories.return_value = [cat]
+        mock_tm.get.return_value = "ok"
+
+        screen = await router.handle(
+            BuyItem(chat_id=100, item_id="item_0", cat_id="name_tags", cat_page=0), ctx
+        )
+
+    assert isinstance(screen, CategoryListScreen)
+    assert screen.extra_messages == ["msg1", "msg2"]
+
+
+@pytest.mark.asyncio
+async def test_extra_messages_empty_by_default():
+    from src.shop.flow.router import ShopRouter
+    router = ShopRouter()
+    ctx = _make_ctx()
+    cat = _make_category(cat_id="name_tags", items_per_page=5)
+
+    async def instant_success(purchase_ctx):
+        return PurchaseComplete(success=True)
+
+    cat.items[0].purchase_handler = instant_success
+
+    with patch("src.shop.flow.router.shop_manager") as mock_sm, \
+         patch("src.shop.flow.router.game_controller_manager") as mock_gcm, \
+         patch("src.shop.flow.router.translation_manager") as mock_tm:
+        mock_sm.get_balance.return_value = 5000
+        mock_gcm.get_controller.return_value = None
+        mock_sm.get_categories.return_value = [cat]
+        mock_tm.get.return_value = "ok"
+
+        screen = await router.handle(
+            BuyItem(chat_id=100, item_id="item_0", cat_id="name_tags", cat_page=0), ctx
+        )
+
+    assert isinstance(screen, CategoryListScreen)
+    assert screen.extra_messages == []

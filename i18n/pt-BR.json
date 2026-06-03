@@ -313,6 +313,7 @@
           "teach_egg_move": "🥚 Tutor de Movimentos (Ovo)",
           "capture_avatar": "📸 Capturar Avatar",
           "inspect_team": "🔍 Inspecionar Time",
+          "inspect_box": "📦 Inspecionar Box",
           "avatar_carrie": "Carrie",
           "avatar_cal": "Cal",
           "avatar_jacky": "Jacky",
@@ -488,6 +489,8 @@
           "party_empty": "O time está vazio.",
           "inspect_team": "{report}",
           "inspect_trainer_card": "{report}",
+          "select_box": "Qual caixa você quer inspecionar?",
+          "inspect_box": "📦 Conteúdo de '{box_name}' recuperado!",
           "positions": {
             "top_left": "Superior esquerdo {mon_0}",
             "top_center": "Superior central {mon_1}",

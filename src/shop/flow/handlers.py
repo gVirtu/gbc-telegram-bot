@@ -16,6 +16,7 @@ class PurchaseComplete:
     success_message: str | None = None   # i18n key; resolved by router
     error_message: str | None = None   # i18n key; resolved by router
     bindings: dict[str, Any] = field(default_factory=dict)
+    extra_messages: list[str] = field(default_factory=list)
 
 
 @dataclass

@@ -300,3 +300,140 @@ def _read_u8_from_bytes(data: bytes, expected_len: int, offset: int) -> int:
 
 # Alias for readability
 read_u8_from_bytes = _read_u8_from_bytes
+
+
+# ── Box / savemon_struct reads (SRAM) ────────────────────────────
+
+SAVEMON_STRUCT_LENGTH = 49
+S_SPECIES = 0
+S_ITEM = 1
+S_MOVES = 2
+S_EVS = 11
+S_PERSONALITY = 20
+S_LEVEL = 28
+S_NICKNAME = 32
+
+NEWBOX_ENTRIES = 0
+NEWBOX_BANKS = 20
+NEWBOX_NAME = 23
+NEWBOX_STRIDE = 33
+
+MONS_PER_BOX = 20
+NUM_BOXES = 20
+MONDB_ENTRIES_A = 167
+MONDB_ENTRIES_B = 28
+MONDB_ENTRIES_C = 12
+
+
+def read_box_count(pyboy, box_index: int) -> int:
+    bank, addr = pyboy.symbol_lookup(f"sNewBox{box_index + 1}Entries")
+    count = 0
+    for i in range(MONS_PER_BOX):
+        if pyboy.memory[(bank, addr + i)] != 0:
+            count += 1
+    return count
+
+
+def read_box_name(pyboy, box_index: int) -> str:
+    bank, addr = pyboy.symbol_lookup(f"sNewBox{box_index + 1}Name")
+    return decode_text(pyboy, bank, addr, max_len=9)
+
+
+def _get_box_entry_and_bank(pyboy, box_index: int, slot: int) -> tuple[int, int]:
+    entries_bank, entries_addr = pyboy.symbol_lookup(f"sNewBox{box_index + 1}Entries")
+    banks_bank, banks_addr = pyboy.symbol_lookup(f"sNewBox{box_index + 1}Banks")
+
+    pokedb_index = pyboy.memory[(entries_bank, entries_addr + slot)]
+    if pokedb_index == 0:
+        return (0, 0)
+
+    flag_byte = pyboy.memory[(banks_bank, banks_addr + slot // 8)]
+    bank_group = 1 + ((flag_byte >> (slot % 8)) & 1)
+    return (pokedb_index, bank_group)
+
+
+def _get_savemon_addr(pyboy, pokedb_index: int, bank_group: int) -> tuple[int, int]:
+    if pokedb_index < MONDB_ENTRIES_A:
+        entry_within = pokedb_index
+        base_symbol = f"sBoxMons{bank_group}A"
+    elif pokedb_index < MONDB_ENTRIES_A + MONDB_ENTRIES_B:
+        entry_within = pokedb_index - MONDB_ENTRIES_A
+        base_symbol = f"sBoxMons{bank_group}B"
+    else:
+        entry_within = pokedb_index - MONDB_ENTRIES_A - MONDB_ENTRIES_B
+        base_symbol = f"sBoxMons{bank_group}C"
+
+    base_bank, base_addr = pyboy.symbol_lookup(base_symbol)
+    return base_bank, base_addr + entry_within * SAVEMON_STRUCT_LENGTH
+
+
+def decode_savemon_text(pyboy, sram_bank: int, addr: int, max_len: int = 10) -> str:
+    """Decode a nickname from a savemon_struct in SRAM (PokeDB).
+
+    Savemon nicknames use a reversible 7-bit encoding to ensure all bytes
+    stay in the 0x00-0x7F range (bit 7 = 0), allowing the high bit of each
+    byte to be repurposed for a 16-bit checksum stored across the nickname+OT
+    region (see EncodeTempMon / DecodeTempMon in engine/pc/bills_pc.asm).
+
+    Encoding scheme (what the game does before writing to SRAM):
+      - 0x7F (space)  -> 0x7A
+      - 0x53 (@)      -> 0x7B
+      - 0x00 (<START>) -> 0x7C
+      - Everything else -> byte & 0x7F   (clear bit 7)
+
+    This function reverses it:
+      - 0x7A -> 0x7F (space)
+      - 0x7B -> 0x53 (@)  — also used as string terminator (break)
+      - 0x7C -> 0x00 (<START>)
+      - Everything else -> byte | 0x80  (restore bit 7)
+
+    The decoded bytes are then mapped through CHARMAP to readable text.
+    """
+    raw = []
+    for _ in range(max_len):
+        b = pyboy.memory[(sram_bank, addr)]
+        if b == 0x7B:
+            break
+        if b == 0x7A:
+            raw.append(0x7F)
+        elif b == 0x7C:
+            raw.append(0x00)
+        else:
+            raw.append(b | 0x80)
+        addr += 1
+    return decode_text_from_bytes(raw)
+
+
+def decode_text_from_bytes(raw: list[int]) -> str:
+    text = []
+    for b in raw:
+        text.append(CHARMAP.get(b, " "))
+    return "".join(text)
+
+
+def read_box_mon_raw(pyboy, box_index: int, slot: int) -> dict | None:
+    pokedb_index, bank_group = _get_box_entry_and_bank(pyboy, box_index, slot)
+    if pokedb_index == 0:
+        return None
+
+    sram_bank, addr = _get_savemon_addr(pyboy, pokedb_index - 1, bank_group)
+
+    species_id = pyboy.memory[(sram_bank, addr + S_SPECIES)]
+    item_id = pyboy.memory[(sram_bank, addr + S_ITEM)]
+    move_ids = [pyboy.memory[(sram_bank, addr + S_MOVES + i)] for i in range(4)]
+    p1 = pyboy.memory[(sram_bank, addr + S_PERSONALITY)]
+    p2 = pyboy.memory[(sram_bank, addr + S_PERSONALITY + 1)]
+    level = pyboy.memory[(sram_bank, addr + S_LEVEL)]
+    evs_raw = [pyboy.memory[(sram_bank, addr + S_EVS + i)] for i in range(6)]
+    nickname = decode_savemon_text(pyboy, sram_bank, addr + S_NICKNAME, max_len=10)
+
+    return {
+        "species_id": species_id,
+        "item_id": item_id,
+        "move_ids": move_ids,
+        "p1": p1,
+        "p2": p2,
+        "level": level,
+        "evs_raw": evs_raw,
+        "nickname": nickname,
+    }

@@ -313,6 +313,7 @@
           "teach_egg_move": "🥚 Egg Move Tutor",
           "capture_avatar": "📸 Capture Avatar",
           "inspect_team": "🔍 Inspect Team",
+          "inspect_box": "📦 Inspect Box",
           "avatar_carrie": "Carrie",
           "avatar_cal": "Cal",
           "avatar_jacky": "Jacky",
@@ -488,6 +489,8 @@
           "party_empty": "The party is empty.",
           "inspect_team": "{report}",
           "inspect_trainer_card": "{report}",
+          "select_box": "Which box do you want to inspect?",
+          "inspect_box": "📦 '{box_name}' contents retrieved!",
           "positions": {
             "top_left": "Top left {mon_0}",
             "top_center": "Top center {mon_1}",

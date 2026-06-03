@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import logging
+import asyncio
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -161,7 +162,7 @@ class ShopRouter:
         handler = item.purchase_handler or default_purchase_handler
         outcome = await handler(purchase_ctx)
 
-        return self._screen_from_outcome(outcome, session, ctx, chat_id, controller)
+        return await self._screen_from_outcome(outcome, session, ctx, chat_id, controller)
 
     async def _handle_selection(self, action: MakeSelection, ctx: ShopInteractionContext) -> ShopScreen:
         session = get_session(ctx.platform, ctx.user_id, action.chat_id)
@@ -179,7 +180,7 @@ class ShopRouter:
             session=session,
         )
         outcome = await session.step.on_select(action.value, purchase_ctx)
-        return self._screen_from_outcome(outcome, session, ctx, action.chat_id, controller)
+        return await self._screen_from_outcome(outcome, session, ctx, action.chat_id, controller)
 
     async def _handle_selection_page(self, action: NavigateSelectionPage, ctx: ShopInteractionContext) -> ShopScreen:
         session = get_session(ctx.platform, ctx.user_id, action.chat_id)
@@ -233,7 +234,7 @@ class ShopRouter:
             owned_items=owned_items,
         )
 
-    def _screen_from_outcome(self, outcome, session: FlowSession, ctx: ShopInteractionContext, chat_id: int, controller) -> ShopScreen:
+    async def _screen_from_outcome(self, outcome, session: FlowSession, ctx: ShopInteractionContext, chat_id: int, controller) -> ShopScreen:
         if isinstance(outcome, PurchaseComplete):
             clear_session(ctx.platform, ctx.user_id, chat_id)
             balance = shop_manager.get_balance(ctx.platform, ctx.user_id)
@@ -250,7 +251,7 @@ class ShopRouter:
                     categories=categories, page=0, total_pages=1,
                     balance=balance, chat_id=chat_id,
                     platform=ctx.platform, user_id=ctx.user_id,
-                    status=status,
+                    status=status, extra_messages=outcome.extra_messages,
                 )
             else:
                 error_key = outcome.error_message or "shop.insufficient_funds"

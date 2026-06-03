@@ -4,14 +4,13 @@ Wraps Telegram Bot API calls with rate limiting and automatic
 handling of 429 RetryAfter errors.
 """
 
+import asyncio
 import logging
 from typing import Optional, Any
 from functools import wraps
 
 from telegram import Bot, InputMedia
 from telegram.error import RetryAfter, TelegramError
-
-from src.utils.rate_limiter import get_rate_limiter, RateLimitException
 
 logger = logging.getLogger(__name__)
 
@@ -25,28 +24,16 @@ def _rate_limited_method(method_name: str):
     def decorator(func):
         @wraps(func)
         async def wrapper(self, chat_id: int, *args, **kwargs):
-            limiter = get_rate_limiter()
-            
-            # Check rate limit
-            try:
-                limiter.check_rate_limit(chat_id)
-            except RateLimitException as e:
-                logger.warning(
-                    f"Rate limited {method_name} for chat {chat_id}: "
-                    f"retry_after={e.retry_after:.1f}s"
-                )
-                return False
-            
             try:
                 return await func(self, chat_id, *args, **kwargs)
             except RetryAfter as e:
                 # Telegram returned 429, set global block
-                limiter.set_retry_after(e.retry_after)
                 logger.warning(
                     f"Telegram rate limit hit in {method_name} for chat {chat_id}: "
-                    f"retry_after={e.retry_after}s"
+                    f"retry_after={e.retry_after}s, retrying after wait"
                 )
-                raise
+                await asyncio.sleep(e.retry_after)
+                return await func(self, chat_id, *args, **kwargs)
             except TelegramError as e:
                 logger.error(f"Telegram error in {method_name} for chat {chat_id}: {e}", exc_info=True)
                 raise

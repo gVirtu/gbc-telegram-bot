@@ -408,52 +408,6 @@ class TestPathValidation:
         assert settings.data_dir.is_absolute()
 
 
-class TestRateLimiterSettings:
-    """Test rate limiter configuration settings."""
-
-    def test_default_rate_limiter_settings(self, monkeypatch, tmp_path):
-        """Should have default rate limiter values."""
-        monkeypatch.setenv("PYTEST_CURRENT_TEST", "1")
-        monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "test_token")
-        monkeypatch.setenv("WEBHOOK_URL", "https://example.com")
-        monkeypatch.setenv("WEBHOOK_SECRET", "test_secret_123456789")
-
-        # Must set rom_path for Settings validation
-        rom_path = tmp_path / "rom.gbc"
-        rom_path.write_bytes(b"rom")
-
-        from src.config import Settings
-        settings = Settings(rom_path=rom_path)
-
-        assert settings.rate_limit_per_chat == 1
-        assert settings.rate_limit_per_chat_window == 1.0
-        assert settings.rate_limit_global == 30
-        assert settings.rate_limit_global_window == 1.0
-
-    def test_custom_rate_limiter_settings(self, monkeypatch, tmp_path):
-        """Should allow custom rate limiter values."""
-        monkeypatch.setenv("PYTEST_CURRENT_TEST", "1")
-        monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "test_token")
-        monkeypatch.setenv("WEBHOOK_URL", "https://example.com")
-        monkeypatch.setenv("WEBHOOK_SECRET", "test_secret_123456789")
-        monkeypatch.setenv("RATE_LIMIT_PER_CHAT", "5")
-        monkeypatch.setenv("RATE_LIMIT_PER_CHAT_WINDOW", "2.0")
-        monkeypatch.setenv("RATE_LIMIT_GLOBAL", "50")
-        monkeypatch.setenv("RATE_LIMIT_GLOBAL_WINDOW", "5.0")
-
-        # Must set rom_path for Settings validation
-        rom_path = tmp_path / "rom.gbc"
-        rom_path.write_bytes(b"rom")
-
-        from src.config import Settings
-        settings = Settings(rom_path=rom_path)
-
-        assert settings.rate_limit_per_chat == 5
-        assert settings.rate_limit_per_chat_window == 2.0
-        assert settings.rate_limit_global == 50
-        assert settings.rate_limit_global_window == 5.0
-
-
 def test_max_queue_size_default():
     """Test max_queue_size has default value."""
     from src.config import Settings

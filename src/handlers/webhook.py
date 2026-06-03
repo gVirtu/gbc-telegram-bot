@@ -319,15 +319,6 @@ class WebhookHandler:
                 logger.error(f"Failed to run database migrations: {e}", exc_info=True)
                 raise
 
-            # Initialize rate limiter
-            from src.utils.rate_limiter import init_rate_limiter
-            init_rate_limiter(
-                max_per_chat=settings.rate_limit_per_chat,
-                per_chat_window=settings.rate_limit_per_chat_window,
-                max_global=settings.rate_limit_global,
-                global_window=settings.rate_limit_global_window,
-            )
-
             discord_task = None
 
             # Initialize Telegram if configured

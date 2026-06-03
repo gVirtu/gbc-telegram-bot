@@ -149,14 +149,6 @@ def clear_settings_cache():
     yield
 
 
-@pytest.fixture(autouse=True)
-def reset_rate_limiter():
-    """Reset rate limiter singleton before each test."""
-    import src.utils.rate_limiter as rl_module
-    rl_module._rate_limiter = None
-    yield
-
-
 @pytest.fixture
 def mock_callback_query(mock_bot):
     """Create a mock callback query."""

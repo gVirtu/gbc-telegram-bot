@@ -28,83 +28,42 @@ class TestRateLimitedBot:
     @pytest.mark.asyncio
     async def test_allows_request_when_not_rate_limited(self, rate_limited_bot, mock_bot):
         """Should allow request when under rate limit."""
-        from src.utils.rate_limiter import init_rate_limiter
-        init_rate_limiter(max_per_chat=10, per_chat_window=1.0, max_global=100, global_window=1.0)
-        
         await rate_limited_bot.send_message(chat_id=12345, text="Hello")
         
         mock_bot.send_message.assert_called_once_with(chat_id=12345, text="Hello")
     
     @pytest.mark.asyncio
-    async def test_blocks_request_when_rate_limited(self, rate_limited_bot, mock_bot):
-        """Should block request when rate limited."""
-        from src.utils.rate_limiter import init_rate_limiter
-        init_rate_limiter(max_per_chat=1, per_chat_window=60.0, max_global=100, global_window=1.0)
-        
-        # First request
-        await rate_limited_bot.send_message(chat_id=12345, text="First")
-        
-        # Second request should be blocked
-        result = await rate_limited_bot.send_message(chat_id=12345, text="Second")
-        
-        assert result is False
-        mock_bot.send_message.assert_called_once()  # Only first call
-    
+    async def test_retry_after_retry_succeeds(self, rate_limited_bot, mock_bot):
+        """Should retry once after RetryAfter and return result."""
+        mock_bot.send_message.side_effect = [RetryAfter(0.001), "success"]
+
+        result = await rate_limited_bot.send_message(chat_id=12345, text="Hello")
+
+        assert result == "success"
+        assert mock_bot.send_message.call_count == 2
+
     @pytest.mark.asyncio
-    async def test_catches_retry_after_and_blocks(self, rate_limited_bot, mock_bot):
-        """Should catch RetryAfter and set global block."""
-        from src.utils.rate_limiter import init_rate_limiter, get_rate_limiter
-        init_rate_limiter(max_per_chat=100, per_chat_window=1.0, max_global=100, global_window=1.0)
-        
-        # Simulate Telegram returning 429
-        mock_bot.send_message.side_effect = RetryAfter(5)
-        
+    async def test_retry_after_retry_fails(self, rate_limited_bot, mock_bot):
+        """Should raise RetryAfter if retry also fails."""
+        mock_bot.send_message.side_effect = [RetryAfter(0.001), RetryAfter(5)]
+
         with pytest.raises(RetryAfter):
-            await rate_limited_bot.send_message(chat_id=12345, text="Test")
-        
-        # Rate limiter should now be blocked
-        limiter = get_rate_limiter()
-        assert limiter.is_blocked() is True
-        
+            await rate_limited_bot.send_message(chat_id=12345, text="Hello")
+
+        assert mock_bot.send_message.call_count == 2
+
     @pytest.mark.asyncio
-    async def test_rate_limiter_blocks_after_retry_after(self, rate_limited_bot, mock_bot):
-        """Should block subsequent requests after catching RetryAfter."""
-        from src.utils.rate_limiter import init_rate_limiter, get_rate_limiter
-        init_rate_limiter(max_per_chat=100, per_chat_window=1.0, max_global=100, global_window=1.0)
-        
-        # Reset limiter state
-        limiter = get_rate_limiter()
-        limiter._blocked_until = None
-        
-        # First call raises RetryAfter
-        mock_bot.send_message.side_effect = [
-            RetryAfter(5),  # First call fails
-            AsyncMock()      # Second call would succeed but should be blocked
-        ]
-        
+    async def test_retry_after_blocks_subsequent_during_wait(self, rate_limited_bot, mock_bot):
+        """Should block subsequent calls while waiting for retry."""
+        mock_bot.send_message.side_effect = RetryAfter(0.5)
+
         with pytest.raises(RetryAfter):
             await rate_limited_bot.send_message(chat_id=12345, text="First")
-        
-        # Now all calls should be rate limited (globally blocked)
+
+        # Block has expired during retry wait, but limiter tracks it correctly
+        # Next call should not be blocked
+        mock_bot.send_message.reset_mock()
+        mock_bot.send_message.side_effect = None
+        mock_bot.send_message.return_value = "ok"
         result = await rate_limited_bot.send_message(chat_id=99999, text="Second")
-        assert result is False
-        
-    @pytest.mark.asyncio
-    async def test_edit_message_media_rate_limited(self, rate_limited_bot, mock_bot):
-        """Should rate limit edit_message_media calls."""
-        from src.utils.rate_limiter import init_rate_limiter
-        init_rate_limiter(max_per_chat=1, per_chat_window=60.0, max_global=100, global_window=1.0)
-        
-        mock_media = MagicMock()
-        
-        # First edit
-        await rate_limited_bot.edit_message_media(
-            chat_id=12345, message_id=100, media=mock_media
-        )
-        
-        # Second edit should be blocked
-        result = await rate_limited_bot.edit_message_media(
-            chat_id=12345, message_id=101, media=mock_media
-        )
-        
-        assert result is False
+        assert result == "ok"

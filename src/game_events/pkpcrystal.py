@@ -91,4 +91,29 @@ GAME_EVENTS: dict[str, EventSpec] = {
         condition=lambda c: symbol_read_u8(c.pyboy, "wBattleMode") == 1
         and (symbol_read_u8(c.pyboy, "wEnemyMonShiny") & SHINY_MASK) != 0,
     ),
+    "party_healed": EventSpec(
+        title="Party Healed!",
+        score=1,
+        addr="HealParty",
+    ),
+    "blacked_out": EventSpec(
+        title="Blacked Out!",
+        score=1,
+        addr="LostBattle",
+    ),
+    "egg_hatched": EventSpec(
+        title="Egg Hatched!",
+        score=50,
+        addr="OverworldHatchEgg",
+    ),
+    "trade_complete": EventSpec(
+        title="Trade Complete!",
+        score=50,
+        addr="TradeAnimation",
+    ),
+    "pokerus_discovered": EventSpec(
+        title="POKÉRUS?!",
+        score=10000,
+        addr="PokeCenterNurseScript.pokerus",
+    ),
 }

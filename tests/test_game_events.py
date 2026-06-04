@@ -41,7 +41,7 @@ class TestGameEventsModule:
     def test_pkpcrystal_game_events_have_twelve_entries(self):
         from src.game_events.pkpcrystal import GAME_EVENTS
 
-        assert len(GAME_EVENTS) == 14
+        assert len(GAME_EVENTS) == 19
 
     def test_pkpcrystal_all_entries_have_addr_and_score(self):
         from src.game_events.pkpcrystal import GAME_EVENTS

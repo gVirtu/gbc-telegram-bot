@@ -476,7 +476,7 @@ def deregister_custom_hooks(controller):
 
 
 def _register_check_phone_call_hook(pyboy):
-    """Hook CheckPhoneCall to skip random unsolicited Pokegear calls.
+    """Hook ChooseRandomCaller to skip random unsolicited Pokegear calls.
 
     CheckPhoneCall (phone.asm:39, bank $24) is the sole entry point for
     random Pokegear calls. It runs during overworld step processing
@@ -484,12 +484,10 @@ def _register_check_phone_call_hook(pyboy):
     Bill, Lyra badges, Mom worried, etc.) use the completely separate
     CheckSpecialPhoneCall function, called from CountStep instead.
 
-    The hook fires at the CheckPhoneCall entry and redirects PC to the
-    .no_call label, which does xor a; ret (return nc = no call).
-
-    The farcall mechanism (rst FarCall) manages the stack + bank switch,
-    so a clean ret from .no_call returns to PlayerEvents via the farcall
-    return stub and CheckTimeEvents's ret c fallthrough.
+    The hook fires at the ChooseRandomCaller entry, jumps to .no_call, and
+    also resets the receive-call timer (wReceiveCallDelay_StartTime +
+    wReceiveCallDelay_MinsRemaining) so the call stays deferred across
+    subsequent frames. 
 
     Does NOT affect:
     - CheckSpecialPhoneCall (scripted/story calls)
@@ -497,21 +495,28 @@ def _register_check_phone_call_hook(pyboy):
     - MakePhoneCallFromPokegear (player-initiated calls from Pokegear UI)
     """
     try:
-        _bank, check_addr = pyboy.symbol_lookup("CheckPhoneCall")
         _bank, no_call_addr = pyboy.symbol_lookup("CheckPhoneCall.no_call")
-        skip_chance = 0.9
+        delay_bank, delay_base = pyboy.symbol_lookup("wReceiveCallDelay_StartTime")
+        skip_chance = 0.75
 
         def skip_check_phone_call(_ctx):
             if random.random() < skip_chance:
+                now_day = symbol_read_u8(pyboy, "wCurDay")
+                now_hr = pyboy.memory[0xFF8A] # hHours
+                now_min = pyboy.memory[0xFF8B] # hMinutes
+                pyboy.memory[(delay_bank, delay_base)] = now_day
+                pyboy.memory[(delay_bank, delay_base + 1)] = now_hr
+                pyboy.memory[(delay_bank, delay_base + 2)] = now_min
+                symbol_write_u8(pyboy, "wReceiveCallDelay_MinsRemaining", 20)
                 pyboy.register_file.PC = no_call_addr
 
-        pyboy.hook_register(None, "CheckPhoneCall", skip_check_phone_call, None)
+        pyboy.hook_register(None, "ChooseRandomCaller", skip_check_phone_call, None)
     except (ValueError, TypeError) as exc:
-        logger.warning("Could not hook into CheckPhoneCall: %s", exc)
+        logger.warning("Could not hook into ChooseRandomCaller: %s", exc)
         
 
 def deregister_check_phone_call_hook(pyboy):
     try:
-        pyboy.hook_deregister(None, "CheckPhoneCall")
+        pyboy.hook_deregister(None, "ChooseRandomCaller")
     except (ValueError, TypeError):
         pass

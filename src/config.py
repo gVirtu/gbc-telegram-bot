@@ -206,41 +206,15 @@ class Settings(BaseSettings):
         le=10.0,
     )
     maximum_inputs_per_animation: int = Field(
-        default=8,
+        default=18,
         description="Maximum number of buffered inputs drained per animation round",
         ge=1,
         le=50,
     )
     min_update_interval_seconds: float = Field(
-        default=3.0,
+        default=2.0,
         description="Minimum seconds between message edits to avoid rate limits",
         ge=1.0,
-        le=60.0,
-    )
-
-    # Rate limiter settings
-    rate_limit_per_chat: int = Field(
-        default=1,
-        description="Maximum messages per chat within the window",
-        ge=1,
-        le=100,
-    )
-    rate_limit_per_chat_window: float = Field(
-        default=1.0,
-        description="Time window in seconds for per-chat rate limit",
-        ge=0.1,
-        le=60.0,
-    )
-    rate_limit_global: int = Field(
-        default=30,
-        description="Maximum messages globally across all chats within the window",
-        ge=1,
-        le=1000,
-    )
-    rate_limit_global_window: float = Field(
-        default=1.0,
-        description="Time window in seconds for global rate limit",
-        ge=0.1,
         le=60.0,
     )
 

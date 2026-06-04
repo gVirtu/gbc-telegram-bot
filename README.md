@@ -6,6 +6,8 @@
 
 Play GBC games collaboratively in Telegram chats or Discord servers, completely inline, without cluttering chat history.
 
+Includes a highly customized preset for [Pokémon Polished Crystal](https://github.com/Rangi42/polishedcrystal).
+
 Inspired by the [Twitch Plays Pokémon](https://en.wikipedia.org/wiki/Twitch_Plays_Pok%C3%A9mon) project.
 
 ## Features
@@ -22,6 +24,7 @@ Inspired by the [Twitch Plays Pokémon](https://en.wikipedia.org/wiki/Twitch_Pla
 - Game-specific hooks for custom behavior (early animation termination / prevent dangerous actions)
 - Game-specific status bar render logic
 - Game-specific shop items with access to in-game memory
+- Game-specific event tracking with toast rendering for achievements
 - Chat ID allowlist
 - Multi-language (currently supported: `pt-BR`, `en-US`)
 
@@ -106,6 +109,7 @@ docker exec gbc-together-bot python -c 'from src.main import setup_webhook; setu
 | `/feature FEATURE_NAME true/false` | Toggles a feature for the current chat                                                                                                                            | Yes         |
 | `/language LANGUAGE`               | Changes the language of the bot (LANGUAGE can be `pt-BR` or `en-US`)                                                                                              | Yes         |
 | `/maintenance on/off`              | Toggles maintenance mode (only admins can send input)                                                                                                             | Yes         |
+| `/peek_symbol SYMBOL [LENGTH]`     | Shows the current value of the given symbol in hex format. (LENGTH is optional, defaults to 1 byte)                                                               | Yes         |
 
 ## Supported feature flags
 
@@ -234,23 +238,19 @@ python -m src.main
 | `TIMELAPSE_BACKOFF_DELAYS`          | 1,2,4                        | Backoff delays for timelapse generation retries in seconds                              |
 | `TIMELAPSE_IDLE_WAIT_SECONDS`       | 30                           | Maximum number of seconds to wait until idle before generating the timelapse            |
 | `TIMELAPSE_DONE_JOB_RETENTION_DAYS` | 1                            | Number of days to keep history of timelapse generation                                  |
-| `RECAP_PART_FILE_SIZE_THRESHOLD`    | 8388608                      | Maximum number of bytes before a recap file is split into a new part                    |
+| `RECAP_PART_FILE_SIZE_THRESHOLD`    | 7864320                      | Maximum number of bytes before a recap file is split into a new part                    |
 | `RECAP_PART_SEND_DELAY_SECONDS`     | 10                           | Delay in seconds between sending recap parts to avoid rate limits                       |
 | `SAVE_SLOTS`                        | 5                            | Number of save slots available                                                          |
 | `BACKUP_RETENTION_DAYS`             | 30                           | Number of days to keep backups                                                          |
 | `RECENT_INPUTS_MAX_RETENTION_DAYS`  | 7                            | Number of days to keep history of recent inputs                                         |
 | `PLAYER_INPUT_MAX_SCORE`            | 10                           | Maximum base score per input. Score decreases as same user dominates the scoring window |
 | `DAILY_STREAK_SCORE_BONUS`          | 50                           | Bonus points awarded per streak day for playing on consecutive days                     |
-| `MAX_SEQUENCE_LENGTH`               | 6                            | Maximum number of buttons in a player's input sequence                                  |
-| `MAXIMUM_INPUTS_PER_ANIMATION`      | 12                           | Maximum number of buttons to include in a single animation batch                        |
+| `MAX_SEQUENCE_LENGTH`               | 12                           | Maximum number of buttons in a player's input sequence                                  |
+| `MAXIMUM_INPUTS_PER_ANIMATION`      | 18                           | Maximum number of buttons to include in a single animation batch                        |
 | `MAX_QUEUE_SIZE`                    | 18                           | Maximum number of items in the input queue                                              |
 | `SEQUENCE_DELAY_SECONDS`            | 0.1                          | Delay in seconds between button presses in a sequence                                   |
 | `INPUT_BUFFER_SECONDS`              | 1.5                          | How long to wait before starting to process inputs in a sequence                        |
-| `MIN_UPDATE_INTERVAL_SECONDS`       | 3.0                          | Minimum wait between processing input batches to avoid rate limits                      |
-| `RATE_LIMIT_PER_CHAT`               | 1                            | Maximum messages per chat within the window                                             |
-| `RATE_LIMIT_PER_CHAT_WINDOW`        | 1.0                          | Time window in seconds for per-chat rate limit                                          |
-| `RATE_LIMIT_GLOBAL`                 | 30                           | Maximum messages globally across all chats within the window                            |
-| `RATE_LIMIT_GLOBAL_WINDOW`          | 1.0                          | Time window in seconds for global rate limit                                            |
+| `MIN_UPDATE_INTERVAL_SECONDS`       | 2.0                          | Minimum wait between processing input batches to avoid rate limits                      |
 | `ALLOWED_CHAT_IDS`                  | -                            | List of allowed chat IDs, comma separated. Empty = allow all                            |
 
 </details>
@@ -264,11 +264,12 @@ python -m src.main
 │   ├── adapters/      # Platform adapters
 │   ├── db/            # Database migrations and utilities
 │   ├── game_avatar_providers/    # Game-specific avatar rendering logic
-│   ├── game_hooks/    # Game-specific PyBoy hooks
+│   ├── game_events/              # Game-specific tracked events
+│   ├── game_hooks/               # Game-specific PyBoy hooks
 │   ├── game_modifier_buttons/    # Game-specific modifier button definitions
-│   ├── game_shops/    # Game-specific shop flows
-│   ├── game_status_bars/    # Game-specific status bar rendering logic
-│   ├── game_utils/    # Game-specific reusable utils
+│   ├── game_shops/               # Game-specific shop flows
+│   ├── game_status_bars/         # Game-specific status bar rendering logic
+│   ├── game_utils/               # Game-specific reusable utils
 │   ├── handlers/      # Command and input handlers
 │   ├── i18n/          # Internationalization helpers
 │   ├── models/        # Data models

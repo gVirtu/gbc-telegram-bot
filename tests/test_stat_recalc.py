@@ -120,7 +120,7 @@ class TestRecalcPkmnStats(unittest.TestCase):
 
     def test_compute_target_levels_player_smaller(self):
         result = compute_target_levels([10, 20], 4)
-        self.assertEqual(result, [20, 20, 20, 20])
+        self.assertEqual(result, [10, 20, 20, 20])
 
     def test_compute_target_levels_equal(self):
         result = compute_target_levels([5, 10], 2)

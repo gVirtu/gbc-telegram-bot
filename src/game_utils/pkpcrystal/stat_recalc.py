@@ -74,7 +74,7 @@ def compute_target_levels(player_levels: list[int], num_opponent: int) -> list[i
         sorted_levels = sorted_levels[len(sorted_levels) - num_opponent:]
     elif len(sorted_levels) < num_opponent:
         highest = sorted_levels[-1] if sorted_levels else 100
-        sorted_levels = [highest] * num_opponent
+        sorted_levels = sorted_levels + [highest] * (num_opponent - len(sorted_levels))
     result = [max(2, min(100, lvl)) for lvl in sorted_levels]
     return sorted(result)
 

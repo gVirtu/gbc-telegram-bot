@@ -150,6 +150,8 @@ def begin_hooks(controller) -> dict:
         "_Pokedex_Search.joypad_loop": 10,
         "_Pokedex_Unown.joypad_loop": 10,
         "OptionsMenu.joypad_loop": 10,
+        "HealMachineAnim.party_loop": 10,
+        "HealMachineAnim.palette_loop": 10,
     }
     
     # Aggregate all actions linked to what categories they are in

@@ -229,6 +229,24 @@ class DatabaseManager:
             self.connection.commit()
         self._preference_cache.pop((platform, user_id, key), None)
 
+    def delete_user_preference(self, platform: str, user_id: int, key: str, commit: bool = True) -> None:
+        """Delete a per-user preference value.
+
+        Args:
+            platform: Platform identifier (e.g. "discord", "telegram")
+            user_id: Platform user ID (64-bit integer)
+            key: Preference key
+            commit: Whether to commit after deleting. Pass False when the caller
+                will issue a batched commit after processing multiple deletes.
+        """
+        self.connection.execute(
+            "DELETE FROM user_preferences WHERE platform = ? AND user_id = ? AND key = ?",
+            (platform, user_id, key),
+        )
+        if commit:
+            self.connection.commit()
+        self._preference_cache.pop((platform, user_id, key), None)
+
     # ==================== Game State ====================
     
     def save_game_state(self, state: ChatGameState, save_user_input_counts: bool = False) -> None:

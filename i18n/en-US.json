@@ -308,6 +308,7 @@
           "master_ball": "🟣 Master Ball",
           "inspect_trainer_card": "🔍 Inspect Trainer Card Team",
           "redeem_battle": "💥 Start Battle",
+          "rearrange_party": "🔄 Rearrange Party",
           "teach_level_move": "📚 Level-Up Move Tutor",
           "teach_tmhm_move": "💿 TM/HM Tutor",
           "teach_egg_move": "🥚 Egg Move Tutor",
@@ -492,12 +493,12 @@
           "select_box": "Which box do you want to inspect?",
           "inspect_box": "📦 '{box_name}' contents retrieved!",
           "positions": {
-            "top_left": "Top left {mon_0}",
-            "top_center": "Top center {mon_1}",
-            "top_right": "Top right {mon_2}",
-            "bottom_left": "Bottom left {mon_3}",
-            "bottom_center": "Bottom center {mon_4}",
-            "bottom_right": "Bottom right {mon_5}"
+            "top_left": "Top left{mon_0}",
+            "top_center": "Top center{mon_1}",
+            "top_right": "Top right{mon_2}",
+            "bottom_left": "Bottom left{mon_3}",
+            "bottom_center": "Bottom center{mon_4}",
+            "bottom_right": "Bottom right{mon_5}"
           },
           "teach_level_move_select_mon": "Choose a Pokémon to teach a move.",
           "teach_level_move_select_move": "Choose a move for {species_name} to learn.\n\nCurrent moves: {current_moves}",
@@ -511,7 +512,9 @@
           "teach_egg_move_select_mon": "Choose a Pokémon to teach an egg move.",
           "teach_egg_move_select_move": "Choose an egg move for {species_name} to learn.\n\nCurrent moves: {current_moves}",
           "teach_egg_move_learned": "{species_name} learned {new_move}!",
-          "teach_egg_move_replaced": "{species_name} forgot {old_move} and learned {new_move}!"
+          "teach_egg_move_replaced": "{species_name} forgot {old_move} and learned {new_move}!",
+          "rearrange_party_select_position": "Where should {species_name} go?",
+          "rearrange_party_complete": "Party rearranged!"
         }
       }
     }

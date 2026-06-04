@@ -308,6 +308,7 @@
           "master_ball": "🟣 Bola Mestra",
           "inspect_trainer_card": "🔍 Inspecionar Time do Trainer Card",
           "redeem_battle": "💥 Iniciar Batalha",
+          "rearrange_party": "🔄 Reorganizar Time",
           "teach_level_move": "📚 Tutor de Movimentos (Nível)",
           "teach_tmhm_move": "💿 Tutor de TM/HM",
           "teach_egg_move": "🥚 Tutor de Movimentos (Ovo)",
@@ -492,12 +493,12 @@
           "select_box": "Qual caixa você quer inspecionar?",
           "inspect_box": "📦 Conteúdo de '{box_name}' recuperado!",
           "positions": {
-            "top_left": "Superior esquerdo {mon_0}",
-            "top_center": "Superior central {mon_1}",
-            "top_right": "Superior direito {mon_2}",
-            "bottom_left": "Inferior esquerdo {mon_3}",
-            "bottom_center": "Inferior central {mon_4}",
-            "bottom_right": "Inferior direito {mon_5}"
+            "top_left": "Superior esquerdo{mon_0}",
+            "top_center": "Superior central{mon_1}",
+            "top_right": "Superior direito{mon_2}",
+            "bottom_left": "Inferior esquerdo{mon_3}",
+            "bottom_center": "Inferior central{mon_4}",
+            "bottom_right": "Inferior direito{mon_5}"
           },
           "teach_level_move_select_mon": "Escolha um Pokémon para aprender um movimento.",
           "teach_level_move_select_move": "Escolha um movimento para {species_name} aprender.\n\nMovimentos atuais: {current_moves}",
@@ -511,7 +512,9 @@
           "teach_egg_move_select_mon": "Escolha um Pokémon para aprender um egg move.",
           "teach_egg_move_select_move": "Escolha um egg move para {species_name} aprender.\n\nMovimentos atuais: {current_moves}",
           "teach_egg_move_learned": "{species_name} aprendeu {new_move}!",
-          "teach_egg_move_replaced": "{species_name} esqueceu {old_move} e aprendeu {new_move}!"
+          "teach_egg_move_replaced": "{species_name} esqueceu {old_move} e aprendeu {new_move}!",
+          "rearrange_party_select_position": "Para onde {species_name} deve ir?",
+          "rearrange_party_complete": "Time reorganizado!"
         }
       }
     }

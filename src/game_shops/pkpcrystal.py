@@ -212,7 +212,7 @@ async def capture_mon_handler(purchase_ctx: ShopPurchaseContext):
             mon_key = f"pkpcrystal_trainer_card_mon_{i}_species"
             mon_species = state_manager.get_user_preference(platform, user_id, mon_key)
             if mon_species is not None:
-                bindings[f"mon_{i}"] = f"({get_pokemon_name(pyboy, int(mon_species))})"
+                bindings[f"mon_{i}"] = f" ({get_pokemon_name(pyboy, int(mon_species))})"
             else:
                 bindings[f"mon_{i}"] = ""
         
@@ -345,6 +345,127 @@ async def redeem_battle_handler(purchase_ctx: ShopPurchaseContext):
     queue_battle_request(chat_id, user_id, platform, user_name, trainer_class, trainer_name_bytes, party_mons)
     logger.info(f"User {user_id} queued battle request for chat {chat_id}")
     return PurchaseComplete(success=True)
+
+
+
+async def rearrange_party_handler(purchase_ctx: ShopPurchaseContext):
+    controller = purchase_ctx.game_controller
+
+    if controller is None:
+        logger.error(f"User {purchase_ctx.user_id} tried to rearrange party in chat {purchase_ctx.chat_id} without a game controller")
+        return PurchaseComplete(success=False, error_message=f"{SHOP_PREFIX}.errors.no_game_controller")
+
+    platform = purchase_ctx.platform
+    user_id = purchase_ctx.user_id
+    pyboy = controller.pyboy
+    session = purchase_ctx.session
+
+    mon_slots = []
+    for slot in range(6):
+        mon_hex = state_manager.get_user_preference(platform, user_id, f"pkpcrystal_trainer_card_mon_{slot}")
+        if not mon_hex:
+            continue
+        try:
+            raw = bytes.fromhex(mon_hex)
+            if len(raw) != BATTLE_STRUCT_SIZE or raw[0] == 0:
+                continue
+        except ValueError:
+            continue
+
+        species_hex = state_manager.get_user_preference(platform, user_id, f"pkpcrystal_trainer_card_mon_{slot}_species")
+        species_id = int(species_hex) if species_hex else raw[0]
+        species_name = get_pokemon_name(pyboy, species_id)
+        mon_slots.append((slot, species_name, mon_hex, species_hex))
+
+    if not mon_slots:
+        logger.info(f"User {user_id} tried to rearrange party in chat {purchase_ctx.chat_id} with no stored mons")
+        return PurchaseComplete(success=False, error_message=f"{SHOP_PREFIX}.errors.no_party_mons")
+
+    session.state["rearrange_mons"] = mon_slots
+    session.state["rearrange_current_index"] = 0
+    session.state["rearrange_assignments"] = {}
+    session.state["rearrange_taken_slots"] = set()
+
+    return _build_rearrange_step(purchase_ctx)
+
+
+def _build_rearrange_step(purchase_ctx: ShopPurchaseContext):
+    session = purchase_ctx.session
+    mons = session.state["rearrange_mons"]
+    idx = session.state["rearrange_current_index"]
+    taken = session.state["rearrange_taken_slots"]
+
+    _, species_name, _, _ = mons[idx]
+
+    position_keys = ["top_left", "top_center", "top_right", "bottom_left", "bottom_center", "bottom_right"]
+
+    options = []
+    for pos in range(6):
+        if pos not in taken:
+            options.append(SelectionOption(
+                label=f"{SHOP_PREFIX}.messages.positions.{position_keys[pos]}",
+                value=str(pos),
+            ))
+
+    return SelectionStep(
+        prompt=f"{SHOP_PREFIX}.messages.rearrange_party_select_position",
+        bindings={"species_name": species_name, "mon_0": "", "mon_1": "", "mon_2": "", "mon_3": "", "mon_4": "", "mon_5": ""},
+        options=options,
+        per_page=6,
+        on_select=_on_select_rearrange_position,
+    )
+
+
+async def _on_select_rearrange_position(value: str, purchase_ctx: ShopPurchaseContext):
+    session = purchase_ctx.session
+    mons = session.state["rearrange_mons"]
+    idx = session.state["rearrange_current_index"]
+    assignments = session.state["rearrange_assignments"]
+    taken = session.state["rearrange_taken_slots"]
+
+    new_slot = int(value)
+    orig_slot, _, _, _ = mons[idx]
+
+    assignments[orig_slot] = new_slot
+    taken.add(new_slot)
+
+    idx += 1
+    session.state["rearrange_current_index"] = idx
+
+    if idx >= len(mons):
+        return await _finalize_rearrange_party(purchase_ctx)
+
+    return _build_rearrange_step(purchase_ctx)
+
+
+async def _finalize_rearrange_party(purchase_ctx: ShopPurchaseContext):
+    platform = purchase_ctx.platform
+    user_id = purchase_ctx.user_id
+    session = purchase_ctx.session
+
+    assignments = session.state["rearrange_assignments"]
+    mons = session.state["rearrange_mons"]
+
+    async def on_success(purchase_ctx: ShopPurchaseContext):
+        try:
+            for slot in range(6):
+                state_manager.delete_user_preference(platform, user_id, f"pkpcrystal_trainer_card_mon_{slot}", commit=False)
+                state_manager.delete_user_preference(platform, user_id, f"pkpcrystal_trainer_card_mon_{slot}_species", commit=False)
+
+            for orig_slot, new_slot in assignments.items():
+                _, _, mon_hex, species_hex = next(m for m in mons if m[0] == orig_slot)
+                state_manager.set_user_preference(platform, user_id, f"pkpcrystal_trainer_card_mon_{new_slot}", mon_hex, commit=False)
+                if species_hex:
+                    state_manager.set_user_preference(platform, user_id, f"pkpcrystal_trainer_card_mon_{new_slot}_species", species_hex, commit=False)
+
+            state_manager.connection.commit()
+        except Exception:
+            state_manager.connection.rollback()
+            raise
+
+        return PurchaseComplete(success=True, success_message=f"{SHOP_PREFIX}.messages.rearrange_party_complete")
+
+    return await default_purchase_handler(purchase_ctx, on_success=on_success)
 
 
 async def teach_level_move_handler(purchase_ctx: ShopPurchaseContext):
@@ -1289,6 +1410,7 @@ register("PKPCRYSTAL", [
         items_per_row=1,
         items=[
             ShopItem("redeem_battle", f"{SHOP_PREFIX}.items.redeem_battle", 2500, {}, purchase_handler=redeem_battle_handler),
+            ShopItem("rearrange_party", f"{SHOP_PREFIX}.items.rearrange_party", 100, {}, purchase_handler=rearrange_party_handler),
             ShopItem("teach_level_move", f"{SHOP_PREFIX}.items.teach_level_move", 300, {}, purchase_handler=teach_level_move_handler),
             ShopItem("teach_tmhm_move", f"{SHOP_PREFIX}.items.teach_tmhm_move", 600, {}, purchase_handler=teach_tmhm_move_handler),
             ShopItem("teach_egg_move", f"{SHOP_PREFIX}.items.teach_egg_move", 900, {}, purchase_handler=teach_egg_move_handler),

@@ -27,4 +27,5 @@ POKECENTER_MAPS: set[tuple[int, int]] = {
     (26, 6),  # CHERRYGROVE_POKECENTER_1F      (group 26, map 6)
     (31, 8),  # SHAMOUTI_POKECENTER_1F         (group 31, map 8)
     (36, 5),  # SNOWTOP_POKECENTER_1F          (group 36, map 5)
+    (11, 24),  # GOLDENROD_POKECOM_CENTER_1F    (group 11, map 24)
 }

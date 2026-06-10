@@ -127,6 +127,7 @@ def begin_hooks(controller) -> dict:
             "RunBattleAnimScript.playframe": 0,
             "HealMachineAnim.party_loop": 0,
             "HealMachineAnim.palette_loop": 0,
+            "RunTradeAnimSequence.anim_loop": 0,
             "_total": 0
         }
     }
@@ -150,6 +151,7 @@ def begin_hooks(controller) -> dict:
         "_Pokedex_Search.joypad_loop": 10,
         "_Pokedex_Unown.joypad_loop": 10,
         "OptionsMenu.joypad_loop": 10,
+        "RunTradeAnimSequence.anim_loop": 5,
         "HealMachineAnim.party_loop": 10,
         "HealMachineAnim.palette_loop": 10,
     }

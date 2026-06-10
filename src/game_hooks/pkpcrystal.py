@@ -9,7 +9,7 @@ import logging
 from collections import defaultdict
 import random
 
-from src.game_utils.pkpcrystal.reader import symbol_read_u8, get_pokemon_name
+from src.game_utils.pkpcrystal.reader import symbol_read_u8, get_pokemon_name, combine_species_id
 from src.game_utils.pkpcrystal.charmap import encode_name, MON_NAME_LENGTH
 from src.game_utils.pkpcrystal.writer import (
     symbol_write_u8,
@@ -20,7 +20,7 @@ from src.game_utils.pkpcrystal.writer import (
     write_bytes,
     wramx_bank,
 )
-from src.game_utils.pkpcrystal.party_builder import PARTY_STRUCT_SIZE, B_SPECIES, P_LEVEL, P_HP, P_MAXHP, P_ATTACK
+from src.game_utils.pkpcrystal.party_builder import PARTY_STRUCT_SIZE, B_SPECIES, B_FORM, P_LEVEL, P_HP, P_MAXHP, P_ATTACK
 from src.game_utils.pkpcrystal.stat_recalc import recalc_pkmn_stats, compute_target_levels
 
 _battle_requests: dict[int, dict] = {}
@@ -318,6 +318,7 @@ def _register_battle_hooks(pyboy, chat_id):
                     write_bytes(pyboy, _bank, ot_addr, bytes([0x53] * OT_NAME_ENTRY_SIZE))
                     nick_addr = ot_nicks_base + i * MON_NAME_LENGTH
                     species = mon[B_SPECIES]
+                    species = combine_species_id(mon[B_SPECIES], mon[B_FORM])
                     species_name = get_pokemon_name(pyboy, species)
                     nickname_bytes = encode_name(species_name, max_len=MON_NAME_LENGTH)
                     write_bytes(pyboy, _bank, nick_addr, bytes(nickname_bytes))

@@ -1,6 +1,6 @@
 from src.game_utils.pkpcrystal.party_builder import (
     PARTY_STRUCT_SIZE, P_SPECIES, P_DVS, P_DVS_LEN, P_EVS, P_EVS_LEN,
-    P_NATURE, P_LEVEL, P_STATUS,
+    P_NATURE, P_FORM, P_LEVEL, P_STATUS,
     P_HP, P_HP_LEN, P_MAXHP, P_MAXHP_LEN,
     P_ATTACK, P_DEFENSE, P_SPEED, P_SPATK, P_SPDEF,
 )
@@ -99,7 +99,8 @@ def get_trainer_card_recalc_levels(pyboy, mon_slots: list[tuple[int, bytes]]) ->
 
 
 def recalc_pkmn_stats(pyboy, party_mon, target_level):
-    species_id = party_mon[P_SPECIES]
+    from src.game_utils.pkpcrystal.reader import combine_species_id
+    species_id = combine_species_id(party_mon[P_SPECIES], party_mon[P_FORM])
     base_stats = _read_base_stats(pyboy, species_id)
     dvs = list(party_mon[P_DVS:P_DVS + P_DVS_LEN])
     nature = party_mon[P_NATURE] & 0x1F

@@ -13,9 +13,10 @@ from src.utils.frame_utils import draw_text_to_fit
 from src.game_utils.pkpcrystal.enum import BattleMode, GrowthRate, EXP_PER_LEVEL
 from src.game_utils.pkpcrystal.reader import (
     symbol_read_u8, symbol_read_u16le, symbol_read_u24le,
-    read_u8, read_u16, get_nth_string_addr, decode_text, get_pokemon_name, get_trainer_class_name
+    read_u8, read_u16, get_nth_string_addr, decode_text, get_pokemon_name, get_trainer_class_name,
+    combine_species_id,
 )
-from src.game_utils.pkpcrystal.assets import load_pokemon_asset
+from src.game_utils.pkpcrystal.assets import load_pokemon_asset, init_form_lookup
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +91,8 @@ def init(pyboy) -> None:
 
         pixels = _extract_trainer_pic(pyboy, trainer_bank, trainer_addr)
         _save_trainer_pic(pixels, palette, out_path=out_path)
+
+    init_form_lookup(pyboy)
 
 
 def _read_mini_palette(pyboy, pokemon_index: int) -> list[tuple[int, int, int, int]]:
@@ -358,12 +361,13 @@ def render_party(img: Image.Image, party: list[dict], scale: int):
     for i, pokemon in enumerate(party):
         is_egg = pokemon["is_egg"]
         species = 255 if is_egg else pokemon["species"]
+        form_byte = pokemon.get("form_byte", 0)
 
         if species == 0:
             continue
 
         x = start_x + i * (22 * scale)
-        asset = load_pokemon_asset(species)
+        asset = load_pokemon_asset(species, form_byte)
 
         if asset:
             resized_asset = asset.resize((10 * scale, 10 * scale), resample=Image.Resampling.LANCZOS)
@@ -529,27 +533,29 @@ def get_status_bar_data(pyboy) -> dict[str, Any]:
         if species == 0:
             continue
         
-        growth_rate = _get_growth_rate(pyboy, species)
+        gender_is_egg_ext_species_form = symbol_read_u8(pyboy, f"wPartyMon{i}ExtSpecies")
+        gender = gender_is_egg_ext_species_form & 0b10000000
+        is_egg = gender_is_egg_ext_species_form & 0b01000000
+        # ext_species = gender_is_egg_ext_species_form & 0b00100000
+        form = gender_is_egg_ext_species_form & 0b00011111
+        # logger.info(f"#{i}: Gender = {gender} | Is egg? {is_egg} | Ext species {ext_species} | Form {form}")
+        
+        combined_species = combine_species_id(symbol_read_u8(pyboy, f"wPartyMon{i}Species"), gender_is_egg_ext_species_form)
+
+        growth_rate = _get_growth_rate(pyboy, combined_species)
         total_exp = symbol_read_u24le(pyboy, f"wPartyMon{i}Exp")
         current_level = _get_level_from_exp(growth_rate, total_exp)
         current_level_exp = EXP_PER_LEVEL[growth_rate][current_level - 1] if current_level > 1 else 0
         next_level_at = EXP_PER_LEVEL[growth_rate][current_level] if current_level < 100 else total_exp
         total_level_exp = next_level_at - current_level_exp
         exp_percent = (total_exp - current_level_exp) / max(total_level_exp, 1)
-        
-        gender_is_egg_ext_species_form = symbol_read_u8(pyboy, f"wPartyMon{i}ExtSpecies")
-        gender = gender_is_egg_ext_species_form & 0b10000000
-        is_egg = gender_is_egg_ext_species_form & 0b01000000
-        ext_species = gender_is_egg_ext_species_form & 0b00100000
-        form = gender_is_egg_ext_species_form & 0b00011111
-        # logger.info(f"#{i}: Gender = {gender} | Is egg? {is_egg} | Ext species {ext_species} | Form {form}")
 
         party.append({
-            "species": symbol_read_u8(pyboy, f"wPartyMon{i}Species"),
-            "ext_species": ext_species,
+            "species": combined_species,
             "is_egg": is_egg,
             "gender": gender,
             "form": form,
+            "form_byte": gender_is_egg_ext_species_form,
             "hp": symbol_read_u16le(pyboy, f"wPartyMon{i}HP"),
             "max_hp": symbol_read_u16le(pyboy, f"wPartyMon{i}MaxHP"),
             "item": symbol_read_u8(pyboy, f"wPartyMon{i}Item"),
@@ -613,7 +619,9 @@ def _get_battle_data(pyboy):
     # logger.debug(f"Battle Mode: {mode}")
     
     if BattleMode(mode) == BattleMode.WILD:
-        temp_enemy_mon_species = symbol_read_u8(pyboy, "wTempEnemyMonSpecies")
+        temp_enemy_mon_species_lo = symbol_read_u8(pyboy, "wTempEnemyMonSpecies")
+        temp_enemy_mon_species_hi = symbol_read_u8(pyboy, "wTempEnemyMonForm")
+        temp_enemy_mon_species = combine_species_id(temp_enemy_mon_species_lo, temp_enemy_mon_species_hi)
         # logger.debug(f"Temp Enemy Mon Species: {temp_enemy_mon_species}")
 
         pokemon_name = get_pokemon_name(pyboy, temp_enemy_mon_species)

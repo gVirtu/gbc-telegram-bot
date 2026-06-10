@@ -23,6 +23,7 @@ from src.game_utils.pkpcrystal.reader import (
     get_pokemon_name, get_pokemon_catch_rate, get_trainer_class_name_raw,
     get_item_name, get_move_name, get_ability_name, get_nature_name,
     get_species_abilities, get_species_learnset, get_species_tmhm_moves, get_species_egg_moves, is_species_genderless,
+    combine_species_id,
     read_party_mon_species, read_party_mon_level, read_party_mon_item,
     read_party_mon_moves, read_party_mon_evs, read_party_mon_personality,
     get_party_mon_nickname,
@@ -163,7 +164,9 @@ async def capture_mon_handler(purchase_ctx: ShopPurchaseContext):
         if mon_data == enemy_mon_data:
             return PurchaseComplete(success=False, error_message=f"{SHOP_PREFIX}.errors.enemy_mon_already_caught")
 
-    enemy_mon_species = symbol_read_u8(pyboy, "wEnemyMonSpecies")
+    enemy_mon_species_lo = symbol_read_u8(pyboy, "wEnemyMonSpecies")
+    enemy_mon_species_hi = symbol_read_u8(pyboy, "wEnemyMonExtSpecies")
+    enemy_mon_species = combine_species_id(enemy_mon_species_lo, enemy_mon_species_hi)
     enemy_mon_species_name = get_pokemon_name(pyboy, enemy_mon_species)
     enemy_mon_catch_rate = get_pokemon_catch_rate(pyboy, enemy_mon_species) # symbol_read_u8(pyboy, "wEnemyMonCatchRate")
     enemy_mon_hp = symbol_read_u16le(pyboy, "wEnemyMonHP")
@@ -373,7 +376,7 @@ async def rearrange_party_handler(purchase_ctx: ShopPurchaseContext):
             continue
 
         species_hex = state_manager.get_user_preference(platform, user_id, f"pkpcrystal_trainer_card_mon_{slot}_species")
-        species_id = int(species_hex) if species_hex else raw[0]
+        species_id = int(species_hex) if species_hex else combine_species_id(raw[0], raw[10])
         species_name = get_pokemon_name(pyboy, species_id)
         mon_slots.append((slot, species_name, mon_hex, species_hex))
 
@@ -507,7 +510,8 @@ async def teach_level_move_handler(purchase_ctx: ShopPurchaseContext):
 
     options = []
     for slot, raw in mon_slots:
-        species_name = get_pokemon_name(pyboy, raw[0])
+        combined_species = combine_species_id(raw[0], raw[10])
+        species_name = get_pokemon_name(pyboy, combined_species)
         level = recalc_levels[slot]
         options.append(SelectionOption(
             label=f"{species_name} Lv.{level}",
@@ -534,7 +538,7 @@ async def _on_select_teach_mon(value: str, purchase_ctx: ShopPurchaseContext):
 
     mon_hex = state_manager.get_user_preference(platform, user_id, f"pkpcrystal_trainer_card_mon_{slot}")
     raw = bytes.fromhex(mon_hex)
-    species_id = raw[0]
+    species_id = combine_species_id(raw[0], raw[10])
     recalc_levels = session.state.get("teach_recalc_levels", {})
     level = recalc_levels.get(slot, raw[16])
     current_move_ids = [raw[2], raw[3], raw[4], raw[5]]
@@ -712,7 +716,8 @@ async def teach_tmhm_move_handler(purchase_ctx: ShopPurchaseContext):
 
     options = []
     for slot, raw in mon_slots:
-        species_name = get_pokemon_name(pyboy, raw[0])
+        combined_species = combine_species_id(raw[0], raw[10])
+        species_name = get_pokemon_name(pyboy, combined_species)
         level = recalc_levels[slot]
         options.append(SelectionOption(
             label=f"{species_name} Lv.{level}",
@@ -742,7 +747,7 @@ async def _on_select_tmhm_mon(value: str, purchase_ctx: ShopPurchaseContext):
 
     mon_hex = state_manager.get_user_preference(platform, user_id, f"pkpcrystal_trainer_card_mon_{slot}")
     raw = bytes.fromhex(mon_hex)
-    species_id = raw[0]
+    species_id = combine_species_id(raw[0], raw[10])
     current_move_ids = [raw[2], raw[3], raw[4], raw[5]]
 
     species_name = get_pokemon_name(pyboy, species_id)
@@ -837,7 +842,8 @@ async def teach_egg_move_handler(purchase_ctx: ShopPurchaseContext):
 
     options = []
     for slot, raw in mon_slots:
-        species_name = get_pokemon_name(pyboy, raw[0])
+        combined_species = combine_species_id(raw[0], raw[10])
+        species_name = get_pokemon_name(pyboy, combined_species)
         level = recalc_levels[slot]
         options.append(SelectionOption(
             label=f"{species_name} Lv.{level}",
@@ -867,7 +873,7 @@ async def _on_select_egg_mon(value: str, purchase_ctx: ShopPurchaseContext):
 
     mon_hex = state_manager.get_user_preference(platform, user_id, f"pkpcrystal_trainer_card_mon_{slot}")
     raw = bytes.fromhex(mon_hex)
-    species_id = raw[0]
+    species_id = combine_species_id(raw[0], raw[10])
     current_move_ids = [raw[2], raw[3], raw[4], raw[5]]
 
     species_name = get_pokemon_name(pyboy, species_id)

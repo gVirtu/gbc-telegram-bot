@@ -117,8 +117,14 @@ HIDDEN_ABILITY = 0x60
 NATURE_MASK = 0x1F
 GENDER_MASK = 0x80
 IS_EGG_MASK = 0x40
+EXTSPECIES_MASK = 0x20
+MON_EXTSPECIES_F = 5
 GENDER_MALE = 0x00
 GENDER_FEMALE = 0x80
+
+
+def combine_species_id(species_lo: int, personality_byte_2: int) -> int:
+    return species_lo | (((personality_byte_2 >> MON_EXTSPECIES_F) & 1) << 8)
 
 
 def get_item_name(pyboy, item_id):
@@ -242,7 +248,9 @@ def _party_mon_addr(pyboy, slot):
 
 
 def read_party_mon_species(pyboy, slot):
-    return symbol_read_u8(pyboy, f"wPartyMon{slot}Species")
+    lo = symbol_read_u8(pyboy, f"wPartyMon{slot}Species")
+    ext_byte = symbol_read_u8(pyboy, f"wPartyMon{slot}ExtSpecies")
+    return combine_species_id(lo, ext_byte)
 
 
 def read_party_mon_level(pyboy, slot):
@@ -279,13 +287,17 @@ def get_party_mon_nickname(pyboy, slot):
 # ── Byte-level party struct parsing ──────────────────────────────
 
 def parse_party_struct(data: bytes):
+    p2 = read_u8_from_bytes(data, PARTYMON_STRUCT_LENGTH, P_PERSONALITY + 1)
     return {
-        "species_id": read_u8_from_bytes(data, PARTYMON_STRUCT_LENGTH, 0),
+        "species_id": combine_species_id(
+            read_u8_from_bytes(data, PARTYMON_STRUCT_LENGTH, 0),
+            p2,
+        ),
         "item_id": read_u8_from_bytes(data, PARTYMON_STRUCT_LENGTH, P_ITEM),
         "move_ids": [data[P_MOVES + i] for i in range(4)],
         "personality": (
             read_u8_from_bytes(data, PARTYMON_STRUCT_LENGTH, P_PERSONALITY),
-            read_u8_from_bytes(data, PARTYMON_STRUCT_LENGTH, P_PERSONALITY + 1),
+            p2,
         ),
         "level": read_u8_from_bytes(data, PARTYMON_STRUCT_LENGTH, P_LEVEL),
         "evs": [read_u8_from_bytes(data, PARTYMON_STRUCT_LENGTH, P_EVS + i) for i in range(6)],
@@ -418,11 +430,12 @@ def read_box_mon_raw(pyboy, box_index: int, slot: int) -> dict | None:
 
     sram_bank, addr = _get_savemon_addr(pyboy, pokedb_index - 1, bank_group)
 
-    species_id = pyboy.memory[(sram_bank, addr + S_SPECIES)]
+    species_lo = pyboy.memory[(sram_bank, addr + S_SPECIES)]
     item_id = pyboy.memory[(sram_bank, addr + S_ITEM)]
     move_ids = [pyboy.memory[(sram_bank, addr + S_MOVES + i)] for i in range(4)]
     p1 = pyboy.memory[(sram_bank, addr + S_PERSONALITY)]
     p2 = pyboy.memory[(sram_bank, addr + S_PERSONALITY + 1)]
+    species_id = combine_species_id(species_lo, p2)
     level = pyboy.memory[(sram_bank, addr + S_LEVEL)]
     evs_raw = [pyboy.memory[(sram_bank, addr + S_EVS + i)] for i in range(6)]
     nickname = decode_savemon_text(pyboy, sram_bank, addr + S_NICKNAME, max_len=10)
